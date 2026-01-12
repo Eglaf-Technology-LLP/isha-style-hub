@@ -6,13 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,14 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { 
   Package, 
   Plus, 
@@ -38,27 +23,35 @@ import {
   Loader2,
   Upload,
   X,
-  Edit,
   Trash2,
   Eye,
   ShoppingCart,
-  Image as ImageIcon
+  Tag,
+  Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useCategories, Category } from "@/hooks/useCategories";
-import { useOrders, Order } from "@/hooks/useOrders";
-import { fetchProducts, ShopifyProduct } from "@/lib/shopify";
-import { useQuery } from "@tanstack/react-query";
+import { useOrders } from "@/hooks/useOrders";
+import { useProducts } from "@/hooks/useProducts";
+import { useDiscounts } from "@/hooks/useDiscounts";
+import { usePayments } from "@/hooks/usePayments";
+import { ProductManagement } from "@/components/admin/ProductManagement";
+import { DiscountManagement } from "@/components/admin/DiscountManagement";
+import { PaymentManagement } from "@/components/admin/PaymentManagement";
+import { OrderManagement } from "@/components/admin/OrderManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
   const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const { categories, loading: categoriesLoading, addCategory, deleteCategory } = useCategories();
-  const { orders, loading: ordersLoading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
+  const { orders, loading: ordersLoading } = useOrders(isAdmin);
+  const { products, loading: productsLoading } = useProducts();
+  const { discounts } = useDiscounts();
+  const { getPaymentStats } = usePayments(isAdmin);
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
   const [isSignUp, setIsSignUp] = useState(false);
@@ -71,12 +64,7 @@ export default function Admin() {
   const [categoryImagePreview, setCategoryImagePreview] = useState<string | null>(null);
   const categoryImageRef = useRef<HTMLInputElement>(null);
 
-  // Fetch Shopify products
-  const { data: shopifyProducts = [], isLoading: productsLoading } = useQuery({
-    queryKey: ['admin-shopify-products'],
-    queryFn: () => fetchProducts(50),
-    enabled: isAdmin,
-  });
+  const paymentStats = getPaymentStats();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,28 +118,6 @@ export default function Admin() {
       setCategoryImage(null);
       setCategoryImagePreview(null);
       setIsAddingCategory(false);
-    }
-  };
-
-  const getOrderStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'secondary';
-      case 'confirmed': return 'default';
-      case 'processing': return 'default';
-      case 'shipped': return 'default';
-      case 'delivered': return 'default';
-      case 'cancelled': return 'destructive';
-      default: return 'secondary';
-    }
-  };
-
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'default';
-      case 'pending': return 'secondary';
-      case 'failed': return 'destructive';
-      case 'refunded': return 'secondary';
-      default: return 'secondary';
     }
   };
 
@@ -293,22 +259,30 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-xl grid-cols-4">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
+          <TabsList className="grid w-full max-w-2xl grid-cols-6">
+            <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center gap-2">
+            <TabsTrigger value="products" className="flex items-center gap-1">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Products</span>
             </TabsTrigger>
-            <TabsTrigger value="categories" className="flex items-center gap-2">
+            <TabsTrigger value="categories" className="flex items-center gap-1">
               <FolderOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Categories</span>
             </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2">
+            <TabsTrigger value="orders" className="flex items-center gap-1">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
+            </TabsTrigger>
+            <TabsTrigger value="discounts" className="flex items-center gap-1">
+              <Tag className="h-4 w-4" />
+              <span className="hidden sm:inline">Discounts</span>
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex items-center gap-1">
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline">Payments</span>
             </TabsTrigger>
           </TabsList>
 
@@ -321,7 +295,7 @@ export default function Admin() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-4xl font-bold text-primary">
-                    {productsLoading ? '...' : shopifyProducts.length}
+                    {productsLoading ? '...' : products.length}
                   </p>
                 </CardContent>
               </Card>
@@ -347,94 +321,43 @@ export default function Admin() {
               </Card>
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Pending Orders</CardTitle>
+                  <CardTitle className="text-lg">Revenue</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-4xl font-bold text-primary">
-                    {ordersLoading ? '...' : orders.filter(o => o.order_status === 'pending').length}
+                    ₹{paymentStats.totalReceived.toFixed(0)}
                   </p>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Getting Started</CardTitle>
-                <CardDescription>
-                  To add products, tell me in the chat what products you'd like to add. 
-                  I'll create them directly in your Shopify store with all details!
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Example: "Add a blue cotton shirt for ₹1299 with sizes S, M, L, XL"
-                </p>
-              </CardContent>
-            </Card>
+            <div className="grid md:grid-cols-2 gap-6 mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pending Orders</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {ordersLoading ? '...' : orders.filter(o => o.order_status === 'pending').length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Active Discounts</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {discounts.filter(d => d.is_active).length}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Products Tab */}
           <TabsContent value="products">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Products</CardTitle>
-                  <CardDescription>Products are managed through Shopify. Ask me in chat to add new products!</CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {productsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : shopifyProducts.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No products yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Ask me in the chat to create products for you!
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {shopifyProducts.map((product: ShopifyProduct) => (
-                      <div
-                        key={product.node.id}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg"
-                      >
-                        <div className="flex items-center gap-4">
-                          {product.node.images.edges[0] ? (
-                            <img 
-                              src={product.node.images.edges[0].node.url} 
-                              alt={product.node.title}
-                              className="w-16 h-16 object-cover rounded-lg"
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
-                              <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                            </div>
-                          )}
-                          <div>
-                            <h4 className="font-medium">{product.node.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {product.node.productType || 'Uncategorized'} • ₹{parseFloat(product.node.priceRange.minVariantPrice.amount).toFixed(0)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="default">Active</Badge>
-                          <Link to={`/product/${product.node.handle}`}>
-                            <Button variant="ghost" size="icon">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <ProductManagement categories={categories} />
           </TabsContent>
 
           {/* Categories Tab */}
@@ -588,101 +511,17 @@ export default function Admin() {
 
           {/* Orders Tab */}
           <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Orders</CardTitle>
-                <CardDescription>Manage customer orders</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {ordersLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : orders.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No orders yet</h3>
-                    <p className="text-muted-foreground">
-                      Orders will appear here when customers make purchases
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead>Customer</TableHead>
-                          <TableHead>Items</TableHead>
-                          <TableHead>Total</TableHead>
-                          <TableHead>Payment</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orders.map((order: Order) => (
-                          <TableRow key={order.id}>
-                            <TableCell className="font-mono text-sm">
-                              {order.id.slice(0, 8)}...
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">{order.customer_name}</p>
-                                <p className="text-sm text-muted-foreground">{order.customer_email}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {order.order_items?.length || 0} items
-                            </TableCell>
-                            <TableCell>₹{order.total.toFixed(2)}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-1">
-                                <Badge variant={getPaymentStatusColor(order.payment_status) as any}>
-                                  {order.payment_status}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground uppercase">
-                                  {order.payment_method}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={order.order_status}
-                                onValueChange={(value) => updateOrderStatus(order.id, value as Order['order_status'])}
-                              >
-                                <SelectTrigger className="w-32">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">Pending</SelectItem>
-                                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                                  <SelectItem value="processing">Processing</SelectItem>
-                                  <SelectItem value="shipped">Shipped</SelectItem>
-                                  <SelectItem value="delivered">Delivered</SelectItem>
-                                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              {order.payment_method === 'cod' && order.payment_status === 'pending' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => updatePaymentStatus(order.id, 'paid')}
-                                >
-                                  Mark Paid
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <OrderManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* Discounts Tab */}
+          <TabsContent value="discounts">
+            <DiscountManagement />
+          </TabsContent>
+
+          {/* Payments Tab */}
+          <TabsContent value="payments">
+            <PaymentManagement isAdmin={isAdmin} />
           </TabsContent>
         </Tabs>
       </div>
