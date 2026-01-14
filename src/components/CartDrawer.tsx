@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,19 +10,16 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { ShoppingCart, Minus, Plus, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { ShoppingCart, Minus, Plus, Trash2, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
-import { formatPrice } from "@/lib/shopify";
-import { toast } from "sonner";
 
 export function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
   const { 
     items, 
-    isLoading, 
     updateQuantity, 
     removeItem, 
-    createCheckout,
     getTotalItems,
     getTotalPrice
   } = useCartStore();
@@ -29,19 +27,9 @@ export function CartDrawer() {
   const totalItems = getTotalItems();
   const totalPrice = getTotalPrice();
 
-  const handleCheckout = async () => {
-    try {
-      const checkoutUrl = await createCheckout();
-      if (checkoutUrl) {
-        window.open(checkoutUrl, '_blank');
-        setIsOpen(false);
-      } else {
-        toast.error("Failed to create checkout. Please try again.");
-      }
-    } catch (error) {
-      console.error('Checkout failed:', error);
-      toast.error("Checkout failed. Please try again.");
-    }
+  const handleCheckout = () => {
+    setIsOpen(false);
+    navigate("/checkout");
   };
 
   return (
@@ -97,7 +85,7 @@ export function CartDrawer() {
                           {item.selectedOptions.map(option => option.value).join(' • ')}
                         </p>
                         <p className="font-semibold text-primary mt-2">
-                          {formatPrice(item.price.amount, item.price.currencyCode)}
+                          ₹{parseFloat(item.price.amount).toFixed(0)}
                         </p>
                       </div>
                       
@@ -141,7 +129,7 @@ export function CartDrawer() {
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-medium">Subtotal</span>
                   <span className="text-xl font-bold text-primary">
-                    {formatPrice(totalPrice.toString(), items[0]?.price.currencyCode || 'INR')}
+                    ₹{totalPrice.toFixed(0)}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground">Shipping & taxes calculated at checkout</p>
@@ -150,19 +138,10 @@ export function CartDrawer() {
                   onClick={handleCheckout}
                   className="w-full" 
                   size="lg"
-                  disabled={items.length === 0 || isLoading}
+                  disabled={items.length === 0}
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating Checkout...
-                    </>
-                  ) : (
-                    <>
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      Proceed to Checkout
-                    </>
-                  )}
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  Proceed to Checkout
                 </Button>
               </div>
             </>
