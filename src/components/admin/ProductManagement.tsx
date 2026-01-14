@@ -173,26 +173,28 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     );
   }
 
-  const ProductFormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
+  const renderFormFields = (isEdit: boolean = false) => (
     <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-2">
-        <Label>Product Name *</Label>
+        <Label htmlFor={isEdit ? "edit-name" : "add-name"}>Product Name *</Label>
         <Input
+          id={isEdit ? "edit-name" : "add-name"}
           placeholder="e.g., Cotton Summer Dress"
           value={productForm.name}
           onChange={(e) =>
-            setProductForm({ ...productForm, name: e.target.value })
+            setProductForm((prev) => ({ ...prev, name: e.target.value }))
           }
         />
       </div>
 
       <div className="space-y-2">
-        <Label>Description</Label>
+        <Label htmlFor={isEdit ? "edit-desc" : "add-desc"}>Description</Label>
         <Textarea
+          id={isEdit ? "edit-desc" : "add-desc"}
           placeholder="Describe this product..."
           value={productForm.description}
           onChange={(e) =>
-            setProductForm({ ...productForm, description: e.target.value })
+            setProductForm((prev) => ({ ...prev, description: e.target.value }))
           }
           rows={3}
         />
@@ -200,34 +202,38 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Price (₹) *</Label>
+          <Label htmlFor={isEdit ? "edit-price" : "add-price"}>Price (₹) *</Label>
           <Input
+            id={isEdit ? "edit-price" : "add-price"}
             type="number"
             min="0"
             step="0.01"
             placeholder="999"
             value={productForm.price || ""}
             onChange={(e) =>
-              setProductForm({
-                ...productForm,
+              setProductForm((prev) => ({
+                ...prev,
                 price: parseFloat(e.target.value) || 0,
-              })
+              }))
             }
           />
         </div>
         <div className="space-y-2">
-          <Label>Compare at Price (₹)</Label>
+          <Label htmlFor={isEdit ? "edit-compare" : "add-compare"}>
+            Compare at Price (₹)
+          </Label>
           <Input
+            id={isEdit ? "edit-compare" : "add-compare"}
             type="number"
             min="0"
             step="0.01"
             placeholder="1499"
             value={productForm.compare_at_price || ""}
             onChange={(e) =>
-              setProductForm({
-                ...productForm,
+              setProductForm((prev) => ({
+                ...prev,
                 compare_at_price: parseFloat(e.target.value) || null,
-              })
+              }))
             }
           />
         </div>
@@ -235,27 +241,31 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>SKU</Label>
+          <Label htmlFor={isEdit ? "edit-sku" : "add-sku"}>SKU</Label>
           <Input
+            id={isEdit ? "edit-sku" : "add-sku"}
             placeholder="SKU-001"
             value={productForm.sku}
             onChange={(e) =>
-              setProductForm({ ...productForm, sku: e.target.value })
+              setProductForm((prev) => ({ ...prev, sku: e.target.value }))
             }
           />
         </div>
         <div className="space-y-2">
-          <Label>Stock Quantity</Label>
+          <Label htmlFor={isEdit ? "edit-stock" : "add-stock"}>
+            Stock Quantity
+          </Label>
           <Input
+            id={isEdit ? "edit-stock" : "add-stock"}
             type="number"
             min="0"
             placeholder="100"
             value={productForm.stock_quantity || ""}
             onChange={(e) =>
-              setProductForm({
-                ...productForm,
+              setProductForm((prev) => ({
+                ...prev,
                 stock_quantity: parseInt(e.target.value) || 0,
-              })
+              }))
             }
           />
         </div>
@@ -266,10 +276,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         <Select
           value={productForm.category_id || "none"}
           onValueChange={(value) =>
-            setProductForm({
-              ...productForm,
+            setProductForm((prev) => ({
+              ...prev,
               category_id: value === "none" ? null : value,
-            })
+            }))
           }
         >
           <SelectTrigger>
@@ -291,7 +301,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         <Switch
           checked={productForm.is_active}
           onCheckedChange={(checked) =>
-            setProductForm({ ...productForm, is_active: checked })
+            setProductForm((prev) => ({ ...prev, is_active: checked }))
           }
         />
       </div>
@@ -357,9 +367,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
         >
           <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Click to upload images
-          </p>
+          <p className="text-sm text-muted-foreground">Click to upload images</p>
         </div>
       </div>
 
@@ -368,7 +376,11 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           variant="outline"
           onClick={() => {
             resetForm();
-            isEdit ? setEditingProduct(null) : setIsAddingProduct(false);
+            if (isEdit) {
+              setEditingProduct(null);
+            } else {
+              setIsAddingProduct(false);
+            }
           }}
         >
           Cancel
@@ -407,7 +419,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                 Create a new product in your store
               </DialogDescription>
             </DialogHeader>
-            <ProductFormContent />
+            {renderFormFields(false)}
           </DialogContent>
         </Dialog>
       </div>
@@ -494,7 +506,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                           Update product details
                         </DialogDescription>
                       </DialogHeader>
-                      <ProductFormContent isEdit />
+                      {renderFormFields(true)}
                     </DialogContent>
                   </Dialog>
                   <Link to={`/product/${product.id}`}>

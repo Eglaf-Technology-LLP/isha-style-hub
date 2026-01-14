@@ -6,31 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Minus, 
-  Plus, 
-  ShoppingBag, 
-  Heart, 
-  Share2, 
-  Truck, 
-  RotateCcw, 
-  ChevronLeft, 
+import {
+  Minus,
+  Plus,
+  ShoppingBag,
+  Heart,
+  Share2,
+  Truck,
+  RotateCcw,
+  ChevronLeft,
   ChevronRight,
-  Ruler,
-  Loader2
+  Loader2,
 } from "lucide-react";
-import { fetchProductByHandle, formatPrice } from "@/lib/shopify";
+import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
+import { Product, ProductVariant } from "@/hooks/useProducts";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
-  const [product, setProduct] = useState<any>(null);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
-  
+
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
@@ -38,19 +38,36 @@ export default function ProductDetail() {
       if (!handle) return;
       setLoading(true);
       try {
-        const data = await fetchProductByHandle(handle);
-        setProduct(data);
-        
-        // Initialize selected options with first values
-        if (data?.options) {
-          const initialOptions: Record<string, string> = {};
-          data.options.forEach((opt: any) => {
-            initialOptions[opt.name] = opt.values[0];
-          });
-          setSelectedOptions(initialOptions);
+        const { data, error } = await supabase
+          .from("products")
+          .select("*")
+          .eq("id", handle)
+          .single();
+
+        if (error) throw error;
+
+        const typedProduct: Product = {
+          ...data,
+          images: (data.images as string[]) || [],
+          variants: (data.variants as unknown as ProductVariant[]) || [],
+        };
+
+        setProduct(typedProduct);
+
+        // Fetch category if exists
+        if (data.category_id) {
+          const { data: catData } = await supabase
+            .from("categories")
+            .select("name, slug")
+            .eq("id", data.category_id)
+            .single();
+
+          if (catData) {
+            setCategory(catData);
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch product:', error);
+        console.error("Failed to fetch product:", error);
       } finally {
         setLoading(false);
       }
@@ -58,39 +75,69 @@ export default function ProductDetail() {
     loadProduct();
   }, [handle]);
 
-  const getSelectedVariant = () => {
-    if (!product?.variants?.edges) return null;
-    
-    return product.variants.edges.find((variant: any) => {
-      return variant.node.selectedOptions.every((opt: any) => 
-        selectedOptions[opt.name] === opt.value
-      );
-    });
-  };
-
-  const selectedVariant = getSelectedVariant();
-
   const handleAddToCart = () => {
-    if (!selectedVariant || !product) {
-      toast.error("Please select all options");
+    if (!product) {
+      toast.error("Product not available");
       return;
     }
 
-    const productWrapper = {
-      node: product
-    };
-
     addItem({
-      product: productWrapper,
-      variantId: selectedVariant.node.id,
-      variantTitle: selectedVariant.node.title,
-      price: selectedVariant.node.price,
+      product: {
+        node: {
+          id: product.id,
+          title: product.name,
+          handle: product.id,
+          vendor: "Isha Fashion Hub",
+          description: product.description || "",
+          descriptionHtml: product.description || "",
+          productType: category?.name || "",
+          tags: [],
+          priceRange: {
+            minVariantPrice: {
+              amount: product.price.toString(),
+              currencyCode: "INR",
+            },
+            maxVariantPrice: {
+              amount: product.price.toString(),
+              currencyCode: "INR",
+            },
+          },
+          images: {
+            edges: product.images.map((img) => ({
+              node: { url: img, altText: product.name },
+            })),
+          },
+          options: [],
+          variants: {
+            edges: [
+              {
+                node: {
+                  id: `${product.id}-default`,
+                  title: "Default",
+                  price: {
+                    amount: product.price.toString(),
+                    currencyCode: "INR",
+                  },
+                  availableForSale: product.stock_quantity > 0,
+                  selectedOptions: [],
+                },
+              },
+            ],
+          },
+        },
+      },
+      variantId: `${product.id}-default`,
+      variantTitle: "Default",
+      price: {
+        amount: product.price.toString(),
+        currencyCode: "INR",
+      },
       quantity,
-      selectedOptions: selectedVariant.node.selectedOptions,
+      selectedOptions: [],
     });
 
     toast.success("Added to cart!", {
-      description: `${product.title} x ${quantity}`,
+      description: `${product.name} x ${quantity}`,
       position: "top-center",
     });
   };
@@ -122,23 +169,33 @@ export default function ProductDetail() {
     );
   }
 
-  const images = product.images?.edges || [];
-  const price = selectedVariant?.node?.price || product.priceRange?.minVariantPrice;
+  const images = product.images || [];
+  const hasDiscount =
+    product.compare_at_price && product.compare_at_price > product.price;
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       {/* Breadcrumb */}
       <div className="container mx-auto px-4 py-4">
         <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-primary">Home</Link>
-          <span>/</span>
-          <Link to={`/category/${product.productType?.toLowerCase() || 'all'}`} className="hover:text-primary">
-            {product.productType || 'Products'}
+          <Link to="/" className="hover:text-primary">
+            Home
           </Link>
           <span>/</span>
-          <span className="text-foreground">{product.title}</span>
+          {category ? (
+            <>
+              <Link
+                to={`/category/${category.slug}`}
+                className="hover:text-primary"
+              >
+                {category.name}
+              </Link>
+              <span>/</span>
+            </>
+          ) : null}
+          <span className="text-foreground">{product.name}</span>
         </nav>
       </div>
 
@@ -148,10 +205,10 @@ export default function ProductDetail() {
           <div className="space-y-4">
             {/* Main Image */}
             <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted">
-              {images[selectedImage]?.node ? (
+              {images[selectedImage] ? (
                 <img
-                  src={images[selectedImage].node.url}
-                  alt={images[selectedImage].node.altText || product.title}
+                  src={images[selectedImage]}
+                  alt={product.name}
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -159,18 +216,26 @@ export default function ProductDetail() {
                   <ShoppingBag className="h-16 w-16 text-muted-foreground" />
                 </div>
               )}
-              
+
               {/* Navigation Arrows */}
               {images.length > 1 && (
                 <>
                   <button
-                    onClick={() => setSelectedImage(prev => prev === 0 ? images.length - 1 : prev - 1)}
+                    onClick={() =>
+                      setSelectedImage((prev) =>
+                        prev === 0 ? images.length - 1 : prev - 1
+                      )
+                    }
                     className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-card/80 backdrop-blur-sm hover:bg-card transition-colors"
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => setSelectedImage(prev => prev === images.length - 1 ? 0 : prev + 1)}
+                    onClick={() =>
+                      setSelectedImage((prev) =>
+                        prev === images.length - 1 ? 0 : prev + 1
+                      )
+                    }
                     className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-card/80 backdrop-blur-sm hover:bg-card transition-colors"
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -182,17 +247,19 @@ export default function ProductDetail() {
             {/* Thumbnails */}
             {images.length > 1 && (
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {images.map((image: any, index: number) => (
+                {images.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedImage(index)}
                     className={`flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden border-2 transition-colors ${
-                      selectedImage === index ? 'border-primary' : 'border-transparent'
+                      selectedImage === index
+                        ? "border-primary"
+                        : "border-transparent"
                     }`}
                   >
                     <img
-                      src={image.node.url}
-                      alt={image.node.altText || `${product.title} - Image ${index + 1}`}
+                      src={image}
+                      alt={`${product.name} - Image ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -206,73 +273,34 @@ export default function ProductDetail() {
             {/* Brand & Title */}
             <div>
               <p className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
-                {product.vendor || 'Isha Fashion Hub'}
+                Isha Fashion Hub
               </p>
-              <h1 className="text-3xl md:text-4xl font-serif font-bold">{product.title}</h1>
+              <h1 className="text-3xl md:text-4xl font-serif font-bold">
+                {product.name}
+              </h1>
             </div>
 
             {/* Price */}
             <div className="flex items-baseline gap-3">
               <span className="text-3xl font-bold text-primary">
-                {price && formatPrice(price.amount, price.currencyCode)}
+                ₹{product.price.toFixed(0)}
               </span>
-              {!selectedVariant?.node?.availableForSale && selectedVariant && (
+              {hasDiscount && (
+                <span className="text-xl text-muted-foreground line-through">
+                  ₹{product.compare_at_price?.toFixed(0)}
+                </span>
+              )}
+              {product.stock_quantity <= 0 && (
                 <Badge variant="secondary">Out of Stock</Badge>
+              )}
+              {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
+                <Badge variant="destructive">
+                  Only {product.stock_quantity} left!
+                </Badge>
               )}
             </div>
 
             <Separator />
-
-            {/* Options */}
-            {product.options?.map((option: any) => (
-              <div key={option.name} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="font-medium">
-                    {option.name}: <span className="text-muted-foreground">{selectedOptions[option.name]}</span>
-                  </label>
-                  {option.name.toLowerCase() === 'size' && (
-                    <button className="text-sm text-primary flex items-center gap-1 hover:underline">
-                      <Ruler className="h-4 w-4" />
-                      Size Guide
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {option.values.map((value: string) => {
-                    const isSelected = selectedOptions[option.name] === value;
-                    const isColor = option.name.toLowerCase() === 'color';
-                    
-                    if (isColor) {
-                      return (
-                        <button
-                          key={value}
-                          onClick={() => setSelectedOptions(prev => ({ ...prev, [option.name]: value }))}
-                          className={`w-10 h-10 rounded-full border-2 transition-all ${
-                            isSelected ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-border'
-                          }`}
-                          style={{ backgroundColor: value.toLowerCase() }}
-                          title={value}
-                        />
-                      );
-                    }
-                    
-                    return (
-                      <button
-                        key={value}
-                        onClick={() => setSelectedOptions(prev => ({ ...prev, [option.name]: value }))}
-                        className={`px-4 py-2 rounded-lg border transition-all ${
-                          isSelected 
-                            ? 'border-primary bg-primary text-primary-foreground' 
-                            : 'border-border hover:border-primary'
-                        }`}
-                      >
-                        {value}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
 
             {/* Quantity */}
             <div className="space-y-3">
@@ -280,14 +308,18 @@ export default function ProductDetail() {
               <div className="flex items-center gap-3">
                 <div className="flex items-center border border-border rounded-lg">
                   <button
-                    onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
+                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
                     className="p-3 hover:bg-muted transition-colors"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="w-12 text-center font-medium">{quantity}</span>
                   <button
-                    onClick={() => setQuantity(prev => prev + 1)}
+                    onClick={() =>
+                      setQuantity((prev) =>
+                        Math.min(product.stock_quantity, prev + 1)
+                      )
+                    }
                     className="p-3 hover:bg-muted transition-colors"
                   >
                     <Plus className="h-4 w-4" />
@@ -298,14 +330,14 @@ export default function ProductDetail() {
 
             {/* Actions */}
             <div className="flex gap-3">
-              <Button 
-                size="lg" 
-                className="flex-1" 
+              <Button
+                size="lg"
+                className="flex-1"
                 onClick={handleAddToCart}
-                disabled={!selectedVariant?.node?.availableForSale}
+                disabled={product.stock_quantity <= 0}
               >
                 <ShoppingBag className="h-5 w-5 mr-2" />
-                Add to Cart
+                {product.stock_quantity > 0 ? "Add to Cart" : "Out of Stock"}
               </Button>
               <Button size="lg" variant="outline">
                 <Heart className="h-5 w-5" />
@@ -321,87 +353,62 @@ export default function ProductDetail() {
                 <Truck className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">Free Delivery</p>
-                  <p className="text-sm text-muted-foreground">On orders above ₹999</p>
+                  <p className="text-sm text-muted-foreground">
+                    On orders above ₹999
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <RotateCcw className="h-5 w-5 text-primary" />
                 <div>
                   <p className="font-medium">Easy Returns</p>
-                  <p className="text-sm text-muted-foreground">7 days return policy</p>
+                  <p className="text-sm text-muted-foreground">
+                    7 days return policy
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Product Details Tabs */}
             <Tabs defaultValue="description" className="mt-8">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="description">Description</TabsTrigger>
                 <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="measurements">Measurements</TabsTrigger>
               </TabsList>
               <TabsContent value="description" className="mt-4">
-                <div 
-                  className="prose prose-sm max-w-none text-muted-foreground"
-                  dangerouslySetInnerHTML={{ __html: product.descriptionHtml || product.description || 'No description available.' }}
-                />
+                <p className="text-muted-foreground">
+                  {product.description || "No description available."}
+                </p>
               </TabsContent>
               <TabsContent value="details" className="mt-4">
                 <ul className="space-y-2 text-muted-foreground">
-                  <li><span className="font-medium text-foreground">Brand:</span> {product.vendor || 'Isha Fashion Hub'}</li>
-                  <li><span className="font-medium text-foreground">Category:</span> {product.productType || 'Fashion'}</li>
-                  {product.tags?.length > 0 && (
+                  <li>
+                    <span className="font-medium text-foreground">Brand:</span>{" "}
+                    Isha Fashion Hub
+                  </li>
+                  {category && (
                     <li>
-                      <span className="font-medium text-foreground">Tags:</span>{' '}
-                      {product.tags.join(', ')}
+                      <span className="font-medium text-foreground">
+                        Category:
+                      </span>{" "}
+                      {category.name}
                     </li>
                   )}
+                  {product.sku && (
+                    <li>
+                      <span className="font-medium text-foreground">SKU:</span>{" "}
+                      {product.sku}
+                    </li>
+                  )}
+                  <li>
+                    <span className="font-medium text-foreground">
+                      Availability:
+                    </span>{" "}
+                    {product.stock_quantity > 0
+                      ? `In Stock (${product.stock_quantity} available)`
+                      : "Out of Stock"}
+                  </li>
                 </ul>
-              </TabsContent>
-              <TabsContent value="measurements" className="mt-4">
-                <div className="space-y-4">
-                  <p className="text-muted-foreground">
-                    Please refer to our size chart for accurate measurements. If you're between sizes, we recommend sizing up.
-                  </p>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-2 font-medium">Size</th>
-                          <th className="text-left py-2 font-medium">Chest (in)</th>
-                          <th className="text-left py-2 font-medium">Waist (in)</th>
-                          <th className="text-left py-2 font-medium">Length (in)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-muted-foreground">
-                        <tr className="border-b border-border">
-                          <td className="py-2">S</td>
-                          <td className="py-2">34-36</td>
-                          <td className="py-2">28-30</td>
-                          <td className="py-2">27</td>
-                        </tr>
-                        <tr className="border-b border-border">
-                          <td className="py-2">M</td>
-                          <td className="py-2">38-40</td>
-                          <td className="py-2">32-34</td>
-                          <td className="py-2">28</td>
-                        </tr>
-                        <tr className="border-b border-border">
-                          <td className="py-2">L</td>
-                          <td className="py-2">42-44</td>
-                          <td className="py-2">36-38</td>
-                          <td className="py-2">29</td>
-                        </tr>
-                        <tr>
-                          <td className="py-2">XL</td>
-                          <td className="py-2">46-48</td>
-                          <td className="py-2">40-42</td>
-                          <td className="py-2">30</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
               </TabsContent>
             </Tabs>
           </div>
