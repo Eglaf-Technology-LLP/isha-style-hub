@@ -1,33 +1,69 @@
 import { useEffect, useState } from "react";
 import { ProductCard } from "./ProductCard";
-import { fetchProducts, ShopifyProduct } from "@/lib/shopify";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShoppingBag } from "lucide-react";
+import { Product, ProductVariant } from "@/hooks/useProducts";
 
 interface ProductGridProps {
-  query?: string;
+  categoryId?: string | null;
+  categorySlug?: string;
   title?: string;
   limit?: number;
 }
 
-export function ProductGrid({ query, title, limit = 12 }: ProductGridProps) {
-  const [products, setProducts] = useState<ShopifyProduct[]>([]);
+export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: ProductGridProps) {
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadProducts() {
       setLoading(true);
       try {
-        const data = await fetchProducts(limit, query);
-        setProducts(data);
+        let query = supabase
+          .from("products")
+          .select("*")
+          .eq("is_active", true)
+          .order("created_at", { ascending: false });
+
+        // If categorySlug is provided, first get the category ID
+        if (categorySlug) {
+          const { data: categoryData } = await supabase
+            .from("categories")
+            .select("id")
+            .eq("slug", categorySlug)
+            .single();
+
+          if (categoryData) {
+            query = query.eq("category_id", categoryData.id);
+          }
+        } else if (categoryId) {
+          query = query.eq("category_id", categoryId);
+        }
+
+        if (limit) {
+          query = query.limit(limit);
+        }
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+
+        const typedProducts: Product[] = (data || []).map((p) => ({
+          ...p,
+          images: (p.images as string[]) || [],
+          variants: (p.variants as unknown as ProductVariant[]) || [],
+        }));
+
+        setProducts(typedProducts);
       } catch (error) {
-        console.error('Failed to fetch products:', error);
+        console.error("Failed to fetch products:", error);
       } finally {
         setLoading(false);
       }
     }
 
     loadProducts();
-  }, [query, limit]);
+  }, [categoryId, categorySlug, limit]);
 
   if (loading) {
     return (
@@ -59,7 +95,7 @@ export function ProductGrid({ query, title, limit = 12 }: ProductGridProps) {
             <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
             <h3 className="text-xl font-medium mb-2">No products found</h3>
             <p className="text-muted-foreground max-w-md">
-              We're adding new products soon. Check back later or tell us what products you'd like to add!
+              We're adding new products soon. Check back later!
             </p>
           </div>
         </div>
@@ -77,7 +113,7 @@ export function ProductGrid({ query, title, limit = 12 }: ProductGridProps) {
         )}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {products.map((product) => (
-            <ProductCard key={product.node.id} product={product} />
+            <ProductCard key={product.id} product={product} />
           ))}
         </div>
       </div>
