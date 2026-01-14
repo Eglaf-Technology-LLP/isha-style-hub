@@ -290,9 +290,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     Shipping Address
                   </h4>
                   <div className="p-3 bg-muted rounded-lg text-sm">
-                    <p>{selectedOrder.shipping_address.address_line_1}</p>
-                    {selectedOrder.shipping_address.address_line_2 && (
-                      <p>{selectedOrder.shipping_address.address_line_2}</p>
+                    <p>{selectedOrder.shipping_address.address_line1}</p>
+                    {selectedOrder.shipping_address.address_line2 && (
+                      <p>{selectedOrder.shipping_address.address_line2}</p>
                     )}
                     <p>
                       {selectedOrder.shipping_address.city},{" "}
