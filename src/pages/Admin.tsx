@@ -1,29 +1,16 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { 
   Package, 
-  Plus, 
   FolderOpen, 
   LayoutDashboard, 
   LogOut, 
   Loader2,
-  Upload,
-  X,
-  Trash2,
   Eye,
   ShoppingCart,
   Tag,
@@ -33,7 +20,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import { useCategories, Category } from "@/hooks/useCategories";
+import { useCategories } from "@/hooks/useCategories";
 import { useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useDiscounts } from "@/hooks/useDiscounts";
@@ -42,12 +29,13 @@ import { ProductManagement } from "@/components/admin/ProductManagement";
 import { DiscountManagement } from "@/components/admin/DiscountManagement";
 import { PaymentManagement } from "@/components/admin/PaymentManagement";
 import { OrderManagement } from "@/components/admin/OrderManagement";
+import { CategoryManagement } from "@/components/admin/CategoryManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
   const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
-  const { categories, loading: categoriesLoading, addCategory, deleteCategory } = useCategories();
+  const { categories, loading: categoriesLoading } = useCategories();
   const { orders, loading: ordersLoading } = useOrders(isAdmin);
   const { products, loading: productsLoading } = useProducts();
   const { discounts } = useDiscounts();
@@ -57,12 +45,6 @@ export default function Admin() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Category form state
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
-  const [categoryImage, setCategoryImage] = useState<File | null>(null);
-  const [categoryImagePreview, setCategoryImagePreview] = useState<string | null>(null);
-  const categoryImageRef = useRef<HTMLInputElement>(null);
 
   const paymentStats = getPaymentStats();
 
@@ -94,32 +76,6 @@ export default function Admin() {
     navigate('/');
   };
 
-  const handleCategoryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCategoryImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCategoryImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAddCategory = async () => {
-    if (!categoryForm.name) {
-      toast.error('Please enter a category name');
-      return;
-    }
-
-    const result = await addCategory(categoryForm.name, categoryForm.description, categoryImage || undefined);
-    if (result) {
-      setCategoryForm({ name: '', description: '' });
-      setCategoryImage(null);
-      setCategoryImagePreview(null);
-      setIsAddingCategory(false);
-    }
-  };
 
   // Loading state
   if (authLoading || adminLoading) {
@@ -362,151 +318,7 @@ export default function Admin() {
 
           {/* Categories Tab */}
           <TabsContent value="categories">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Categories</CardTitle>
-                  <CardDescription>Manage product categories with images</CardDescription>
-                </div>
-                <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Category
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add New Category</DialogTitle>
-                      <DialogDescription>Create a new product category</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div className="space-y-2">
-                        <Label>Category Name *</Label>
-                        <Input
-                          placeholder="e.g., Summer Collection"
-                          value={categoryForm.name}
-                          onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description</Label>
-                        <Textarea
-                          placeholder="Describe this category..."
-                          value={categoryForm.description}
-                          onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Category Image</Label>
-                        <input
-                          type="file"
-                          ref={categoryImageRef}
-                          accept="image/*"
-                          onChange={handleCategoryImageChange}
-                          className="hidden"
-                        />
-                        {categoryImagePreview ? (
-                          <div className="relative">
-                            <img
-                              src={categoryImagePreview}
-                              alt="Preview"
-                              className="w-full h-40 object-cover rounded-lg"
-                            />
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="absolute top-2 right-2"
-                              onClick={() => {
-                                setCategoryImage(null);
-                                setCategoryImagePreview(null);
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div
-                            onClick={() => categoryImageRef.current?.click()}
-                            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
-                          >
-                            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                            <p className="text-sm text-muted-foreground">
-                              Click to upload category image
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setIsAddingCategory(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleAddCategory}>
-                          Add Category
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                {categoriesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : categories.length === 0 ? (
-                  <div className="text-center py-12">
-                    <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No categories yet</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Create your first category to organize products
-                    </p>
-                    <Button onClick={() => setIsAddingCategory(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Category
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {categories.map((category: Category) => (
-                      <Card key={category.id} className="overflow-hidden">
-                        {category.image_url ? (
-                          <img
-                            src={category.image_url}
-                            alt={category.name}
-                            className="w-full h-32 object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-32 bg-muted flex items-center justify-center">
-                            <FolderOpen className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                        )}
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h4 className="font-medium">{category.name}</h4>
-                              {category.description && (
-                                <p className="text-sm text-muted-foreground line-clamp-1">
-                                  {category.description}
-                                </p>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => deleteCategory(category.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CategoryManagement />
           </TabsContent>
 
           {/* Orders Tab */}
