@@ -1,11 +1,18 @@
 import { Link } from "react-router-dom";
-import { Search, User, Heart, Menu, X } from "lucide-react";
+import { Search, User, Heart, Menu, X, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CartDrawer } from "./CartDrawer";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 interface Category {
   id: string;
@@ -17,8 +24,10 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
+    // Fetch categories
     async function fetchCategories() {
       try {
         const { data, error } = await supabase
@@ -35,7 +44,22 @@ export function Header() {
     }
 
     fetchCategories();
+
+    // Check auth state
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
@@ -73,6 +97,14 @@ export function Header() {
                     {category.name}
                   </Link>
                 ))}
+                <hr className="my-2" />
+                <Link
+                  to="/orders"
+                  className="text-lg font-medium hover:text-primary transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Orders
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>
@@ -130,15 +162,38 @@ export function Header() {
               </Button>
             )}
 
-            <Button variant="ghost" size="icon" className="hidden md:flex">
-              <Heart className="h-5 w-5" />
-            </Button>
-
-            <Link to="/admin">
-              <Button variant="ghost" size="icon">
-                <User className="h-5 w-5" />
+            <Link to="/orders">
+              <Button variant="ghost" size="icon" className="hidden md:flex">
+                <Package className="h-5 w-5" />
               </Button>
             </Link>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <User className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {user ? (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link to="/orders">My Orders</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin">Admin Panel</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      Sign Out
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin">Sign In</Link>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <CartDrawer />
           </div>
