@@ -4,19 +4,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { CartDrawer } from "./CartDrawer";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-const categories = [
-  { name: "Dresses", href: "/category/dresses" },
-  { name: "Shirts", href: "/category/shirts" },
-  { name: "Pants", href: "/category/pants" },
-  { name: "Ethnic Wear", href: "/category/ethnic" },
-  { name: "New Arrivals", href: "/category/new" },
-];
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const { data, error } = await supabase
+          .from("categories")
+          .select("id, name, slug")
+          .order("name")
+          .limit(6);
+
+        if (error) throw error;
+        setCategories(data || []);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    }
+
+    fetchCategories();
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
@@ -37,10 +56,17 @@ export function Header() {
             </SheetTrigger>
             <SheetContent side="left" className="w-80">
               <nav className="flex flex-col gap-4 mt-8">
+                <Link
+                  to="/"
+                  className="text-lg font-medium hover:text-primary transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Home
+                </Link>
                 {categories.map((category) => (
                   <Link
-                    key={category.name}
-                    to={category.href}
+                    key={category.id}
+                    to={`/category/${category.slug}`}
                     className="text-lg font-medium hover:text-primary transition-colors"
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -60,15 +86,19 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-8">
-            {categories.map((category) => (
-              <Link
-                key={category.name}
-                to={category.href}
-                className="text-sm font-medium hover:text-primary transition-colors"
-              >
-                {category.name}
-              </Link>
-            ))}
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to={`/category/${category.slug}`}
+                  className="text-sm font-medium hover:text-primary transition-colors"
+                >
+                  {category.name}
+                </Link>
+              ))
+            ) : (
+              <span className="text-sm text-muted-foreground">No categories yet</span>
+            )}
           </nav>
 
           {/* Actions */}
