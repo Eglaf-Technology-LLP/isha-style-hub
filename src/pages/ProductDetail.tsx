@@ -14,21 +14,19 @@ import {
   Share2,
   Truck,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
 import { Product, ProductVariant } from "@/hooks/useProducts";
+import { ImageGalleryWithZoom } from "@/components/ImageGalleryWithZoom";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
 
   const addItem = useCartStore((state) => state.addItem);
@@ -169,7 +167,6 @@ export default function ProductDetail() {
     );
   }
 
-  const images = product.images || [];
   const hasDiscount =
     product.compare_at_price && product.compare_at_price > product.price;
 
@@ -201,72 +198,11 @@ export default function ProductDetail() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Image Gallery */}
-          <div className="space-y-4">
-            {/* Main Image */}
-            <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-muted">
-              {images[selectedImage] ? (
-                <img
-                  src={images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingBag className="h-16 w-16 text-muted-foreground" />
-                </div>
-              )}
-
-              {/* Navigation Arrows */}
-              {images.length > 1 && (
-                <>
-                  <button
-                    onClick={() =>
-                      setSelectedImage((prev) =>
-                        prev === 0 ? images.length - 1 : prev - 1
-                      )
-                    }
-                    className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-card/80 backdrop-blur-sm hover:bg-card transition-colors"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() =>
-                      setSelectedImage((prev) =>
-                        prev === images.length - 1 ? 0 : prev + 1
-                      )
-                    }
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-card/80 backdrop-blur-sm hover:bg-card transition-colors"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* Thumbnails */}
-            {images.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {images.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-24 rounded-lg overflow-hidden border-2 transition-colors ${
-                      selectedImage === index
-                        ? "border-primary"
-                        : "border-transparent"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`${product.name} - Image ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Image Gallery with Zoom */}
+          <ImageGalleryWithZoom 
+            images={product.images || []} 
+            productName={product.name} 
+          />
 
           {/* Product Info */}
           <div className="space-y-6">
