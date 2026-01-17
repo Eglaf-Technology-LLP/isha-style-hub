@@ -72,7 +72,8 @@ export function useProducts() {
 
   const addProduct = async (
     productData: ProductFormData,
-    images: File[]
+    images: File[],
+    variants: ProductVariant[] = []
   ): Promise<Product | null> => {
     try {
       // Upload images first
@@ -98,6 +99,11 @@ export function useProducts() {
         }
       }
 
+      // Calculate total stock from variants if variants exist
+      const totalStock = variants.length > 0 
+        ? variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+        : productData.stock_quantity;
+
       const { data, error } = await supabase
         .from("products")
         .insert({
@@ -107,10 +113,10 @@ export function useProducts() {
           price: productData.price,
           compare_at_price: productData.compare_at_price || null,
           sku: productData.sku || null,
-          stock_quantity: productData.stock_quantity,
+          stock_quantity: totalStock,
           is_active: productData.is_active,
           images: imageUrls,
-          variants: [],
+          variants: variants as unknown as undefined,
         })
         .select()
         .single();
@@ -136,7 +142,8 @@ export function useProducts() {
   const updateProduct = async (
     id: string,
     productData: Partial<ProductFormData>,
-    newImages?: File[]
+    newImages?: File[],
+    variants?: ProductVariant[]
   ): Promise<boolean> => {
     try {
       let imageUrls: string[] | undefined;
@@ -164,20 +171,29 @@ export function useProducts() {
         }
       }
 
-      const updateData: any = {
+      // Calculate total stock from variants if variants exist
+      const totalStock = variants && variants.length > 0 
+        ? variants.reduce((sum, v) => sum + (v.stock || 0), 0)
+        : productData.stock_quantity;
+
+      const updateData: Record<string, unknown> = {
         name: productData.name,
         description: productData.description,
         category_id: productData.category_id,
         price: productData.price,
         compare_at_price: productData.compare_at_price,
         sku: productData.sku,
-        stock_quantity: productData.stock_quantity,
+        stock_quantity: totalStock,
         is_active: productData.is_active,
       };
 
       if (imageUrls) {
         const existingProduct = products.find(p => p.id === id);
         updateData.images = [...(existingProduct?.images || []), ...imageUrls];
+      }
+
+      if (variants !== undefined) {
+        updateData.variants = variants;
       }
 
       const { error } = await supabase

@@ -43,9 +43,10 @@ import {
   Eye,
   Image as ImageIcon,
 } from "lucide-react";
-import { useProducts, Product, ProductFormData } from "@/hooks/useProducts";
+import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/useProducts";
 import { Category } from "@/hooks/useCategories";
 import { Link } from "react-router-dom";
+import { VariantManager } from "./VariantManager";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -76,6 +77,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,6 +94,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     });
     setProductImages([]);
     setImagePreviews([]);
+    setProductVariants([]);
     setEditingProduct(null);
   };
 
@@ -117,7 +120,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     if (!productForm.name) return;
 
     setIsSubmitting(true);
-    const result = await addProduct(productForm, productImages);
+    const result = await addProduct(productForm, productImages, productVariants);
     setIsSubmitting(false);
 
     if (result) {
@@ -133,7 +136,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     const result = await updateProduct(
       editingProduct.id,
       productForm,
-      productImages.length > 0 ? productImages : undefined
+      productImages.length > 0 ? productImages : undefined,
+      productVariants
     );
     setIsSubmitting(false);
 
@@ -157,6 +161,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     });
     setProductImages([]);
     setImagePreviews([]);
+    setProductVariants(product.variants || []);
   };
 
   const getCategoryName = (categoryId: string | null) => {
@@ -305,6 +310,13 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           }
         />
       </div>
+
+      {/* Variant Management */}
+      <VariantManager
+        variants={productVariants}
+        onChange={setProductVariants}
+        basePrice={productForm.price}
+      />
 
       {isEdit && editingProduct && editingProduct.images.length > 0 && (
         <div className="space-y-2">
