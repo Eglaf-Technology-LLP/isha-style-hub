@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -21,6 +21,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
 import { Product, ProductVariant } from "@/hooks/useProducts";
 import { ImageGalleryWithZoom } from "@/components/ImageGalleryWithZoom";
+import { VariantSelector } from "@/components/VariantSelector";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -28,6 +29,8 @@ export default function ProductDetail() {
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
   const addItem = useCartStore((state) => state.addItem);
 
@@ -73,11 +76,68 @@ export default function ProductDetail() {
     loadProduct();
   }, [handle]);
 
+  // Extract available sizes and colors from variants
+  const { availableSizes, availableColors, selectedVariant } = useMemo(() => {
+    if (!product || !product.variants || product.variants.length === 0) {
+      return { availableSizes: [], availableColors: [], selectedVariant: null };
+    }
+
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+
+    product.variants.forEach((variant) => {
+      if (variant.options?.size) sizes.add(variant.options.size);
+      if (variant.options?.Size) sizes.add(variant.options.Size);
+      if (variant.options?.color) colors.add(variant.options.color);
+      if (variant.options?.Color) colors.add(variant.options.Color);
+    });
+
+    // Find matching variant based on selection
+    let matchedVariant: ProductVariant | null = null;
+    if (selectedSize || selectedColor) {
+      matchedVariant = product.variants.find((v) => {
+        const variantSize = v.options?.size || v.options?.Size;
+        const variantColor = v.options?.color || v.options?.Color;
+        
+        const sizeMatch = !selectedSize || variantSize === selectedSize;
+        const colorMatch = !selectedColor || variantColor === selectedColor;
+        
+        return sizeMatch && colorMatch;
+      }) || null;
+    }
+
+    return {
+      availableSizes: Array.from(sizes),
+      availableColors: Array.from(colors),
+      selectedVariant: matchedVariant,
+    };
+  }, [product, selectedSize, selectedColor]);
+
+  // Get current price and stock based on variant selection
+  const currentPrice = selectedVariant?.price || product?.price || 0;
+  const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
+
   const handleAddToCart = () => {
     if (!product) {
       toast.error("Product not available");
       return;
     }
+
+    // Validate size/color selection if variants exist
+    if (availableSizes.length > 0 && !selectedSize) {
+      toast.error("Please select a size");
+      return;
+    }
+    if (availableColors.length > 0 && !selectedColor) {
+      toast.error("Please select a color");
+      return;
+    }
+
+    const variantId = selectedVariant?.id || `${product.id}-default`;
+    const variantTitle = [selectedSize, selectedColor].filter(Boolean).join(" / ") || "Default";
+    const selectedOptions = [];
+    if (selectedSize) selectedOptions.push({ name: "Size", value: selectedSize });
+    if (selectedColor) selectedOptions.push({ name: "Color", value: selectedColor });
 
     addItem({
       product: {
@@ -92,11 +152,11 @@ export default function ProductDetail() {
           tags: [],
           priceRange: {
             minVariantPrice: {
-              amount: product.price.toString(),
+              amount: currentPrice.toString(),
               currencyCode: "INR",
             },
             maxVariantPrice: {
-              amount: product.price.toString(),
+              amount: currentPrice.toString(),
               currencyCode: "INR",
             },
           },
@@ -110,32 +170,37 @@ export default function ProductDetail() {
             edges: [
               {
                 node: {
-                  id: `${product.id}-default`,
-                  title: "Default",
+                  id: variantId,
+                  title: variantTitle,
                   price: {
-                    amount: product.price.toString(),
+                    amount: currentPrice.toString(),
                     currencyCode: "INR",
                   },
-                  availableForSale: product.stock_quantity > 0,
-                  selectedOptions: [],
+                  availableForSale: currentStock > 0,
+                  selectedOptions,
                 },
               },
             ],
           },
         },
       },
-      variantId: `${product.id}-default`,
-      variantTitle: "Default",
+      variantId,
+      variantTitle,
       price: {
-        amount: product.price.toString(),
+        amount: currentPrice.toString(),
         currencyCode: "INR",
       },
       quantity,
-      selectedOptions: [],
+      selectedOptions,
     });
 
+    const details = [product.name];
+    if (selectedSize) details.push(`Size: ${selectedSize}`);
+    if (selectedColor) details.push(`Color: ${selectedColor}`);
+    details.push(`Qty: ${quantity}`);
+
     toast.success("Added to cart!", {
-      description: `${product.name} x ${quantity}`,
+      description: details.join(" • "),
       position: "top-center",
     });
   };
@@ -217,26 +282,48 @@ export default function ProductDetail() {
             </div>
 
             {/* Price */}
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-baseline gap-3 flex-wrap">
               <span className="text-3xl font-bold text-primary">
-                ₹{product.price.toFixed(0)}
+                ₹{currentPrice.toFixed(0)}
               </span>
-              {hasDiscount && (
+              {hasDiscount && !selectedVariant && (
                 <span className="text-xl text-muted-foreground line-through">
                   ₹{product.compare_at_price?.toFixed(0)}
                 </span>
               )}
-              {product.stock_quantity <= 0 && (
+              {currentStock <= 0 && (
                 <Badge variant="secondary">Out of Stock</Badge>
               )}
-              {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
+              {currentStock > 0 && currentStock <= 5 && (
                 <Badge variant="destructive">
-                  Only {product.stock_quantity} left!
+                  Only {currentStock} left!
                 </Badge>
               )}
             </div>
 
             <Separator />
+
+            {/* Color Selection */}
+            {availableColors.length > 0 && (
+              <VariantSelector
+                label="Color"
+                options={availableColors}
+                selected={selectedColor}
+                onSelect={setSelectedColor}
+                type="color"
+              />
+            )}
+
+            {/* Size Selection */}
+            {availableSizes.length > 0 && (
+              <VariantSelector
+                label="Size"
+                options={availableSizes}
+                selected={selectedSize}
+                onSelect={setSelectedSize}
+                type="size"
+              />
+            )}
 
             {/* Quantity */}
             <div className="space-y-3">
@@ -253,10 +340,11 @@ export default function ProductDetail() {
                   <button
                     onClick={() =>
                       setQuantity((prev) =>
-                        Math.min(product.stock_quantity, prev + 1)
+                        Math.min(currentStock, prev + 1)
                       )
                     }
                     className="p-3 hover:bg-muted transition-colors"
+                    disabled={currentStock <= 0}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -270,10 +358,10 @@ export default function ProductDetail() {
                 size="lg"
                 className="flex-1"
                 onClick={handleAddToCart}
-                disabled={product.stock_quantity <= 0}
+                disabled={currentStock <= 0}
               >
                 <ShoppingBag className="h-5 w-5 mr-2" />
-                {product.stock_quantity > 0 ? "Add to Cart" : "Out of Stock"}
+                {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
               </Button>
               <Button size="lg" variant="outline">
                 <Heart className="h-5 w-5" />
