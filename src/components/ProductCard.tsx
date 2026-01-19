@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Heart, ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
 import { Product } from "@/hooks/useProducts";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
+import { WishlistButton } from "@/components/WishlistButton";
+import { CompareButton } from "@/components/ProductComparison";
 
 interface ProductCardProps {
   product: Product;
@@ -82,6 +84,17 @@ export function ProductCard({ product }: ProductCardProps) {
     });
   };
 
+  const compareProduct = {
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    compare_at_price: product.compare_at_price || null,
+    images: product.images,
+    description: product.description || null,
+    variants: product.variants,
+    category_id: product.category_id || null,
+  };
+
   return (
     <Link to={`/product/${product.id}`} className="group">
       <div className="relative overflow-hidden rounded-2xl bg-muted/30 aspect-[3/4]">
@@ -101,10 +114,11 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Overlay Actions */}
         <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors duration-300" />
 
-        {/* Wishlist Button */}
-        <button className="absolute top-4 right-4 p-2 rounded-full bg-card/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-card">
-          <Heart className="h-4 w-4" />
-        </button>
+        {/* Action Buttons */}
+        <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <WishlistButton productId={product.id} />
+          <CompareButton product={compareProduct} />
+        </div>
 
         {/* Quick Add Button */}
         <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Search, User, Heart, Menu, X, Package } from "lucide-react";
+import { Search, User, Heart, Menu, X, Package, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -8,6 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { CartDrawer } from "./CartDrawer";
 import { useState, useEffect } from "react";
@@ -99,11 +100,25 @@ export function Header() {
                 ))}
                 <hr className="my-2" />
                 <Link
-                  to="/orders"
-                  className="text-lg font-medium hover:text-primary transition-colors"
+                  to="/wishlist"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  My Orders
+                  <Heart className="h-5 w-5" /> Wishlist
+                </Link>
+                <Link
+                  to="/rewards"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Gift className="h-5 w-5" /> Rewards
+                </Link>
+                <Link
+                  to="/orders"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Package className="h-5 w-5" /> My Orders
                 </Link>
               </nav>
             </SheetContent>
@@ -162,6 +177,18 @@ export function Header() {
               </Button>
             )}
 
+            <Link to="/wishlist">
+              <Button variant="ghost" size="icon" className="hidden md:flex">
+                <Heart className="h-5 w-5" />
+              </Button>
+            </Link>
+
+            <Link to="/rewards">
+              <Button variant="ghost" size="icon" className="hidden md:flex">
+                <Gift className="h-5 w-5" />
+              </Button>
+            </Link>
+
             <Link to="/orders">
               <Button variant="ghost" size="icon" className="hidden md:flex">
                 <Package className="h-5 w-5" />
@@ -180,6 +207,13 @@ export function Header() {
                     <DropdownMenuItem asChild>
                       <Link to="/orders">My Orders</Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/wishlist">My Wishlist</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/rewards">Rewards & Gift Cards</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link to="/admin">Admin Panel</Link>
                     </DropdownMenuItem>

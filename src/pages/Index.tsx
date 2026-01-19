@@ -6,6 +6,8 @@ import { ProductGrid } from "@/components/ProductGrid";
 import { FeaturesSection } from "@/components/FeaturesSection";
 import { RecentlyViewedProducts } from "@/components/RecentlyViewedProducts";
 import { ActiveFlashSales } from "@/components/ActiveFlashSales";
+import { NewsletterSignup } from "@/components/NewsletterSignup";
+import { GiftCardSection } from "@/components/GiftCardSection";
 
 export default function Index() {
   return (
@@ -16,7 +18,9 @@ export default function Index() {
       <CategorySection />
       <ProductGrid title="Featured Products" limit={8} />
       <RecentlyViewedProducts />
+      <GiftCardSection />
       <FeaturesSection />
+      <NewsletterSignup />
       <Footer />
     </div>
   );
