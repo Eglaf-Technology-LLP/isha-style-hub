@@ -1,11 +1,14 @@
 import { useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { ProductGrid } from "@/components/ProductGrid";
+import { ProductCard } from "@/components/ProductCard";
 import { FeaturesSection } from "@/components/FeaturesSection";
+import { ProductFilters, FilterState } from "@/components/ProductFilters";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { useProducts, Product, ProductVariant } from "@/hooks/useProducts";
+import { useCategories } from "@/hooks/useCategories";
 
 interface Category {
   id: string;
@@ -18,6 +21,44 @@ export default function Category() {
   const { slug } = useParams<{ slug: string }>();
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
+  const { products, loading: productsLoading } = useProducts();
+  const { categories } = useCategories();
+  
+  // Filter state
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    priceRange: [0, 50000],
+    categories: [],
+    sizes: [],
+    colors: [],
+    inStock: false,
+    sortBy: "newest",
+  });
+
+  // Extract available sizes and colors from all products
+  const { availableSizes, availableColors, maxPrice } = useMemo(() => {
+    const sizes = new Set<string>();
+    const colors = new Set<string>();
+    let max = 0;
+
+    products.forEach((product) => {
+      if (product.price > max) max = product.price;
+      if (product.variants) {
+        product.variants.forEach((variant: ProductVariant) => {
+          if (variant.options?.size) sizes.add(variant.options.size);
+          if (variant.options?.Size) sizes.add(variant.options.Size);
+          if (variant.options?.color) colors.add(variant.options.color);
+          if (variant.options?.Color) colors.add(variant.options.Color);
+        });
+      }
+    });
+
+    return {
+      availableSizes: Array.from(sizes),
+      availableColors: Array.from(colors),
+      maxPrice: Math.ceil(max / 1000) * 1000 || 50000,
+    };
+  }, [products]);
 
   useEffect(() => {
     async function fetchCategory() {
@@ -45,6 +86,44 @@ export default function Category() {
 
     fetchCategory();
   }, [slug]);
+
+  // Filter products based on category and filters
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((p) => !slug || p.category_id === category?.id)
+      .filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1])
+      .filter((p) => {
+        if (filters.search) {
+          return p.name.toLowerCase().includes(filters.search.toLowerCase());
+        }
+        return true;
+      })
+      .filter((p) => {
+        if (filters.inStock) {
+          return p.stock_quantity > 0;
+        }
+        return true;
+      })
+      .filter((p) => {
+        if (filters.categories.length > 0) {
+          return p.category_id && filters.categories.includes(p.category_id);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        switch (filters.sortBy) {
+          case "price-low":
+            return a.price - b.price;
+          case "price-high":
+            return b.price - a.price;
+          case "name":
+            return a.name.localeCompare(b.name);
+          case "newest":
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      });
+  }, [products, slug, category, filters]);
 
   if (loading) {
     return (
@@ -74,8 +153,41 @@ export default function Category() {
         </div>
       </section>
 
-      {/* Products */}
-      <ProductGrid categorySlug={slug} limit={24} />
+      {/* Filters and Products */}
+      <div className="container mx-auto px-4 py-8">
+        <ProductFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          availableSizes={availableSizes}
+          availableColors={availableColors}
+          maxPrice={maxPrice}
+        />
+
+        {/* Products Grid */}
+        <main className="mt-6">
+          {productsLoading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="text-center py-20">
+              <p className="text-muted-foreground">No products found matching your criteria</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground mb-4">
+                {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                {filteredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
 
       <FeaturesSection />
       <Footer />

@@ -9,7 +9,10 @@ import Category from "./pages/Category";
 import Admin from "./pages/Admin";
 import Checkout from "./pages/Checkout";
 import OrderHistory from "./pages/OrderHistory";
+import Wishlist from "./pages/Wishlist";
+import Rewards from "./pages/Rewards";
 import NotFound from "./pages/NotFound";
+import { CompareDrawer } from "./components/ProductComparison";
 
 const queryClient = new QueryClient();
 
@@ -25,10 +28,13 @@ const App = () => (
           <Route path="/category/:slug" element={<Category />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/wishlist" element={<Wishlist />} />
+          <Route path="/rewards" element={<Rewards />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <CompareDrawer />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
