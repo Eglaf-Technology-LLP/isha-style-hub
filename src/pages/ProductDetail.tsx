@@ -10,7 +10,6 @@ import {
   Minus,
   Plus,
   ShoppingBag,
-  Heart,
   Share2,
   Truck,
   RotateCcw,
@@ -22,6 +21,11 @@ import { toast } from "sonner";
 import { Product, ProductVariant } from "@/hooks/useProducts";
 import { ImageGalleryWithZoom } from "@/components/ImageGalleryWithZoom";
 import { VariantSelector } from "@/components/VariantSelector";
+import { WishlistButton } from "@/components/WishlistButton";
+import { ProductReviews } from "@/components/ProductReviews";
+import { SizeGuideModal } from "@/components/SizeGuideModal";
+import { RelatedProducts } from "@/components/RelatedProducts";
+import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -33,6 +37,14 @@ export default function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
 
   const addItem = useCartStore((state) => state.addItem);
+  const { trackProductView } = useRecentlyViewed();
+
+  // Track product view
+  useEffect(() => {
+    if (handle) {
+      trackProductView(handle);
+    }
+  }, [handle, trackProductView]);
 
   useEffect(() => {
     async function loadProduct() {
@@ -314,15 +326,20 @@ export default function ProductDetail() {
               />
             )}
 
-            {/* Size Selection */}
+            {/* Size Selection with Size Guide */}
             {availableSizes.length > 0 && (
-              <VariantSelector
-                label="Size"
-                options={availableSizes}
-                selected={selectedSize}
-                onSelect={setSelectedSize}
-                type="size"
-              />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <VariantSelector
+                    label="Size"
+                    options={availableSizes}
+                    selected={selectedSize}
+                    onSelect={setSelectedSize}
+                    type="size"
+                  />
+                </div>
+                <SizeGuideModal categoryId={product.category_id} />
+              </div>
             )}
 
             {/* Quantity */}
@@ -363,9 +380,7 @@ export default function ProductDetail() {
                 <ShoppingBag className="h-5 w-5 mr-2" />
                 {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
               </Button>
-              <Button size="lg" variant="outline">
-                <Heart className="h-5 w-5" />
-              </Button>
+              <WishlistButton productId={product.id} />
               <Button size="lg" variant="outline">
                 <Share2 className="h-5 w-5" />
               </Button>
@@ -437,6 +452,15 @@ export default function ProductDetail() {
             </Tabs>
           </div>
         </div>
+
+        {/* Product Reviews Section */}
+        <ProductReviews productId={product.id} />
+
+        {/* Related Products Section */}
+        <RelatedProducts 
+          currentProductId={product.id} 
+          categoryId={product.category_id} 
+        />
       </main>
 
       <Footer />
