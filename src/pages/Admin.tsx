@@ -13,7 +13,7 @@ import {
   Loader2,
   Eye,
   ShoppingCart,
-  Tag,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
@@ -24,9 +24,10 @@ import { useCategories } from "@/hooks/useCategories";
 import { useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
 import { useDiscounts } from "@/hooks/useDiscounts";
+import { useFlashSales } from "@/hooks/useFlashSales";
 import { usePayments } from "@/hooks/usePayments";
 import { ProductManagement } from "@/components/admin/ProductManagement";
-import { DiscountManagement } from "@/components/admin/DiscountManagement";
+import { PromotionsManagement } from "@/components/admin/PromotionsManagement";
 import { PaymentManagement } from "@/components/admin/PaymentManagement";
 import { OrderManagement } from "@/components/admin/OrderManagement";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
@@ -39,6 +40,7 @@ export default function Admin() {
   const { orders, loading: ordersLoading } = useOrders(isAdmin);
   const { products, loading: productsLoading } = useProducts();
   const { discounts } = useDiscounts();
+  const { activeFlashSales } = useFlashSales(isAdmin);
   const { getPaymentStats } = usePayments(isAdmin);
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
@@ -232,9 +234,9 @@ export default function Admin() {
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
             </TabsTrigger>
-            <TabsTrigger value="discounts" className="flex items-center gap-1">
-              <Tag className="h-4 w-4" />
-              <span className="hidden sm:inline">Discounts</span>
+            <TabsTrigger value="promotions" className="flex items-center gap-1">
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Promotions</span>
             </TabsTrigger>
             <TabsTrigger value="payments" className="flex items-center gap-1">
               <Wallet className="h-4 w-4" />
@@ -287,7 +289,7 @@ export default function Admin() {
               </Card>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
+            <div className="grid md:grid-cols-3 gap-6 mt-6">
               <Card>
                 <CardHeader>
                   <CardTitle>Pending Orders</CardTitle>
@@ -305,6 +307,16 @@ export default function Admin() {
                 <CardContent>
                   <p className="text-3xl font-bold">
                     {discounts.filter(d => d.is_active).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Active Flash Sales</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {activeFlashSales.length}
                   </p>
                 </CardContent>
               </Card>
@@ -326,9 +338,9 @@ export default function Admin() {
             <OrderManagement isAdmin={isAdmin} />
           </TabsContent>
 
-          {/* Discounts Tab */}
-          <TabsContent value="discounts">
-            <DiscountManagement />
+          {/* Promotions Tab */}
+          <TabsContent value="promotions">
+            <PromotionsManagement />
           </TabsContent>
 
           {/* Payments Tab */}
