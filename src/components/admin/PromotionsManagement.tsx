@@ -1,8 +1,9 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tag, Zap, Gift } from "lucide-react";
+import { Tag, Zap, Gift, BarChart3 } from "lucide-react";
 import { DiscountManagement } from "./DiscountManagement";
 import { FlashSaleManagement } from "./FlashSaleManagement";
 import { GiftCardManagement } from "./GiftCardManagement";
+import { PromotionAnalytics } from "./PromotionAnalytics";
 
 export function PromotionsManagement() {
   return (
@@ -14,8 +15,12 @@ export function PromotionsManagement() {
         </p>
       </div>
 
-      <Tabs defaultValue="discounts" className="space-y-4">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+      <Tabs defaultValue="analytics" className="space-y-4">
+        <TabsList className="grid w-full max-w-lg grid-cols-4">
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Analytics</span>
+          </TabsTrigger>
           <TabsTrigger value="discounts" className="flex items-center gap-2">
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Discounts</span>
@@ -29,6 +34,10 @@ export function PromotionsManagement() {
             <span className="hidden sm:inline">Gift Cards</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="analytics">
+          <PromotionAnalytics />
+        </TabsContent>
 
         <TabsContent value="discounts">
           <DiscountManagement />

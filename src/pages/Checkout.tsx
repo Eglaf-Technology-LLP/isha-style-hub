@@ -558,50 +558,67 @@ export default function Checkout() {
 
                 <Separator />
 
-                {/* Discount Code */}
-                <div className="space-y-2">
-                  <Label>Discount Code</Label>
+                {/* Discount Code Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium">Apply Coupon or Gift Card</Label>
+                  </div>
+                  
                   {appliedDiscount ? (
-                    <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-green-600" />
-                        <span className="font-medium text-green-700 dark:text-green-300">
-                          {appliedDiscount.code}
-                        </span>
-                        <Badge variant="secondary" className="text-xs">
-                          {appliedDiscount.discount_type === "percentage"
-                            ? `${appliedDiscount.discount_value}% OFF`
-                            : `₹${appliedDiscount.discount_value} OFF`}
-                        </Badge>
+                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 text-primary" />
+                          <div>
+                            <span className="font-semibold text-primary">
+                              {appliedDiscount.code}
+                            </span>
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              {appliedDiscount.discount_type === "percentage"
+                                ? `${appliedDiscount.discount_value}% OFF`
+                                : `₹${appliedDiscount.discount_value} OFF`}
+                            </Badge>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={removeDiscount}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={removeDiscount}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <p className="text-xs text-primary/70 mt-1">
+                        You're saving ₹{discountAmount.toFixed(0)} on this order!
+                      </p>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Enter code"
-                        value={discountCode}
-                        onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                        onKeyDown={(e) => e.key === "Enter" && validateDiscountCode()}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={validateDiscountCode}
-                        disabled={isValidatingDiscount}
-                      >
-                        {isValidatingDiscount ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          "Apply"
-                        )}
-                      </Button>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter discount code"
+                          value={discountCode}
+                          onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                          onKeyDown={(e) => e.key === "Enter" && validateDiscountCode()}
+                          className="flex-1"
+                        />
+                        <Button
+                          variant="secondary"
+                          onClick={validateDiscountCode}
+                          disabled={isValidatingDiscount || !discountCode.trim()}
+                        >
+                          {isValidatingDiscount ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            "Apply"
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Have a coupon code or gift card? Enter it above to save on your order.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -615,7 +632,7 @@ export default function Checkout() {
                     <span>₹{subtotal.toFixed(0)}</span>
                   </div>
                   {appliedDiscount && (
-                    <div className="flex justify-between text-green-600">
+                    <div className="flex justify-between text-primary">
                       <span>Discount</span>
                       <span>-₹{discountAmount.toFixed(0)}</span>
                     </div>
@@ -624,7 +641,7 @@ export default function Checkout() {
                     <span className="text-muted-foreground">Shipping</span>
                     <span>
                       {shippingCost === 0 ? (
-                        <span className="text-green-600">FREE</span>
+                        <span className="text-primary font-medium">FREE</span>
                       ) : (
                         `₹${shippingCost}`
                       )}
