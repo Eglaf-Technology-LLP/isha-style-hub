@@ -15,6 +15,8 @@ import {
   ShoppingCart,
   Sparkles,
   Wallet,
+  BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -26,11 +28,14 @@ import { useProducts } from "@/hooks/useProducts";
 import { useDiscounts } from "@/hooks/useDiscounts";
 import { useFlashSales } from "@/hooks/useFlashSales";
 import { usePayments } from "@/hooks/usePayments";
+import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { ProductManagement } from "@/components/admin/ProductManagement";
 import { PromotionsManagement } from "@/components/admin/PromotionsManagement";
 import { PaymentManagement } from "@/components/admin/PaymentManagement";
 import { OrderManagement } from "@/components/admin/OrderManagement";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
+import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
+import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -42,6 +47,7 @@ export default function Admin() {
   const { discounts } = useDiscounts();
   const { activeFlashSales } = useFlashSales(isAdmin);
   const { getPaymentStats } = usePayments(isAdmin);
+  const { totalAlerts: lowStockAlerts } = useLowStockAlerts();
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
   const [isSignUp, setIsSignUp] = useState(false);
@@ -217,10 +223,23 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-2xl grid-cols-6">
+          <TabsList className="grid w-full max-w-4xl grid-cols-8">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-1">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="flex items-center gap-1 relative">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="hidden sm:inline">Inventory</span>
+              {lowStockAlerts > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  {lowStockAlerts}
+                </Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="products" className="flex items-center gap-1">
               <Package className="h-4 w-4" />
@@ -321,6 +340,16 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <SalesAnalyticsDashboard />
+          </TabsContent>
+
+          {/* Inventory Tab */}
+          <TabsContent value="inventory">
+            <InventoryAlerts />
           </TabsContent>
 
           {/* Products Tab */}

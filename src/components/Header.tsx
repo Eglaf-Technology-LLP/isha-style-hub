@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { Search, User, Heart, Menu, X, Package, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -11,10 +10,10 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { CartDrawer } from "./CartDrawer";
+import { GlobalSearch } from "./GlobalSearch";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-
 interface Category {
   id: string;
   name: string;
@@ -153,10 +152,10 @@ export function Header() {
             {/* Search */}
             {searchOpen ? (
               <div className="hidden md:flex items-center gap-2">
-                <Input
-                  placeholder="Search products..."
-                  className="w-64"
+                <GlobalSearch 
+                  className="w-72"
                   autoFocus
+                  onClose={() => setSearchOpen(false)}
                 />
                 <Button
                   variant="ghost"
