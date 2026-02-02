@@ -48,28 +48,17 @@ export function useSavedAddresses() {
     if (!user) return;
 
     try {
-      // Use rpc or raw query for new tables not yet in types
-      const { data, error } = await supabase
-        .rpc('get_user_addresses' as any, { p_user_id: user.id })
-        .select('*');
+      const { data, error } = await (supabase as any)
+        .from("saved_addresses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false })
+        .order("created_at", { ascending: false });
 
-      // Fallback: direct query with type assertion
-      if (error) {
-        const { data: rawData, error: rawError } = await (supabase as any)
-          .from("saved_addresses")
-          .select("*")
-          .eq("user_id", user.id)
-          .order("is_default", { ascending: false })
-          .order("created_at", { ascending: false });
-
-        if (rawError) throw rawError;
-        setAddresses((rawData || []) as SavedAddress[]);
-      } else {
-        setAddresses((data || []) as SavedAddress[]);
-      }
+      if (error) throw error;
+      setAddresses((data || []) as SavedAddress[]);
     } catch (error) {
       console.error("Error fetching addresses:", error);
-      // Table might not exist yet, silently fail
       setAddresses([]);
     } finally {
       setLoading(false);
