@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import {
   Minus,
   Plus,
   ShoppingBag,
-  Share2,
   Truck,
   RotateCcw,
   Loader2,
@@ -26,9 +25,12 @@ import { ProductReviews } from "@/components/ProductReviews";
 import { SizeGuideModal } from "@/components/SizeGuideModal";
 import { RelatedProducts } from "@/components/RelatedProducts";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
+import { SocialShareButtons } from "@/components/SocialShareButtons";
+import { StockNotificationButton } from "@/components/StockNotificationButton";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
+  const location = useLocation();
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -381,10 +383,17 @@ export default function ProductDetail() {
                 {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
               </Button>
               <WishlistButton productId={product.id} />
-              <Button size="lg" variant="outline">
-                <Share2 className="h-5 w-5" />
-              </Button>
+              <SocialShareButtons 
+                url={`${window.location.origin}${location.pathname}`}
+                title={product.name}
+                description={product.description || undefined}
+              />
             </div>
+
+            {/* Stock Notification for Out of Stock */}
+            {currentStock <= 0 && (
+              <StockNotificationButton productId={product.id} productName={product.name} />
+            )}
 
             {/* Delivery Info */}
             <div className="space-y-3 p-4 bg-muted/30 rounded-lg">

@@ -11,6 +11,7 @@ import Checkout from "./pages/Checkout";
 import OrderHistory from "./pages/OrderHistory";
 import Wishlist from "./pages/Wishlist";
 import Rewards from "./pages/Rewards";
+import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/orders" element={<OrderHistory />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/rewards" element={<Rewards />} />
+          <Route path="/account" element={<Account />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

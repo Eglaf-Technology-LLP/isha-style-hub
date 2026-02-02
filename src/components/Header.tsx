@@ -204,6 +204,9 @@ export function Header() {
                 {user ? (
                   <>
                     <DropdownMenuItem asChild>
+                      <Link to="/account">My Account</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link to="/orders">My Orders</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
