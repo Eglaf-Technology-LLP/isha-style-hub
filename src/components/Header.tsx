@@ -98,6 +98,15 @@ export function Header() {
                   </Link>
                 ))}
                 <hr className="my-2" />
+                {user && (
+                  <Link
+                    to="/account"
+                    className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <User className="h-5 w-5" /> My Account
+                  </Link>
+                )}
                 <Link
                   to="/wishlist"
                   className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"

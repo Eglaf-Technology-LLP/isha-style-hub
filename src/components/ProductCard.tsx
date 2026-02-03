@@ -7,6 +7,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
 import { WishlistButton } from "@/components/WishlistButton";
 import { CompareButton } from "@/components/ProductComparison";
+import { CompareProduct } from "@/stores/comparisonStore";
 
 interface ProductCardProps {
   product: Product;

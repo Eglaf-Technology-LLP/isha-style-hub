@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Scale, X, ArrowRight, Check, Minus } from "lucide-react";
+import { Scale, X, ArrowRight, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useProductComparison, CompareProduct } from "@/hooks/useProductComparison";
+import { useComparisonStore, CompareProduct } from "@/stores/comparisonStore";
 import { cn } from "@/lib/utils";
 
 interface CompareButtonProps {
@@ -28,7 +28,7 @@ interface CompareButtonProps {
 }
 
 export function CompareButton({ product, variant = "icon", className }: CompareButtonProps) {
-  const { isInComparison, addToComparison, removeFromComparison } = useProductComparison();
+  const { isInComparison, addToComparison, removeFromComparison } = useComparisonStore();
   const isComparing = isInComparison(product.id);
 
   const handleClick = (e: React.MouseEvent) => {
@@ -71,7 +71,7 @@ export function CompareButton({ product, variant = "icon", className }: CompareB
 }
 
 export function CompareDrawer() {
-  const { compareProducts, removeFromComparison, clearComparison, maxItems } = useProductComparison();
+  const { compareProducts, removeFromComparison, clearComparison, maxItems } = useComparisonStore();
   const [open, setOpen] = useState(false);
 
   if (compareProducts.length === 0) {
