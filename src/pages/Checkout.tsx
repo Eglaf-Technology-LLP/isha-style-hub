@@ -257,6 +257,31 @@ export default function Checkout() {
         }
       }
 
+      // Send confirmation email
+      try {
+        const emailResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-order-email`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify({
+              orderId: order.id,
+              type: "confirmation",
+            }),
+          }
+        );
+        
+        if (!emailResponse.ok) {
+          console.error("Failed to send confirmation email");
+        }
+      } catch (emailError) {
+        console.error("Email sending error:", emailError);
+        // Don't fail the order if email fails
+      }
+
       // Clear cart and show success
       clearCart();
       setOrderId(order.id);
