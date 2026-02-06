@@ -155,7 +155,7 @@ export default function ProductDetail() {
       return;
     }
 
-    const variantId = selectedVariant?.id || `${product.id}-default`;
+    const variantId = selectedVariant?.id || `${product.id}-${selectedSize || 'default'}-${selectedColor || 'default'}`;
     const variantTitle = [selectedSize, selectedColor].filter(Boolean).join(" / ") || "Default";
     const selectedOptions = [];
     if (selectedSize) selectedOptions.push({ name: "Size", value: selectedSize });
