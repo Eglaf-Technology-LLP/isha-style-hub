@@ -55,7 +55,7 @@ export default function Checkout() {
     country: "India",
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "stripe" | "razorpay">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "credit_card" | "debit_card" | "upi">("cod");
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
@@ -507,7 +507,7 @@ export default function Checkout() {
                 <RadioGroup
                   value={paymentMethod}
                   onValueChange={(value) =>
-                    setPaymentMethod(value as "cod" | "stripe" | "razorpay")
+                    setPaymentMethod(value as "cod" | "credit_card" | "debit_card" | "upi")
                   }
                   className="space-y-3"
                 >
@@ -517,11 +517,56 @@ export default function Checkout() {
                       htmlFor="cod"
                       className="flex items-center gap-3 cursor-pointer flex-1"
                     >
-                      <Banknote className="h-5 w-5 text-green-600" />
+                      <Banknote className="h-5 w-5 text-primary" />
                       <div>
                         <p className="font-medium">Cash on Delivery</p>
                         <p className="text-sm text-muted-foreground">
                           Pay when your order arrives
+                        </p>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                    <RadioGroupItem value="credit_card" id="credit_card" />
+                    <Label
+                      htmlFor="credit_card"
+                      className="flex items-center gap-3 cursor-pointer flex-1"
+                    >
+                      <CreditCard className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Credit Card</p>
+                        <p className="text-sm text-muted-foreground">
+                          Pay securely with your credit card
+                        </p>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                    <RadioGroupItem value="debit_card" id="debit_card" />
+                    <Label
+                      htmlFor="debit_card"
+                      className="flex items-center gap-3 cursor-pointer flex-1"
+                    >
+                      <CreditCard className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Debit Card</p>
+                        <p className="text-sm text-muted-foreground">
+                          Pay directly from your bank account
+                        </p>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                    <RadioGroupItem value="upi" id="upi" />
+                    <Label
+                      htmlFor="upi"
+                      className="flex items-center gap-3 cursor-pointer flex-1"
+                    >
+                      <Banknote className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">UPI</p>
+                        <p className="text-sm text-muted-foreground">
+                          Pay using Google Pay, PhonePe, Paytm, etc.
                         </p>
                       </div>
                     </Label>
