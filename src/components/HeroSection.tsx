@@ -31,15 +31,15 @@ export function HeroSection() {
             Fashion that speaks to you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link to="/category/new">
+            <Link to="/category/all">
               <Button size="lg" className="group">
                 Shop New Arrivals
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
-            <Link to="/category/dresses">
+            <Link to="/category/all">
               <Button size="lg" variant="outline" className="bg-card/10 border-card/30 text-card hover:bg-card/20">
-                Explore Dresses
+                Explore Collection
               </Button>
             </Link>
           </div>

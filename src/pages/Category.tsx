@@ -24,6 +24,8 @@ export default function Category() {
   const { products, loading: productsLoading } = useProducts();
   const { categories } = useCategories();
   
+  const isAllProducts = slug === "all" || !slug;
+
   // Filter state
   const [filters, setFilters] = useState<FilterState>({
     search: "",
@@ -32,7 +34,7 @@ export default function Category() {
     sizes: [],
     colors: [],
     inStock: false,
-    sortBy: "newest",
+    sortBy: "popular",
   });
 
   // Extract available sizes and colors from all products
@@ -68,7 +70,8 @@ export default function Category() {
 
   useEffect(() => {
     async function fetchCategory() {
-      if (!slug) {
+      if (!slug || slug === "all") {
+        setCategory(null);
         setLoading(false);
         return;
       }
@@ -96,7 +99,10 @@ export default function Category() {
   // Filter products based on category and filters
   const filteredProducts = useMemo(() => {
     return products
-      .filter((p) => !slug || p.category_id === category?.id)
+      .filter((p) => {
+        if (isAllProducts) return true;
+        return p.category_id === category?.id;
+      })
       .filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1])
       .filter((p) => {
         if (filters.search) {
@@ -118,6 +124,13 @@ export default function Category() {
       })
       .sort((a, b) => {
         switch (filters.sortBy) {
+          case "popular": {
+            // Prioritize high margin (compare_at_price - price) and then by price descending
+            const marginA = (a.compare_at_price || 0) > a.price ? (a.compare_at_price! - a.price) : 0;
+            const marginB = (b.compare_at_price || 0) > b.price ? (b.compare_at_price! - b.price) : 0;
+            if (marginB !== marginA) return marginB - marginA;
+            return b.price - a.price;
+          }
           case "price-low":
             return a.price - b.price;
           case "price-high":
@@ -129,7 +142,7 @@ export default function Category() {
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
       });
-  }, [products, slug, category, filters]);
+  }, [products, isAllProducts, category, filters]);
 
   if (loading) {
     return (
