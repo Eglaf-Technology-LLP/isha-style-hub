@@ -44,12 +44,18 @@ export default function Category() {
     products.forEach((product) => {
       if (product.price > max) max = product.price;
       if (product.variants) {
-        product.variants.forEach((variant: ProductVariant) => {
-          if (variant.options?.size) sizes.add(variant.options.size);
-          if (variant.options?.Size) sizes.add(variant.options.Size);
-          if (variant.options?.color) colors.add(variant.options.color);
-          if (variant.options?.Color) colors.add(variant.options.Color);
-        });
+        if (Array.isArray(product.variants)) {
+          product.variants.forEach((variant: ProductVariant) => {
+            if (variant.options?.size) sizes.add(variant.options.size);
+            if (variant.options?.Size) sizes.add(variant.options.Size);
+            if (variant.options?.color) colors.add(variant.options.color);
+            if (variant.options?.Color) colors.add(variant.options.Color);
+          });
+        } else {
+          const variantObj = product.variants as unknown as { sizes?: string[]; colors?: string[] };
+          if (variantObj.sizes) variantObj.sizes.forEach(s => sizes.add(s));
+          if (variantObj.colors) variantObj.colors.forEach(c => colors.add(c));
+        }
       }
     });
 
