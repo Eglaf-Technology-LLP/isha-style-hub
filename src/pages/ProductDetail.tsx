@@ -92,23 +92,31 @@ export default function ProductDetail() {
 
   // Extract available sizes and colors from variants
   const { availableSizes, availableColors, selectedVariant } = useMemo(() => {
-    if (!product || !product.variants || product.variants.length === 0) {
+    if (!product || !product.variants) {
       return { availableSizes: [], availableColors: [], selectedVariant: null };
     }
 
     const sizes = new Set<string>();
     const colors = new Set<string>();
 
-    product.variants.forEach((variant) => {
-      if (variant.options?.size) sizes.add(variant.options.size);
-      if (variant.options?.Size) sizes.add(variant.options.Size);
-      if (variant.options?.color) colors.add(variant.options.color);
-      if (variant.options?.Color) colors.add(variant.options.Color);
-    });
+    // Handle variants as either an array of ProductVariant or a plain object with sizes/colors arrays
+    if (Array.isArray(product.variants)) {
+      product.variants.forEach((variant) => {
+        if (variant.options?.size) sizes.add(variant.options.size);
+        if (variant.options?.Size) sizes.add(variant.options.Size);
+        if (variant.options?.color) colors.add(variant.options.color);
+        if (variant.options?.Color) colors.add(variant.options.Color);
+      });
+    } else {
+      // Handle plain object format: { sizes: string[], colors: string[] }
+      const variantObj = product.variants as unknown as { sizes?: string[]; colors?: string[] };
+      if (variantObj.sizes) variantObj.sizes.forEach(s => sizes.add(s));
+      if (variantObj.colors) variantObj.colors.forEach(c => colors.add(c));
+    }
 
     // Find matching variant based on selection
     let matchedVariant: ProductVariant | null = null;
-    if (selectedSize || selectedColor) {
+    if ((selectedSize || selectedColor) && Array.isArray(product.variants)) {
       matchedVariant = product.variants.find((v) => {
         const variantSize = v.options?.size || v.options?.Size;
         const variantColor = v.options?.color || v.options?.Color;
