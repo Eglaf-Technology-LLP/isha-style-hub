@@ -83,7 +83,7 @@ export function ProductFilters({
       sizes: [],
       colors: [],
       inStock: false,
-      sortBy: "newest",
+      sortBy: "popular",
     });
     setLocalPriceRange([0, maxPrice]);
   };
@@ -230,6 +230,7 @@ export function ProductFilters({
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="popular">Best Selling</SelectItem>
             <SelectItem value="newest">Newest</SelectItem>
             <SelectItem value="price-low">Price: Low to High</SelectItem>
             <SelectItem value="price-high">Price: High to Low</SelectItem>
