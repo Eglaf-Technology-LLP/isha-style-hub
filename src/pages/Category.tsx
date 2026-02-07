@@ -44,13 +44,19 @@ export default function Category() {
     setFilters(defaultFilters);
   }, [slug]);
 
-  // Extract available sizes and colors from all products
+  // Get products scoped to the current category
+  const categoryProducts = useMemo(() => {
+    if (isAllProducts) return products;
+    return products.filter((p) => p.category_id === category?.id);
+  }, [products, isAllProducts, category]);
+
+  // Extract available sizes and colors from category-scoped products only
   const { availableSizes, availableColors, maxPrice } = useMemo(() => {
     const sizes = new Set<string>();
     const colors = new Set<string>();
     let max = 0;
 
-    products.forEach((product) => {
+    categoryProducts.forEach((product) => {
       if (product.price > max) max = product.price;
       if (product.variants) {
         if (Array.isArray(product.variants)) {
@@ -73,7 +79,7 @@ export default function Category() {
       availableColors: Array.from(colors),
       maxPrice: Math.ceil(max / 1000) * 1000 || 50000,
     };
-  }, [products]);
+  }, [categoryProducts]);
 
   useEffect(() => {
     async function fetchCategory() {
