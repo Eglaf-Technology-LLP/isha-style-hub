@@ -17,6 +17,7 @@ import {
   Wallet,
   BarChart3,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ import { OrderManagement } from "@/components/admin/OrderManagement";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
+import { ReturnManagement } from "@/components/admin/ReturnManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -223,7 +225,7 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl grid-cols-8">
+          <TabsList className="grid w-full max-w-5xl grid-cols-9">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -252,6 +254,10 @@ export default function Admin() {
             <TabsTrigger value="orders" className="flex items-center gap-1">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
+            </TabsTrigger>
+            <TabsTrigger value="returns" className="flex items-center gap-1">
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">Returns</span>
             </TabsTrigger>
             <TabsTrigger value="promotions" className="flex items-center gap-1">
               <Sparkles className="h-4 w-4" />
@@ -365,6 +371,11 @@ export default function Admin() {
           {/* Orders Tab */}
           <TabsContent value="orders">
             <OrderManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* Returns Tab */}
+          <TabsContent value="returns">
+            <ReturnManagement />
           </TabsContent>
 
           {/* Promotions Tab */}

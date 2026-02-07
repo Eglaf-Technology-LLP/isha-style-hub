@@ -12,8 +12,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, ArrowLeft } from "lucide-react";
+import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
+import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 
 interface OrderItem {
   id: string;
@@ -65,6 +66,8 @@ export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
+  const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
 
   useEffect(() => {
     const checkAuthAndFetchOrders = async () => {
@@ -269,6 +272,23 @@ export default function OrderHistory() {
                               {order.shipping_address.city}, {order.shipping_address.state} - {order.shipping_address.pincode}
                             </p>
                           </div>
+
+                          {order.order_status === "delivered" && (
+                            <div className="pt-4 border-t">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-2"
+                                onClick={() => {
+                                  setReturnOrderId(order.id);
+                                  setReturnOrderItems(order.order_items);
+                                }}
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                                Return / Exchange
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </AccordionContent>
                     </AccordionItem>
@@ -279,6 +299,20 @@ export default function OrderHistory() {
           </div>
         )}
       </div>
+
+      {returnOrderId && (
+        <ReturnRequestForm
+          orderId={returnOrderId}
+          orderItems={returnOrderItems}
+          open={!!returnOrderId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setReturnOrderId(null);
+              setReturnOrderItems([]);
+            }
+          }}
+        />
+      )}
 
       <Footer />
     </div>
