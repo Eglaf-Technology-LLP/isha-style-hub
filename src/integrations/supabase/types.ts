@@ -668,6 +668,62 @@ export type Database = {
         }
         Relationships: []
       }
+      return_requests: {
+        Row: {
+          additional_notes: string | null
+          admin_notes: string | null
+          created_at: string
+          exchange_details: Json | null
+          id: string
+          items: Json
+          order_id: string
+          reason: string
+          refund_amount: number | null
+          request_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_notes?: string | null
+          admin_notes?: string | null
+          created_at?: string
+          exchange_details?: Json | null
+          id?: string
+          items?: Json
+          order_id: string
+          reason: string
+          refund_amount?: number | null
+          request_type?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_notes?: string | null
+          admin_notes?: string | null
+          created_at?: string
+          exchange_details?: Json | null
+          id?: string
+          items?: Json
+          order_id?: string
+          reason?: string
+          refund_amount?: number | null
+          request_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_requests_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       size_guides: {
         Row: {
           category_id: string | null
