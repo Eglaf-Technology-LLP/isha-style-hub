@@ -26,8 +26,7 @@ export default function Category() {
   
   const isAllProducts = slug === "all" || !slug;
 
-  // Filter state
-  const [filters, setFilters] = useState<FilterState>({
+  const defaultFilters: FilterState = {
     search: "",
     priceRange: [0, 50000],
     categories: [],
@@ -35,7 +34,15 @@ export default function Category() {
     colors: [],
     inStock: false,
     sortBy: "popular",
-  });
+  };
+
+  // Filter state
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+
+  // Reset filters when navigating to a different category
+  useEffect(() => {
+    setFilters(defaultFilters);
+  }, [slug]);
 
   // Extract available sizes and colors from all products
   const { availableSizes, availableColors, maxPrice } = useMemo(() => {
