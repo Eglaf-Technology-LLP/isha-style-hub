@@ -289,6 +289,38 @@ export default function OrderHistory() {
                               {order.shipping_address.city}, {order.shipping_address.state} - {order.shipping_address.pincode}
                             </p>
                           </div>
+                          {/* Return/Exchange Requests for this order */}
+                          {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
+                            <div className="pt-4 border-t space-y-2">
+                              <p className="text-sm font-medium">Return / Exchange Requests</p>
+                              {returnsByOrder[order.id].map((rr) => {
+                                const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
+                                return (
+                                  <div key={rr.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-muted rounded-lg text-sm">
+                                    <div className="flex items-center gap-2">
+                                      {rr.request_type === "return" ? (
+                                        <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                                      ) : (
+                                        <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                      <span className="font-medium">
+                                        {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        {format(new Date(rr.created_at), "MMM d, yyyy")}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
+                                        <span className="text-xs text-green-700 font-medium">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
+                                      )}
+                                      <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
 
                           {order.order_status === "delivered" && (
                             <div className="pt-4 border-t">
