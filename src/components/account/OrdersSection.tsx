@@ -9,9 +9,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, ShoppingBag, ExternalLink } from "lucide-react";
+import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
 
 interface OrderItem {
@@ -44,10 +45,26 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800",
 };
 
+const returnStatusConfig: Record<string, { label: string; className: string }> = {
+  pending: { label: "Pending Review", className: "bg-yellow-100 text-yellow-800" },
+  approved: { label: "Approved", className: "bg-blue-100 text-blue-800" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-800" },
+  picked_up: { label: "Items Picked Up", className: "bg-indigo-100 text-indigo-800" },
+  completed: { label: "Completed", className: "bg-green-100 text-green-800" },
+  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800" },
+};
+
 export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const { returnRequests, cancelReturnRequest } = useReturnRequests();
+
+  const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
+    if (!acc[rr.order_id]) acc[rr.order_id] = [];
+    acc[rr.order_id].push(rr);
+    return acc;
+  }, {});
 
   useEffect(() => {
     if (user) {
@@ -170,6 +187,42 @@ export function OrdersSection() {
                             </div>
                           ))}
                         </div>
+                        {/* Return/Exchange status */}
+                        {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
+                          <div className="pt-3 border-t space-y-2 mt-2">
+                            <p className="text-xs font-medium text-muted-foreground">Return / Exchange</p>
+                            {returnsByOrder[order.id].map((rr) => {
+                              const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
+                              return (
+                                <div key={rr.id} className="flex items-center justify-between gap-2 text-xs">
+                                  <div className="flex items-center gap-1.5">
+                                    {rr.request_type === "return" ? (
+                                      <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                    <span className="font-medium">
+                                      {rr.request_type === "return" ? "Return" : "Exchange"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge className={`${statusInfo.className} text-[10px] px-1.5 py-0`}>{statusInfo.label}</Badge>
+                                    {rr.status === "pending" && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive"
+                                        onClick={() => cancelReturnRequest(rr.id)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>

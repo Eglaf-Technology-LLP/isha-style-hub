@@ -78,7 +78,7 @@ export default function OrderHistory() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
-  const { returnRequests } = useReturnRequests();
+  const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
     if (!acc[rr.order_id]) acc[rr.order_id] = [];
@@ -315,6 +315,16 @@ export default function OrderHistory() {
                                         <span className="text-xs text-green-700 font-medium">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
                                       )}
                                       <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+                                      {rr.status === "pending" && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-7 text-xs text-destructive hover:text-destructive"
+                                          onClick={() => cancelReturnRequest(rr.id)}
+                                        >
+                                          Cancel
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 );

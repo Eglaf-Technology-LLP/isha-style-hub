@@ -122,11 +122,33 @@ export function useReturnRequests(isAdmin: boolean = false) {
     }
   };
 
+  const cancelReturnRequest = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("return_requests")
+        .update({ status: "cancelled" })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setReturnRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: "cancelled" as const } : r))
+      );
+      toast.success("Return request cancelled");
+      return true;
+    } catch (error) {
+      console.error("Error cancelling return request:", error);
+      toast.error("Failed to cancel return request");
+      return false;
+    }
+  };
+
   return {
     returnRequests,
     loading,
     createReturnRequest,
     updateReturnStatus,
+    cancelReturnRequest,
     refetch: fetchReturnRequests,
   };
 }
