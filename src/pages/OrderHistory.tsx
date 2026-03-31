@@ -12,9 +12,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw } from "lucide-react";
+import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight } from "lucide-react";
 import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
+import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 
 interface OrderItem {
   id: string;

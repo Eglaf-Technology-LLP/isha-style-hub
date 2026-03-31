@@ -31,6 +31,7 @@ import {
   Truck,
 } from "lucide-react";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
