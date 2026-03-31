@@ -45,6 +45,15 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-red-100 text-red-800",
 };
 
+const returnStatusConfig: Record<string, { label: string; className: string }> = {
+  pending: { label: "Pending Review", className: "bg-yellow-100 text-yellow-800" },
+  approved: { label: "Approved", className: "bg-blue-100 text-blue-800" },
+  rejected: { label: "Rejected", className: "bg-red-100 text-red-800" },
+  picked_up: { label: "Items Picked Up", className: "bg-indigo-100 text-indigo-800" },
+  completed: { label: "Completed", className: "bg-green-100 text-green-800" },
+  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800" },
+};
+
 export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
