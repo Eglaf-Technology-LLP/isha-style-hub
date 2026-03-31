@@ -78,6 +78,13 @@ export default function OrderHistory() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
+  const { returnRequests } = useReturnRequests();
+
+  const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
+    if (!acc[rr.order_id]) acc[rr.order_id] = [];
+    acc[rr.order_id].push(rr);
+    return acc;
+  }, {});
 
   useEffect(() => {
     const checkAuthAndFetchOrders = async () => {
