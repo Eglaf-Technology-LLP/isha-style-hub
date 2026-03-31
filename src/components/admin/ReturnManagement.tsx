@@ -60,16 +60,30 @@ export function ReturnManagement() {
   const handleStatusUpdate = async (status: ReturnRequest["status"]) => {
     if (!selectedRequest) return;
     setUpdating(true);
+    const refundVal = parseFloat(refundAmount) || 0;
     const success = await updateReturnStatus(
       selectedRequest.id,
       status,
       adminNotes,
-      parseFloat(refundAmount) || 0
+      refundVal
     );
     if (success) {
       setSelectedRequest((prev) =>
-        prev ? { ...prev, status, admin_notes: adminNotes, refund_amount: parseFloat(refundAmount) || 0 } : null
+        prev ? { ...prev, status, admin_notes: adminNotes, refund_amount: refundVal } : null
       );
+      // Send email notification to customer
+      try {
+        await supabase.functions.invoke("send-return-status-email", {
+          body: {
+            returnRequestId: selectedRequest.id,
+            newStatus: status,
+            adminNotes,
+            refundAmount: refundVal,
+          },
+        });
+      } catch (e) {
+        console.error("Failed to send return status email:", e);
+      }
     }
     setUpdating(false);
   };
