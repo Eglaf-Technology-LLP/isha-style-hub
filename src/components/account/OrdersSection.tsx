@@ -9,9 +9,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, ShoppingBag, ExternalLink } from "lucide-react";
+import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
 
 interface OrderItem {
