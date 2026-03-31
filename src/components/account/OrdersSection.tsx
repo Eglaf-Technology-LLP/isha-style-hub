@@ -187,6 +187,42 @@ export function OrdersSection() {
                             </div>
                           ))}
                         </div>
+                        {/* Return/Exchange status */}
+                        {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
+                          <div className="pt-3 border-t space-y-2 mt-2">
+                            <p className="text-xs font-medium text-muted-foreground">Return / Exchange</p>
+                            {returnsByOrder[order.id].map((rr) => {
+                              const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
+                              return (
+                                <div key={rr.id} className="flex items-center justify-between gap-2 text-xs">
+                                  <div className="flex items-center gap-1.5">
+                                    {rr.request_type === "return" ? (
+                                      <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                    <span className="font-medium">
+                                      {rr.request_type === "return" ? "Return" : "Exchange"}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge className={`${statusInfo.className} text-[10px] px-1.5 py-0`}>{statusInfo.label}</Badge>
+                                    {rr.status === "pending" && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive"
+                                        onClick={() => cancelReturnRequest(rr.id)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
