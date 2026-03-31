@@ -58,6 +58,13 @@ export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const { returnRequests, cancelReturnRequest } = useReturnRequests();
+
+  const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
+    if (!acc[rr.order_id]) acc[rr.order_id] = [];
+    acc[rr.order_id].push(rr);
+    return acc;
+  }, {});
 
   useEffect(() => {
     if (user) {
