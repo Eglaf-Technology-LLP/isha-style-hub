@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,10 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
+  const [imageError, setImageError] = useState(false);
 
   const mainImage = product.images[0];
+  const showImage = mainImage && !imageError;
   const hasDiscount =
     product.compare_at_price && product.compare_at_price > product.price;
 
