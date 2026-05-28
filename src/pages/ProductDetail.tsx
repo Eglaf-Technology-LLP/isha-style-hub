@@ -24,6 +24,7 @@ import { WishlistButton } from "@/components/WishlistButton";
 import { ProductReviews } from "@/components/ProductReviews";
 import { SizeGuideModal } from "@/components/SizeGuideModal";
 import { RelatedProducts } from "@/components/RelatedProducts";
+import { CompleteTheLook } from "@/components/CompleteTheLook";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
@@ -469,6 +470,9 @@ export default function ProductDetail() {
             </Tabs>
           </div>
         </div>
+
+        {/* AI Complete the Look */}
+        <CompleteTheLook productId={product.id} />
 
         {/* Product Reviews Section */}
         <ProductReviews productId={product.id} />
