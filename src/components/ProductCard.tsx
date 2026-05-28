@@ -103,10 +103,11 @@ export function ProductCard({ product }: ProductCardProps) {
     <Link to={`/product/${product.id}`} className="group">
       <div className="relative overflow-hidden rounded-2xl bg-muted/30 aspect-[3/4]">
         {/* Image */}
-        {mainImage ? (
+        {showImage ? (
           <img
             src={mainImage}
             alt={product.name}
+            onError={() => setImageError(true)}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
