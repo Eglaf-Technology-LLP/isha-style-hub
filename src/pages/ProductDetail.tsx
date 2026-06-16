@@ -23,6 +23,7 @@ import { VariantSelector } from "@/components/VariantSelector";
 import { WishlistButton } from "@/components/WishlistButton";
 import { ProductReviews } from "@/components/ProductReviews";
 import { SizeGuideModal } from "@/components/SizeGuideModal";
+import { SizeRecommender } from "@/components/SizeRecommender";
 import { RelatedProducts } from "@/components/RelatedProducts";
 import { CompleteTheLook } from "@/components/CompleteTheLook";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
@@ -349,7 +350,14 @@ export default function ProductDetail() {
                     type="size"
                   />
                 </div>
-                <SizeGuideModal categoryId={product.category_id} />
+                <div className="flex items-center gap-2 flex-wrap">
+                  <SizeGuideModal categoryId={product.category_id} />
+                  <SizeRecommender
+                    productId={product.id}
+                    availableSizes={availableSizes}
+                    onSizeRecommended={setSelectedSize}
+                  />
+                </div>
               </div>
             )}
 
