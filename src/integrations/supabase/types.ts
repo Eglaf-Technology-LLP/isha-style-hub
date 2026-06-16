@@ -250,6 +250,48 @@ export type Database = {
           },
         ]
       }
+      memberships: {
+        Row: {
+          amount_paid: number
+          auto_renew: boolean
+          cancelled_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          plan: Database["public"]["Enums"]["membership_plan"]
+          started_at: string
+          status: Database["public"]["Enums"]["membership_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_paid?: number
+          auto_renew?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          plan: Database["public"]["Enums"]["membership_plan"]
+          started_at?: string
+          status?: Database["public"]["Enums"]["membership_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_paid?: number
+          auto_renew?: boolean
+          cancelled_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          plan?: Database["public"]["Enums"]["membership_plan"]
+          started_at?: string
+          status?: Database["public"]["Enums"]["membership_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       newsletter_subscribers: {
         Row: {
           email: string
@@ -827,6 +869,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      membership_plan: "monthly" | "annual"
+      membership_status: "active" | "cancelled" | "expired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -955,6 +999,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      membership_plan: ["monthly", "annual"],
+      membership_status: ["active", "cancelled", "expired"],
     },
   },
 } as const

@@ -219,6 +219,9 @@ export function Header() {
                       <Link to="/orders">My Orders</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                      <Link to="/membership">Isha Insider</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                       <Link to="/wishlist">My Wishlist</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
