@@ -93,12 +93,21 @@ Deno.serve(async (req) => {
       message?.images?.[0]?.image_url?.url ?? undefined;
 
     if (!imageUrl) {
+      const refusal: string =
+        (typeof message?.content === "string" && message.content.trim()) ||
+        message?.refusal ||
+        "";
       console.error("No image returned", JSON.stringify(aiData).slice(0, 500));
       return new Response(
-        JSON.stringify({ error: "Could not generate try-on image. Try another photo." }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({
+          error: refusal
+            ? `Try-on unavailable for this photo: ${refusal}`
+            : "Could not generate try-on image. Try a clear, well-lit solo photo of an adult.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     return new Response(
       JSON.stringify({ imageUrl, note: message?.content || "" }),
