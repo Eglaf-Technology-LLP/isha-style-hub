@@ -29,6 +29,7 @@ import { CompleteTheLook } from "@/components/CompleteTheLook";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
+import { VirtualTryOn } from "@/components/VirtualTryOn";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -406,6 +407,13 @@ export default function ProductDetail() {
                 description={product.description || undefined}
               />
             </div>
+
+            {/* Virtual Try-On */}
+            <VirtualTryOn
+              productName={product.name}
+              productImageUrl={product.images?.[0]}
+            />
+
 
             {/* Stock Notification for Out of Stock */}
             {currentStock <= 0 && (
