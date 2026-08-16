@@ -78,8 +78,23 @@ Roles stay in the existing `user_roles` table (extended with `vendor_admin`, `ve
 - Checkout, cart totals, shipping thresholds and discounts need vendor-aware recalculation (free shipping and promotions apply per vendor, not per cart).
 - Commission is stored per vendor and snapshotted onto `vendor_orders` at order time so later rate changes don't rewrite history.
 
-## Open questions
+## Decisions
 
-- Payments: single payment to the platform with later payouts (simpler), or split payments per vendor at checkout?
-- Do vendors set their own shipping charges and return policy, or does the marketplace enforce one policy?
-- Must every new vendor product be approved by the super admin, or auto-publish once a vendor is trusted?
+**Payments — split per vendor at checkout**
+- Each vendor connects their own payout account; funds go to the vendor at purchase time, with the platform commission taken as an application fee.
+- A multi-vendor cart creates one payment per vendor portion, grouped under a single customer order, so a failure in one vendor's leg doesn't block the others.
+- COD stays available and is settled per vendor in the payout report.
+- Vendors that haven't finished payment onboarding can't publish products.
+
+**Shipping & returns — vendor-controlled**
+- Each vendor sets their own shipping rules (flat rate, free-shipping threshold, per-region charges) and their own return window and policy text.
+- Cart and checkout calculate shipping per vendor group and show a per-vendor breakdown before the grand total.
+- Product pages show that vendor's delivery and returns terms instead of the fixed "₹999 free delivery / 7-day returns" block.
+- Return requests route to the owning vendor; the super admin can override any decision.
+
+**Product approval — trusted-partner toggle**
+- `vendors.is_trusted` flag, controlled only by the super admin.
+- Trusted vendor: products publish immediately on save.
+- Untrusted vendor: products go to `pending_review` and appear in the super admin moderation queue, where they're approved or rejected with a reason.
+- Toggling a vendor to trusted auto-approves their pending items; toggling off applies only to future products.
+
