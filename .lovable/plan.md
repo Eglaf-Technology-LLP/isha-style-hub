@@ -15,10 +15,11 @@ Roles stay in the existing `user_roles` table (extended with `vendor_admin`, `ve
 
 ## Data model additions
 
-- **vendors** — store name, slug, logo, banner, description, contact, GST/PAN, address, status (`pending` / `approved` / `suspended` / `rejected`), commission rate, rating, approved_by, approved_at.
+- **vendors** — store name, slug, logo, banner, description, contact, GST/PAN, address, status (`pending` / `approved` / `suspended` / `rejected`), `is_trusted` flag, commission rate, shipping rules (flat rate, free-shipping threshold), return window + policy text, payout account status, rating, approved_by, approved_at.
 - **vendor_members** — user_id, vendor_id, role (owner/staff). Determines "which store am I in".
 - **vendor_payouts** — vendor_id, period, gross sales, commission, net payable, status, paid_at.
 - **vendor_applications** (or reuse `vendors.status = pending`) — registration submissions the super admin reviews.
+
 - **products** — add `vendor_id`, `approval_status` (`draft` / `pending_review` / `approved` / `rejected`), `rejection_reason`.
 - **orders** — customers can buy from several vendors in one checkout, so orders split: keep `orders` as the customer-facing order, add **vendor_orders** (order_id, vendor_id, subtotal, shipping, commission, status, tracking). Each vendor sees and fulfils only their portion.
 - **order_items** — add `vendor_id` and `vendor_order_id`.
