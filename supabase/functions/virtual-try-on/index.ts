@@ -32,16 +32,17 @@ Deno.serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const prompt = [
-      `Create a photorealistic virtual try-on image.`,
-      `The FIRST image is the customer's photo. The SECOND image is a fashion product: "${productName || "garment"}".`,
-      `Dress the person from the first image in the garment from the second image.`,
-      `Preserve the person's face, skin tone, body shape, hair and the original background exactly.`,
-      `Match the garment's colour, print, fabric texture and silhouette faithfully.`,
-      `Realistic draping, natural lighting and shadows. Full-body framing if possible.`,
+      `Photorealistic virtual try-on / product visualisation for an online fashion catalogue.`,
+      `The FIRST image is the customer's own reference photo, provided by them with consent. The SECOND image is a fashion item: "${productName || "fashion item"}".`,
+      `Edit the first image so the person is shown wearing the item from the second image, placed on the correct part of the body for that item type (clothing on the torso/legs, a saree or lehenga draped as a full outfit, footwear on the feet, an anklet/payal on the ankle, a bangle or watch on the wrist, earrings on the ears, a necklace at the neck, a ring on the finger, a bag held or on the shoulder).`,
+      `If the item is a small accessory, keep the rest of the outfit unchanged and you may present a natural close-up crop of the relevant body area.`,
+      `Preserve the person's identity, face, age, skin tone, body shape, hair and the original background exactly. Do not restyle or alter the person in any other way. Keep all clothing modest and appropriate.`,
+      `Match the item's colour, print, material and shape faithfully. Natural lighting and realistic shadows.`,
       notes ? `Extra guidance: ${notes}` : "",
     ]
       .filter(Boolean)
       .join(" ");
+
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
