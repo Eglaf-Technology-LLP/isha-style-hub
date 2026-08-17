@@ -61,6 +61,7 @@ export type Database = {
           starts_at: string | null
           updated_at: string
           used_count: number
+          vendor_id: string | null
         }
         Insert: {
           code: string
@@ -78,6 +79,7 @@ export type Database = {
           starts_at?: string | null
           updated_at?: string
           used_count?: number
+          vendor_id?: string | null
         }
         Update: {
           code?: string
@@ -95,8 +97,17 @@ export type Database = {
           starts_at?: string | null
           updated_at?: string
           used_count?: number
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "discounts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       flash_sales: {
         Row: {
@@ -110,6 +121,7 @@ export type Database = {
           product_ids: string[]
           starts_at: string
           updated_at: string
+          vendor_id: string | null
         }
         Insert: {
           created_at?: string
@@ -122,6 +134,7 @@ export type Database = {
           product_ids?: string[]
           starts_at: string
           updated_at?: string
+          vendor_id?: string | null
         }
         Update: {
           created_at?: string
@@ -134,8 +147,17 @@ export type Database = {
           product_ids?: string[]
           starts_at?: string
           updated_at?: string
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "flash_sales_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gift_cards: {
         Row: {
@@ -332,6 +354,8 @@ export type Database = {
           size: string | null
           variant_id: string
           variant_title: string | null
+          vendor_id: string | null
+          vendor_order_id: string | null
         }
         Insert: {
           color?: string | null
@@ -345,6 +369,8 @@ export type Database = {
           size?: string | null
           variant_id: string
           variant_title?: string | null
+          vendor_id?: string | null
+          vendor_order_id?: string | null
         }
         Update: {
           color?: string | null
@@ -358,6 +384,8 @@ export type Database = {
           size?: string | null
           variant_id?: string
           variant_title?: string | null
+          vendor_id?: string | null
+          vendor_order_id?: string | null
         }
         Relationships: [
           {
@@ -365,6 +393,20 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -552,6 +594,7 @@ export type Database = {
       }
       products: {
         Row: {
+          approval_status: string
           category_id: string | null
           compare_at_price: number | null
           created_at: string
@@ -561,14 +604,17 @@ export type Database = {
           is_active: boolean
           name: string
           price: number
+          rejection_reason: string | null
           related_product_ids: string[] | null
           sku: string | null
           stock_quantity: number
           tags: string[] | null
           updated_at: string
           variants: Json | null
+          vendor_id: string | null
         }
         Insert: {
+          approval_status?: string
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string
@@ -578,14 +624,17 @@ export type Database = {
           is_active?: boolean
           name: string
           price?: number
+          rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string
           variants?: Json | null
+          vendor_id?: string | null
         }
         Update: {
+          approval_status?: string
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string
@@ -595,12 +644,14 @@ export type Database = {
           is_active?: boolean
           name?: string
           price?: number
+          rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string
           variants?: Json | null
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -608,6 +659,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -825,6 +883,235 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_members: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_members_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_orders: {
+        Row: {
+          carrier: string | null
+          commission_amount: number
+          commission_rate: number
+          created_at: string
+          id: string
+          net_payable: number
+          order_id: string
+          shipping_cost: number
+          status: string
+          subtotal: number
+          tracking_number: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          carrier?: string | null
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string
+          id?: string
+          net_payable?: number
+          order_id: string
+          shipping_cost?: number
+          status?: string
+          subtotal?: number
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          carrier?: string | null
+          commission_amount?: number
+          commission_rate?: number
+          created_at?: string
+          id?: string
+          net_payable?: number
+          order_id?: string
+          shipping_cost?: number
+          status?: string
+          subtotal?: number
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_orders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_payouts: {
+        Row: {
+          commission_amount: number
+          created_at: string
+          gross_sales: number
+          id: string
+          net_payable: number
+          paid_at: string | null
+          period_end: string
+          period_start: string
+          status: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          commission_amount?: number
+          created_at?: string
+          gross_sales?: number
+          id?: string
+          net_payable?: number
+          paid_at?: string | null
+          period_end: string
+          period_start: string
+          status?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          commission_amount?: number
+          created_at?: string
+          gross_sales?: number
+          id?: string
+          net_payable?: number
+          paid_at?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_payouts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          address: Json | null
+          approved_at: string | null
+          approved_by: string | null
+          banner_url: string | null
+          commission_rate: number
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          description: string | null
+          free_shipping_threshold: number | null
+          gst_number: string | null
+          id: string
+          is_trusted: boolean
+          logo_url: string | null
+          name: string
+          owner_user_id: string | null
+          pan_number: string | null
+          payout_account_status: string
+          rating: number | null
+          return_policy: string | null
+          return_window_days: number
+          shipping_flat_rate: number
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          banner_url?: string | null
+          commission_rate?: number
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          free_shipping_threshold?: number | null
+          gst_number?: string | null
+          id?: string
+          is_trusted?: boolean
+          logo_url?: string | null
+          name: string
+          owner_user_id?: string | null
+          pan_number?: string | null
+          payout_account_status?: string
+          rating?: number | null
+          return_policy?: string | null
+          return_window_days?: number
+          shipping_flat_rate?: number
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          banner_url?: string | null
+          commission_rate?: number
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          free_shipping_threshold?: number | null
+          gst_number?: string | null
+          id?: string
+          is_trusted?: boolean
+          logo_url?: string | null
+          name?: string
+          owner_user_id?: string | null
+          pan_number?: string | null
+          payout_account_status?: string
+          rating?: number | null
+          return_policy?: string | null
+          return_window_days?: number
+          shipping_flat_rate?: number
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       wishlists: {
         Row: {
           created_at: string
@@ -859,6 +1146,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -866,9 +1154,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_vendor_member: {
+        Args: { _user_id: string; _vendor_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "vendor_admin" | "vendor_staff"
       membership_plan: "monthly" | "annual"
       membership_status: "active" | "cancelled" | "expired"
     }
@@ -998,7 +1290,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "vendor_admin", "vendor_staff"],
       membership_plan: ["monthly", "annual"],
       membership_status: ["active", "cancelled", "expired"],
     },
