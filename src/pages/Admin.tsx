@@ -18,6 +18,7 @@ import {
   BarChart3,
   AlertTriangle,
   RotateCcw,
+  Store,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import { CategoryManagement } from "@/components/admin/CategoryManagement";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
+import { VendorManagement } from "@/components/admin/VendorManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -225,7 +227,7 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-5xl grid-cols-9">
+          <TabsList className="grid w-full max-w-5xl grid-cols-10">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -266,6 +268,10 @@ export default function Admin() {
             <TabsTrigger value="payments" className="flex items-center gap-1">
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">Payments</span>
+            </TabsTrigger>
+            <TabsTrigger value="vendors" className="flex items-center gap-1">
+              <Store className="h-4 w-4" />
+              <span className="hidden sm:inline">Vendors</span>
             </TabsTrigger>
           </TabsList>
 
@@ -386,6 +392,11 @@ export default function Admin() {
           {/* Payments Tab */}
           <TabsContent value="payments">
             <PaymentManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* Vendors Tab */}
+          <TabsContent value="vendors">
+            <VendorManagement />
           </TabsContent>
         </Tabs>
       </div>

@@ -13,6 +13,9 @@ import Wishlist from "./pages/Wishlist";
 import Rewards from "./pages/Rewards";
 import Membership from "./pages/Membership";
 import Account from "./pages/Account";
+import SellWithUs from "./pages/SellWithUs";
+import VendorPending from "./pages/VendorPending";
+import VendorDashboard from "./pages/VendorDashboard";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 
@@ -35,6 +38,9 @@ const App = () => (
           <Route path="/membership" element={<Membership />} />
           <Route path="/account" element={<Account />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/sell-with-us" element={<SellWithUs />} />
+          <Route path="/vendor/pending" element={<VendorPending />} />
+          <Route path="/vendor" element={<VendorDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
