@@ -77,6 +77,11 @@ export function Footer() {
                   Size Guide
                 </Link>
               </li>
+              <li>
+                <Link to="/sell-with-us" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                  Sell with Us
+                </Link>
+              </li>
             </ul>
           </div>
 
