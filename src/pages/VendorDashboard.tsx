@@ -269,10 +269,19 @@ export default function VendorDashboard() {
 
         {/* Products */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" /> Your products
             </CardTitle>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingProduct(null);
+                setProductDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add product
+            </Button>
           </CardHeader>
           <CardContent>
             {dataLoading ? (
@@ -281,7 +290,7 @@ export default function VendorDashboard() {
               </div>
             ) : products.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                No products yet. Product creation tools are coming in the next release.
+                No products yet. Use “Add product” to create your first listing.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -293,6 +302,7 @@ export default function VendorDashboard() {
                       <TableHead>Stock</TableHead>
                       <TableHead>Approval</TableHead>
                       <TableHead>Visible</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -329,8 +339,30 @@ export default function VendorDashboard() {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${p.name}`}
+                            onClick={() => {
+                              setEditingProduct(p);
+                              setProductDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${p.name}`}
+                            onClick={() => deleteProduct(p)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
+
                   </TableBody>
                 </Table>
               </div>
