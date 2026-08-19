@@ -22,9 +22,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Package, ShoppingCart, IndianRupee, Store, Eye } from "lucide-react";
+import {
+  Loader2,
+  Package,
+  ShoppingCart,
+  IndianRupee,
+  Store,
+  Eye,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 
 interface VendorProduct {
   id: string;
