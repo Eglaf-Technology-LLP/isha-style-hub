@@ -188,10 +188,19 @@ export default function Checkout() {
       // Get current user if logged in
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Generate the order id client-side: guests have no session for
+      // Postgres RLS to scope a SELECT-back to, so we can't safely grant
+      // anon broad read access on orders just to fetch the row we
+      // inserted (that would expose every guest's name/email/phone to
+      // anyone). We already know every field we're inserting, so there's
+      // nothing worth reading back - just supply the id ourselves.
+      const newOrderId = crypto.randomUUID();
+
       // Create the order
-      const { data: order, error: orderError } = await supabase
+      const { error: orderError } = await supabase
         .from("orders")
         .insert({
+          id: newOrderId,
           user_id: user?.id || null,
           customer_name: customerInfo.name,
           customer_email: customerInfo.email,
@@ -204,15 +213,13 @@ export default function Checkout() {
           shipping_cost: shippingCost,
           total: total,
           notes: notes || null,
-        })
-        .select()
-        .single();
+        });
 
       if (orderError) throw orderError;
 
       // Create order items
       const orderItems = items.map((item) => ({
-        order_id: order.id,
+        order_id: newOrderId,
         product_id: item.productId,
         variant_id: item.variantId,
         product_title: item.productName,
@@ -233,7 +240,7 @@ export default function Checkout() {
       const { error: paymentError } = await supabase
         .from("payments")
         .insert({
-          order_id: order.id,
+          order_id: newOrderId,
           amount: total,
           payment_method: paymentMethod,
           payment_status: paymentMethod === "cod" ? "pending" : "pending",
@@ -243,17 +250,11 @@ export default function Checkout() {
 
       // Increment discount usage if applied
       if (appliedDiscount) {
-        const { data: discountData } = await supabase
-          .from("discounts")
-          .select("used_count")
-          .eq("id", appliedDiscount.id)
-          .single();
-        
-        if (discountData) {
-          await supabase
-            .from("discounts")
-            .update({ used_count: discountData.used_count + 1 })
-            .eq("id", appliedDiscount.id);
+        const { error: discountError } = await supabase.rpc("increment_discount_usage", {
+          _discount_id: appliedDiscount.id,
+        });
+        if (discountError) {
+          console.error("Error incrementing discount usage:", discountError);
         }
       }
 
@@ -268,7 +269,7 @@ export default function Checkout() {
               "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
             },
             body: JSON.stringify({
-              orderId: order.id,
+              orderId: newOrderId,
               type: "confirmation",
             }),
           }
@@ -284,7 +285,7 @@ export default function Checkout() {
 
       // Clear cart and show success
       clearCart();
-      setOrderId(order.id);
+      setOrderId(newOrderId);
       setOrderPlaced(true);
       toast.success("Order placed successfully!");
     } catch (error: any) {
