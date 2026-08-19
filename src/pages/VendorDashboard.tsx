@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
+import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 
 interface VendorProduct {
   id: string;
@@ -80,7 +81,7 @@ interface PayoutAccountForm {
 const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp"];
 
 export default function VendorDashboard() {
-  const { vendor, loading } = useVendor();
+  const { vendor, loading, refresh: refreshVendor } = useVendor();
   const navigate = useNavigate();
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -95,6 +96,7 @@ export default function VendorDashboard() {
     business_type: "individual",
   });
   const [payoutSaving, setPayoutSaving] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const savePayoutAccount = async () => {
     if (!vendor) return;
@@ -306,11 +308,9 @@ export default function VendorDashboard() {
                 <Eye className="h-4 w-4 mr-2" /> View storefront
               </Button>
             </Link>
-            <Link to="/sell-with-us">
-              <Button variant="ghost" size="sm">
-                Store settings
-              </Button>
-            </Link>
+            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+              Store settings
+            </Button>
           </div>
         </div>
       </div>
@@ -644,6 +644,13 @@ export default function VendorDashboard() {
         isTrusted={vendor.is_trusted}
         product={editingProduct}
         onSaved={fetchAll}
+      />
+
+      <VendorSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        vendor={vendor}
+        onSaved={refreshVendor}
       />
 
       <Footer />
