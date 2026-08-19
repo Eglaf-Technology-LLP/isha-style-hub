@@ -6,8 +6,7 @@ Indian ethnic and western fashion marketplace, with AI styling and virtual try-o
 
 - Vite + React + TypeScript
 - shadcn-ui + Tailwind CSS
-- Supabase (Postgres, Auth, Storage, Edge Functions)
-- Shopify Storefront API (product catalogue / checkout)
+- Supabase (Postgres, Auth, Storage, Edge Functions) — product catalogue, orders, vendors, everything
 - Google Gemini (AI styling, size recommendation, virtual try-on)
 
 ## Local setup
@@ -30,8 +29,6 @@ npm run dev
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
 | `VITE_SUPABASE_PROJECT_ID` | Supabase project ref |
-| `VITE_SHOPIFY_STORE_DOMAIN` | Shopify store's `.myshopify.com` domain |
-| `VITE_SHOPIFY_STOREFRONT_TOKEN` | Shopify Storefront API access token |
 
 Edge function secrets (set via `supabase secrets set`, not `.env`):
 

@@ -183,50 +183,9 @@ export default function ProductDetail() {
     if (selectedColor) selectedOptions.push({ name: "Color", value: selectedColor });
 
     addItem({
-      product: {
-        node: {
-          id: product.id,
-          title: product.name,
-          handle: product.id,
-          vendor: vendorInfo?.name || "Isha Fashion Hub",
-          description: product.description || "",
-          descriptionHtml: product.description || "",
-          productType: category?.name || "",
-          tags: [],
-          priceRange: {
-            minVariantPrice: {
-              amount: currentPrice.toString(),
-              currencyCode: "INR",
-            },
-            maxVariantPrice: {
-              amount: currentPrice.toString(),
-              currencyCode: "INR",
-            },
-          },
-          images: {
-            edges: product.images.map((img) => ({
-              node: { url: img, altText: product.name },
-            })),
-          },
-          options: [],
-          variants: {
-            edges: [
-              {
-                node: {
-                  id: variantId,
-                  title: variantTitle,
-                  price: {
-                    amount: currentPrice.toString(),
-                    currencyCode: "INR",
-                  },
-                  availableForSale: currentStock > 0,
-                  selectedOptions,
-                },
-              },
-            ],
-          },
-        },
-      },
+      productId: product.id,
+      productName: product.name,
+      productImage: product.images[0] || null,
       variantId,
       variantTitle,
       price: {

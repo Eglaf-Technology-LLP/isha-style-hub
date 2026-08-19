@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ShopifyProduct, createStorefrontCheckout } from '@/lib/shopify';
 
 export interface CartItem {
-  product: ShopifyProduct;
+  productId: string;
+  productName: string;
+  productImage: string | null;
   variantId: string;
   variantTitle: string;
   price: {
@@ -19,19 +20,12 @@ export interface CartItem {
 
 interface CartStore {
   items: CartItem[];
-  cartId: string | null;
-  checkoutUrl: string | null;
-  isLoading: boolean;
-  
+
   // Actions
   addItem: (item: CartItem) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeItem: (variantId: string) => void;
   clearCart: () => void;
-  setCartId: (cartId: string) => void;
-  setCheckoutUrl: (url: string) => void;
-  setLoading: (loading: boolean) => void;
-  createCheckout: () => Promise<string | null>;
   getTotalItems: () => number;
   getTotalPrice: () => number;
 }
@@ -40,14 +34,11 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
-      cartId: null,
-      checkoutUrl: null,
-      isLoading: false,
 
       addItem: (item) => {
         const { items } = get();
         const existingItem = items.find(i => i.variantId === item.variantId);
-        
+
         if (existingItem) {
           set({
             items: items.map(i =>
@@ -66,7 +57,7 @@ export const useCartStore = create<CartStore>()(
           get().removeItem(variantId);
           return;
         }
-        
+
         set({
           items: get().items.map(item =>
             item.variantId === variantId ? { ...item, quantity } : item
@@ -81,30 +72,7 @@ export const useCartStore = create<CartStore>()(
       },
 
       clearCart: () => {
-        set({ items: [], cartId: null, checkoutUrl: null });
-      },
-
-      setCartId: (cartId) => set({ cartId }),
-      setCheckoutUrl: (checkoutUrl) => set({ checkoutUrl }),
-      setLoading: (isLoading) => set({ isLoading }),
-
-      createCheckout: async () => {
-        const { items, setLoading, setCheckoutUrl } = get();
-        if (items.length === 0) return null;
-
-        setLoading(true);
-        try {
-          const checkoutUrl = await createStorefrontCheckout(
-            items.map(item => ({ variantId: item.variantId, quantity: item.quantity }))
-          );
-          setCheckoutUrl(checkoutUrl);
-          return checkoutUrl;
-        } catch (error) {
-          console.error('Failed to create checkout:', error);
-          return null;
-        } finally {
-          setLoading(false);
-        }
+        set({ items: [] });
       },
 
       getTotalItems: () => {

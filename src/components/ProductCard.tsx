@@ -28,50 +28,9 @@ export function ProductCard({ product }: ProductCardProps) {
     e.stopPropagation();
 
     addItem({
-      product: {
-        node: {
-          id: product.id,
-          title: product.name,
-          handle: product.id,
-          vendor: "Isha Fashion Hub",
-          description: product.description || "",
-          descriptionHtml: product.description || "",
-          productType: "",
-          tags: [],
-          priceRange: {
-            minVariantPrice: {
-              amount: product.price.toString(),
-              currencyCode: "INR",
-            },
-            maxVariantPrice: {
-              amount: product.price.toString(),
-              currencyCode: "INR",
-            },
-          },
-          images: {
-            edges: product.images.map((img) => ({
-              node: { url: img, altText: product.name },
-            })),
-          },
-          options: [],
-          variants: {
-            edges: [
-              {
-                node: {
-                  id: `${product.id}-default`,
-                  title: "Default",
-                  price: {
-                    amount: product.price.toString(),
-                    currencyCode: "INR",
-                  },
-                  availableForSale: product.stock_quantity > 0,
-                  selectedOptions: [],
-                },
-              },
-            ],
-          },
-        },
-      },
+      productId: product.id,
+      productName: product.name,
+      productImage: product.images[0] || null,
       variantId: `${product.id}-default`,
       variantTitle: "Default",
       price: {

@@ -70,17 +70,17 @@ export function CartDrawer() {
                   {items.map((item) => (
                     <div key={item.variantId} className="flex gap-4 p-3 bg-muted/30 rounded-lg">
                       <div className="w-20 h-24 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                        {item.product.node.images?.edges?.[0]?.node && (
+                        {item.productImage && (
                           <img
-                            src={item.product.node.images.edges[0].node.url}
-                            alt={item.product.node.title}
+                            src={item.productImage}
+                            alt={item.productName}
                             className="w-full h-full object-cover"
                           />
                         )}
                       </div>
-                      
+
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-medium truncate">{item.product.node.title}</h4>
+                        <h4 className="font-medium truncate">{item.productName}</h4>
                         <p className="text-sm text-muted-foreground mt-1">
                           {item.selectedOptions.map(option => option.value).join(' • ')}
                         </p>

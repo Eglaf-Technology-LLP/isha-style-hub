@@ -213,9 +213,9 @@ export default function Checkout() {
       // Create order items
       const orderItems = items.map((item) => ({
         order_id: order.id,
-        product_id: item.product.node.id,
+        product_id: item.productId,
         variant_id: item.variantId,
-        product_title: item.product.node.title,
+        product_title: item.productName,
         variant_title: item.variantTitle || null,
         size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
         color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
@@ -603,17 +603,17 @@ export default function Checkout() {
                   {items.map((item) => (
                     <div key={item.variantId} className="flex gap-3">
                       <div className="w-16 h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                        {item.product.node.images?.edges?.[0]?.node && (
+                        {item.productImage && (
                           <img
-                            src={item.product.node.images.edges[0].node.url}
-                            alt={item.product.node.title}
+                            src={item.productImage}
+                            alt={item.productName}
                             className="w-full h-full object-cover"
                           />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm truncate">
-                          {item.product.node.title}
+                          {item.productName}
                         </h4>
                         <p className="text-xs text-muted-foreground">
                           Qty: {item.quantity}
