@@ -59,6 +59,7 @@ export function useGlobalSearch() {
           .from("products")
           .select("id, name, images, price")
           .eq("is_active", true)
+          .eq("approval_status", "approved")
           .or(`name.ilike.${searchTerm},description.ilike.${searchTerm}`)
           .limit(8);
 
