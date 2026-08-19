@@ -23,6 +23,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
           .from("products")
           .select("*")
           .eq("is_active", true)
+          .eq("approval_status", "approved")
           .order("created_at", { ascending: false });
 
         // If categorySlug is provided, first get the category ID

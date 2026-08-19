@@ -22,9 +22,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Package, ShoppingCart, IndianRupee, Store, Eye } from "lucide-react";
+import {
+  Loader2,
+  Package,
+  ShoppingCart,
+  IndianRupee,
+  Store,
+  Eye,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 
 interface VendorProduct {
   id: string;
@@ -34,6 +45,10 @@ interface VendorProduct {
   is_active: boolean;
   approval_status: string;
   images: string[];
+  description: string | null;
+  category_id: string | null;
+  compare_at_price: number | null;
+  sku: string | null;
 }
 
 interface VendorOrder {
@@ -58,6 +73,20 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
+
+  const deleteProduct = async (p: VendorProduct) => {
+    if (!window.confirm(`Delete “${p.name}”? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", p.id);
+      if (error) throw error;
+      setProducts((prev) => prev.filter((x) => x.id !== p.id));
+      toast.success("Product deleted");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete product");
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -73,7 +102,9 @@ export default function VendorDashboard() {
       const [prodRes, voRes] = await Promise.all([
         supabase
           .from("products")
-          .select("id, name, price, stock_quantity, is_active, approval_status, images")
+          .select(
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku"
+          )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
         supabase
@@ -269,10 +300,19 @@ export default function VendorDashboard() {
 
         {/* Products */}
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" /> Your products
             </CardTitle>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingProduct(null);
+                setProductDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add product
+            </Button>
           </CardHeader>
           <CardContent>
             {dataLoading ? (
@@ -281,7 +321,7 @@ export default function VendorDashboard() {
               </div>
             ) : products.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
-                No products yet. Product creation tools are coming in the next release.
+                No products yet. Use “Add product” to create your first listing.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -293,6 +333,7 @@ export default function VendorDashboard() {
                       <TableHead>Stock</TableHead>
                       <TableHead>Approval</TableHead>
                       <TableHead>Visible</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -329,8 +370,30 @@ export default function VendorDashboard() {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${p.name}`}
+                            onClick={() => {
+                              setEditingProduct(p);
+                              setProductDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${p.name}`}
+                            onClick={() => deleteProduct(p)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
+
                   </TableBody>
                 </Table>
               </div>
@@ -422,6 +485,16 @@ export default function VendorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <VendorProductDialog
+        open={productDialogOpen}
+        onOpenChange={setProductDialogOpen}
+        vendorId={vendor.id}
+        isTrusted={vendor.is_trusted}
+        product={editingProduct}
+        onSaved={fetchAll}
+      />
+
       <Footer />
     </div>
   );

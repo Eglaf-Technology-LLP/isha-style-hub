@@ -36,6 +36,12 @@ export default function ProductDetail() {
   const location = useLocation();
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
+  const [vendorInfo, setVendorInfo] = useState<{
+    name: string;
+    slug: string;
+    is_trusted: boolean;
+    return_window_days: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -83,6 +89,18 @@ export default function ProductDetail() {
           if (catData) {
             setCategory(catData);
           }
+        }
+
+        // Fetch the selling vendor
+        if ((data as any).vendor_id) {
+          const { data: vData } = await supabase
+            .from("vendors")
+            .select("name, slug, is_trusted, return_window_days")
+            .eq("id", (data as any).vendor_id)
+            .maybeSingle();
+          if (vData) setVendorInfo(vData as any);
+        } else {
+          setVendorInfo(null);
         }
       } catch (error) {
         console.error("Failed to fetch product:", error);
@@ -170,7 +188,7 @@ export default function ProductDetail() {
           id: product.id,
           title: product.name,
           handle: product.id,
-          vendor: "Isha Fashion Hub",
+          vendor: vendorInfo?.name || "Isha Fashion Hub",
           description: product.description || "",
           descriptionHtml: product.description || "",
           productType: category?.name || "",
@@ -298,13 +316,30 @@ export default function ProductDetail() {
           <div className="space-y-6">
             {/* Brand & Title */}
             <div>
-              <p className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
-                Isha Fashion Hub
-              </p>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {vendorInfo ? (
+                  <Link
+                    to={`/store/${vendorInfo.slug}`}
+                    className="text-sm text-muted-foreground uppercase tracking-wide hover:text-primary transition-colors"
+                  >
+                    Sold by {vendorInfo.name}
+                  </Link>
+                ) : (
+                  <p className="text-sm text-muted-foreground uppercase tracking-wide">
+                    Isha Fashion Hub
+                  </p>
+                )}
+                {vendorInfo?.is_trusted && (
+                  <Badge variant="secondary" className="text-xs">
+                    Trusted partner
+                  </Badge>
+                )}
+              </div>
               <h1 className="text-3xl md:text-4xl font-serif font-bold">
                 {product.name}
               </h1>
             </div>
+
 
             {/* Price */}
             <div className="flex items-baseline gap-3 flex-wrap">
@@ -456,9 +491,24 @@ export default function ProductDetail() {
               <TabsContent value="details" className="mt-4">
                 <ul className="space-y-2 text-muted-foreground">
                   <li>
-                    <span className="font-medium text-foreground">Brand:</span>{" "}
-                    Isha Fashion Hub
+                    <span className="font-medium text-foreground">Sold by:</span>{" "}
+                    {vendorInfo ? (
+                      <Link
+                        to={`/store/${vendorInfo.slug}`}
+                        className="hover:text-primary transition-colors"
+                      >
+                        {vendorInfo.name}
+                      </Link>
+                    ) : (
+                      "Isha Fashion Hub"
+                    )}
                   </li>
+                  {vendorInfo && (
+                    <li>
+                      <span className="font-medium text-foreground">Returns:</span>{" "}
+                      {vendorInfo.return_window_days}-day window
+                    </li>
+                  )}
                   {category && (
                     <li>
                       <span className="font-medium text-foreground">
