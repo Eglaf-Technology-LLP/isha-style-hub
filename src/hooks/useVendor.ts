@@ -141,7 +141,7 @@ export function useVendor() {
           return_policy: input.return_policy?.trim() || null,
           status: "pending",
           commission_rate: 10,
-          payout_account_status: "not_started",
+          payout_account_status: "not_setup",
           rating: 0,
         })
         .select()
