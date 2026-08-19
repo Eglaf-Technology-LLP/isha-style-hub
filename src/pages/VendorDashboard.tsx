@@ -485,6 +485,16 @@ export default function VendorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <VendorProductDialog
+        open={productDialogOpen}
+        onOpenChange={setProductDialogOpen}
+        vendorId={vendor.id}
+        isTrusted={vendor.is_trusted}
+        product={editingProduct}
+        onSaved={fetchAll}
+      />
+
       <Footer />
     </div>
   );
