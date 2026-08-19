@@ -188,7 +188,7 @@ export default function ProductDetail() {
           id: product.id,
           title: product.name,
           handle: product.id,
-          vendor: "Isha Fashion Hub",
+          vendor: vendorInfo?.name || "Isha Fashion Hub",
           description: product.description || "",
           descriptionHtml: product.description || "",
           productType: category?.name || "",
@@ -491,9 +491,24 @@ export default function ProductDetail() {
               <TabsContent value="details" className="mt-4">
                 <ul className="space-y-2 text-muted-foreground">
                   <li>
-                    <span className="font-medium text-foreground">Brand:</span>{" "}
-                    Isha Fashion Hub
+                    <span className="font-medium text-foreground">Sold by:</span>{" "}
+                    {vendorInfo ? (
+                      <Link
+                        to={`/store/${vendorInfo.slug}`}
+                        className="hover:text-primary transition-colors"
+                      >
+                        {vendorInfo.name}
+                      </Link>
+                    ) : (
+                      "Isha Fashion Hub"
+                    )}
                   </li>
+                  {vendorInfo && (
+                    <li>
+                      <span className="font-medium text-foreground">Returns:</span>{" "}
+                      {vendorInfo.return_window_days}-day window
+                    </li>
+                  )}
                   {category && (
                     <li>
                       <span className="font-medium text-foreground">
