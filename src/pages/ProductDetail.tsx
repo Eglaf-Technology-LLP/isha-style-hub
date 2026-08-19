@@ -316,13 +316,30 @@ export default function ProductDetail() {
           <div className="space-y-6">
             {/* Brand & Title */}
             <div>
-              <p className="text-sm text-muted-foreground uppercase tracking-wide mb-2">
-                Isha Fashion Hub
-              </p>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                {vendorInfo ? (
+                  <Link
+                    to={`/store/${vendorInfo.slug}`}
+                    className="text-sm text-muted-foreground uppercase tracking-wide hover:text-primary transition-colors"
+                  >
+                    Sold by {vendorInfo.name}
+                  </Link>
+                ) : (
+                  <p className="text-sm text-muted-foreground uppercase tracking-wide">
+                    Isha Fashion Hub
+                  </p>
+                )}
+                {vendorInfo?.is_trusted && (
+                  <Badge variant="secondary" className="text-xs">
+                    Trusted partner
+                  </Badge>
+                )}
+              </div>
               <h1 className="text-3xl md:text-4xl font-serif font-bold">
                 {product.name}
               </h1>
             </div>
+
 
             {/* Price */}
             <div className="flex items-baseline gap-3 flex-wrap">
