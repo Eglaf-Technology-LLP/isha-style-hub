@@ -36,6 +36,12 @@ export default function ProductDetail() {
   const location = useLocation();
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
+  const [vendorInfo, setVendorInfo] = useState<{
+    name: string;
+    slug: string;
+    is_trusted: boolean;
+    return_window_days: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
