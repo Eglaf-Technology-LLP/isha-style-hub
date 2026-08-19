@@ -32,7 +32,9 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Landmark,
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
@@ -68,6 +70,15 @@ interface VendorOrder {
 
 const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
 
+interface PayoutAccountForm {
+  account_holder_name: string;
+  bank_account_number: string;
+  bank_ifsc: string;
+  business_type: string;
+}
+
+const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp"];
+
 export default function VendorDashboard() {
   const { vendor, loading } = useVendor();
   const navigate = useNavigate();
@@ -77,6 +88,52 @@ export default function VendorDashboard() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
+  const [payoutAccount, setPayoutAccount] = useState<PayoutAccountForm>({
+    account_holder_name: "",
+    bank_account_number: "",
+    bank_ifsc: "",
+    business_type: "individual",
+  });
+  const [payoutSaving, setPayoutSaving] = useState(false);
+
+  const savePayoutAccount = async () => {
+    if (!vendor) return;
+    if (
+      !payoutAccount.account_holder_name.trim() ||
+      !payoutAccount.bank_account_number.trim() ||
+      !payoutAccount.bank_ifsc.trim()
+    ) {
+      toast.error("Please fill in account holder name, account number and IFSC");
+      return;
+    }
+    setPayoutSaving(true);
+    try {
+      const { error } = await supabase.from("vendor_payout_accounts").upsert(
+        {
+          vendor_id: vendor.id,
+          account_holder_name: payoutAccount.account_holder_name.trim(),
+          bank_account_number: payoutAccount.bank_account_number.trim(),
+          bank_ifsc: payoutAccount.bank_ifsc.trim().toUpperCase(),
+          business_type: payoutAccount.business_type,
+        },
+        { onConflict: "vendor_id" }
+      );
+      if (error) throw error;
+
+      // Payout account is now submitted; marketplace-side verification with
+      // the payment gateway happens separately and flips this to "active".
+      await supabase
+        .from("vendors")
+        .update({ payout_account_status: "pending" })
+        .eq("id", vendor.id);
+
+      toast.success("Payout details saved");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to save payout details");
+    } finally {
+      setPayoutSaving(false);
+    }
+  };
 
   const deleteProduct = async (p: VendorProduct) => {
     if (!window.confirm(`Delete “${p.name}”? This cannot be undone.`)) return;
@@ -101,7 +158,7 @@ export default function VendorDashboard() {
     if (!vendor) return;
     setDataLoading(true);
     try {
-      const [prodRes, voRes] = await Promise.all([
+      const [prodRes, voRes, payoutRes] = await Promise.all([
         supabase
           .from("products")
           .select(
@@ -116,10 +173,19 @@ export default function VendorDashboard() {
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("vendor_payout_accounts")
+          .select("account_holder_name, bank_account_number, bank_ifsc, business_type")
+          .eq("vendor_id", vendor.id)
+          .maybeSingle(),
       ]);
 
       if (prodRes.error) throw prodRes.error;
       setProducts((prodRes.data || []) as VendorProduct[]);
+
+      if (payoutRes.data) {
+        setPayoutAccount(payoutRes.data as PayoutAccountForm);
+      }
 
       const vOrders = (voRes.data || []) as VendorOrder[];
       // fetch customer names for these orders
@@ -499,6 +565,74 @@ export default function VendorDashboard() {
                 </Table>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Payout details */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Landmark className="h-5 w-5" /> Payout details
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Where we send your earnings. Status: {vendor.payout_account_status.replace("_", " ")}.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 max-w-xl">
+            <div className="space-y-2">
+              <Label htmlFor="po-name">Account holder name</Label>
+              <Input
+                id="po-name"
+                value={payoutAccount.account_holder_name}
+                onChange={(e) =>
+                  setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
+                }
+              />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="po-acc">Bank account number</Label>
+                <Input
+                  id="po-acc"
+                  value={payoutAccount.bank_account_number}
+                  onChange={(e) =>
+                    setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="po-ifsc">IFSC code</Label>
+                <Input
+                  id="po-ifsc"
+                  value={payoutAccount.bank_ifsc}
+                  onChange={(e) =>
+                    setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Business type</Label>
+              <Select
+                value={payoutAccount.business_type}
+                onValueChange={(v) => setPayoutAccount((f) => ({ ...f, business_type: v }))}
+              >
+                <SelectTrigger className="w-full sm:w-64">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BUSINESS_TYPES.map((t) => (
+                    <SelectItem key={t} value={t} className="capitalize">
+                      {t.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={savePayoutAccount} disabled={payoutSaving}>
+              {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save payout details
+            </Button>
           </CardContent>
         </Card>
       </div>

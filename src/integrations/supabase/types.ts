@@ -1003,6 +1003,50 @@ export type Database = {
           },
         ]
       }
+      vendor_payout_accounts: {
+        Row: {
+          account_holder_name: string
+          bank_account_number: string
+          bank_ifsc: string
+          business_type: string
+          created_at: string
+          id: string
+          razorpay_account_id: string | null
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          account_holder_name: string
+          bank_account_number: string
+          bank_ifsc: string
+          business_type?: string
+          created_at?: string
+          id?: string
+          razorpay_account_id?: string | null
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          account_holder_name?: string
+          bank_account_number?: string
+          bank_ifsc?: string
+          business_type?: string
+          created_at?: string
+          id?: string
+          razorpay_account_id?: string | null
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_payout_accounts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_payouts: {
         Row: {
           commission_amount: number
@@ -1183,8 +1227,13 @@ export type Database = {
         Args: { _discount_id: string }
         Returns: undefined
       }
+      is_guest_order: { Args: { _order_id: string }; Returns: boolean }
       is_vendor_member: {
         Args: { _user_id: string; _vendor_id: string }
+        Returns: boolean
+      }
+      order_contains_vendor_sale: {
+        Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
     }
