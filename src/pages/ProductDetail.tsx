@@ -90,6 +90,18 @@ export default function ProductDetail() {
             setCategory(catData);
           }
         }
+
+        // Fetch the selling vendor
+        if ((data as any).vendor_id) {
+          const { data: vData } = await supabase
+            .from("vendors")
+            .select("name, slug, is_trusted, return_window_days")
+            .eq("id", (data as any).vendor_id)
+            .maybeSingle();
+          if (vData) setVendorInfo(vData as any);
+        } else {
+          setVendorInfo(null);
+        }
       } catch (error) {
         console.error("Failed to fetch product:", error);
       } finally {
