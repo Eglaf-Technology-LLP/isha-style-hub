@@ -45,6 +45,10 @@ interface VendorProduct {
   is_active: boolean;
   approval_status: string;
   images: string[];
+  description: string | null;
+  category_id: string | null;
+  compare_at_price: number | null;
+  sku: string | null;
 }
 
 interface VendorOrder {
@@ -98,7 +102,9 @@ export default function VendorDashboard() {
       const [prodRes, voRes] = await Promise.all([
         supabase
           .from("products")
-          .select("id, name, price, stock_quantity, is_active, approval_status, images")
+          .select(
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku"
+          )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
         supabase
