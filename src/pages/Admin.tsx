@@ -40,6 +40,7 @@ import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashbo
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { VendorManagement } from "@/components/admin/VendorManagement";
+import { ProductModeration } from "@/components/admin/ProductModeration";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -395,8 +396,9 @@ export default function Admin() {
           </TabsContent>
 
           {/* Vendors Tab */}
-          <TabsContent value="vendors">
+          <TabsContent value="vendors" className="space-y-6">
             <VendorManagement />
+            <ProductModeration />
           </TabsContent>
         </Tabs>
       </div>
