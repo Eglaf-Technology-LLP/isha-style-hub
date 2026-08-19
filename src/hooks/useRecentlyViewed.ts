@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -24,15 +24,7 @@ export function useRecentlyViewed() {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (user) {
-      fetchRecentlyViewed();
-    } else {
-      loadFromLocalStorage();
-    }
-  }, [user]);
-
-  const loadFromLocalStorage = () => {
+  const loadFromLocalStorage = useCallback(() => {
     try {
       const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (stored) {
@@ -42,17 +34,9 @@ export function useRecentlyViewed() {
       console.error('Error loading from localStorage:', error);
     }
     setLoading(false);
-  };
+  }, []);
 
-  const saveToLocalStorage = (items: RecentlyViewedItem[]) => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_RECENT_ITEMS)));
-    } catch (error) {
-      console.error('Error saving to localStorage:', error);
-    }
-  };
-
-  const fetchRecentlyViewed = async () => {
+  const fetchRecentlyViewed = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -79,9 +63,25 @@ export function useRecentlyViewed() {
     } finally {
       setLoading(false);
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchRecentlyViewed();
+    } else {
+      loadFromLocalStorage();
+    }
+  }, [user, fetchRecentlyViewed, loadFromLocalStorage]);
+
+  const saveToLocalStorage = (items: RecentlyViewedItem[]) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_RECENT_ITEMS)));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+    }
   };
 
-  const trackProductView = async (productId: string, product?: RecentlyViewedItem['product']) => {
+  const trackProductView = useCallback(async (productId: string, product?: RecentlyViewedItem['product']) => {
     if (user) {
       try {
         const { error } = await supabase
@@ -117,9 +117,9 @@ export function useRecentlyViewed() {
         return updated;
       });
     }
-  };
+  }, [user, fetchRecentlyViewed]);
 
-  const clearRecentlyViewed = async () => {
+  const clearRecentlyViewed = useCallback(async () => {
     if (user) {
       try {
         const { error } = await supabase
@@ -136,7 +136,7 @@ export function useRecentlyViewed() {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       setRecentlyViewed([]);
     }
-  };
+  }, [user]);
 
   return {
     recentlyViewed,
