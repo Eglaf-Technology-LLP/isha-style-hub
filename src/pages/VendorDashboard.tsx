@@ -69,6 +69,20 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
+
+  const deleteProduct = async (p: VendorProduct) => {
+    if (!window.confirm(`Delete “${p.name}”? This cannot be undone.`)) return;
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", p.id);
+      if (error) throw error;
+      setProducts((prev) => prev.filter((x) => x.id !== p.id));
+      toast.success("Product deleted");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete product");
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
