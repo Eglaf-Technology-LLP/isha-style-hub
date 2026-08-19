@@ -14,6 +14,7 @@ export interface ProductVariant {
 export interface Product {
   id: string;
   category_id: string | null;
+  vendor_id: string | null;
   name: string;
   description: string | null;
   price: number;

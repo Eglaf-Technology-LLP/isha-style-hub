@@ -62,6 +62,8 @@ interface VendorOrder {
   carrier: string | null;
   created_at: string;
   customer_name?: string;
+  customer_phone?: string;
+  shipping_address?: { city?: string; state?: string; pincode?: string } | null;
 }
 
 const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
@@ -125,10 +127,15 @@ export default function VendorDashboard() {
         const ids = vOrders.map((o) => o.order_id);
         const { data: ords } = await supabase
           .from("orders")
-          .select("id, customer_name")
+          .select("id, customer_name, customer_phone, shipping_address")
           .in("id", ids);
-        const map = new Map((ords || []).map((o: any) => [o.id, o.customer_name]));
-        vOrders.forEach((o) => (o.customer_name = map.get(o.order_id) || "Customer"));
+        const map = new Map((ords || []).map((o: any) => [o.id, o]));
+        vOrders.forEach((o) => {
+          const ord = map.get(o.order_id);
+          o.customer_name = ord?.customer_name || "Customer";
+          o.customer_phone = ord?.customer_phone;
+          o.shipping_address = ord?.shipping_address;
+        });
       }
       setOrders(vOrders);
     } catch (e: any) {
@@ -439,7 +446,17 @@ export default function VendorDashboard() {
                             {new Date(o.created_at).toLocaleDateString()}
                           </div>
                         </TableCell>
-                        <TableCell>{o.customer_name || "Customer"}</TableCell>
+                        <TableCell>
+                          <div>{o.customer_name || "Customer"}</div>
+                          {o.customer_phone && (
+                            <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
+                          )}
+                          {o.shipping_address?.city && (
+                            <div className="text-xs text-muted-foreground">
+                              {o.shipping_address.city}, {o.shipping_address.state} {o.shipping_address.pincode}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>₹{Number(o.net_payable).toFixed(0)}</TableCell>
                         <TableCell>
                           <Select

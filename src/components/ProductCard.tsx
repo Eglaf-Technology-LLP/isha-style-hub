@@ -31,6 +31,7 @@ export function ProductCard({ product }: ProductCardProps) {
       productId: product.id,
       productName: product.name,
       productImage: product.images[0] || null,
+      vendorId: product.vendor_id ?? null,
       variantId: `${product.id}-default`,
       variantTitle: "Default",
       price: {

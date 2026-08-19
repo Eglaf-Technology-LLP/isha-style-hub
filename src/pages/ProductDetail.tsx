@@ -186,6 +186,7 @@ export default function ProductDetail() {
       productId: product.id,
       productName: product.name,
       productImage: product.images[0] || null,
+      vendorId: product.vendor_id ?? null,
       variantId,
       variantTitle,
       price: {

@@ -80,3 +80,36 @@ BEGIN
     ARRAY['https://placehold.co/800x1000/dbe7f0/1f3a5f?text=Cotton+Shirt','https://placehold.co/800x1000/dbe7f0/1f3a5f?text=Cotton+Shirt+2'],
     '[{"id":"wst-sht-wht-s","name":"White / S","price":1099,"sku":"WST-SHT-WHT-S","stock":13,"options":{"color":"White","size":"S"}},{"id":"wst-sht-wht-m","name":"White / M","price":1099,"sku":"WST-SHT-WHT-M","stock":13,"options":{"color":"White","size":"M"}},{"id":"wst-sht-sky-l","name":"Sky Blue / L","price":1099,"sku":"WST-SHT-SKY-L","stock":12,"options":{"color":"Sky Blue","size":"L"}},{"id":"wst-sht-sky-xl","name":"Sky Blue / XL","price":1099,"sku":"WST-SHT-SKY-XL","stock":12,"options":{"color":"Sky Blue","size":"XL"}}]'::jsonb);
 END $$;
+
+-- A second, independent vendor with deliberately different shipping/
+-- commission settings, so multi-vendor cart/checkout (each vendor priced
+-- and shipped on their own terms) has something real to exercise against.
+-- Guarded on this vendor's own slug, not the products-empty check above,
+-- so it seeds even on a database that already has the flagship catalogue.
+INSERT INTO public.vendors (name, slug, description, status, is_trusted, commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy, payout_account_status)
+VALUES ('Rajasthani Threads', 'rajasthani-threads', 'Handblock-printed textiles and jootis from Jodhpur artisans.', 'approved', true, 12, 59, 1499, 10, '10-day returns. Handcrafted items may show natural print variation.', 'active')
+ON CONFLICT (slug) DO NOTHING;
+
+DO $$
+DECLARE
+  v2_id uuid;
+  c_kurtis uuid;
+  c_western uuid;
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.products WHERE sku = 'RAJ-JTI-001') THEN
+    RETURN;
+  END IF;
+
+  SELECT id INTO v2_id FROM public.vendors WHERE slug = 'rajasthani-threads';
+  SELECT id INTO c_kurtis FROM public.categories WHERE slug = 'kurtis';
+  SELECT id INTO c_western FROM public.categories WHERE slug = 'western-wear';
+
+  INSERT INTO public.products (category_id, vendor_id, name, description, price, compare_at_price, sku, stock_quantity, is_active, approval_status, images, variants) VALUES
+  (c_kurtis, v2_id, 'Handblock Print Jodhpuri Kurti', 'Hand block-printed cotton kurti from Jodhpur, natural vegetable dyes.', 1699, NULL, 'RAJ-JTI-001', 20, true, 'approved',
+    ARRAY['https://placehold.co/800x1000/f0e6d2/8a5a2b?text=Jodhpuri+Kurti','https://placehold.co/800x1000/f0e6d2/8a5a2b?text=Jodhpuri+Kurti+2'],
+    '[{"id":"raj-jti-s","name":"Indigo / S","price":1699,"sku":"RAJ-JTI-S","stock":7,"options":{"color":"Indigo","size":"S"}},{"id":"raj-jti-m","name":"Indigo / M","price":1699,"sku":"RAJ-JTI-M","stock":7,"options":{"color":"Indigo","size":"M"}},{"id":"raj-jti-l","name":"Indigo / L","price":1699,"sku":"RAJ-JTI-L","stock":6,"options":{"color":"Indigo","size":"L"}}]'::jsonb),
+
+  (c_western, v2_id, 'Embroidered Mojari Juttis', 'Handcrafted leather mojari juttis with traditional zari embroidery.', 1299, 1599, 'RAJ-JTI-002', 18, true, 'approved',
+    ARRAY['https://placehold.co/800x1000/f0e6d2/8a5a2b?text=Mojari+Juttis','https://placehold.co/800x1000/f0e6d2/8a5a2b?text=Mojari+Juttis+2'],
+    '[{"id":"raj-moj-38","name":"Tan / UK6","price":1299,"sku":"RAJ-MOJ-38","stock":6,"options":{"color":"Tan","size":"UK6"}},{"id":"raj-moj-40","name":"Tan / UK7","price":1299,"sku":"RAJ-MOJ-40","stock":6,"options":{"color":"Tan","size":"UK7"}},{"id":"raj-moj-42","name":"Tan / UK8","price":1299,"sku":"RAJ-MOJ-42","stock":6,"options":{"color":"Tan","size":"UK8"}}]'::jsonb);
+END $$;

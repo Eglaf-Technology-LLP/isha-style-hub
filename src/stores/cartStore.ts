@@ -5,6 +5,7 @@ export interface CartItem {
   productId: string;
   productName: string;
   productImage: string | null;
+  vendorId: string | null;
   variantId: string;
   variantTitle: string;
   price: {

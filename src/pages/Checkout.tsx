@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -21,7 +21,7 @@ import {
   CheckCircle,
   ArrowLeft,
 } from "lucide-react";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore, CartItem } from "@/stores/cartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -33,6 +33,28 @@ interface Discount {
   discount_type: "percentage" | "fixed_amount";
   discount_value: number;
   min_order_amount: number;
+}
+
+interface VendorShippingInfo {
+  id: string;
+  name: string;
+  shipping_flat_rate: number;
+  free_shipping_threshold: number | null;
+  commission_rate: number;
+}
+
+// Products with no vendor (legacy/platform-owned) fall back to this default
+// instead of a real vendor's own shipping/commission settings.
+const PLATFORM_SHIPPING = { flatRate: 99, threshold: 999 };
+const PLATFORM_GROUP_KEY = "__platform__";
+
+interface VendorOrderGroup {
+  vendorId: string | null;
+  vendorName: string | null;
+  commissionRate: number;
+  items: CartItem[];
+  subtotal: number;
+  shippingCost: number;
 }
 
 export default function Checkout() {
@@ -64,7 +86,79 @@ export default function Checkout() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
-  const shippingCost = subtotal >= 999 ? 0 : 99;
+  // Each vendor sets their own shipping rate/threshold, so the cart is
+  // grouped by vendor and shipping is computed per group. Items with no
+  // vendor (legacy/platform-owned products) fall back to a flat default.
+  const [vendorInfo, setVendorInfo] = useState<Record<string, VendorShippingInfo>>({});
+
+  useEffect(() => {
+    const vendorIds = Array.from(
+      new Set(items.map((i) => i.vendorId).filter((v): v is string => !!v))
+    );
+    if (vendorIds.length === 0) {
+      setVendorInfo({});
+      return;
+    }
+    supabase
+      .from("vendors")
+      .select("id, name, shipping_flat_rate, free_shipping_threshold, commission_rate")
+      .in("id", vendorIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching vendor shipping info:", error);
+          return;
+        }
+        const map: Record<string, VendorShippingInfo> = {};
+        (data || []).forEach((v) => {
+          map[v.id] = v;
+        });
+        setVendorInfo(map);
+      });
+  }, [items]);
+
+  const vendorGroups = useMemo<VendorOrderGroup[]>(() => {
+    const buckets = new Map<string, CartItem[]>();
+    for (const item of items) {
+      const key = item.vendorId ?? PLATFORM_GROUP_KEY;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(item);
+    }
+
+    return Array.from(buckets.entries()).map(([key, groupItems]) => {
+      const groupSubtotal = groupItems.reduce(
+        (sum, i) => sum + parseFloat(i.price.amount) * i.quantity,
+        0
+      );
+
+      if (key === PLATFORM_GROUP_KEY) {
+        const shipping = groupSubtotal >= PLATFORM_SHIPPING.threshold ? 0 : PLATFORM_SHIPPING.flatRate;
+        return {
+          vendorId: null,
+          vendorName: null,
+          commissionRate: 0,
+          items: groupItems,
+          subtotal: groupSubtotal,
+          shippingCost: shipping,
+        };
+      }
+
+      const info = vendorInfo[key];
+      const flatRate = info?.shipping_flat_rate ?? PLATFORM_SHIPPING.flatRate;
+      const threshold = info ? info.free_shipping_threshold : PLATFORM_SHIPPING.threshold;
+      const shipping = threshold !== null && groupSubtotal >= threshold ? 0 : flatRate;
+
+      return {
+        vendorId: key,
+        vendorName: info?.name ?? "Store",
+        commissionRate: info?.commission_rate ?? 10,
+        items: groupItems,
+        subtotal: groupSubtotal,
+        shippingCost: shipping,
+      };
+    });
+  }, [items, vendorInfo]);
+
+  const shippingCost = vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0);
 
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
@@ -217,7 +311,39 @@ export default function Checkout() {
 
       if (orderError) throw orderError;
 
-      // Create order items
+      // One vendor_orders row per vendor in the cart, so each vendor's own
+      // dashboard sees this sale and their payout ledger has a real record
+      // to reconcile against. Ids are generated client-side for the same
+      // reason as the order id above - nothing here needs to be read back.
+      const vendorOrderIdByVendor: Record<string, string> = {};
+      const vendorOrderRows = vendorGroups
+        .filter((g) => g.vendorId)
+        .map((g) => {
+          const vendorOrderId = crypto.randomUUID();
+          vendorOrderIdByVendor[g.vendorId!] = vendorOrderId;
+          const commissionAmount = g.subtotal * (g.commissionRate / 100);
+          return {
+            id: vendorOrderId,
+            order_id: newOrderId,
+            vendor_id: g.vendorId!,
+            subtotal: g.subtotal,
+            shipping_cost: g.shippingCost,
+            commission_rate: g.commissionRate,
+            commission_amount: commissionAmount,
+            net_payable: g.subtotal + g.shippingCost - commissionAmount,
+            status: "pending",
+          };
+        });
+
+      if (vendorOrderRows.length > 0) {
+        const { error: vendorOrdersError } = await supabase
+          .from("vendor_orders")
+          .insert(vendorOrderRows);
+
+        if (vendorOrdersError) throw vendorOrdersError;
+      }
+
+      // Create order items, linked to their vendor and vendor order
       const orderItems = items.map((item) => ({
         order_id: newOrderId,
         product_id: item.productId,
@@ -228,6 +354,8 @@ export default function Checkout() {
         color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
         quantity: item.quantity,
         price: parseFloat(item.price.amount),
+        vendor_id: item.vendorId,
+        vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
       }));
 
       const { error: itemsError } = await supabase
@@ -708,16 +836,20 @@ export default function Checkout() {
                       <span>-₹{discountAmount.toFixed(0)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Shipping</span>
-                    <span>
-                      {shippingCost === 0 ? (
-                        <span className="text-primary font-medium">FREE</span>
-                      ) : (
-                        `₹${shippingCost}`
-                      )}
-                    </span>
-                  </div>
+                  {vendorGroups.map((group) => (
+                    <div className="flex justify-between" key={group.vendorId ?? "platform"}>
+                      <span className="text-muted-foreground">
+                        Shipping{group.vendorName ? ` — ${group.vendorName}` : ""}
+                      </span>
+                      <span>
+                        {group.shippingCost === 0 ? (
+                          <span className="text-primary font-medium">FREE</span>
+                        ) : (
+                          `₹${group.shippingCost}`
+                        )}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
                 <Separator />
@@ -743,11 +875,16 @@ export default function Checkout() {
                   )}
                 </Button>
 
-                {shippingCost > 0 && (
-                  <p className="text-xs text-center text-muted-foreground">
-                    Add ₹{(999 - subtotal).toFixed(0)} more for free shipping
-                  </p>
-                )}
+                {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
+                  const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;
+                  const threshold = info ? info.free_shipping_threshold : PLATFORM_SHIPPING.threshold;
+                  if (threshold === null) return null;
+                  return (
+                    <p className="text-xs text-center text-muted-foreground">
+                      Add ₹{(threshold - vendorGroups[0].subtotal).toFixed(0)} more for free shipping
+                    </p>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>
