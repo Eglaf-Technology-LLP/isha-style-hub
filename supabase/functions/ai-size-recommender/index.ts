@@ -1,4 +1,6 @@
 // AI Size Recommender — suggests a best-fit size for a product based on a short fit quiz.
+import { geminiFunctionCall, GeminiError } from "../_shared/gemini.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -21,8 +23,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const body: QuizInput = await req.json();
     const { productId, availableSizes } = body;
@@ -76,61 +78,25 @@ Customer profile:
 
 Recommend the best size now.`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    const args = await geminiFunctionCall({
+      apiKey: GEMINI_API_KEY,
+      model: "gemini-2.5-flash",
+      systemPrompt,
+      userPrompt,
+      functionName: "recommend_size",
+      functionDescription: "Return the recommended size for this customer.",
+      parameters: {
+        type: "object",
+        properties: {
+          recommendedSize: { type: "string", description: "Must be one of the provided availableSizes." },
+          confidence: { type: "string", enum: ["low", "medium", "high"] },
+          reasoning: { type: "string" },
+          alternativeSize: { type: "string", description: "Optional second-best size, or empty." },
+        },
+        required: ["recommendedSize", "confidence", "reasoning"],
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "recommend_size",
-              description: "Return the recommended size for this customer.",
-              parameters: {
-                type: "object",
-                properties: {
-                  recommendedSize: { type: "string", description: "Must be one of the provided availableSizes." },
-                  confidence: { type: "string", enum: ["low", "medium", "high"] },
-                  reasoning: { type: "string" },
-                  alternativeSize: { type: "string", description: "Optional second-best size, or empty." },
-                },
-                required: ["recommendedSize", "confidence", "reasoning"],
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "recommend_size" } },
-      }),
     });
 
-    if (aiRes.status === 429) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-        status: 429,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (aiRes.status === 402) {
-      return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
-        status: 402,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (!aiRes.ok) {
-      const text = await aiRes.text();
-      throw new Error(`AI gateway error ${aiRes.status}: ${text}`);
-    }
-
-    const aiJson = await aiRes.json();
-    const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
-    const args = toolCall?.function?.arguments ? JSON.parse(toolCall.function.arguments) : null;
     if (!args?.recommendedSize) throw new Error("AI did not return a size");
 
     // Ensure the recommended size is in the list
@@ -151,8 +117,9 @@ Recommend the best size now.`;
     );
   } catch (err) {
     console.error("ai-size-recommender error:", err);
+    const status = err instanceof GeminiError ? err.status : 500;
     return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
+      status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

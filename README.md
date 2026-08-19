@@ -1,73 +1,53 @@
-# Welcome to your Lovable project
+# Isha Fashion Hub
 
-## Project info
+Indian ethnic and western fashion marketplace, with AI styling and virtual try-on.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- Vite + React + TypeScript
+- shadcn-ui + Tailwind CSS
+- Supabase (Postgres, Auth, Storage, Edge Functions)
+- Shopify Storefront API (product catalogue / checkout)
+- Google Gemini (AI styling, size recommendation, virtual try-on)
 
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Local setup
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+# 1. Install dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 2. Copy the env template and fill in real values (see below)
+cp .env.example .env
+
+# 3. Start the dev server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Environment variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Variable | Purpose |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
+| `VITE_SUPABASE_PROJECT_ID` | Supabase project ref |
+| `VITE_SHOPIFY_STORE_DOMAIN` | Shopify store's `.myshopify.com` domain |
+| `VITE_SHOPIFY_STOREFRONT_TOKEN` | Shopify Storefront API access token |
 
-**Use GitHub Codespaces**
+Edge function secrets (set via `supabase secrets set`, not `.env`):
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+| Secret | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Google Gemini API key, used by `complete-the-look`, `ai-size-recommender`, `virtual-try-on` |
+| `RESEND_API_KEY` | Transactional email (order/return confirmations) |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Set automatically by Supabase for edge functions |
 
-## What technologies are used for this project?
+## Supabase
 
-This project is built with:
+Schema and edge functions live in [supabase/](supabase/). To apply migrations to a project:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```sh
+supabase link --project-ref <your-project-ref>
+supabase db push
+supabase functions deploy
+supabase secrets set GEMINI_API_KEY=<key> RESEND_API_KEY=<key>
+```

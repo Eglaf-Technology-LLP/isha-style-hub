@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { geminiFunctionCall, GeminiError } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,10 +31,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -108,88 +109,35 @@ Deno.serve(async (req) => {
 
     const userPrompt = `${sourceText}\n\nCANDIDATES:\n${candidateText}\n\nPick 3-4 IDs that best complete this outfit and give a short stylist note.`;
 
-    const aiRes = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          tools: [
-            {
-              type: "function",
-              function: {
-                name: "complete_the_look",
-                description: "Return complementary product IDs",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    productIds: {
-                      type: "array",
-                      items: { type: "string" },
-                      description: "3-4 product IDs from candidates",
-                    },
-                    stylistNote: {
-                      type: "string",
-                      description: "Short styling tip (1-2 sentences)",
-                    },
-                  },
-                  required: ["productIds", "stylistNote"],
-                  additionalProperties: false,
-                },
-              },
-            },
-          ],
-          tool_choice: {
-            type: "function",
-            function: { name: "complete_the_look" },
+    const args = await geminiFunctionCall({
+      apiKey: GEMINI_API_KEY,
+      model: "gemini-2.5-flash",
+      systemPrompt,
+      userPrompt,
+      functionName: "complete_the_look",
+      functionDescription: "Return complementary product IDs",
+      parameters: {
+        type: "object",
+        properties: {
+          productIds: {
+            type: "array",
+            items: { type: "string" },
+            description: "3-4 product IDs from candidates",
           },
-        }),
+          stylistNote: {
+            type: "string",
+            description: "Short styling tip (1-2 sentences)",
+          },
+        },
+        required: ["productIds", "stylistNote"],
       },
-    );
+    });
 
-    if (aiRes.status === 429) {
-      return new Response(
-        JSON.stringify({ error: "Rate limit exceeded, please try again later." }),
-        {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-    if (aiRes.status === 402) {
-      return new Response(
-        JSON.stringify({ error: "AI credits exhausted. Add credits in Settings." }),
-        {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
-      );
-    }
-    if (!aiRes.ok) {
-      const t = await aiRes.text();
-      console.error("AI gateway error", aiRes.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const aiData = await aiRes.json();
-    const toolCall = aiData?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
+    if (!args?.productIds) {
       return new Response(JSON.stringify({ productIds: [], stylistNote: "" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const args = JSON.parse(toolCall.function.arguments);
     const validIds = new Set(candidates.map((c) => c.id));
     const productIds: string[] = (args.productIds || [])
       .filter((id: string) => validIds.has(id))
@@ -204,10 +152,11 @@ Deno.serve(async (req) => {
     );
   } catch (e) {
     console.error("complete-the-look error", e);
+    const status = e instanceof GeminiError ? e.status : 500;
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       {
-        status: 500,
+        status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       },
     );

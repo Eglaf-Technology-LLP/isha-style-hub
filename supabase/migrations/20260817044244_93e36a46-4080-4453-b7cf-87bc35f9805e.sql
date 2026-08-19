@@ -298,37 +298,44 @@ CREATE TRIGGER update_vendor_payouts_updated_at
 -- BACKFILL: seed vendor + assign existing data
 -- ============================================================
 
--- Seed vendor for the existing "Isha Fashion Hub" store (fixed id for referencing)
-INSERT INTO public.vendors (id, owner_user_id, name, slug, description, status, is_trusted,
-    commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days,
-    return_policy, payout_account_status, approved_by, approved_at)
-VALUES (
-  '11111111-1111-1111-1111-111111111111',
-  '5a787e11-8444-429d-9940-6571fe4cc9ec',
-  'Isha Fashion Hub',
-  'isha-fashion-hub',
-  'The flagship store of Isha Fashion Hub.',
-  'approved',
-  true,
-  10,
-  0,
-  999,
-  7,
-  'Easy 7-day returns. Items must be unused with tags intact.',
-  'active',
-  '5a787e11-8444-429d-9940-6571fe4cc9ec',
-  now()
-)
-ON CONFLICT (slug) DO UPDATE SET
-  owner_user_id = EXCLUDED.owner_user_id,
-  status = EXCLUDED.status,
-  is_trusted = EXCLUDED.is_trusted,
-  payout_account_status = EXCLUDED.payout_account_status;
+-- Seed vendor for the existing "Isha Fashion Hub" store (fixed id for referencing).
+-- Guarded on the seed owner existing: this ID is a specific admin account from the
+-- original project and won't be present on a freshly provisioned database.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id = '5a787e11-8444-429d-9940-6571fe4cc9ec') THEN
+    INSERT INTO public.vendors (id, owner_user_id, name, slug, description, status, is_trusted,
+        commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days,
+        return_policy, payout_account_status, approved_by, approved_at)
+    VALUES (
+      '11111111-1111-1111-1111-111111111111',
+      '5a787e11-8444-429d-9940-6571fe4cc9ec',
+      'Isha Fashion Hub',
+      'isha-fashion-hub',
+      'The flagship store of Isha Fashion Hub.',
+      'approved',
+      true,
+      10,
+      0,
+      999,
+      7,
+      'Easy 7-day returns. Items must be unused with tags intact.',
+      'active',
+      '5a787e11-8444-429d-9940-6571fe4cc9ec',
+      now()
+    )
+    ON CONFLICT (slug) DO UPDATE SET
+      owner_user_id = EXCLUDED.owner_user_id,
+      status = EXCLUDED.status,
+      is_trusted = EXCLUDED.is_trusted,
+      payout_account_status = EXCLUDED.payout_account_status;
 
--- Super admin is the owner of the seed vendor
-INSERT INTO public.vendor_members (user_id, vendor_id, role)
-VALUES ('5a787e11-8444-429d-9940-6571fe4cc9ec', '11111111-1111-1111-1111-111111111111', 'owner')
-ON CONFLICT (user_id, vendor_id) DO NOTHING;
+    -- Super admin is the owner of the seed vendor
+    INSERT INTO public.vendor_members (user_id, vendor_id, role)
+    VALUES ('5a787e11-8444-429d-9940-6571fe4cc9ec', '11111111-1111-1111-1111-111111111111', 'owner')
+    ON CONFLICT (user_id, vendor_id) DO NOTHING;
+  END IF;
+END $$;
 
 -- Assign all existing products to the seed vendor and mark them approved
 UPDATE public.products
