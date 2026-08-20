@@ -7,10 +7,12 @@ export interface Payment {
   order_id: string;
   amount: number;
   payment_method: string;
-  payment_status: "pending" | "completed" | "failed" | "refunded" | "partially_refunded";
+  payment_status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded";
   transaction_id: string | null;
   refund_amount: number;
   refund_reason: string | null;
+  gateway_fee: number | null;
+  gateway_tax: number | null;
   metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -112,7 +114,7 @@ export function usePayments(isAdmin: boolean = false) {
   ): Promise<boolean> => {
     try {
       const updateData: any = {
-        payment_status: "completed",
+        payment_status: "paid",
       };
       
       if (transactionId) {
@@ -237,20 +239,22 @@ export function usePayments(isAdmin: boolean = false) {
       totalReceived: 0,
       totalPending: 0,
       totalRefunded: 0,
+      totalGatewayFees: 0,
       completedCount: 0,
       pendingCount: 0,
       refundedCount: 0,
     };
 
     payments.forEach(payment => {
-      if (payment.payment_status === "completed") {
+      if (payment.payment_status === "paid") {
         stats.totalReceived += payment.amount - payment.refund_amount;
         stats.completedCount++;
+        stats.totalGatewayFees += payment.gateway_fee || 0;
       } else if (payment.payment_status === "pending") {
         stats.totalPending += payment.amount;
         stats.pendingCount++;
       }
-      
+
       if (payment.refund_amount > 0) {
         stats.totalRefunded += payment.refund_amount;
         if (payment.payment_status === "refunded" || payment.payment_status === "partially_refunded") {

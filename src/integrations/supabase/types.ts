@@ -500,6 +500,8 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          gateway_fee: number | null
+          gateway_tax: number | null
           id: string
           metadata: Json | null
           order_id: string
@@ -513,6 +515,8 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          gateway_fee?: number | null
+          gateway_tax?: number | null
           id?: string
           metadata?: Json | null
           order_id: string
@@ -526,6 +530,8 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          gateway_fee?: number | null
+          gateway_tax?: number | null
           id?: string
           metadata?: Json | null
           order_id?: string

@@ -30,8 +30,13 @@ import {
   TrendingUp,
   Clock,
   AlertCircle,
+  Store,
+  Percent,
+  Landmark,
+  PiggyBank,
 } from "lucide-react";
 import { usePayments, Payment } from "@/hooks/usePayments";
+import { usePlatformRevenue } from "@/hooks/usePlatformRevenue";
 import { format } from "date-fns";
 
 interface PaymentManagementProps {
@@ -47,6 +52,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
     processRefund,
     getPaymentStats,
   } = usePayments(isAdmin);
+  const { stats: revenueStats, loading: revenueLoading } = usePlatformRevenue(isAdmin);
 
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
@@ -58,8 +64,8 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
 
   const getStatusBadge = (status: Payment["payment_status"]) => {
     switch (status) {
-      case "completed":
-        return <Badge variant="default">Completed</Badge>;
+      case "paid":
+        return <Badge variant="default">Paid</Badge>;
       case "pending":
         return <Badge variant="secondary">Pending</Badge>;
       case "failed":
@@ -173,7 +179,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
-              Net Revenue
+              Collected (After Refunds)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,6 +188,84 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
             </p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Platform Earnings Breakdown - what the platform actually keeps,
+          separate from the gross amounts collected on vendors' behalf above */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Platform Earnings Breakdown</h3>
+        {revenueLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Store className="h-4 w-4 text-muted-foreground" />
+                  Vendor Payout Obligation
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">
+                  ₹{(revenueStats?.vendorPayoutObligation || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Owed to vendors on {revenueStats?.paidVendorOrderCount || 0} paid orders
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-primary" />
+                  Commission Earned
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-primary">
+                  ₹{(revenueStats?.platformCommissionEarned || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Platform's cut before gateway fees
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-yellow-500" />
+                  Gateway Fees Paid
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">
+                  ₹{(revenueStats?.gatewayFeesPaid || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Razorpay's cut (incl. GST), COD has none
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <PiggyBank className="h-4 w-4 text-green-600" />
+                  True Net Platform Revenue
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-600">
+                  ₹{(revenueStats?.netPlatformRevenue || 0).toFixed(2)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Commission earned minus gateway fees
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
       {/* Payments Table */}
@@ -249,6 +333,11 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                           <p className="font-medium">
                             ₹{payment.amount.toFixed(2)}
                           </p>
+                          {!!payment.gateway_fee && (
+                            <p className="text-xs text-muted-foreground">
+                              Gateway fee: ₹{payment.gateway_fee.toFixed(2)}
+                            </p>
+                          )}
                           {payment.refund_amount > 0 && (
                             <p className="text-xs text-muted-foreground">
                               Refunded: ₹{payment.refund_amount.toFixed(2)}
@@ -281,7 +370,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                               </Button>
                             </>
                           )}
-                          {payment.payment_status === "completed" &&
+                          {payment.payment_status === "paid" &&
                             payment.refund_amount < payment.amount && (
                               <Dialog
                                 open={

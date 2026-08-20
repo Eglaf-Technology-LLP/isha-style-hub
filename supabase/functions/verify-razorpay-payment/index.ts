@@ -92,9 +92,43 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch what Razorpay actually charged for this transaction, so the
+    // platform's real net take (commission earned minus gateway fees) is
+    // visible instead of only gross amounts. Best-effort: a failure here
+    // shouldn't undo a payment that's genuinely verified - fee reporting
+    // can be backfilled later, but the order being marked paid can't wait.
+    let gatewayFee: number | null = null;
+    let gatewayTax: number | null = null;
+    const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID");
+    if (RAZORPAY_KEY_ID) {
+      try {
+        const auth = "Basic " + btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
+        const feeRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
+          { headers: { Authorization: auth } },
+        );
+        if (feeRes.ok) {
+          const details = await feeRes.json();
+          // fee is in paise and already includes tax (GST); tax is the
+          // GST portion within that same fee, not additional to it.
+          if (typeof details.fee === "number") gatewayFee = details.fee / 100;
+          if (typeof details.tax === "number") gatewayTax = details.tax / 100;
+        } else {
+          console.error("Razorpay fee fetch failed", feeRes.status, await feeRes.text());
+        }
+      } catch (feeErr) {
+        console.error("Razorpay fee fetch error", feeErr);
+      }
+    }
+
     const { error: paymentErr } = await supabase
       .from("payments")
-      .update({ payment_status: "paid", transaction_id: razorpay_payment_id })
+      .update({
+        payment_status: "paid",
+        transaction_id: razorpay_payment_id,
+        gateway_fee: gatewayFee,
+        gateway_tax: gatewayTax,
+      })
       .eq("order_id", orderId);
 
     if (paymentErr) throw paymentErr;
