@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -25,6 +25,7 @@ import { useCartStore } from "@/stores/cartStore";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { buildVendorSplit, type VendorGroup } from "@/lib/vendorSplit";
 
 interface Discount {
   id: string;
@@ -64,7 +65,24 @@ export default function Checkout() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
-  const shippingCost = subtotal >= 999 ? 0 : 99;
+  const [vendorGroups, setVendorGroups] = useState<VendorGroup[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    buildVendorSplit(items).then((groups) => {
+      if (active) setVendorGroups(groups);
+    });
+    return () => {
+      active = false;
+    };
+  }, [items]);
+
+  // Shipping is charged per vendor, using each vendor's own rate and threshold
+  const shippingCost = vendorGroups.length
+    ? vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0)
+    : subtotal >= 999
+    ? 0
+    : 99;
 
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
@@ -210,24 +228,63 @@ export default function Checkout() {
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.product.node.id,
-        variant_id: item.variantId,
-        product_title: item.product.node.title,
-        variant_title: item.variantTitle || null,
-        size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
-        color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
-        quantity: item.quantity,
-        price: parseFloat(item.price.amount),
-      }));
+      // Split the order per vendor (each vendor gets its own sub-order)
+      const groups = vendorGroups.length ? vendorGroups : await buildVendorSplit(items);
+      const vendorOrderByKey = new Map<string, string>();
+
+      const vendorGroupsWithId = groups.filter((g) => g.vendorId);
+      if (vendorGroupsWithId.length > 0) {
+        const { data: createdVendorOrders, error: voError } = await supabase
+          .from("vendor_orders")
+          .insert(
+            vendorGroupsWithId.map((g) => ({
+              order_id: order.id,
+              vendor_id: g.vendorId as string,
+              subtotal: g.subtotal,
+              shipping_cost: g.shippingCost,
+              commission_rate: g.commissionRate,
+              commission_amount: g.commissionAmount,
+              net_payable: g.netPayable,
+              status: "pending",
+            }))
+          )
+          .select("id, vendor_id");
+
+        if (voError) throw voError;
+        (createdVendorOrders || []).forEach((vo) =>
+          vendorOrderByKey.set(vo.vendor_id, vo.id)
+        );
+      }
+
+      const vendorByProductId = new Map<string, string | null>();
+      groups.forEach((g) =>
+        g.items.forEach((i) => vendorByProductId.set(i.product.node.id, g.vendorId))
+      );
+
+      // Create order items (tagged with their vendor + vendor sub-order)
+      const orderItems = items.map((item) => {
+        const vendorId = vendorByProductId.get(item.product.node.id) ?? null;
+        return {
+          order_id: order.id,
+          product_id: item.product.node.id,
+          variant_id: item.variantId,
+          product_title: item.product.node.title,
+          variant_title: item.variantTitle || null,
+          size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
+          color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
+          quantity: item.quantity,
+          price: parseFloat(item.price.amount),
+          vendor_id: vendorId,
+          vendor_order_id: vendorId ? vendorOrderByKey.get(vendorId) ?? null : null,
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from("order_items")
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
 
       // Create payment record
       const { error: paymentError } = await supabase
@@ -717,7 +774,30 @@ export default function Checkout() {
                       )}
                     </span>
                   </div>
+                  {vendorGroups.length > 1 && (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <p className="text-xs font-medium">
+                        Shipped in {vendorGroups.length} packages
+                      </p>
+                      {vendorGroups.map((g) => (
+                        <div
+                          key={g.vendorId ?? "platform"}
+                          className="flex justify-between text-xs text-muted-foreground"
+                        >
+                          <span className="truncate mr-2">
+                            {g.vendorName} · {g.items.length} item
+                            {g.items.length > 1 ? "s" : ""}
+                          </span>
+                          <span>
+                            ₹{g.subtotal.toFixed(0)} +{" "}
+                            {g.shippingCost === 0 ? "free ship" : `₹${g.shippingCost} ship`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
 
                 <Separator />
 
@@ -742,7 +822,7 @@ export default function Checkout() {
                   )}
                 </Button>
 
-                {shippingCost > 0 && (
+                {shippingCost > 0 && vendorGroups.length <= 1 && subtotal < 999 && (
                   <p className="text-xs text-center text-muted-foreground">
                     Add ₹{(999 - subtotal).toFixed(0)} more for free shipping
                   </p>
