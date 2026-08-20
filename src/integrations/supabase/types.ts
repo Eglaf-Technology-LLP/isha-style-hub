@@ -629,6 +629,53 @@ export type Database = {
           },
         ]
       }
+      product_variants: {
+        Row: {
+          created_at: string
+          id: string
+          low_stock_threshold: number | null
+          name: string
+          options: Json
+          price: number | null
+          product_id: string
+          sku: string | null
+          stock: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          low_stock_threshold?: number | null
+          name: string
+          options?: Json
+          price?: number | null
+          product_id: string
+          sku?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          low_stock_threshold?: number | null
+          name?: string
+          options?: Json
+          price?: number | null
+          product_id?: string
+          sku?: string | null
+          stock?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_variants_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           approval_status: string
@@ -639,6 +686,7 @@ export type Database = {
           id: string
           images: string[] | null
           is_active: boolean
+          low_stock_threshold: number
           name: string
           price: number
           rejection_reason: string | null
@@ -647,7 +695,6 @@ export type Database = {
           stock_quantity: number
           tags: string[] | null
           updated_at: string
-          variants: Json | null
           vendor_id: string | null
         }
         Insert: {
@@ -659,6 +706,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          low_stock_threshold?: number
           name: string
           price?: number
           rejection_reason?: string | null
@@ -667,7 +715,6 @@ export type Database = {
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string
-          variants?: Json | null
           vendor_id?: string | null
         }
         Update: {
@@ -679,6 +726,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          low_stock_threshold?: number
           name?: string
           price?: number
           rejection_reason?: string | null
@@ -687,7 +735,6 @@ export type Database = {
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string
-          variants?: Json | null
           vendor_id?: string | null
         }
         Relationships: [
@@ -895,6 +942,77 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_movements: {
+        Row: {
+          change_quantity: number
+          changed_by: string | null
+          created_at: string
+          id: string
+          movement_type: string
+          product_id: string | null
+          reason: string | null
+          reference_order_id: string | null
+          resulting_quantity: number
+          variant_id: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          change_quantity: number
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          movement_type: string
+          product_id?: string | null
+          reason?: string | null
+          reference_order_id?: string | null
+          resulting_quantity: number
+          variant_id?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          change_quantity?: number
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          movement_type?: string
+          product_id?: string | null
+          reason?: string | null
+          reference_order_id?: string | null
+          resulting_quantity?: number
+          variant_id?: string | null
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_reference_order_id_fkey"
+            columns: ["reference_order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
         ]
@@ -1227,6 +1345,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_stock: {
+        Args: {
+          _delta: number
+          _movement_type: string
+          _product_id: string
+          _reason: string
+          _reference_order_id: string
+          _variant_id: string
+        }
+        Returns: Json
+      }
+      cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

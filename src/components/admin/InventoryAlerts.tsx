@@ -2,47 +2,106 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useLowStockAlerts, LowStockProduct } from "@/hooks/useLowStockAlerts";
-import { AlertTriangle, Package, PackageX, Edit2, Plus, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useLowStockAlerts, StockAlertRow, StockMovementRecord } from "@/hooks/useLowStockAlerts";
+import { AlertTriangle, Package, PackageX, Edit2, RefreshCw, History, Layers } from "lucide-react";
+import { format } from "date-fns";
 
-export function InventoryAlerts() {
-  const { 
-    lowStockProducts, 
-    outOfStockProducts, 
-    loading, 
-    updateThreshold, 
-    updateStock,
-    refetch 
-  } = useLowStockAlerts();
+interface InventoryAlertsProps {
+  vendorId?: string;
+}
 
-  const [editingProduct, setEditingProduct] = useState<LowStockProduct | null>(null);
+const rowKey = (r: Pick<StockAlertRow, "productId" | "variantId">) => `${r.productId}:${r.variantId ?? ""}`;
+
+export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
+  const {
+    outOfStockProducts,
+    lowStockProducts,
+    loading,
+    adjustStock,
+    setStockTo,
+    bulkAdjust,
+    updateThreshold,
+    fetchHistory,
+    refetch,
+  } = useLowStockAlerts(vendorId);
+
+  const [editingRow, setEditingRow] = useState<StockAlertRow | null>(null);
   const [newStock, setNewStock] = useState("");
   const [newThreshold, setNewThreshold] = useState("");
+  const [reason, setReason] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDelta, setBulkDelta] = useState("");
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+
+  const [historyRow, setHistoryRow] = useState<StockAlertRow | null>(null);
+  const [history, setHistory] = useState<StockMovementRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const allRows = [...outOfStockProducts, ...lowStockProducts];
+  const totalAlerts = allRows.length;
+
+  const openEdit = (row: StockAlertRow) => {
+    setEditingRow(row);
+    setNewStock(String(row.stock));
+    setNewThreshold(String(row.threshold));
+    setReason("");
+  };
+
   const handleUpdateStock = async () => {
-    if (!editingProduct || !newStock) return;
-    
+    if (!editingRow || newStock === "" || !reason.trim()) return;
     setIsUpdating(true);
-    await updateStock(editingProduct.id, parseInt(newStock));
+    await setStockTo(editingRow, parseInt(newStock, 10), reason.trim());
     setIsUpdating(false);
-    setEditingProduct(null);
-    setNewStock("");
+    setEditingRow(null);
   };
 
   const handleUpdateThreshold = async () => {
-    if (!editingProduct || !newThreshold) return;
-    
+    if (!editingRow || newThreshold === "") return;
     setIsUpdating(true);
-    await updateThreshold(editingProduct.id, parseInt(newThreshold));
+    await updateThreshold(editingRow, parseInt(newThreshold, 10));
     setIsUpdating(false);
-    setEditingProduct(null);
-    setNewThreshold("");
+    setEditingRow(null);
+  };
+
+  const toggleSelected = (row: StockAlertRow) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      const key = rowKey(row);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const selectedRows = allRows.filter((r) => selected.has(rowKey(r)));
+
+  const handleBulkApply = async () => {
+    if (!bulkDelta || !bulkReason.trim() || selectedRows.length === 0) return;
+    setIsUpdating(true);
+    await bulkAdjust(selectedRows, parseInt(bulkDelta, 10), bulkReason.trim());
+    setIsUpdating(false);
+    setSelected(new Set());
+    setBulkDelta("");
+    setBulkReason("");
+    setBulkOpen(false);
+  };
+
+  const openHistory = async (row: StockAlertRow) => {
+    setHistoryRow(row);
+    setHistoryLoading(true);
+    const records = await fetchHistory(row.productId, row.variantId);
+    setHistory(records);
+    setHistoryLoading(false);
   };
 
   if (loading) {
@@ -54,11 +113,120 @@ export function InventoryAlerts() {
     );
   }
 
-  const totalAlerts = lowStockProducts.length + outOfStockProducts.length;
+  const renderTable = (title: string, rows: StockAlertRow[], destructive: boolean) => (
+    <Card className={destructive ? "border-destructive/50" : "border-warning/50"}>
+      <CardHeader>
+        <CardTitle className={`flex items-center gap-2 ${destructive ? "text-destructive" : "text-warning"}`}>
+          {destructive ? <PackageX className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+          {title}
+        </CardTitle>
+        <CardDescription>
+          {destructive ? "These items have zero stock and cannot be purchased" : "Items running low on stock"}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10" />
+              <TableHead>Product</TableHead>
+              <TableHead>SKU</TableHead>
+              <TableHead className="text-center">Stock</TableHead>
+              <TableHead className="text-center">Threshold</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={rowKey(row)}>
+                <TableCell>
+                  <Checkbox
+                    checked={selected.has(rowKey(row))}
+                    onCheckedChange={() => toggleSelected(row)}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-3">
+                    {row.images[0] && (
+                      <img src={row.images[0]} alt={row.productName} className="h-10 w-10 object-cover rounded" />
+                    )}
+                    <div>
+                      <div>{row.productName}</div>
+                      {row.variantName && (
+                        <div className="text-xs text-muted-foreground">{row.variantName}</div>
+                      )}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{row.sku || "-"}</TableCell>
+                <TableCell className="text-center">
+                  <Badge variant={row.stock === 0 ? "destructive" : "secondary"}>{row.stock}</Badge>
+                </TableCell>
+                <TableCell className="text-center">{row.threshold}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="outline" size="sm" onClick={() => openHistory(row)} title="Stock history">
+                      <History className="h-4 w-4" />
+                    </Button>
+                    <Dialog open={editingRow ? rowKey(editingRow) === rowKey(row) : false} onOpenChange={(o) => !o && setEditingRow(null)}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" onClick={() => openEdit(row)}>
+                          <Edit2 className="h-4 w-4 mr-1" />
+                          Update
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>
+                            Update Stock - {row.productName}{row.variantName ? ` (${row.variantName})` : ""}
+                          </DialogTitle>
+                          <DialogDescription>
+                            Every change here is recorded in the stock history with the reason you give.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>Stock Quantity</Label>
+                            <Input type="number" min="0" value={newStock} onChange={(e) => setNewStock(e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Reason *</Label>
+                            <Textarea
+                              placeholder="e.g. Restocked from supplier, damaged units removed..."
+                              value={reason}
+                              onChange={(e) => setReason(e.target.value)}
+                              rows={2}
+                            />
+                          </div>
+                          <div className="space-y-2 pt-2 border-t">
+                            <Label>Low Stock Threshold</Label>
+                            <div className="flex gap-2">
+                              <Input type="number" min="1" value={newThreshold} onChange={(e) => setNewThreshold(e.target.value)} />
+                              <Button variant="outline" onClick={handleUpdateThreshold} disabled={isUpdating}>
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button onClick={handleUpdateStock} disabled={isUpdating || newStock === "" || !reason.trim()}>
+                            Update Stock
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
       <div className="grid md:grid-cols-3 gap-4">
         <Card className={outOfStockProducts.length > 0 ? "border-destructive" : ""}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -66,9 +234,7 @@ export function InventoryAlerts() {
             <PackageX className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {outOfStockProducts.length}
-            </div>
+            <div className="text-2xl font-bold text-destructive">{outOfStockProducts.length}</div>
             <p className="text-xs text-muted-foreground">Products need immediate attention</p>
           </CardContent>
         </Card>
@@ -79,9 +245,7 @@ export function InventoryAlerts() {
             <AlertTriangle className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">
-              {lowStockProducts.length}
-            </div>
+            <div className="text-2xl font-bold text-warning">{lowStockProducts.length}</div>
             <p className="text-xs text-muted-foreground">Below threshold</p>
           </CardContent>
         </Card>
@@ -101,233 +265,62 @@ export function InventoryAlerts() {
         </Card>
       </div>
 
-      {/* Out of Stock Products */}
-      {outOfStockProducts.length > 0 && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <PackageX className="h-5 w-5" />
-              Out of Stock Products
-            </CardTitle>
-            <CardDescription>These products have zero inventory and cannot be purchased</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-center">Stock</TableHead>
-                  <TableHead className="text-center">Threshold</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {outOfStockProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        {product.images[0] && (
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.name}
-                            className="h-10 w-10 object-cover rounded"
-                          />
-                        )}
-                        {product.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {product.sku || "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="destructive">0</Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {product.low_stock_threshold}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setEditingProduct(product);
-                              setNewStock("");
-                              setNewThreshold(product.low_stock_threshold.toString());
-                            }}
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Stock
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Update Stock - {product.name}</DialogTitle>
-                            <DialogDescription>
-                              Add new inventory for this product
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="newStock">New Stock Quantity</Label>
-                              <Input
-                                id="newStock"
-                                type="number"
-                                min="0"
-                                value={newStock}
-                                onChange={(e) => setNewStock(e.target.value)}
-                                placeholder="Enter quantity"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="threshold">Low Stock Threshold</Label>
-                              <Input
-                                id="threshold"
-                                type="number"
-                                min="1"
-                                value={newThreshold}
-                                onChange={(e) => setNewThreshold(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter>
-                            <Button 
-                              onClick={handleUpdateStock} 
-                              disabled={isUpdating || !newStock}
-                            >
-                              Update Stock
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+      {selected.size > 0 && (
+        <Card className="border-primary">
+          <CardContent className="pt-6 flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Layers className="h-4 w-4 text-primary" />
+              {selected.size} item(s) selected
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+                Clear
+              </Button>
+              <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">Bulk update</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Bulk update {selected.size} item(s)</DialogTitle>
+                    <DialogDescription>
+                      Applies the same change to every selected item, each logged individually in stock history.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Change in quantity</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 20 to add stock, -5 to remove"
+                        value={bulkDelta}
+                        onChange={(e) => setBulkDelta(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Reason *</Label>
+                      <Textarea
+                        placeholder="e.g. New shipment received"
+                        value={bulkReason}
+                        onChange={(e) => setBulkReason(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleBulkApply} disabled={isUpdating || !bulkDelta || !bulkReason.trim()}>
+                      Apply to {selected.size} item(s)
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Low Stock Products */}
-      {lowStockProducts.length > 0 && (
-        <Card className="border-warning/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-warning">
-              <AlertTriangle className="h-5 w-5" />
-              Low Stock Products
-            </CardTitle>
-            <CardDescription>Products running low on inventory</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-center">Stock</TableHead>
-                  <TableHead className="text-center">Threshold</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lowStockProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-3">
-                        {product.images[0] && (
-                          <img 
-                            src={product.images[0]} 
-                            alt={product.name}
-                            className="h-10 w-10 object-cover rounded"
-                          />
-                        )}
-                        {product.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {product.sku || "-"}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary">
-                        {product.stock_quantity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {product.low_stock_threshold}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setEditingProduct(product);
-                              setNewStock(product.stock_quantity.toString());
-                              setNewThreshold(product.low_stock_threshold.toString());
-                            }}
-                          >
-                            <Edit2 className="h-4 w-4 mr-1" />
-                            Update
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Update Stock - {product.name}</DialogTitle>
-                            <DialogDescription>
-                              Adjust inventory and threshold settings
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="updateStock">Stock Quantity</Label>
-                              <Input
-                                id="updateStock"
-                                type="number"
-                                min="0"
-                                value={newStock}
-                                onChange={(e) => setNewStock(e.target.value)}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="updateThreshold">Low Stock Threshold</Label>
-                              <Input
-                                id="updateThreshold"
-                                type="number"
-                                min="1"
-                                value={newThreshold}
-                                onChange={(e) => setNewThreshold(e.target.value)}
-                              />
-                            </div>
-                          </div>
-                          <DialogFooter className="gap-2">
-                            <Button 
-                              variant="outline"
-                              onClick={handleUpdateThreshold} 
-                              disabled={isUpdating}
-                            >
-                              Update Threshold
-                            </Button>
-                            <Button 
-                              onClick={handleUpdateStock} 
-                              disabled={isUpdating || !newStock}
-                            >
-                              Update Stock
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {outOfStockProducts.length > 0 && renderTable("Out of Stock", outOfStockProducts, true)}
+      {lowStockProducts.length > 0 && renderTable("Low Stock", lowStockProducts, false)}
 
       {totalAlerts === 0 && (
         <Card>
@@ -340,6 +333,52 @@ export function InventoryAlerts() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!historyRow} onOpenChange={(o) => !o && setHistoryRow(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Stock History - {historyRow?.productName}{historyRow?.variantName ? ` (${historyRow.variantName})` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {historyLoading ? (
+            <Skeleton className="h-40 w-full" />
+          ) : history.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">No recorded changes yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-center">Change</TableHead>
+                    <TableHead className="text-center">Resulting</TableHead>
+                    <TableHead>Reason</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {history.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {format(new Date(m.createdAt), "MMM d, yyyy h:mm a")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">{m.movementType.replace("_", " ")}</Badge>
+                      </TableCell>
+                      <TableCell className={`text-center font-medium ${m.changeQuantity < 0 ? "text-destructive" : "text-green-600"}`}>
+                        {m.changeQuantity > 0 ? `+${m.changeQuantity}` : m.changeQuantity}
+                      </TableCell>
+                      <TableCell className="text-center">{m.resultingQuantity}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{m.reason || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

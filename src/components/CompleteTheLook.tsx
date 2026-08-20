@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Product, ProductVariant } from "@/hooks/useProducts";
+import { Product, mapDbVariant } from "@/hooks/useProducts";
 import { ProductCard } from "@/components/ProductCard";
 import { Sparkles, Loader2 } from "lucide-react";
 
@@ -31,13 +31,13 @@ export function CompleteTheLook({ productId }: CompleteTheLookProps) {
         }
         const { data: prods } = await supabase
           .from("products")
-          .select("*")
+          .select("*, product_variants(*)")
           .in("id", ids);
 
         const typed: Product[] = (prods || []).map((p) => ({
           ...p,
           images: (p.images as string[]) || [],
-          variants: (p.variants as unknown as ProductVariant[]) || [],
+          variants: (p.product_variants || []).map(mapDbVariant),
         }));
         // preserve AI ordering
         typed.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));

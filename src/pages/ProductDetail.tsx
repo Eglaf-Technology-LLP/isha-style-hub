@@ -17,7 +17,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
-import { Product, ProductVariant } from "@/hooks/useProducts";
+import { Product, ProductVariant, mapDbVariant } from "@/hooks/useProducts";
 import { ImageGalleryWithZoom } from "@/components/ImageGalleryWithZoom";
 import { VariantSelector } from "@/components/VariantSelector";
 import { WishlistButton } from "@/components/WishlistButton";
@@ -64,7 +64,7 @@ export default function ProductDetail() {
       try {
         const { data, error } = await supabase
           .from("products")
-          .select("*")
+          .select("*, product_variants(*)")
           .eq("id", handle)
           .single();
 
@@ -73,7 +73,7 @@ export default function ProductDetail() {
         const typedProduct: Product = {
           ...data,
           images: (data.images as string[]) || [],
-          variants: (data.variants as unknown as ProductVariant[]) || [],
+          variants: (data.product_variants || []).map(mapDbVariant),
         };
 
         setProduct(typedProduct);

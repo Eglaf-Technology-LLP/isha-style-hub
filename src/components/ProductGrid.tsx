@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ProductCard } from "./ProductCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ShoppingBag } from "lucide-react";
-import { Product, ProductVariant } from "@/hooks/useProducts";
+import { Product, mapDbVariant } from "@/hooks/useProducts";
 
 interface ProductGridProps {
   categoryId?: string | null;
@@ -21,7 +21,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
       try {
         let query = supabase
           .from("products")
-          .select("*")
+          .select("*, product_variants(*)")
           .eq("is_active", true)
           .eq("approval_status", "approved")
           .order("created_at", { ascending: false });
@@ -52,7 +52,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
         const typedProducts: Product[] = (data || []).map((p) => ({
           ...p,
           images: (p.images as string[]) || [],
-          variants: (p.variants as unknown as ProductVariant[]) || [],
+          variants: (p.product_variants || []).map(mapDbVariant),
         }));
 
         setProducts(typedProducts);

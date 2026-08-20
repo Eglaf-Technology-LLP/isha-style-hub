@@ -22,8 +22,14 @@ export function ProductCard({ product }: ProductCardProps) {
   const showImage = mainImage && !imageError;
   const hasDiscount =
     product.compare_at_price && product.compare_at_price > product.price;
+  const hasVariants = product.variants.length > 0;
 
   const handleAddToCart = (e: React.MouseEvent) => {
+    // Products with real variants need a size/color picked and their own
+    // stock checked - both only happen on the product page - so this quick
+    // button becomes a plain link there instead of guessing a variant.
+    if (hasVariants) return;
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -94,7 +100,11 @@ export function ProductCard({ product }: ProductCardProps) {
             disabled={product.stock_quantity <= 0}
           >
             <ShoppingBag className="h-4 w-4 mr-2" />
-            {product.stock_quantity > 0 ? "Add to Cart" : "Out of Stock"}
+            {product.stock_quantity <= 0
+              ? "Out of Stock"
+              : hasVariants
+                ? "Select Options"
+                : "Add to Cart"}
           </Button>
         </div>
 

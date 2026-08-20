@@ -39,6 +39,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
+import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
+import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
 
 interface VendorProduct {
   id: string;
@@ -52,6 +54,7 @@ interface VendorProduct {
   category_id: string | null;
   compare_at_price: number | null;
   sku: string | null;
+  variants: ProductVariant[];
 }
 
 interface VendorOrder {
@@ -164,7 +167,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -183,7 +186,12 @@ export default function VendorDashboard() {
       ]);
 
       if (prodRes.error) throw prodRes.error;
-      setProducts((prodRes.data || []) as VendorProduct[]);
+      setProducts(
+        (prodRes.data || []).map((p: any) => ({
+          ...p,
+          variants: (p.product_variants || []).map(mapDbVariant),
+        }))
+      );
 
       if (payoutRes.data) {
         setPayoutAccount(payoutRes.data as PayoutAccountForm);
@@ -370,6 +378,9 @@ export default function VendorDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Inventory alerts, scoped to this vendor's own products */}
+        <InventoryAlerts vendorId={vendor.id} />
 
         {/* Products */}
         <Card>

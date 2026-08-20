@@ -27,6 +27,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface Discount {
   id: string;
   code: string;
@@ -408,6 +410,40 @@ export default function Checkout() {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // Decrement real inventory per line item. Unlike increment_discount_usage
+      // below, a failure here must stop the order rather than being logged and
+      // ignored - letting checkout continue after a stock call fails would
+      // mean charging for something that was never actually reserved.
+      for (const item of items) {
+        // Cart items without a real matched variant (product has no
+        // variants, or came from a quick-add that never selected one) carry
+        // a synthetic id like `${productId}-default` - not a uuid. Only pass
+        // through a genuine variant id; adjust_stock treats null as "adjust
+        // this product's own aggregate stock_quantity directly".
+        const variantId = UUID_RE.test(item.variantId) ? item.variantId : null;
+
+        const { error: stockError } = await supabase.rpc("adjust_stock", {
+          _product_id: item.productId,
+          _variant_id: variantId,
+          _delta: -item.quantity,
+          _movement_type: "sale",
+          _reason: `Order ${newOrderId}`,
+          _reference_order_id: newOrderId,
+        } as any);
+
+        if (stockError) {
+          // orders has no client-writable UPDATE policy at all (by design -
+          // see verify-razorpay-payment), so cancelling goes through the
+          // same kind of narrowly-scoped RPC as the stock adjustment itself.
+          await supabase.rpc("cancel_pending_order", { _order_id: newOrderId });
+          throw new Error(
+            stockError.message.includes("Insufficient stock")
+              ? stockError.message
+              : `${item.productName} is no longer available in the requested quantity.`
+          );
+        }
+      }
 
       // Create payment record - "paid" is set later by verify-razorpay-payment
       const { error: paymentError } = await supabase

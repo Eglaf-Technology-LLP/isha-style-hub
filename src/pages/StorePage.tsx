@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/ProductCard";
 import { supabase } from "@/integrations/supabase/client";
-import { Product, ProductVariant } from "@/hooks/useProducts";
+import { Product, mapDbVariant } from "@/hooks/useProducts";
 import { Loader2, Store, Truck, RotateCcw, Star, ShieldCheck } from "lucide-react";
 
 interface StoreVendor {
@@ -53,7 +53,7 @@ export default function StorePage() {
 
         const { data: prods } = await supabase
           .from("products")
-          .select("*")
+          .select("*, product_variants(*)")
           .eq("vendor_id", v.id)
           .eq("is_active", true)
           .eq("approval_status", "approved")
@@ -63,7 +63,7 @@ export default function StorePage() {
           (prods || []).map((p: any) => ({
             ...p,
             images: (p.images as string[]) || [],
-            variants: (p.variants as ProductVariant[]) || [],
+            variants: (p.product_variants || []).map(mapDbVariant),
           }))
         );
       } catch (e) {

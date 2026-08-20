@@ -21,6 +21,7 @@ import {
 import { Loader2, Plus, Pencil, Trash2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { VendorProductDialog, VendorProductRow } from "@/components/vendor/VendorProductDialog";
+import { mapDbVariant } from "@/hooks/useProducts";
 
 interface VendorOption {
   id: string;
@@ -64,12 +65,17 @@ export function VendorCatalogManagement() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku"
+          "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, product_variants(*)"
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      setProducts((data || []) as unknown as VendorProductRow[]);
+      setProducts(
+        (data || []).map((p: any) => ({
+          ...p,
+          variants: (p.product_variants || []).map(mapDbVariant),
+        }))
+      );
     } catch (e: any) {
       toast.error(e.message || "Failed to load products");
     } finally {

@@ -20,8 +20,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useCategories } from "@/hooks/useCategories";
+import {
+  ProductVariant,
+  insertProductRecord,
+  applyProductUpdate,
+  fetchProductWithVariants,
+} from "@/hooks/useProducts";
+import { VariantManager } from "@/components/admin/VariantManager";
 import { toast } from "sonner";
 
 export interface VendorProductRow {
@@ -36,6 +42,7 @@ export interface VendorProductRow {
   category_id?: string | null;
   compare_at_price?: number | null;
   sku?: string | null;
+  variants?: ProductVariant[];
 }
 
 interface Props {
@@ -69,6 +76,7 @@ export function VendorProductDialog({
 }: Props) {
   const { categories } = useCategories();
   const [form, setForm] = useState({ ...empty });
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -86,8 +94,10 @@ export function VendorProductDialog({
         images: (product.images || []).join("\n"),
         is_active: product.is_active,
       });
+      setVariants(product.variants || []);
     } else {
       setForm({ ...empty });
+      setVariants([]);
     }
   }, [open, product]);
 
@@ -119,21 +129,16 @@ export function VendorProductDialog({
         is_active: form.is_active,
         // Trusted partners publish instantly, others go to the moderation queue
         approval_status: isTrusted ? "approved" : "pending",
-        rejection_reason: null,
       };
 
       if (product) {
-        const { error } = await supabase
-          .from("products")
-          .update(payload)
-          .eq("id", product.id);
-        if (error) throw error;
+        const existing = await fetchProductWithVariants(product.id);
+        await applyProductUpdate(product.id, payload, existing, undefined, variants);
         toast.success(
           isTrusted ? "Product updated" : "Product updated — sent for re-approval"
         );
       } else {
-        const { error } = await supabase.from("products").insert(payload);
-        if (error) throw error;
+        await insertProductRecord(payload, images, variants);
         toast.success(
           isTrusted
             ? "Product published to the storefront"
@@ -241,8 +246,19 @@ export function VendorProductDialog({
                 value={form.stock_quantity}
                 onChange={(e) => set("stock_quantity", e.target.value)}
               />
+              {variants.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Ignored while variants below are set - stock is tracked per variant instead.
+                </p>
+              )}
             </div>
           </div>
+
+          <VariantManager
+            variants={variants}
+            onChange={setVariants}
+            basePrice={Number(form.price) || 0}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="vp-images">Image URLs (one per line)</Label>
