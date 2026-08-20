@@ -822,7 +822,7 @@ export default function Checkout() {
                   )}
                 </Button>
 
-                {shippingCost > 0 && (
+                {shippingCost > 0 && vendorGroups.length <= 1 && subtotal < 999 && (
                   <p className="text-xs text-center text-muted-foreground">
                     Add ₹{(999 - subtotal).toFixed(0)} more for free shipping
                   </p>
