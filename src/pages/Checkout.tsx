@@ -774,7 +774,30 @@ export default function Checkout() {
                       )}
                     </span>
                   </div>
+                  {vendorGroups.length > 1 && (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <p className="text-xs font-medium">
+                        Shipped in {vendorGroups.length} packages
+                      </p>
+                      {vendorGroups.map((g) => (
+                        <div
+                          key={g.vendorId ?? "platform"}
+                          className="flex justify-between text-xs text-muted-foreground"
+                        >
+                          <span className="truncate mr-2">
+                            {g.vendorName} · {g.items.length} item
+                            {g.items.length > 1 ? "s" : ""}
+                          </span>
+                          <span>
+                            ₹{g.subtotal.toFixed(0)} +{" "}
+                            {g.shippingCost === 0 ? "free ship" : `₹${g.shippingCost} ship`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
 
                 <Separator />
 
