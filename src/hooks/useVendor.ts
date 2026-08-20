@@ -53,10 +53,13 @@ export function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function useVendor() {
+export function useVendor(overrideVendorId?: string | null) {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin, loading: adminLoading } = useAdmin();
   const [vendor, setVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const managingAsAdmin = !!overrideVendorId && isAdmin;
 
   const fetchVendor = useCallback(async () => {
     if (!user) {
@@ -65,16 +68,24 @@ export function useVendor() {
       return;
     }
     try {
-      const { data: member, error: mErr } = await supabase
-        .from("vendor_members")
-        .select("vendor_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      let vendorId: string | null = null;
 
-      if (mErr) throw mErr;
-      if (!member) {
+      if (overrideVendorId && isAdmin) {
+        vendorId = overrideVendorId;
+      } else {
+        const { data: member, error: mErr } = await supabase
+          .from("vendor_members")
+          .select("vendor_id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (mErr) throw mErr;
+        vendorId = member?.vendor_id ?? null;
+      }
+
+      if (!vendorId) {
         setVendor(null);
         setLoading(false);
         return;
@@ -83,7 +94,7 @@ export function useVendor() {
       const { data: v, error } = await supabase
         .from("vendors")
         .select("*")
-        .eq("id", member.vendor_id)
+        .eq("id", vendorId)
         .maybeSingle();
 
       if (error) throw error;
@@ -94,12 +105,13 @@ export function useVendor() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, overrideVendorId, isAdmin]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || adminLoading) return;
     fetchVendor();
-  }, [authLoading, fetchVendor]);
+  }, [authLoading, adminLoading, fetchVendor]);
+
 
   const registerVendor = async (
     input: VendorRegistrationInput
