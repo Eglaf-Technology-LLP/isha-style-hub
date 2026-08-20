@@ -154,10 +154,16 @@ export default function VendorDashboard() {
 
   useEffect(() => {
     if (loading) return;
-    if (!vendor) return;
-    if (vendor.status !== "approved") return;
+    if (!vendor) {
+      navigate("/sell-with-us", { replace: true });
+      return;
+    }
+    if (vendor.status !== "approved") {
+      navigate("/vendor/pending", { replace: true });
+      return;
+    }
     fetchAll();
-  }, [loading, vendor]);
+  }, [loading, vendor, navigate]);
 
   const fetchAll = async () => {
     if (!vendor) return;
@@ -262,7 +268,7 @@ export default function VendorDashboard() {
     }
   };
 
-  if (loading) {
+  if (loading || !vendor || vendor.status !== "approved") {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -272,16 +278,6 @@ export default function VendorDashboard() {
         <Footer />
       </div>
     );
-  }
-
-  if (!vendor) {
-    navigate("/sell-with-us", { replace: true });
-    return null;
-  }
-
-  if (vendor.status !== "approved") {
-    navigate("/vendor/pending", { replace: true });
-    return null;
   }
 
   const revenue = orders.reduce((s, o) => s + Number(o.net_payable || 0), 0);
