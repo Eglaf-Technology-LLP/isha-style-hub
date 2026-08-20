@@ -65,7 +65,24 @@ export default function Checkout() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
-  const shippingCost = subtotal >= 999 ? 0 : 99;
+  const [vendorGroups, setVendorGroups] = useState<VendorGroup[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    buildVendorSplit(items).then((groups) => {
+      if (active) setVendorGroups(groups);
+    });
+    return () => {
+      active = false;
+    };
+  }, [items]);
+
+  // Shipping is charged per vendor, using each vendor's own rate and threshold
+  const shippingCost = vendorGroups.length
+    ? vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0)
+    : subtotal >= 999
+    ? 0
+    : 99;
 
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
