@@ -1,14 +1,19 @@
 import { useState } from "react";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import { useVendorAnalytics } from "@/hooks/useVendorAnalytics";
 import { AnalyticsCharts, DateRange } from "@/components/admin/AnalyticsCharts";
 
-export function SalesAnalyticsDashboard() {
+interface Props {
+  vendorId: string;
+}
+
+export function VendorAnalyticsSection({ vendorId }: Props) {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
-  const { data, loading } = useAnalytics(dateRange);
+  const { data, loading } = useVendorAnalytics(vendorId, dateRange);
 
   return (
     <AnalyticsCharts
-      title="Sales Analytics"
+      title="Your Sales Analytics"
+      revenueLabel="Your Revenue"
       data={data}
       loading={loading}
       dateRange={dateRange}

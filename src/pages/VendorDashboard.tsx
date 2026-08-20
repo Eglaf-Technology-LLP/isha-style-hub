@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
+import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
 
 interface VendorProduct {
@@ -374,6 +375,9 @@ export default function VendorDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Analytics, scoped to this vendor's own orders */}
+        <VendorAnalyticsSection vendorId={vendor.id} />
 
         {/* Inventory alerts, scoped to this vendor's own products */}
         <InventoryAlerts vendorId={vendor.id} />

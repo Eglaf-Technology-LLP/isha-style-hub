@@ -2,27 +2,27 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfDay, startOfWeek, startOfMonth, subDays, format, parseISO } from "date-fns";
 
-interface DailySales {
+export interface DailySales {
   date: string;
   revenue: number;
   orders: number;
 }
 
-interface ProductSales {
+export interface ProductSales {
   productId: string;
   productName: string;
   quantity: number;
   revenue: number;
 }
 
-interface CategoryPerformance {
+export interface CategoryPerformance {
   categoryId: string;
   categoryName: string;
   revenue: number;
   orders: number;
 }
 
-interface AnalyticsData {
+export interface AnalyticsData {
   totalRevenue: number;
   totalOrders: number;
   averageOrderValue: number;
