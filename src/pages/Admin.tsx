@@ -42,6 +42,7 @@ import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { VendorManagement } from "@/components/admin/VendorManagement";
 import { ProductModeration } from "@/components/admin/ProductModeration";
 import { VendorCatalogManagement } from "@/components/admin/VendorCatalogManagement";
+import { VendorPerformanceAnalytics } from "@/components/admin/VendorPerformanceAnalytics";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -398,6 +399,7 @@ export default function Admin() {
 
           {/* Vendors Tab */}
           <TabsContent value="vendors" className="space-y-6">
+            <VendorPerformanceAnalytics />
             <VendorManagement />
             <VendorCatalogManagement />
             <ProductModeration />

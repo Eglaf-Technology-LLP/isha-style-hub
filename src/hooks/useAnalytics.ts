@@ -101,15 +101,17 @@ export function useAnalytics(dateRange: "7d" | "30d" | "90d" = "30d") {
         .from("products")
         .select("id, name, category_id");
 
-      // Calculate metrics
-      const completedOrders = orders?.filter(o => o.payment_status === "completed") || [];
-      const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      // Calculate metrics. payment_status is 'pending'|'paid'|'failed'|'refunded' -
+      // there is no 'completed' value in the DB constraint, so filtering on it
+      // silently zeroed out revenue/dailySales/growth for all real data.
+      const paidOrders = orders?.filter(o => o.payment_status === "paid") || [];
+      const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const totalOrders = orders?.length || 0;
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
       // Previous period metrics
-      const prevCompletedOrders = previousOrders?.filter(o => o.payment_status === "completed") || [];
-      const prevRevenue = prevCompletedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const prevPaidOrders = previousOrders?.filter(o => o.payment_status === "paid") || [];
+      const prevRevenue = prevPaidOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const prevTotalOrders = previousOrders?.length || 0;
 
       // Growth calculations
@@ -122,7 +124,7 @@ export function useAnalytics(dateRange: "7d" | "30d" | "90d" = "30d") {
 
       // Daily sales aggregation
       const salesByDate: Record<string, DailySales> = {};
-      completedOrders.forEach(order => {
+      paidOrders.forEach(order => {
         const date = format(parseISO(order.created_at), "yyyy-MM-dd");
         if (!salesByDate[date]) {
           salesByDate[date] = { date, revenue: 0, orders: 0 };
