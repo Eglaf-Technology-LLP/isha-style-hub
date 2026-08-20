@@ -228,24 +228,63 @@ export default function Checkout() {
 
       if (orderError) throw orderError;
 
-      // Create order items
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.product.node.id,
-        variant_id: item.variantId,
-        product_title: item.product.node.title,
-        variant_title: item.variantTitle || null,
-        size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
-        color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
-        quantity: item.quantity,
-        price: parseFloat(item.price.amount),
-      }));
+      // Split the order per vendor (each vendor gets its own sub-order)
+      const groups = vendorGroups.length ? vendorGroups : await buildVendorSplit(items);
+      const vendorOrderByKey = new Map<string, string>();
+
+      const vendorGroupsWithId = groups.filter((g) => g.vendorId);
+      if (vendorGroupsWithId.length > 0) {
+        const { data: createdVendorOrders, error: voError } = await supabase
+          .from("vendor_orders")
+          .insert(
+            vendorGroupsWithId.map((g) => ({
+              order_id: order.id,
+              vendor_id: g.vendorId as string,
+              subtotal: g.subtotal,
+              shipping_cost: g.shippingCost,
+              commission_rate: g.commissionRate,
+              commission_amount: g.commissionAmount,
+              net_payable: g.netPayable,
+              status: "pending",
+            }))
+          )
+          .select("id, vendor_id");
+
+        if (voError) throw voError;
+        (createdVendorOrders || []).forEach((vo) =>
+          vendorOrderByKey.set(vo.vendor_id, vo.id)
+        );
+      }
+
+      const vendorByProductId = new Map<string, string | null>();
+      groups.forEach((g) =>
+        g.items.forEach((i) => vendorByProductId.set(i.product.node.id, g.vendorId))
+      );
+
+      // Create order items (tagged with their vendor + vendor sub-order)
+      const orderItems = items.map((item) => {
+        const vendorId = vendorByProductId.get(item.product.node.id) ?? null;
+        return {
+          order_id: order.id,
+          product_id: item.product.node.id,
+          variant_id: item.variantId,
+          product_title: item.product.node.title,
+          variant_title: item.variantTitle || null,
+          size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
+          color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
+          quantity: item.quantity,
+          price: parseFloat(item.price.amount),
+          vendor_id: vendorId,
+          vendor_order_id: vendorId ? vendorOrderByKey.get(vendorId) ?? null : null,
+        };
+      });
 
       const { error: itemsError } = await supabase
         .from("order_items")
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
 
       // Create payment record
       const { error: paymentError } = await supabase
