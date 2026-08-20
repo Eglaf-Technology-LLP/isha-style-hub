@@ -22,6 +22,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useCartStore, CartItem } from "@/stores/cartStore";
+import { openRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -77,7 +78,7 @@ export default function Checkout() {
     country: "India",
   });
 
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "credit_card" | "debit_card" | "upi">("cod");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "razorpay">("cod");
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
@@ -270,6 +271,32 @@ export default function Checkout() {
     return true;
   };
 
+  const sendConfirmationEmail = async (orderIdToConfirm: string) => {
+    try {
+      const emailResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-order-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            orderId: orderIdToConfirm,
+            type: "confirmation",
+          }),
+        }
+      );
+
+      if (!emailResponse.ok) {
+        console.error("Failed to send confirmation email");
+      }
+    } catch (emailError) {
+      console.error("Email sending error:", emailError);
+      // Don't fail the order if email fails
+    }
+  };
+
   const placeOrder = async () => {
     if (!validateForm()) return;
     if (items.length === 0) {
@@ -290,7 +317,24 @@ export default function Checkout() {
       // nothing worth reading back - just supply the id ourselves.
       const newOrderId = crypto.randomUUID();
 
-      // Create the order
+      // For online payment, create the Razorpay order *before* writing
+      // anything of ours, so we can store its id on our own order row.
+      let razorpayOrderId: string | null = null;
+      let razorpayKeyId: string | null = null;
+      if (paymentMethod === "razorpay") {
+        const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
+          body: { receiptId: newOrderId, amount: total },
+        });
+        if (error || !data?.razorpayOrderId) {
+          throw new Error("Could not start online payment. Please try again.");
+        }
+        razorpayOrderId = data.razorpayOrderId;
+        razorpayKeyId = data.keyId;
+      }
+
+      // Create the order. payment_status only ever becomes "paid" via
+      // verify-razorpay-payment, once a real signature is checked
+      // server-side - never set directly by this client-side insert.
       const { error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -301,12 +345,13 @@ export default function Checkout() {
           customer_phone: customerInfo.phone,
           shipping_address: shippingAddress,
           payment_method: paymentMethod,
-          payment_status: paymentMethod === "cod" ? "pending" : "pending",
+          payment_status: "pending",
           order_status: "pending",
           subtotal: subtotal,
           shipping_cost: shippingCost,
           total: total,
           notes: notes || null,
+          razorpay_order_id: razorpayOrderId,
         });
 
       if (orderError) throw orderError;
@@ -364,14 +409,14 @@ export default function Checkout() {
 
       if (itemsError) throw itemsError;
 
-      // Create payment record
+      // Create payment record - "paid" is set later by verify-razorpay-payment
       const { error: paymentError } = await supabase
         .from("payments")
         .insert({
           order_id: newOrderId,
           amount: total,
           payment_method: paymentMethod,
-          payment_status: paymentMethod === "cod" ? "pending" : "pending",
+          payment_status: "pending",
         });
 
       if (paymentError) throw paymentError;
@@ -386,40 +431,72 @@ export default function Checkout() {
         }
       }
 
-      // Send confirmation email
-      try {
-        const emailResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-order-email`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              orderId: newOrderId,
-              type: "confirmation",
-            }),
-          }
-        );
-        
-        if (!emailResponse.ok) {
-          console.error("Failed to send confirmation email");
-        }
-      } catch (emailError) {
-        console.error("Email sending error:", emailError);
-        // Don't fail the order if email fails
+      if (paymentMethod === "cod") {
+        await sendConfirmationEmail(newOrderId);
+        clearCart();
+        setOrderId(newOrderId);
+        setOrderPlaced(true);
+        toast.success("Order placed successfully!");
+        setIsPlacingOrder(false);
+        return;
       }
 
-      // Clear cart and show success
-      clearCart();
-      setOrderId(newOrderId);
-      setOrderPlaced(true);
-      toast.success("Order placed successfully!");
+      // Online payment: the order above is saved as "pending" already, so
+      // nothing is lost if the customer abandons the widget. Everything
+      // past this point runs asynchronously in Razorpay's callbacks, not
+      // in this try block, so isPlacingOrder is reset inside each branch
+      // rather than in a finally here.
+      await openRazorpayCheckout({
+        key: razorpayKeyId!,
+        amount: Math.round(total * 100),
+        currency: "INR",
+        order_id: razorpayOrderId!,
+        name: "Isha Fashion Hub",
+        description: `Order ${newOrderId.slice(0, 8)}`,
+        prefill: {
+          name: customerInfo.name,
+          email: customerInfo.email,
+          contact: customerInfo.phone,
+        },
+        theme: { color: "#ec1f63" },
+        handler: async (response) => {
+          const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+            "verify-razorpay-payment",
+            {
+              body: {
+                orderId: newOrderId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              },
+            }
+          );
+
+          if (verifyError || !verifyData?.verified) {
+            toast.error(
+              "Payment could not be verified. If you were charged, contact support with your order reference."
+            );
+            setIsPlacingOrder(false);
+            return;
+          }
+
+          await sendConfirmationEmail(newOrderId);
+          clearCart();
+          setOrderId(newOrderId);
+          setOrderPlaced(true);
+          toast.success("Payment successful!");
+          setIsPlacingOrder(false);
+        },
+        modal: {
+          ondismiss: () => {
+            toast.error("Payment cancelled. Your order is saved - you can try paying again.");
+            setIsPlacingOrder(false);
+          },
+        },
+      });
     } catch (error: any) {
       console.error("Error placing order:", error);
       toast.error(error.message || "Failed to place order");
-    } finally {
       setIsPlacingOrder(false);
     }
   };
@@ -635,9 +712,7 @@ export default function Checkout() {
               <CardContent>
                 <RadioGroup
                   value={paymentMethod}
-                  onValueChange={(value) =>
-                    setPaymentMethod(value as "cod" | "credit_card" | "debit_card" | "upi")
-                  }
+                  onValueChange={(value) => setPaymentMethod(value as "cod" | "razorpay")}
                   className="space-y-3"
                 >
                   <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
@@ -656,46 +731,16 @@ export default function Checkout() {
                     </Label>
                   </div>
                   <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="credit_card" id="credit_card" />
+                    <RadioGroupItem value="razorpay" id="razorpay" />
                     <Label
-                      htmlFor="credit_card"
+                      htmlFor="razorpay"
                       className="flex items-center gap-3 cursor-pointer flex-1"
                     >
                       <CreditCard className="h-5 w-5 text-primary" />
                       <div>
-                        <p className="font-medium">Credit Card</p>
+                        <p className="font-medium">Pay Online</p>
                         <p className="text-sm text-muted-foreground">
-                          Pay securely with your credit card
-                        </p>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="debit_card" id="debit_card" />
-                    <Label
-                      htmlFor="debit_card"
-                      className="flex items-center gap-3 cursor-pointer flex-1"
-                    >
-                      <CreditCard className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">Debit Card</p>
-                        <p className="text-sm text-muted-foreground">
-                          Pay directly from your bank account
-                        </p>
-                      </div>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="upi" id="upi" />
-                    <Label
-                      htmlFor="upi"
-                      className="flex items-center gap-3 cursor-pointer flex-1"
-                    >
-                      <Banknote className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">UPI</p>
-                        <p className="text-sm text-muted-foreground">
-                          Pay using Google Pay, PhonePe, Paytm, etc.
+                          Card, UPI or netbanking &mdash; pick your method at checkout
                         </p>
                       </div>
                     </Label>
@@ -868,8 +913,10 @@ export default function Checkout() {
                   {isPlacingOrder ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Placing Order...
+                      {paymentMethod === "razorpay" ? "Processing payment..." : "Placing Order..."}
                     </>
+                  ) : paymentMethod === "razorpay" ? (
+                    `Pay ₹${total.toFixed(0)}`
                   ) : (
                     `Place Order • ₹${total.toFixed(0)}`
                   )}
