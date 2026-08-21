@@ -127,8 +127,12 @@ export function VendorProductDialog({
         stock_quantity: Number(form.stock_quantity) || 0,
         images,
         is_active: form.is_active,
-        // Trusted partners publish instantly, others go to the moderation queue
-        approval_status: isTrusted ? "approved" : "pending",
+        // Trusted partners publish instantly, others go to the moderation
+        // queue. "pending_review" (not "pending") is the real constraint
+        // value - the insert-only normalization trigger masked this being
+        // wrong on create, but every edit hit the constraint directly since
+        // no such trigger runs on update.
+        approval_status: isTrusted ? "approved" : "pending_review",
       };
 
       if (product) {

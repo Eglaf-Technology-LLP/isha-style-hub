@@ -33,14 +33,19 @@ import {
   Pencil,
   Trash2,
   Landmark,
+  LayoutDashboard,
+  BarChart3,
+  AlertTriangle,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
+import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
 
 interface VendorProduct {
@@ -86,6 +91,7 @@ const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_
 
 export default function VendorDashboard() {
   const { vendor, loading, refresh: refreshVendor } = useVendor();
+  const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id);
   const navigate = useNavigate();
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -320,332 +326,378 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 space-y-8">
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-                <Package className="h-4 w-4" /> Products
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">
-                {dataLoading ? "..." : products.length}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" /> Orders
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">
-                {dataLoading ? "..." : orders.length}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" /> Pending fulfilment
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">
-                {dataLoading ? "..." : pendingOrders}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
-                <IndianRupee className="h-4 w-4" /> Net payable
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">
-                {dataLoading ? "..." : `₹${revenue.toFixed(0)}`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Commission {vendor.commission_rate}%
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="container mx-auto px-4 py-8">
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+            <TabsTrigger value="dashboard" className="flex items-center gap-1">
+              <LayoutDashboard className="h-4 w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-1">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="flex items-center gap-1 relative">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="hidden sm:inline">Inventory</span>
+              {lowStockAlerts > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  {lowStockAlerts}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center gap-1">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Products</span>
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="flex items-center gap-1">
+              <ShoppingCart className="h-4 w-4" />
+              <span className="hidden sm:inline">Orders</span>
+            </TabsTrigger>
+            <TabsTrigger value="payouts" className="flex items-center gap-1">
+              <Landmark className="h-4 w-4" />
+              <span className="hidden sm:inline">Payouts</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Analytics, scoped to this vendor's own orders */}
-        <VendorAnalyticsSection vendorId={vendor.id} />
-
-        {/* Inventory alerts, scoped to this vendor's own products */}
-        <InventoryAlerts vendorId={vendor.id} />
-
-        {/* Products */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" /> Your products
-            </CardTitle>
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingProduct(null);
-                setProductDialogOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4 mr-2" /> Add product
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {dataLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : products.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No products yet. Use “Add product” to create your first listing.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Price</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Approval</TableHead>
-                      <TableHead>Visible</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
-                        <TableCell>{p.stock_quantity}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              p.approval_status === "approved"
-                                ? "secondary"
-                                : p.approval_status === "rejected"
-                                ? "destructive"
-                                : "outline"
-                            }
-                            className="capitalize"
-                          >
-                            {p.approval_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={p.is_active ? "listed" : "unlisted"}
-                            onValueChange={(v) => toggleActive(p, v === "listed")}
-                          >
-                            <SelectTrigger className="w-28 h-8 text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="listed">Listed</SelectItem>
-                              <SelectItem value="unlisted">Hidden</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell className="text-right whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${p.name}`}
-                            onClick={() => {
-                              setEditingProduct(p);
-                              setProductDialogOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Delete ${p.name}`}
-                            onClick={() => deleteProduct(p)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Orders */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" /> Orders to fulfil
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dataLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : orders.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">
-                No orders yet. Orders will appear here once customers buy your products.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Total</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Tracking</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orders.map((o) => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-mono text-xs">
-                          {o.order_id.slice(0, 8)}
-                          <div className="text-muted-foreground">
-                            {new Date(o.created_at).toLocaleDateString()}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>{o.customer_name || "Customer"}</div>
-                          {o.customer_phone && (
-                            <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
-                          )}
-                          {o.shipping_address?.city && (
-                            <div className="text-xs text-muted-foreground">
-                              {o.shipping_address.city}, {o.shipping_address.state} {o.shipping_address.pincode}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>₹{Number(o.net_payable).toFixed(0)}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={o.status}
-                            onValueChange={(v) => updateOrder(o, { status: v })}
-                            disabled={savingId === o.id}
-                          >
-                            <SelectTrigger className="w-32 h-8 text-xs capitalize">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ORDER_STATUSES.map((s) => (
-                                <SelectItem key={s} value={s} className="capitalize">
-                                  {s}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            placeholder="Tracking no."
-                            defaultValue={o.tracking_number || ""}
-                            className="h-8 w-36 text-xs"
-                            onBlur={(e) => {
-                              if (e.target.value !== (o.tracking_number || "")) {
-                                updateOrder(o, { tracking_number: e.target.value });
-                              }
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {savingId === o.id && (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Payout details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Landmark className="h-5 w-5" /> Payout details
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Where we send your earnings. Status: {vendor.payout_account_status.replace("_", " ")}.
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4 max-w-xl">
-            <div className="space-y-2">
-              <Label htmlFor="po-name">Account holder name</Label>
-              <Input
-                id="po-name"
-                value={payoutAccount.account_holder_name}
-                onChange={(e) =>
-                  setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
-                }
-              />
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Package className="h-4 w-4" /> Products
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {dataLoading ? "..." : products.length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4" /> Orders
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {dataLoading ? "..." : orders.length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4" /> Pending fulfilment
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {dataLoading ? "..." : pendingOrders}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm text-muted-foreground flex items-center gap-2">
+                    <IndianRupee className="h-4 w-4" /> Net payable
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {dataLoading ? "..." : `₹${revenue.toFixed(0)}`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Commission {vendor.commission_rate}%
+                  </p>
+                </CardContent>
+              </Card>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="po-acc">Bank account number</Label>
-                <Input
-                  id="po-acc"
-                  value={payoutAccount.bank_account_number}
-                  onChange={(e) =>
-                    setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="po-ifsc">IFSC code</Label>
-                <Input
-                  id="po-ifsc"
-                  value={payoutAccount.bank_ifsc}
-                  onChange={(e) =>
-                    setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Business type</Label>
-              <Select
-                value={payoutAccount.business_type}
-                onValueChange={(v) => setPayoutAccount((f) => ({ ...f, business_type: v }))}
-              >
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BUSINESS_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="capitalize">
-                      {t.replace("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={savePayoutAccount} disabled={payoutSaving}>
-              {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save payout details
-            </Button>
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <VendorAnalyticsSection vendorId={vendor.id} />
+          </TabsContent>
+
+          {/* Inventory Tab */}
+          <TabsContent value="inventory">
+            <InventoryAlerts vendorId={vendor.id} />
+          </TabsContent>
+
+          {/* Products Tab */}
+          <TabsContent value="products">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" /> Your products
+                </CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setProductDialogOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" /> Add product
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {dataLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : products.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No products yet. Use “Add product” to create your first listing.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead>Stock</TableHead>
+                          <TableHead>Approval</TableHead>
+                          <TableHead>Visible</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {products.map((p) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.name}</TableCell>
+                            <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
+                            <TableCell>{p.stock_quantity}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  p.approval_status === "approved"
+                                    ? "secondary"
+                                    : p.approval_status === "rejected"
+                                    ? "destructive"
+                                    : "outline"
+                                }
+                                className="capitalize"
+                              >
+                                {p.approval_status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={p.is_active ? "listed" : "unlisted"}
+                                onValueChange={(v) => toggleActive(p, v === "listed")}
+                              >
+                                <SelectTrigger className="w-28 h-8 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="listed">Listed</SelectItem>
+                                  <SelectItem value="unlisted">Hidden</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Edit ${p.name}`}
+                                onClick={() => {
+                                  setEditingProduct(p);
+                                  setProductDialogOpen(true);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Delete ${p.name}`}
+                                onClick={() => deleteProduct(p)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Orders Tab */}
+          <TabsContent value="orders">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" /> Orders to fulfil
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {dataLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  </div>
+                ) : orders.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No orders yet. Orders will appear here once customers buy your products.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Total</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Tracking</TableHead>
+                          <TableHead></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {orders.map((o) => (
+                          <TableRow key={o.id}>
+                            <TableCell className="font-mono text-xs">
+                              {o.order_id.slice(0, 8)}
+                              <div className="text-muted-foreground">
+                                {new Date(o.created_at).toLocaleDateString()}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>{o.customer_name || "Customer"}</div>
+                              {o.customer_phone && (
+                                <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
+                              )}
+                              {o.shipping_address?.city && (
+                                <div className="text-xs text-muted-foreground">
+                                  {o.shipping_address.city}, {o.shipping_address.state} {o.shipping_address.pincode}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>₹{Number(o.net_payable).toFixed(0)}</TableCell>
+                            <TableCell>
+                              <Select
+                                value={o.status}
+                                onValueChange={(v) => updateOrder(o, { status: v })}
+                                disabled={savingId === o.id}
+                              >
+                                <SelectTrigger className="w-32 h-8 text-xs capitalize">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ORDER_STATUSES.map((s) => (
+                                    <SelectItem key={s} value={s} className="capitalize">
+                                      {s}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                placeholder="Tracking no."
+                                defaultValue={o.tracking_number || ""}
+                                className="h-8 w-36 text-xs"
+                                onBlur={(e) => {
+                                  if (e.target.value !== (o.tracking_number || "")) {
+                                    updateOrder(o, { tracking_number: e.target.value });
+                                  }
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {savingId === o.id && (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Payouts Tab */}
+          <TabsContent value="payouts">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Landmark className="h-5 w-5" /> Payout details
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Where we send your earnings. Status: {vendor.payout_account_status.replace("_", " ")}.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-xl">
+                <div className="space-y-2">
+                  <Label htmlFor="po-name">Account holder name</Label>
+                  <Input
+                    id="po-name"
+                    value={payoutAccount.account_holder_name}
+                    onChange={(e) =>
+                      setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="po-acc">Bank account number</Label>
+                    <Input
+                      id="po-acc"
+                      value={payoutAccount.bank_account_number}
+                      onChange={(e) =>
+                        setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="po-ifsc">IFSC code</Label>
+                    <Input
+                      id="po-ifsc"
+                      value={payoutAccount.bank_ifsc}
+                      onChange={(e) =>
+                        setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Business type</Label>
+                  <Select
+                    value={payoutAccount.business_type}
+                    onValueChange={(v) => setPayoutAccount((f) => ({ ...f, business_type: v }))}
+                  >
+                    <SelectTrigger className="w-full sm:w-64">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((t) => (
+                        <SelectItem key={t} value={t} className="capitalize">
+                          {t.replace("_", " ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={savePayoutAccount} disabled={payoutSaving}>
+                  {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save payout details
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       <VendorProductDialog

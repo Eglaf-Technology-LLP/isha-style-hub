@@ -85,6 +85,9 @@ export interface ProductFormData {
   // long-standing admin-only behavior.
   vendor_id?: string | null;
   approval_status?: string;
+  // Full replacement image list, set only by VendorProductDialog (a plain
+  // URL textarea, not a file-upload flow) - see applyProductUpdate.
+  images?: string[];
 }
 
 export async function uploadProductImages(images: File[]): Promise<string[]> {
@@ -227,7 +230,13 @@ export async function applyProductUpdate(
     updateData.approval_status = productData.approval_status;
     updateData.rejection_reason = null;
   }
-  if (imageUrls) {
+  if (productData.images !== undefined) {
+    // Vendor form: the textarea holds the complete desired image list, so
+    // this replaces it outright rather than appending.
+    updateData.images = productData.images;
+  } else if (imageUrls) {
+    // Admin form: newly uploaded files are appended to what's already
+    // there; existing images are removed separately via removeProductImage.
     updateData.images = [...(existingProduct?.images || []), ...imageUrls];
   }
 

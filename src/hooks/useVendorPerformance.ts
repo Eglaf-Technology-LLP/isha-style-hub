@@ -116,7 +116,7 @@ export function useVendorPerformance(isAdmin: boolean = false) {
           (p) => p.is_active && p.approval_status === "approved"
         ).length;
         const pendingProductCount = ownProducts.filter(
-          (p) => p.approval_status === "pending"
+          (p) => p.approval_status === "pending_review"
         ).length;
 
         const categoryTotals = new Map<string, VendorCategoryStat>();
