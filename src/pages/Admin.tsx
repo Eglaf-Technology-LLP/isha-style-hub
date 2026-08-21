@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ import {
   RotateCcw,
   Store,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -46,8 +46,20 @@ import { VendorPerformanceAnalytics } from "@/components/admin/VendorPerformance
 
 export default function Admin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
+
+  // /admin is the only sign-in surface in the app, used by regular
+  // customers too (e.g. Checkout's sign-in gate links here with
+  // ?redirect=/checkout). Once signed in, send them back where they came
+  // from instead of falling through to the admin-only "Access Denied"
+  // screen below.
+  useEffect(() => {
+    if (!user) return;
+    const redirect = searchParams.get("redirect");
+    if (redirect) navigate(redirect, { replace: true });
+  }, [user, searchParams, navigate]);
   const { categories, loading: categoriesLoading } = useCategories();
   const { orders, loading: ordersLoading } = useOrders(isAdmin);
   const { products, loading: productsLoading } = useProducts();

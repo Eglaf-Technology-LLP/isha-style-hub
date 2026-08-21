@@ -908,6 +908,51 @@ export type Database = {
           },
         ]
       }
+      saved_addresses: {
+        Row: {
+          address_line_1: string
+          address_line_2: string | null
+          city: string
+          created_at: string
+          full_name: string
+          id: string
+          is_default: boolean
+          label: string
+          phone: string
+          pincode: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          address_line_1: string
+          address_line_2?: string | null
+          city: string
+          created_at?: string
+          full_name: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone: string
+          pincode: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          address_line_1?: string
+          address_line_2?: string | null
+          city?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          is_default?: boolean
+          label?: string
+          phone?: string
+          pincode?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       size_guides: {
         Row: {
           category_id: string | null
@@ -1369,7 +1414,6 @@ export type Database = {
         Args: { _discount_id: string }
         Returns: undefined
       }
-      is_guest_order: { Args: { _order_id: string }; Returns: boolean }
       is_vendor_member: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean

@@ -48,7 +48,7 @@ export function useSavedAddresses() {
     if (!user) return;
 
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("saved_addresses")
         .select("*")
         .eq("user_id", user.id)
@@ -74,13 +74,13 @@ export function useSavedAddresses() {
     try {
       // If this is set as default, unset other defaults first
       if (addressData.is_default) {
-        await (supabase as any)
+        await supabase
           .from("saved_addresses")
           .update({ is_default: false })
           .eq("user_id", user.id);
       }
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("saved_addresses")
         .insert({
           user_id: user.id,
@@ -107,14 +107,14 @@ export function useSavedAddresses() {
     try {
       // If setting as default, unset other defaults first
       if (addressData.is_default) {
-        await (supabase as any)
+        await supabase
           .from("saved_addresses")
           .update({ is_default: false })
           .eq("user_id", user.id)
           .neq("id", id);
       }
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("saved_addresses")
         .update(addressData)
         .eq("id", id)
@@ -136,7 +136,7 @@ export function useSavedAddresses() {
     if (!user) return false;
 
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("saved_addresses")
         .delete()
         .eq("id", id)

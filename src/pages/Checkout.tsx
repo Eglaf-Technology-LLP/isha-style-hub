@@ -20,12 +20,16 @@ import {
   Loader2,
   CheckCircle,
   ArrowLeft,
+  LogIn,
+  MapPin,
 } from "lucide-react";
 import { useCartStore, CartItem } from "@/stores/cartStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -64,6 +68,12 @@ export default function Checkout() {
   const navigate = useNavigate();
   const { items, getTotalPrice, clearCart } = useCartStore();
   const subtotal = getTotalPrice();
+  const { user, loading: authLoading } = useAuth();
+  const {
+    addresses: savedAddresses,
+    defaultAddress,
+    addAddress,
+  } = useSavedAddresses();
 
   const [customerInfo, setCustomerInfo] = useState({
     name: "",
@@ -80,6 +90,11 @@ export default function Checkout() {
     country: "India",
   });
 
+  // "new" means the fields below are a fresh entry; any other value is the
+  // id of the saved_addresses row currently populating them.
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("new");
+  const [addressPrefilled, setAddressPrefilled] = useState(false);
+
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "razorpay">("cod");
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
@@ -88,6 +103,85 @@ export default function Checkout() {
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+
+  // Prefill email once we know who's signed in, and default the address
+  // picker to the user's saved default address the first time it loads -
+  // both one-time, so later edits (including switching back to "new") aren't
+  // clobbered by a re-render.
+  useEffect(() => {
+    if (user?.email) {
+      setCustomerInfo((prev) => (prev.email ? prev : { ...prev, email: user.email! }));
+    }
+  }, [user]);
+
+  const applySavedAddress = (address: SavedAddress) => {
+    setCustomerInfo((prev) => ({ ...prev, name: address.full_name, phone: address.phone }));
+    setShippingAddress((prev) => ({
+      ...prev,
+      address_line1: address.address_line_1,
+      address_line2: address.address_line_2 || "",
+      city: address.city,
+      state: address.state,
+      pincode: address.pincode,
+    }));
+    setSelectedAddressId(address.id);
+  };
+
+  useEffect(() => {
+    if (addressPrefilled) return;
+    if (defaultAddress) {
+      applySavedAddress(defaultAddress);
+      setAddressPrefilled(true);
+    }
+  }, [defaultAddress, addressPrefilled]);
+
+  const handleAddressPick = (value: string) => {
+    if (value === "new") {
+      setCustomerInfo((prev) => ({ ...prev, name: "", phone: "" }));
+      setShippingAddress((prev) => ({
+        ...prev,
+        address_line1: "",
+        address_line2: "",
+        city: "",
+        state: "",
+        pincode: "",
+      }));
+      setSelectedAddressId("new");
+      return;
+    }
+    const address = savedAddresses.find((a) => a.id === value);
+    if (address) applySavedAddress(address);
+  };
+
+  // Best-effort dedup so re-ordering with an unchanged address never spawns
+  // a duplicate saved_addresses row, while any edited or first-time entry
+  // does get saved for next time.
+  const saveAddressIfNew = async () => {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const matchesExisting = savedAddresses.some(
+      (a) =>
+        norm(a.full_name) === norm(customerInfo.name) &&
+        norm(a.phone) === norm(customerInfo.phone) &&
+        norm(a.address_line_1) === norm(shippingAddress.address_line1) &&
+        norm(a.address_line_2 || "") === norm(shippingAddress.address_line2) &&
+        norm(a.city) === norm(shippingAddress.city) &&
+        norm(a.state) === norm(shippingAddress.state) &&
+        norm(a.pincode) === norm(shippingAddress.pincode)
+    );
+    if (matchesExisting) return;
+
+    await addAddress({
+      label: "",
+      full_name: customerInfo.name,
+      phone: customerInfo.phone,
+      address_line_1: shippingAddress.address_line1,
+      address_line_2: shippingAddress.address_line2 || undefined,
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      pincode: shippingAddress.pincode,
+      is_default: savedAddresses.length === 0,
+    });
+  };
 
   // Each vendor sets their own shipping rate/threshold, so the cart is
   // grouped by vendor and shipping is computed per group. Items with no
@@ -300,6 +394,10 @@ export default function Checkout() {
   };
 
   const placeOrder = async () => {
+    if (!user) {
+      toast.error("Please sign in to place your order");
+      return;
+    }
     if (!validateForm()) return;
     if (items.length === 0) {
       toast.error("Your cart is empty");
@@ -308,15 +406,9 @@ export default function Checkout() {
 
     setIsPlacingOrder(true);
     try {
-      // Get current user if logged in
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Generate the order id client-side: guests have no session for
-      // Postgres RLS to scope a SELECT-back to, so we can't safely grant
-      // anon broad read access on orders just to fetch the row we
-      // inserted (that would expose every guest's name/email/phone to
-      // anyone). We already know every field we're inserting, so there's
-      // nothing worth reading back - just supply the id ourselves.
+      // Order id is still generated client-side (not read back after
+      // insert) - simplest to keep one insert shape rather than a
+      // SELECT-back path that isn't needed for anything else here.
       const newOrderId = crypto.randomUUID();
 
       // For online payment, create the Razorpay order *before* writing
@@ -341,7 +433,7 @@ export default function Checkout() {
         .from("orders")
         .insert({
           id: newOrderId,
-          user_id: user?.id || null,
+          user_id: user.id,
           customer_name: customerInfo.name,
           customer_email: customerInfo.email,
           customer_phone: customerInfo.phone,
@@ -457,6 +549,11 @@ export default function Checkout() {
 
       if (paymentError) throw paymentError;
 
+      // Save this address for next time (skipped if it's an unedited reuse
+      // of one already saved) - independent of payment method/outcome,
+      // since the shipping details themselves are already locked in.
+      await saveAddressIfNew();
+
       // Increment discount usage if applied
       if (appliedDiscount) {
         const { error: discountError } = await supabase.rpc("increment_discount_usage", {
@@ -563,6 +660,52 @@ export default function Checkout() {
     );
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-16 flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-16">
+          <Card className="max-w-md mx-auto text-center">
+            <CardContent className="pt-8 pb-8">
+              <LogIn className="h-16 w-16 text-primary mx-auto mb-6" />
+              <h1 className="text-2xl font-serif font-bold mb-3">
+                Sign in to complete your order
+              </h1>
+              <p className="text-muted-foreground mb-8">
+                Create an account or sign in to check out - we'll save your
+                details so you don't have to re-enter them next time.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  className="w-full"
+                  onClick={() => navigate("/admin?redirect=/checkout")}
+                >
+                  Sign In
+                </Button>
+                <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
+                  Continue Shopping
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-background">
@@ -599,6 +742,51 @@ export default function Checkout() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Left Column - Forms */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Saved Addresses */}
+            {savedAddresses.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5" />
+                    Deliver to
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <RadioGroup value={selectedAddressId} onValueChange={handleAddressPick} className="space-y-2">
+                    {savedAddresses.map((address) => (
+                      <Label
+                        key={address.id}
+                        htmlFor={`addr-${address.id}`}
+                        className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50"
+                      >
+                        <RadioGroupItem value={address.id} id={`addr-${address.id}`} className="mt-1" />
+                        <div className="text-sm">
+                          <p className="font-medium">
+                            {address.full_name}
+                            {address.label && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                ({address.label})
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-muted-foreground">
+                            {address.address_line_1}, {address.city}, {address.state} - {address.pincode}
+                          </p>
+                        </div>
+                      </Label>
+                    ))}
+                    <Label
+                      htmlFor="addr-new"
+                      className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50"
+                    >
+                      <RadioGroupItem value="new" id="addr-new" />
+                      <span className="text-sm font-medium">Enter a new address</span>
+                    </Label>
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Customer Information */}
             <Card>
               <CardHeader>
