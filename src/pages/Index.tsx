@@ -17,10 +17,16 @@ export default function Index() {
       <HeroSection />
       <CategorySection />
       <ProductGrid title="Featured Products" limit={8} />
-      <RecentlyViewedProducts />
-      <GiftCardSection />
+      <div className="container mx-auto px-4">
+        <RecentlyViewedProducts />
+      </div>
+      <div className="container mx-auto px-4 py-8">
+        <GiftCardSection />
+      </div>
       <FeaturesSection />
-      <NewsletterSignup />
+      <div className="container mx-auto px-4 py-8">
+        <NewsletterSignup />
+      </div>
       <Footer />
     </div>
   );
