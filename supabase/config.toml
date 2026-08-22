@@ -5,3 +5,21 @@ project_id = "bldkjzitutojvnbbljrf"
 # header instead (see supabase/functions/shiprocket-webhook/index.ts).
 [functions.shiprocket-webhook]
 verify_jwt = false
+
+# These all check caller identity themselves (admin/vendor-membership) via
+# getCallerUserId in _shared/shiprocket.ts, but still need the platform's
+# own JWT gate in front of that - explicit here because an earlier deploy
+# mistake left them at verify_jwt=false remotely and the setting doesn't
+# revert just by omitting --no-verify-jwt on a later deploy.
+[functions.shiprocket-register-pickup]
+verify_jwt = true
+[functions.shiprocket-create-shipment]
+verify_jwt = true
+[functions.shiprocket-cancel-shipment]
+verify_jwt = true
+[functions.shiprocket-create-return]
+verify_jwt = true
+[functions.shiprocket-create-exchange]
+verify_jwt = true
+[functions.shiprocket-ndr-action]
+verify_jwt = true
