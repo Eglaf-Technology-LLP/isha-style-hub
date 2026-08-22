@@ -38,6 +38,7 @@ import {
 import { usePayments, Payment } from "@/hooks/usePayments";
 import { usePlatformRevenue } from "@/hooks/usePlatformRevenue";
 import { format } from "date-fns";
+import { VendorFilterSelect } from "./VendorFilterSelect";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -59,8 +60,14 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
   const [refundAmount, setRefundAmount] = useState("");
   const [refundReason, setRefundReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [vendorFilter, setVendorFilter] = useState<string | null>(null);
 
   const stats = getPaymentStats();
+  const visiblePayments = vendorFilter
+    ? payments.filter((p) =>
+        p.order?.order_items?.some((i) => i.vendor_id === vendorFilter)
+      )
+    : payments;
 
   const getStatusBadge = (status: Payment["payment_status"]) => {
     switch (status) {
@@ -270,22 +277,27 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
 
       {/* Payments Table */}
       <Card>
-        <div className="flex flex-row items-center justify-between p-6 border-b border-border">
+        <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
           <div>
             <h3 className="text-lg font-semibold">Payment History</h3>
             <p className="text-sm text-muted-foreground">
               View and manage all payments
             </p>
           </div>
+          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
         </div>
 
         <CardContent className="p-0">
-          {payments.length === 0 ? (
+          {visiblePayments.length === 0 ? (
             <div className="text-center py-12">
               <Wallet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No payments yet</h3>
+              <h3 className="text-lg font-medium mb-2">
+                {payments.length === 0 ? "No payments yet" : "No payments for this vendor"}
+              </h3>
               <p className="text-muted-foreground">
-                Payments will appear here when orders are placed
+                {payments.length === 0
+                  ? "Payments will appear here when orders are placed"
+                  : "Try selecting a different vendor"}
               </p>
             </div>
           ) : (
@@ -303,7 +315,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((payment) => (
+                  {visiblePayments.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="text-sm">
                         {format(new Date(payment.created_at), "MMM d, yyyy")}

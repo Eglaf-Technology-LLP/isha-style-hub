@@ -25,6 +25,12 @@ interface OrderItem {
   color: string | null;
 }
 
+interface VendorOrderStatus {
+  vendor_id: string;
+  vendor_name: string;
+  status: string;
+}
+
 interface Order {
   id: string;
   created_at: string;
@@ -34,6 +40,7 @@ interface Order {
   shipping_cost: number;
   total: number;
   order_items: OrderItem[];
+  vendor_orders: VendorOrderStatus[];
 }
 
 const statusColors: Record<string, string> = {
@@ -43,6 +50,7 @@ const statusColors: Record<string, string> = {
   shipped: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
+  returned: "bg-gray-100 text-gray-800",
 };
 
 const returnStatusConfig: Record<string, { label: string; className: string }> = {
@@ -85,17 +93,30 @@ export function OrdersSection() {
 
       if (error) throw error;
 
-      // Fetch order items for each order
+      // Fetch order items and each vendor's own fulfillment status - a
+      // multi-vendor order has one top-level order_status but each vendor
+      // updates their own vendor_orders.status independently.
       const ordersWithItems = await Promise.all(
         (ordersData || []).map(async (order) => {
-          const { data: itemsData } = await supabase
-            .from("order_items")
-            .select("id, product_title, variant_title, quantity, price, size, color")
-            .eq("order_id", order.id);
+          const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
+            supabase
+              .from("order_items")
+              .select("id, product_title, variant_title, quantity, price, size, color")
+              .eq("order_id", order.id),
+            supabase
+              .from("vendor_orders")
+              .select("vendor_id, status, vendor:vendors(name)")
+              .eq("order_id", order.id),
+          ]);
 
           return {
             ...order,
             order_items: itemsData || [],
+            vendor_orders: (vendorOrdersData || []).map((vo: any) => ({
+              vendor_id: vo.vendor_id,
+              vendor_name: vo.vendor?.name || "Vendor",
+              status: vo.status,
+            })),
           };
         })
       );
@@ -187,6 +208,24 @@ export function OrdersSection() {
                             </div>
                           ))}
                         </div>
+                        {/* Per-vendor fulfillment status */}
+                        {order.vendor_orders.length > 0 && (
+                          <div className="pt-3 border-t space-y-1.5 mt-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {order.vendor_orders.length > 1
+                                ? "Fulfillment Status by Vendor"
+                                : "Fulfillment Status"}
+                            </p>
+                            {order.vendor_orders.map((vo) => (
+                              <div key={vo.vendor_id} className="flex items-center justify-between gap-2 text-xs">
+                                <span className="font-medium">{vo.vendor_name}</span>
+                                <Badge className={`${statusColors[vo.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
+                                  {vo.status.charAt(0).toUpperCase() + vo.status.slice(1)}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {/* Return/Exchange status */}
                         {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                           <div className="pt-3 border-t space-y-2 mt-2">

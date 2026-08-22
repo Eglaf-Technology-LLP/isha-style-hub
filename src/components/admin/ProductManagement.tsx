@@ -48,6 +48,7 @@ import { Category } from "@/hooks/useCategories";
 import { Link } from "react-router-dom";
 import { VariantManager } from "./VariantManager";
 import { VariantStockDialog } from "./VariantStockDialog";
+import { VendorFilterSelect } from "./VendorFilterSelect";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -64,6 +65,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     removeProductImage,
   } = useProducts();
 
+  const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormData>({
@@ -409,15 +411,21 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     </div>
   );
 
+  const visibleProducts = vendorFilter
+    ? products.filter((p) => p.vendor_id === vendorFilter)
+    : products;
+
   return (
     <Card>
-      <div className="flex flex-row items-center justify-between p-6 border-b border-border">
+      <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
         <div>
           <h3 className="text-lg font-semibold">Products</h3>
           <p className="text-sm text-muted-foreground">
             Manage your product catalog
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
         <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
@@ -435,24 +443,31 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             {renderFormFields(false)}
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <CardContent className="p-6">
-        {products.length === 0 ? (
+        {visibleProducts.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No products yet</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {products.length === 0 ? "No products yet" : "No products for this vendor"}
+            </h3>
             <p className="text-muted-foreground mb-4">
-              Create your first product to start selling
+              {products.length === 0
+                ? "Create your first product to start selling"
+                : "Try selecting a different vendor"}
             </p>
-            <Button onClick={() => setIsAddingProduct(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Button>
+            {products.length === 0 && (
+              <Button onClick={() => setIsAddingProduct(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Product
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
-            {products.map((product) => (
+            {visibleProducts.map((product) => (
               <div
                 key={product.id}
                 className="flex items-center justify-between p-4 border border-border rounded-lg"

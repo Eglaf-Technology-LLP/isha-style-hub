@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLowStockAlerts, StockAlertRow, StockMovementRecord } from "@/hooks/useLowStockAlerts";
 import { AlertTriangle, Package, PackageX, Edit2, RefreshCw, History, Layers } from "lucide-react";
 import { format } from "date-fns";
+import { VendorFilterSelect } from "./VendorFilterSelect";
 
 interface InventoryAlertsProps {
   vendorId?: string;
@@ -20,6 +21,13 @@ interface InventoryAlertsProps {
 const rowKey = (r: Pick<StockAlertRow, "productId" | "variantId">) => `${r.productId}:${r.variantId ?? ""}`;
 
 export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
+  // A fixed vendorId prop means this is rendered from the vendor's own
+  // dashboard - no filter shown, no override possible. With no prop (the
+  // admin view), manage an internal filter so the super admin can isolate
+  // one vendor's alerts.
+  const [internalVendorFilter, setInternalVendorFilter] = useState<string | null>(null);
+  const effectiveVendorId = vendorId ?? internalVendorFilter ?? undefined;
+
   const {
     outOfStockProducts,
     lowStockProducts,
@@ -30,7 +38,7 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
     updateThreshold,
     fetchHistory,
     refetch,
-  } = useLowStockAlerts(vendorId);
+  } = useLowStockAlerts(effectiveVendorId);
 
   const [editingRow, setEditingRow] = useState<StockAlertRow | null>(null);
   const [newStock, setNewStock] = useState("");
@@ -227,6 +235,11 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
 
   return (
     <div className="space-y-6">
+      {!vendorId && (
+        <div className="flex items-center justify-end">
+          <VendorFilterSelect value={internalVendorFilter} onChange={setInternalVendorFilter} />
+        </div>
+      )}
       <div className="grid md:grid-cols-3 gap-4">
         <Card className={outOfStockProducts.length > 0 ? "border-destructive" : ""}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">

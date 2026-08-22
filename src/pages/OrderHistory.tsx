@@ -25,6 +25,15 @@ interface OrderItem {
   price: number;
   size: string | null;
   color: string | null;
+  vendor_id: string | null;
+}
+
+interface VendorOrderStatus {
+  vendor_id: string;
+  vendor_name: string;
+  status: string;
+  tracking_number: string | null;
+  carrier: string | null;
 }
 
 interface Order {
@@ -44,6 +53,7 @@ interface Order {
     pincode: string;
   };
   order_items: OrderItem[];
+  vendor_orders: VendorOrderStatus[];
 }
 
 const statusColors: Record<string, string> = {
@@ -53,6 +63,7 @@ const statusColors: Record<string, string> = {
   shipped: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
+  returned: "bg-gray-100 text-gray-800",
 };
 
 const returnStatusConfig: Record<string, { label: string; className: string }> = {
@@ -107,18 +118,31 @@ export default function OrderHistory() {
 
         if (ordersError) throw ordersError;
 
-        // Fetch order items for each order
+        // Fetch order items and each vendor's own fulfillment status for
+        // each order - a multi-vendor order has one order_status at the
+        // top level but each vendor updates their own vendor_orders.status
+        // independently, so the customer needs to see both.
         const ordersWithItems = await Promise.all(
           (ordersData || []).map(async (order) => {
-            const { data: itemsData } = await supabase
-              .from("order_items")
-              .select("*")
-              .eq("order_id", order.id);
+            const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
+              supabase.from("order_items").select("*").eq("order_id", order.id),
+              supabase
+                .from("vendor_orders")
+                .select("vendor_id, status, tracking_number, carrier, vendor:vendors(name)")
+                .eq("order_id", order.id),
+            ]);
 
             return {
               ...order,
               shipping_address: order.shipping_address as Order["shipping_address"],
               order_items: itemsData || [],
+              vendor_orders: (vendorOrdersData || []).map((vo: any) => ({
+                vendor_id: vo.vendor_id,
+                vendor_name: vo.vendor?.name || "Vendor",
+                status: vo.status,
+                tracking_number: vo.tracking_number,
+                carrier: vo.carrier,
+              })),
             };
           })
         );
@@ -280,6 +304,34 @@ export default function OrderHistory() {
                             </div>
                           </div>
                           
+                          {order.vendor_orders.length > 0 && (
+                            <div className="pt-4 border-t space-y-2">
+                              <p className="text-sm font-medium">
+                                {order.vendor_orders.length > 1
+                                  ? "Fulfillment Status by Vendor"
+                                  : "Fulfillment Status"}
+                              </p>
+                              {order.vendor_orders.map((vo) => (
+                                <div
+                                  key={vo.vendor_id}
+                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-muted rounded-lg text-sm"
+                                >
+                                  <span className="font-medium">{vo.vendor_name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {vo.tracking_number && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {vo.carrier ? `${vo.carrier} • ` : ""}{vo.tracking_number}
+                                      </span>
+                                    )}
+                                    <Badge className={statusColors[vo.status] || "bg-muted"}>
+                                      {vo.status.charAt(0).toUpperCase() + vo.status.slice(1)}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="pt-4 border-t">
                             <p className="text-sm font-medium mb-1">Shipping Address</p>
                             <p className="text-sm text-muted-foreground">

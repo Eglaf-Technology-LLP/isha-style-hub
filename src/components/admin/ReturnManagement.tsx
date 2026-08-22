@@ -33,6 +33,7 @@ import {
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { VendorFilterSelect } from "./VendorFilterSelect";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -50,6 +51,11 @@ export function ReturnManagement() {
   const [adminNotes, setAdminNotes] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+
+  const visibleRequests = vendorFilter
+    ? returnRequests.filter((r) => r.vendorIds.includes(vendorFilter))
+    : returnRequests;
 
   const openDetail = (request: ReturnRequest) => {
     setSelectedRequest(request);
@@ -99,27 +105,32 @@ export function ReturnManagement() {
 
   return (
     <Card>
-      <div className="flex flex-row items-center justify-between p-6 border-b border-border">
+      <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
         <div>
           <h3 className="text-lg font-semibold">Returns & Exchanges</h3>
           <p className="text-sm text-muted-foreground">
             Manage customer return and exchange requests
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
           <Badge variant="secondary">
-            {returnRequests.filter((r) => r.status === "pending").length} Pending
+            {visibleRequests.filter((r) => r.status === "pending").length} Pending
           </Badge>
         </div>
       </div>
 
       <CardContent className="p-0">
-        {returnRequests.length === 0 ? (
+        {visibleRequests.length === 0 ? (
           <div className="text-center py-12">
             <RotateCcw className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No return requests</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {returnRequests.length === 0 ? "No return requests" : "No return requests for this vendor"}
+            </h3>
             <p className="text-muted-foreground">
-              Return and exchange requests will appear here
+              {returnRequests.length === 0
+                ? "Return and exchange requests will appear here"
+                : "Try selecting a different vendor"}
             </p>
           </div>
         ) : (
@@ -138,7 +149,7 @@ export function ReturnManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {returnRequests.map((request) => {
+                {visibleRequests.map((request) => {
                   const config = statusConfig[request.status] || statusConfig.pending;
                   return (
                     <TableRow key={request.id}>

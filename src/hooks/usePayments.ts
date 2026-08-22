@@ -22,6 +22,7 @@ export interface Payment {
     customer_email: string;
     total: number;
     order_status: string;
+    order_items?: { vendor_id: string | null }[];
   };
 }
 
@@ -50,7 +51,7 @@ export function usePayments(isAdmin: boolean = false) {
         .from("payments")
         .select(`
           *,
-          order:orders(id, customer_name, customer_email, total, order_status)
+          order:orders(id, customer_name, customer_email, total, order_status, order_items(vendor_id))
         `)
         .order("created_at", { ascending: false });
 

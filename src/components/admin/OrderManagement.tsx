@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useOrders, Order, OrderItem } from "@/hooks/useOrders";
 import { format } from "date-fns";
+import { VendorFilterSelect } from "./VendorFilterSelect";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -48,6 +49,11 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
   const { orders, loading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+
+  const visibleOrders = vendorFilter
+    ? orders.filter((o) => o.order_items?.some((i) => i.vendor_id === vendorFilter))
+    : orders;
 
   const getOrderStatusColor = (status: string) => {
     switch (status) {
@@ -98,22 +104,27 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
 
   return (
     <Card>
-      <div className="flex flex-row items-center justify-between p-6 border-b border-border">
+      <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
         <div>
           <h3 className="text-lg font-semibold">Orders</h3>
           <p className="text-sm text-muted-foreground">
             Manage and track customer orders
           </p>
         </div>
+        <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
       </div>
 
       <CardContent className="p-0">
-        {orders.length === 0 ? (
+        {visibleOrders.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No orders yet</h3>
+            <h3 className="text-lg font-medium mb-2">
+              {orders.length === 0 ? "No orders yet" : "No orders for this vendor"}
+            </h3>
             <p className="text-muted-foreground">
-              Orders will appear here when customers make purchases
+              {orders.length === 0
+                ? "Orders will appear here when customers make purchases"
+                : "Try selecting a different vendor"}
             </p>
           </div>
         ) : (
@@ -132,7 +143,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders.map((order) => (
+                {visibleOrders.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-sm">
                       {order.id.slice(0, 8)}...

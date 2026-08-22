@@ -14,6 +14,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useVendor } from "@/hooks/useVendor";
+import { useAdmin } from "@/hooks/useAdmin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 interface Category {
   id: string;
@@ -27,6 +28,7 @@ export function Header() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const { vendor } = useVendor();
+  const { isAdmin } = useAdmin();
 
   useEffect(() => {
     // Fetch categories
@@ -235,9 +237,11 @@ export function Header() {
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin">Admin Panel</Link>
-                    </DropdownMenuItem>
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin">Admin Panel</Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={handleSignOut}>
                       Sign Out
                     </DropdownMenuItem>

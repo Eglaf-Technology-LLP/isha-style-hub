@@ -16,6 +16,9 @@ export interface ReturnRequest {
   refund_amount: number;
   created_at: string;
   updated_at: string;
+  // Computed client-side from order_items, not a DB column - which
+  // vendor(s) this return's items belong to, for the admin vendor filter.
+  vendorIds: string[];
 }
 
 export interface ReturnItem {
@@ -49,7 +52,33 @@ export function useReturnRequests(isAdmin: boolean = false) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setReturnRequests((data || []) as unknown as ReturnRequest[]);
+      const requests = (data || []) as unknown as ReturnRequest[];
+
+      // return_requests.items is a JSON snapshot of order_item_ids, not a
+      // live FK, so vendor attribution needs a separate lookup against the
+      // relevant orders' order_items.
+      const orderIds = [...new Set(requests.map((r) => r.order_id))];
+      let vendorByOrderItemId = new Map<string, string | null>();
+      if (orderIds.length > 0) {
+        const { data: items } = await supabase
+          .from("order_items")
+          .select("id, vendor_id")
+          .in("order_id", orderIds);
+        vendorByOrderItemId = new Map((items || []).map((i) => [i.id, i.vendor_id]));
+      }
+
+      setReturnRequests(
+        requests.map((r) => ({
+          ...r,
+          vendorIds: [
+            ...new Set(
+              (r.items || [])
+                .map((i) => vendorByOrderItemId.get(i.order_item_id))
+                .filter((v): v is string => !!v)
+            ),
+          ],
+        }))
+      );
     } catch (error) {
       console.error("Error fetching return requests:", error);
     } finally {

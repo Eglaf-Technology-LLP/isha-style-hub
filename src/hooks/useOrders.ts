@@ -7,6 +7,7 @@ export interface OrderItem {
   order_id: string;
   product_id: string;
   variant_id: string;
+  vendor_id: string | null;
   product_title: string;
   variant_title: string | null;
   size: string | null;

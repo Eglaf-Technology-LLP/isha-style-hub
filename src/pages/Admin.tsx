@@ -24,6 +24,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { useOrders } from "@/hooks/useOrders";
 import { useProducts } from "@/hooks/useProducts";
@@ -49,6 +50,8 @@ export default function Admin() {
   const [searchParams] = useSearchParams();
   const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
+  const { vendor } = useVendor();
+  const redirectParam = searchParams.get("redirect");
 
   // /admin is the only sign-in surface in the app, used by regular
   // customers too (e.g. Checkout's sign-in gate links here with
@@ -120,9 +123,11 @@ export default function Admin() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-serif">
-              {isSignUp ? 'Create Account' : 'Admin Login'}
+              {isSignUp ? 'Create Account' : redirectParam ? 'Sign In' : 'Admin Login'}
             </CardTitle>
-            <CardDescription>Isha Fashion Hub Dashboard</CardDescription>
+            <CardDescription>
+              {redirectParam ? 'Isha Fashion Hub' : 'Isha Fashion Hub Dashboard'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleAuth} className="space-y-4">
@@ -195,6 +200,11 @@ export default function Admin() {
             <p className="text-sm text-muted-foreground text-center">
               Logged in as: {user.email}
             </p>
+            {vendor && vendor.status === 'approved' && (
+              <Button className="w-full" onClick={() => navigate('/vendor')}>
+                Go to Vendor Dashboard
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => navigate('/')}>
                 Go to Store
