@@ -43,6 +43,10 @@ export interface VendorProductRow {
   compare_at_price?: number | null;
   sku?: string | null;
   variants?: ProductVariant[];
+  weight_grams?: number | null;
+  length_cm?: number | null;
+  breadth_cm?: number | null;
+  height_cm?: number | null;
 }
 
 interface Props {
@@ -64,6 +68,10 @@ const empty = {
   stock_quantity: "100",
   images: "",
   is_active: true,
+  weight_grams: "",
+  length_cm: "",
+  breadth_cm: "",
+  height_cm: "",
 };
 
 export function VendorProductDialog({
@@ -93,6 +101,10 @@ export function VendorProductDialog({
         stock_quantity: String(product.stock_quantity ?? 0),
         images: (product.images || []).join("\n"),
         is_active: product.is_active,
+        weight_grams: product.weight_grams != null ? String(product.weight_grams) : "",
+        length_cm: product.length_cm != null ? String(product.length_cm) : "",
+        breadth_cm: product.breadth_cm != null ? String(product.breadth_cm) : "",
+        height_cm: product.height_cm != null ? String(product.height_cm) : "",
       });
       setVariants(product.variants || []);
     } else {
@@ -127,6 +139,10 @@ export function VendorProductDialog({
         stock_quantity: Number(form.stock_quantity) || 0,
         images,
         is_active: form.is_active,
+        weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
+        length_cm: form.length_cm ? Number(form.length_cm) : null,
+        breadth_cm: form.breadth_cm ? Number(form.breadth_cm) : null,
+        height_cm: form.height_cm ? Number(form.height_cm) : null,
         // Trusted partners publish instantly, others go to the moderation
         // queue. "pending_review" (not "pending") is the real constraint
         // value - the insert-only normalization trigger masked this being
@@ -255,6 +271,42 @@ export function VendorProductDialog({
                   Ignored while variants below are set - stock is tracked per variant instead.
                 </p>
               )}
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-border p-3">
+            <Label className="text-sm text-muted-foreground">
+              Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <Input
+                type="number"
+                min="0"
+                placeholder="Weight (g)"
+                value={form.weight_grams}
+                onChange={(e) => set("weight_grams", e.target.value)}
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="Length (cm)"
+                value={form.length_cm}
+                onChange={(e) => set("length_cm", e.target.value)}
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="Breadth (cm)"
+                value={form.breadth_cm}
+                onChange={(e) => set("breadth_cm", e.target.value)}
+              />
+              <Input
+                type="number"
+                min="0"
+                placeholder="Height (cm)"
+                value={form.height_cm}
+                onChange={(e) => set("height_cm", e.target.value)}
+              />
             </div>
           </div>
 

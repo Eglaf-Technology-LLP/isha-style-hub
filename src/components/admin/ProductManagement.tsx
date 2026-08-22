@@ -77,6 +77,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     sku: "",
     stock_quantity: 0,
     is_active: true,
+    weight_grams: null,
+    length_cm: null,
+    breadth_cm: null,
+    height_cm: null,
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -94,6 +98,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       sku: "",
       stock_quantity: 0,
       is_active: true,
+      weight_grams: null,
+      length_cm: null,
+      breadth_cm: null,
+      height_cm: null,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -161,6 +169,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       sku: product.sku || "",
       stock_quantity: product.stock_quantity,
       is_active: product.is_active,
+      weight_grams: product.weight_grams,
+      length_cm: product.length_cm,
+      breadth_cm: product.breadth_cm,
+      height_cm: product.height_cm,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -312,6 +324,62 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             setProductForm((prev) => ({ ...prev, is_active: checked }))
           }
         />
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-border p-3">
+        <Label className="text-sm text-muted-foreground">
+          Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
+        </Label>
+        <div className="grid grid-cols-4 gap-2">
+          <Input
+            type="number"
+            min="0"
+            placeholder="Weight (g)"
+            value={productForm.weight_grams ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({
+                ...prev,
+                weight_grams: e.target.value ? parseInt(e.target.value) : null,
+              }))
+            }
+          />
+          <Input
+            type="number"
+            min="0"
+            placeholder="Length (cm)"
+            value={productForm.length_cm ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({
+                ...prev,
+                length_cm: e.target.value ? parseFloat(e.target.value) : null,
+              }))
+            }
+          />
+          <Input
+            type="number"
+            min="0"
+            placeholder="Breadth (cm)"
+            value={productForm.breadth_cm ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({
+                ...prev,
+                breadth_cm: e.target.value ? parseFloat(e.target.value) : null,
+              }))
+            }
+          />
+          <Input
+            type="number"
+            min="0"
+            placeholder="Height (cm)"
+            value={productForm.height_cm ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({
+                ...prev,
+                height_cm: e.target.value ? parseFloat(e.target.value) : null,
+              }))
+            }
+          />
+        </div>
       </div>
 
       {/* Variant Management */}

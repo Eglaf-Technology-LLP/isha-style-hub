@@ -47,7 +47,10 @@ import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
+import { useShipments } from "@/hooks/useShipments";
+import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
+import { Truck, ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
   id: string;
@@ -79,8 +82,6 @@ interface VendorOrder {
   shipping_address?: { city?: string; state?: string; pincode?: string } | null;
 }
 
-const ORDER_STATUSES = ["pending", "processing", "shipped", "delivered", "cancelled"];
-
 interface PayoutAccountForm {
   account_holder_name: string;
   bank_account_number: string;
@@ -97,7 +98,6 @@ export default function VendorDashboard() {
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
-  const [savingId, setSavingId] = useState<string | null>(null);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccountForm>({
@@ -252,28 +252,20 @@ export default function VendorDashboard() {
     }
   };
 
-  const updateOrder = async (
-    o: VendorOrder,
-    patch: Partial<VendorOrder>
-  ) => {
-    setSavingId(o.id);
-    try {
-      const { error } = await supabase
-        .from("vendor_orders")
-        .update({
-          status: patch.status ?? o.status,
-          tracking_number: patch.tracking_number ?? o.tracking_number,
-          carrier: patch.carrier ?? o.carrier,
-        })
-        .eq("id", o.id);
-      if (error) throw error;
-      setOrders((prev) => prev.map((x) => (x.id === o.id ? { ...x, ...patch } : x)));
-      toast.success("Order updated");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to update order");
-    } finally {
-      setSavingId(null);
-    }
+  const { forwardShipmentFor, actioningId, shipNow, cancelShipment } = useShipments(
+    orders.map((o) => o.id)
+  );
+
+  const statusColors: Record<string, string> = {
+    pending: "bg-yellow-100 text-yellow-800",
+    confirmed: "bg-blue-100 text-blue-800",
+    processing: "bg-purple-100 text-purple-800",
+    shipped: "bg-indigo-100 text-indigo-800",
+    out_for_delivery: "bg-indigo-100 text-indigo-800",
+    delivered: "bg-green-100 text-green-800",
+    cancelled: "bg-red-100 text-red-800",
+    returned: "bg-gray-100 text-gray-800",
+    ndr: "bg-orange-100 text-orange-800",
   };
 
   if (loading || !vendor || vendor.status !== "approved") {
@@ -564,7 +556,7 @@ export default function VendorDashboard() {
                           <TableHead>Customer</TableHead>
                           <TableHead>Total</TableHead>
                           <TableHead>Status</TableHead>
-                          <TableHead>Tracking</TableHead>
+                          <TableHead>Shipment</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -590,39 +582,84 @@ export default function VendorDashboard() {
                             </TableCell>
                             <TableCell>₹{Number(o.net_payable).toFixed(0)}</TableCell>
                             <TableCell>
-                              <Select
-                                value={o.status}
-                                onValueChange={(v) => updateOrder(o, { status: v })}
-                                disabled={savingId === o.id}
-                              >
-                                <SelectTrigger className="w-32 h-8 text-xs capitalize">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {ORDER_STATUSES.map((s) => (
-                                    <SelectItem key={s} value={s} className="capitalize">
-                                      {s}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <Badge className={`${statusColors[o.status] || "bg-muted"} capitalize`}>
+                                {o.status.replace(/_/g, " ")}
+                              </Badge>
                             </TableCell>
                             <TableCell>
-                              <Input
-                                placeholder="Tracking no."
-                                defaultValue={o.tracking_number || ""}
-                                className="h-8 w-36 text-xs"
-                                onBlur={(e) => {
-                                  if (e.target.value !== (o.tracking_number || "")) {
-                                    updateOrder(o, { tracking_number: e.target.value });
+                              {(() => {
+                                const shipment = forwardShipmentFor(o.id);
+                                if (!shipment || (!shipment.awb_code && shipment.status === "cancelled")) {
+                                  if (o.status === "cancelled") {
+                                    return <span className="text-xs text-muted-foreground">Cancelled</span>;
                                   }
-                                }}
-                              />
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      className="h-8 text-xs gap-1"
+                                      disabled={actioningId === o.id}
+                                      onClick={() => shipNow(o.id)}
+                                    >
+                                      {actioningId === o.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Truck className="h-3 w-3" />
+                                      )}
+                                      Ship Now
+                                    </Button>
+                                  );
+                                }
+                                return (
+                                  <div className="text-xs space-y-1">
+                                    <div className="font-medium">{shipment.courier_name || "Courier assigned"}</div>
+                                    {shipment.awb_code && (
+                                      <div className="font-mono text-muted-foreground">AWB {shipment.awb_code}</div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                      {shipment.label_url && (
+                                        <a
+                                          href={shipment.label_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-primary inline-flex items-center gap-0.5 hover:underline"
+                                        >
+                                          Label <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                      {["pending", "awb_assigned", "pickup_scheduled"].includes(shipment.status) && (
+                                        <button
+                                          className="text-destructive inline-flex items-center gap-0.5 hover:underline disabled:opacity-50"
+                                          disabled={actioningId === o.id}
+                                          onClick={() => cancelShipment(o.id)}
+                                        >
+                                          <XCircle className="h-3 w-3" /> Cancel
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell>
-                              {savingId === o.id && (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              )}
+                              {(() => {
+                                const shipment = forwardShipmentFor(o.id);
+                                if (!shipment) return null;
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    {shipment.awb_code && (
+                                      <a
+                                        href={`https://shiprocket.co/tracking/${shipment.awb_code}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs text-primary inline-flex items-center gap-0.5 hover:underline"
+                                      >
+                                        Track <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    )}
+                                    <ShipmentTimelineDialog shipmentId={shipment.id} awbCode={shipment.awb_code} />
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
                           </TableRow>
                         ))}

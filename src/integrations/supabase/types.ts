@@ -377,6 +377,7 @@ export type Database = {
           product_title: string
           quantity: number
           size: string | null
+          sku: string | null
           variant_id: string
           variant_title: string | null
           vendor_id: string | null
@@ -392,6 +393,7 @@ export type Database = {
           product_title: string
           quantity: number
           size?: string | null
+          sku?: string | null
           variant_id: string
           variant_title?: string | null
           vendor_id?: string | null
@@ -407,6 +409,7 @@ export type Database = {
           product_title?: string
           quantity?: number
           size?: string | null
+          sku?: string | null
           variant_id?: string
           variant_title?: string | null
           vendor_id?: string | null
@@ -682,13 +685,16 @@ export type Database = {
       products: {
         Row: {
           approval_status: string
+          breadth_cm: number | null
           category_id: string | null
           compare_at_price: number | null
           created_at: string
           description: string | null
+          height_cm: number | null
           id: string
           images: string[] | null
           is_active: boolean
+          length_cm: number | null
           low_stock_threshold: number
           name: string
           price: number
@@ -699,16 +705,20 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           vendor_id: string | null
+          weight_grams: number | null
         }
         Insert: {
           approval_status?: string
+          breadth_cm?: number | null
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string
           description?: string | null
+          height_cm?: number | null
           id?: string
           images?: string[] | null
           is_active?: boolean
+          length_cm?: number | null
           low_stock_threshold?: number
           name: string
           price?: number
@@ -719,16 +729,20 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           vendor_id?: string | null
+          weight_grams?: number | null
         }
         Update: {
           approval_status?: string
+          breadth_cm?: number | null
           category_id?: string | null
           compare_at_price?: number | null
           created_at?: string
           description?: string | null
+          height_cm?: number | null
           id?: string
           images?: string[] | null
           is_active?: boolean
+          length_cm?: number | null
           low_stock_threshold?: number
           name?: string
           price?: number
@@ -739,6 +753,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           vendor_id?: string | null
+          weight_grams?: number | null
         }
         Relationships: [
           {
@@ -953,6 +968,158 @@ export type Database = {
           pincode?: string
           state?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      shipment_events: {
+        Row: {
+          activity: string | null
+          awb_code: string
+          event_status: string | null
+          event_status_id: number | null
+          event_timestamp: string | null
+          id: string
+          location: string | null
+          raw_payload: Json
+          received_at: string
+          shipment_id: string | null
+        }
+        Insert: {
+          activity?: string | null
+          awb_code: string
+          event_status?: string | null
+          event_status_id?: number | null
+          event_timestamp?: string | null
+          id?: string
+          location?: string | null
+          raw_payload: Json
+          received_at?: string
+          shipment_id?: string | null
+        }
+        Update: {
+          activity?: string | null
+          awb_code?: string
+          event_status?: string | null
+          event_status_id?: number | null
+          event_timestamp?: string | null
+          id?: string
+          location?: string | null
+          raw_payload?: Json
+          received_at?: string
+          shipment_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_events_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipments: {
+        Row: {
+          awb_code: string | null
+          courier_id: number | null
+          courier_name: string | null
+          created_at: string
+          delivered_at: string | null
+          id: string
+          invoice_url: string | null
+          label_url: string | null
+          manifest_url: string | null
+          picked_up_at: string | null
+          pickup_scheduled_at: string | null
+          return_request_id: string | null
+          rto_initiated_at: string | null
+          shipment_type: string
+          shiprocket_order_id: number | null
+          shiprocket_shipment_id: number | null
+          status: string
+          status_raw: string | null
+          updated_at: string
+          vendor_order_id: string
+        }
+        Insert: {
+          awb_code?: string | null
+          courier_id?: number | null
+          courier_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          invoice_url?: string | null
+          label_url?: string | null
+          manifest_url?: string | null
+          picked_up_at?: string | null
+          pickup_scheduled_at?: string | null
+          return_request_id?: string | null
+          rto_initiated_at?: string | null
+          shipment_type?: string
+          shiprocket_order_id?: number | null
+          shiprocket_shipment_id?: number | null
+          status?: string
+          status_raw?: string | null
+          updated_at?: string
+          vendor_order_id: string
+        }
+        Update: {
+          awb_code?: string | null
+          courier_id?: number | null
+          courier_name?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          invoice_url?: string | null
+          label_url?: string | null
+          manifest_url?: string | null
+          picked_up_at?: string | null
+          pickup_scheduled_at?: string | null
+          return_request_id?: string | null
+          rto_initiated_at?: string | null
+          shipment_type?: string
+          shiprocket_order_id?: number | null
+          shiprocket_shipment_id?: number | null
+          status?: string
+          status_raw?: string | null
+          updated_at?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipments_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shiprocket_tokens: {
+        Row: {
+          expires_at: string
+          id: number
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          expires_at: string
+          id?: number
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          expires_at?: string
+          id?: number
+          token?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1299,6 +1466,9 @@ export type Database = {
           return_policy: string | null
           return_window_days: number
           shipping_flat_rate: number
+          shiprocket_pickup_id: number | null
+          shiprocket_pickup_location: string | null
+          shiprocket_pickup_registered_at: string | null
           slug: string
           status: string
           updated_at: string
@@ -1326,6 +1496,9 @@ export type Database = {
           return_policy?: string | null
           return_window_days?: number
           shipping_flat_rate?: number
+          shiprocket_pickup_id?: number | null
+          shiprocket_pickup_location?: string | null
+          shiprocket_pickup_registered_at?: string | null
           slug: string
           status?: string
           updated_at?: string
@@ -1353,6 +1526,9 @@ export type Database = {
           return_policy?: string | null
           return_window_days?: number
           shipping_flat_rate?: number
+          shiprocket_pickup_id?: number | null
+          shiprocket_pickup_location?: string | null
+          shiprocket_pickup_registered_at?: string | null
           slug?: string
           status?: string
           updated_at?: string

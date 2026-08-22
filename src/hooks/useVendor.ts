@@ -16,6 +16,8 @@ export interface Vendor {
   gst_number: string | null;
   pan_number: string | null;
   address: Record<string, string> | null;
+  shiprocket_pickup_location: string | null;
+  shiprocket_pickup_registered_at: string | null;
   status: string;
   is_trusted: boolean;
   commission_rate: number;

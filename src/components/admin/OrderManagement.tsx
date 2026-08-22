@@ -40,6 +40,8 @@ import {
 import { useOrders, Order, OrderItem } from "@/hooks/useOrders";
 import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { OrderFulfillmentSection } from "./OrderFulfillmentSection";
+import { NdrQueue } from "./NdrQueue";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -103,7 +105,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
   }
 
   return (
-    <Card>
+    <div className="space-y-6">
+      <NdrQueue />
+      <Card>
       <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
         <div>
           <h3 className="text-lg font-semibold">Orders</h3>
@@ -354,6 +358,17 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
 
                 <Separator />
 
+                {/* Fulfillment - real courier shipment per vendor */}
+                <div>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Fulfillment
+                  </h4>
+                  <OrderFulfillmentSection order={selectedOrder} />
+                </div>
+
+                <Separator />
+
                 {/* Order Summary */}
                 <div className="space-y-2">
                   <div className="flex justify-between">
@@ -387,6 +402,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
           )}
         </DialogContent>
       </Dialog>
-    </Card>
+      </Card>
+    </div>
   );
 }

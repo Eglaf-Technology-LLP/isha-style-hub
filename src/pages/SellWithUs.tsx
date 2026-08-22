@@ -63,6 +63,7 @@ export default function SellWithUs() {
     gst_number: "",
     pan_number: "",
     address_line1: "",
+    address_line2: "",
     city: "",
     state: "",
     pincode: "",
@@ -147,10 +148,12 @@ export default function SellWithUs() {
       gst_number: form.gst_number.trim(),
       pan_number: form.pan_number.trim(),
       address: {
-        line1: form.address_line1.trim(),
+        address_line1: form.address_line1.trim(),
+        address_line2: form.address_line2.trim(),
         city: form.city.trim(),
         state: form.state.trim(),
         pincode: form.pincode.trim(),
+        country: "India",
       },
       shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
       free_shipping_threshold: form.free_shipping_threshold
@@ -289,6 +292,12 @@ export default function SellWithUs() {
                   placeholder="Address line 1"
                   value={form.address_line1}
                   onChange={(e) => set("address_line1", e.target.value)}
+                />
+                <Input
+                  placeholder="Address line 2 (optional)"
+                  value={form.address_line2}
+                  onChange={(e) => set("address_line2", e.target.value)}
+                  className="mt-2"
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                   <Input placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />

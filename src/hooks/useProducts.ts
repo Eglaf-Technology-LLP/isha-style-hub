@@ -50,6 +50,10 @@ export interface Product {
   variants: ProductVariant[];
   approval_status: string;
   rejection_reason: string | null;
+  weight_grams: number | null;
+  length_cm: number | null;
+  breadth_cm: number | null;
+  height_cm: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -83,6 +87,12 @@ export interface ProductFormData {
   sku: string;
   stock_quantity: number;
   is_active: boolean;
+  // Optional parcel weight/dimensions used when booking a real courier
+  // shipment - left unset, "Ship Now" falls back to a platform default.
+  weight_grams?: number | null;
+  length_cm?: number | null;
+  breadth_cm?: number | null;
+  height_cm?: number | null;
   // Only vendor-facing callers (VendorProductDialog) set these; omitting
   // them leaves vendor_id/approval_status untouched, matching this hook's
   // long-standing admin-only behavior.
@@ -154,6 +164,10 @@ export async function insertProductRecord(
       stock_quantity: 0,
       is_active: productData.is_active,
       images: imageUrls,
+      weight_grams: productData.weight_grams || null,
+      length_cm: productData.length_cm || null,
+      breadth_cm: productData.breadth_cm || null,
+      height_cm: productData.height_cm || null,
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
       ...(productData.approval_status !== undefined
         ? { approval_status: productData.approval_status, rejection_reason: null }
@@ -226,6 +240,10 @@ export async function applyProductUpdate(
     sku: productData.sku,
     is_active: productData.is_active,
   };
+  if (productData.weight_grams !== undefined) updateData.weight_grams = productData.weight_grams || null;
+  if (productData.length_cm !== undefined) updateData.length_cm = productData.length_cm || null;
+  if (productData.breadth_cm !== undefined) updateData.breadth_cm = productData.breadth_cm || null;
+  if (productData.height_cm !== undefined) updateData.height_cm = productData.height_cm || null;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;

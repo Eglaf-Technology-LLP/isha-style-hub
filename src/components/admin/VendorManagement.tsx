@@ -29,8 +29,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Pencil } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Pencil, Truck } from "lucide-react";
 import { toast } from "sonner";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 interface AdminVendor {
   id: string;
@@ -46,6 +47,7 @@ interface AdminVendor {
   contact_email: string | null;
   description: string | null;
   created_at: string;
+  shiprocket_pickup_location: string | null;
 }
 
 export function VendorManagement() {
@@ -65,7 +67,7 @@ export function VendorManagement() {
       const { data, error } = await supabase
         .from("vendors")
         .select(
-          "id, name, slug, status, is_trusted, commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days, rating, contact_email, description, created_at"
+          "id, name, slug, status, is_trusted, commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days, rating, contact_email, description, created_at, shiprocket_pickup_location"
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -98,6 +100,18 @@ export function VendorManagement() {
     } finally {
       setActionId(null);
     }
+  };
+
+  const registerShiprocket = async (v: AdminVendor) => {
+    setActionId(v.id);
+    const { errorMessage } = await invokeEdgeFunction("shiprocket-register-pickup", { vendor_id: v.id });
+    setActionId(null);
+    if (errorMessage) {
+      toast.error(errorMessage);
+      return;
+    }
+    toast.success("Pickup location registered with Shiprocket");
+    await fetchVendors();
   };
 
   const saveEdit = async () => {
@@ -161,6 +175,7 @@ export function VendorManagement() {
                   <TableHead>Trusted</TableHead>
                   <TableHead>Commission</TableHead>
                   <TableHead>Shipping</TableHead>
+                  <TableHead>Shiprocket</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -189,6 +204,27 @@ export function VendorManagement() {
                       <span className="text-muted-foreground">
                         free over ₹{v.free_shipping_threshold || "—"}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      {v.shiprocket_pickup_location ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <Truck className="h-3 w-3" /> Registered
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={actionId === v.id}
+                          onClick={() => registerShiprocket(v)}
+                        >
+                          {actionId === v.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            "Register pickup"
+                          )}
+                        </Button>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1 flex-wrap">

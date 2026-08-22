@@ -29,6 +29,7 @@ interface VendorOrderStatus {
   vendor_id: string;
   vendor_name: string;
   status: string;
+  awb_code: string | null;
 }
 
 interface Order {
@@ -48,9 +49,11 @@ const statusColors: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-800",
   processing: "bg-purple-100 text-purple-800",
   shipped: "bg-indigo-100 text-indigo-800",
+  out_for_delivery: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
   returned: "bg-gray-100 text-gray-800",
+  ndr: "bg-orange-100 text-orange-800",
 };
 
 const returnStatusConfig: Record<string, { label: string; className: string }> = {
@@ -105,7 +108,7 @@ export function OrdersSection() {
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
-              .select("vendor_id, status, vendor:vendors(name)")
+              .select("vendor_id, status, vendor:vendors(name), shipments(awb_code, shipment_type)")
               .eq("order_id", order.id),
           ]);
 
@@ -116,6 +119,7 @@ export function OrdersSection() {
               vendor_id: vo.vendor_id,
               vendor_name: vo.vendor?.name || "Vendor",
               status: vo.status,
+              awb_code: (vo.shipments || []).find((s: any) => s.shipment_type === "forward")?.awb_code || null,
             })),
           };
         })
@@ -219,9 +223,21 @@ export function OrdersSection() {
                             {order.vendor_orders.map((vo) => (
                               <div key={vo.vendor_id} className="flex items-center justify-between gap-2 text-xs">
                                 <span className="font-medium">{vo.vendor_name}</span>
-                                <Badge className={`${statusColors[vo.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
-                                  {vo.status.charAt(0).toUpperCase() + vo.status.slice(1)}
-                                </Badge>
+                                <div className="flex items-center gap-2">
+                                  {vo.awb_code && (
+                                    <a
+                                      href={`https://shiprocket.co/tracking/${vo.awb_code}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary hover:underline"
+                                    >
+                                      Track
+                                    </a>
+                                  )}
+                                  <Badge className={`${statusColors[vo.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
+                                    {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
+                                  </Badge>
+                                </div>
                               </div>
                             ))}
                           </div>

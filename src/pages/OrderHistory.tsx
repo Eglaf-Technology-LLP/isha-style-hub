@@ -34,6 +34,8 @@ interface VendorOrderStatus {
   status: string;
   tracking_number: string | null;
   carrier: string | null;
+  awb_code: string | null;
+  courier_name: string | null;
 }
 
 interface Order {
@@ -61,9 +63,11 @@ const statusColors: Record<string, string> = {
   confirmed: "bg-blue-100 text-blue-800",
   processing: "bg-purple-100 text-purple-800",
   shipped: "bg-indigo-100 text-indigo-800",
+  out_for_delivery: "bg-indigo-100 text-indigo-800",
   delivered: "bg-green-100 text-green-800",
   cancelled: "bg-red-100 text-red-800",
   returned: "bg-gray-100 text-gray-800",
+  ndr: "bg-orange-100 text-orange-800",
 };
 
 const returnStatusConfig: Record<string, { label: string; className: string }> = {
@@ -128,7 +132,9 @@ export default function OrderHistory() {
               supabase.from("order_items").select("*").eq("order_id", order.id),
               supabase
                 .from("vendor_orders")
-                .select("vendor_id, status, tracking_number, carrier, vendor:vendors(name)")
+                .select(
+                  "vendor_id, status, tracking_number, carrier, vendor:vendors(name), shipments(awb_code, courier_name, shipment_type)"
+                )
                 .eq("order_id", order.id),
             ]);
 
@@ -136,13 +142,18 @@ export default function OrderHistory() {
               ...order,
               shipping_address: order.shipping_address as Order["shipping_address"],
               order_items: itemsData || [],
-              vendor_orders: (vendorOrdersData || []).map((vo: any) => ({
-                vendor_id: vo.vendor_id,
-                vendor_name: vo.vendor?.name || "Vendor",
-                status: vo.status,
-                tracking_number: vo.tracking_number,
-                carrier: vo.carrier,
-              })),
+              vendor_orders: (vendorOrdersData || []).map((vo: any) => {
+                const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
+                return {
+                  vendor_id: vo.vendor_id,
+                  vendor_name: vo.vendor?.name || "Vendor",
+                  status: vo.status,
+                  tracking_number: vo.tracking_number,
+                  carrier: vo.carrier,
+                  awb_code: forwardShipment?.awb_code || null,
+                  courier_name: forwardShipment?.courier_name || null,
+                };
+              }),
             };
           })
         );
@@ -318,13 +329,24 @@ export default function OrderHistory() {
                                 >
                                   <span className="font-medium">{vo.vendor_name}</span>
                                   <div className="flex items-center gap-2">
-                                    {vo.tracking_number && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {vo.carrier ? `${vo.carrier} • ` : ""}{vo.tracking_number}
-                                      </span>
+                                    {vo.awb_code ? (
+                                      <a
+                                        href={`https://shiprocket.co/tracking/${vo.awb_code}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs text-primary hover:underline"
+                                      >
+                                        {vo.courier_name ? `${vo.courier_name} • ` : ""}Track shipment
+                                      </a>
+                                    ) : (
+                                      vo.tracking_number && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {vo.carrier ? `${vo.carrier} • ` : ""}{vo.tracking_number}
+                                        </span>
+                                      )
                                     )}
                                     <Badge className={statusColors[vo.status] || "bg-muted"}>
-                                      {vo.status.charAt(0).toUpperCase() + vo.status.slice(1)}
+                                      {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
                                     </Badge>
                                   </div>
                                 </div>

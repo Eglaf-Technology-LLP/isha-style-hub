@@ -36,6 +36,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     contact_phone: "",
     gst_number: "",
     pan_number: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    state: "",
+    pincode: "",
     shipping_flat_rate: "0",
     free_shipping_threshold: "",
     return_window_days: "7",
@@ -52,6 +57,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       contact_phone: vendor.contact_phone || "",
       gst_number: vendor.gst_number || "",
       pan_number: vendor.pan_number || "",
+      address_line1: vendor.address?.address_line1 || "",
+      address_line2: vendor.address?.address_line2 || "",
+      city: vendor.address?.city || "",
+      state: vendor.address?.state || "",
+      pincode: vendor.address?.pincode || "",
       shipping_flat_rate: String(vendor.shipping_flat_rate ?? 0),
       free_shipping_threshold:
         vendor.free_shipping_threshold != null ? String(vendor.free_shipping_threshold) : "",
@@ -67,6 +77,25 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
 
     setSaving(true);
     try {
+      const newAddress = {
+        address_line1: form.address_line1.trim(),
+        address_line2: form.address_line2.trim(),
+        city: form.city.trim(),
+        state: form.state.trim(),
+        pincode: form.pincode.trim(),
+        country: "India",
+      };
+      // The Shiprocket pickup location is tied to the address it was
+      // registered with - if the address actually changed, drop the
+      // registration so "Ship Now" re-registers against the new one
+      // instead of silently shipping from a stale address.
+      const addressChanged =
+        newAddress.address_line1 !== (vendor.address?.address_line1 || "") ||
+        newAddress.address_line2 !== (vendor.address?.address_line2 || "") ||
+        newAddress.city !== (vendor.address?.city || "") ||
+        newAddress.state !== (vendor.address?.state || "") ||
+        newAddress.pincode !== (vendor.address?.pincode || "");
+
       const { error } = await supabase
         .from("vendors")
         .update({
@@ -76,6 +105,10 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           contact_phone: form.contact_phone.trim() || null,
           gst_number: form.gst_number.trim() || null,
           pan_number: form.pan_number.trim() || null,
+          address: newAddress,
+          ...(addressChanged && vendor.shiprocket_pickup_location
+            ? { shiprocket_pickup_location: null, shiprocket_pickup_registered_at: null }
+            : {}),
           shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
           free_shipping_threshold: form.free_shipping_threshold
             ? Number(form.free_shipping_threshold)
@@ -86,6 +119,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
         .eq("id", vendor.id);
 
       if (error) throw error;
+      if (addressChanged && vendor.shiprocket_pickup_location) {
+        toast.info("Pickup address changed - it will be re-registered with the courier on your next shipment.");
+      }
       toast.success("Store settings updated");
       onSaved();
       onOpenChange(false);
@@ -159,6 +195,44 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 value={form.pan_number}
                 onChange={(e) => set("pan_number", e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
+            <h4 className="font-semibold">Pickup address</h4>
+            <p className="text-sm text-muted-foreground">
+              Where couriers collect your orders for shipping. Keep this accurate and
+              complete - it can't be used to ship until it is.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="vs-addr1">Address line 1</Label>
+              <Input
+                id="vs-addr1"
+                value={form.address_line1}
+                onChange={(e) => set("address_line1", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vs-addr2">Address line 2 (optional)</Label>
+              <Input
+                id="vs-addr2"
+                value={form.address_line2}
+                onChange={(e) => set("address_line2", e.target.value)}
+              />
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vs-city">City</Label>
+                <Input id="vs-city" value={form.city} onChange={(e) => set("city", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vs-state">State</Label>
+                <Input id="vs-state" value={form.state} onChange={(e) => set("state", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vs-pincode">PIN code</Label>
+                <Input id="vs-pincode" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+              </div>
             </div>
           </div>
 

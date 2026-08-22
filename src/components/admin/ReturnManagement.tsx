@@ -33,7 +33,9 @@ import {
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -78,6 +80,24 @@ export function ReturnManagement() {
       setSelectedRequest((prev) =>
         prev ? { ...prev, status, admin_notes: adminNotes, refund_amount: refundVal } : null
       );
+
+      // Approving books the real reverse pickup - the status change
+      // itself already succeeded above regardless of what happens here,
+      // so a courier-side failure surfaces as a toast to retry, not a
+      // rollback of the approval.
+      if (status === "approved") {
+        const fnName =
+          selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
+        const { errorMessage } = await invokeEdgeFunction(fnName, {
+          return_request_id: selectedRequest.id,
+        });
+        if (errorMessage) {
+          toast.error(`Approved, but scheduling the courier pickup failed: ${errorMessage}`);
+        } else {
+          toast.success("Reverse pickup scheduled with the courier");
+        }
+      }
+
       // Send email notification to customer
       try {
         await supabase.functions.invoke("send-return-status-email", {
