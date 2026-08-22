@@ -47,6 +47,7 @@ import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/u
 import { Category } from "@/hooks/useCategories";
 import { Link } from "react-router-dom";
 import { VariantManager } from "./VariantManager";
+import { VariantStockDialog } from "./VariantStockDialog";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -479,9 +480,12 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Stock: {product.stock_quantity}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Stock: {product.stock_quantity}
+                      </p>
+                      <VariantStockDialog productName={product.name} variants={product.variants} />
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

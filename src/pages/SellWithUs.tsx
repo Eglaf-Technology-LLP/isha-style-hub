@@ -111,7 +111,10 @@ export default function SellWithUs() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full" onClick={() => navigate("/admin")}>
+              <Button
+                className="w-full"
+                onClick={() => navigate("/admin?redirect=/sell-with-us")}
+              >
                 Sign In / Create Account
               </Button>
               <Button

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,14 +17,19 @@ const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32"
 const COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Gray", "Navy", "Beige", "Cream", "Maroon"];
 
 export function VariantManager({ variants, onChange, basePrice }: VariantManagerProps) {
-  const [availableSizes, setAvailableSizes] = useState<string[]>(() => {
-    const existing = new Set(variants.map(v => v.options?.size || v.options?.Size).filter(Boolean) as string[]);
-    return Array.from(existing);
-  });
-  const [availableColors, setAvailableColors] = useState<string[]>(() => {
-    const existing = new Set(variants.map(v => v.options?.color || v.options?.Color).filter(Boolean) as string[]);
-    return Array.from(existing);
-  });
+  // Derived fresh from `variants` every render, not seeded once at mount -
+  // a one-time useState initializer here previously left these stuck on
+  // whatever product first mounted this component (e.g. "Add New Product"
+  // reset `variants` to [] but the size/color pills kept showing the
+  // previous product's selections).
+  const availableSizes = useMemo(
+    () => Array.from(new Set(variants.map(v => v.options?.size || v.options?.Size).filter(Boolean) as string[])),
+    [variants]
+  );
+  const availableColors = useMemo(
+    () => Array.from(new Set(variants.map(v => v.options?.color || v.options?.Color).filter(Boolean) as string[])),
+    [variants]
+  );
   const [newSize, setNewSize] = useState("");
   const [newColor, setNewColor] = useState("");
 
@@ -33,7 +38,6 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
   const addSize = (size: string) => {
     if (!size.trim() || availableSizes.includes(size.trim())) return;
     const trimmedSize = size.trim();
-    setAvailableSizes(prev => [...prev, trimmedSize]);
     setNewSize("");
 
     // Generate variants for this size with all existing colors
@@ -48,8 +52,8 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
       });
     } else {
       availableColors.forEach(color => {
-        const exists = variants.some(v => 
-          (v.options?.size === trimmedSize || v.options?.Size === trimmedSize) && 
+        const exists = variants.some(v =>
+          (v.options?.size === trimmedSize || v.options?.Size === trimmedSize) &&
           (v.options?.color === color || v.options?.Color === color)
         );
         if (!exists) {
@@ -69,7 +73,6 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
   const addColor = (color: string) => {
     if (!color.trim() || availableColors.includes(color.trim())) return;
     const trimmedColor = color.trim();
-    setAvailableColors(prev => [...prev, trimmedColor]);
     setNewColor("");
 
     // Generate variants for this color with all existing sizes
@@ -84,8 +87,8 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
       });
     } else {
       availableSizes.forEach(size => {
-        const exists = variants.some(v => 
-          (v.options?.size === size || v.options?.Size === size) && 
+        const exists = variants.some(v =>
+          (v.options?.size === size || v.options?.Size === size) &&
           (v.options?.color === trimmedColor || v.options?.Color === trimmedColor)
         );
         if (!exists) {
@@ -103,17 +106,19 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
   };
 
   const removeSize = (size: string) => {
-    setAvailableSizes(prev => prev.filter(s => s !== size));
     onChange(variants.filter(v => v.options?.size !== size && v.options?.Size !== size));
   };
 
   const removeColor = (color: string) => {
-    setAvailableColors(prev => prev.filter(c => c !== color));
     onChange(variants.filter(v => v.options?.color !== color && v.options?.Color !== color));
   };
 
-  const updateVariant = (variantId: string, field: "price" | "stock", value: number) => {
-    onChange(variants.map(v => 
+  const updateVariant = (
+    variantId: string,
+    field: "price" | "stock" | "image_url",
+    value: number | string
+  ) => {
+    onChange(variants.map(v =>
       v.id === variantId ? { ...v, [field]: value } : v
     ));
   };
@@ -250,17 +255,32 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
                 </Button>
               </div>
             </div>
-            <div className="max-h-48 overflow-y-auto space-y-2">
+            <div className="max-h-64 overflow-y-auto space-y-2">
               {variants.map((variant) => (
                 <div
                   key={variant.id}
-                  className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg text-sm"
+                  className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg text-sm flex-wrap"
                 >
-                  <span className="flex-1 font-medium truncate">
-                    {variant.options?.size || variant.options?.Size || ""} 
+                  {variant.image_url ? (
+                    <img
+                      src={variant.image_url}
+                      alt={variant.name}
+                      className="h-8 w-8 rounded object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded bg-muted shrink-0" />
+                  )}
+                  <span className="flex-1 min-w-[80px] font-medium truncate">
+                    {variant.options?.size || variant.options?.Size || ""}
                     {(variant.options?.size || variant.options?.Size) && (variant.options?.color || variant.options?.Color) && " / "}
                     {variant.options?.color || variant.options?.Color || ""}
                   </span>
+                  <Input
+                    placeholder="Image URL (optional)"
+                    value={variant.image_url || ""}
+                    onChange={(e) => updateVariant(variant.id, "image_url", e.target.value)}
+                    className="w-40 h-7 text-xs"
+                  />
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">₹</span>
                     <Input

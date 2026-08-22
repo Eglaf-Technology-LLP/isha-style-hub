@@ -9,6 +9,7 @@ export interface ProductVariant {
   sku?: string;
   stock: number;
   options: Record<string, string>;
+  image_url?: string | null;
 }
 
 // adjust_stock's _variant_id/_reason/_reference_order_id are nullable uuid/text
@@ -60,6 +61,7 @@ export function mapDbVariant(v: {
   sku: string | null;
   stock: number;
   options: unknown;
+  image_url?: string | null;
 }): ProductVariant {
   return {
     id: v.id,
@@ -68,6 +70,7 @@ export function mapDbVariant(v: {
     sku: v.sku || undefined,
     stock: v.stock,
     options: (v.options as Record<string, string>) || {},
+    image_url: v.image_url ?? null,
   };
 }
 
@@ -171,6 +174,7 @@ export async function insertProductRecord(
           sku: variant.sku || null,
           options: variant.options,
           price: variant.price,
+          image_url: variant.image_url || null,
           stock: 0,
         })
         .select()
@@ -283,6 +287,7 @@ export async function applyProductUpdate(
             sku: incoming.sku || null,
             options: incoming.options,
             price: incoming.price,
+            image_url: incoming.image_url || null,
             stock: 0,
           })
           .select()
@@ -308,6 +313,7 @@ export async function applyProductUpdate(
           sku: incoming.sku || null,
           options: incoming.options,
           price: incoming.price,
+          image_url: incoming.image_url || null,
         })
         .eq("id", existing.id);
       if (fieldsError) throw fieldsError;

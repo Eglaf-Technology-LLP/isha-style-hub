@@ -44,6 +44,7 @@ import { toast } from "sonner";
 import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
 import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
+import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
@@ -471,7 +472,12 @@ export default function VendorDashboard() {
                           <TableRow key={p.id}>
                             <TableCell className="font-medium">{p.name}</TableCell>
                             <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
-                            <TableCell>{p.stock_quantity}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {p.stock_quantity}
+                                <VariantStockDialog productName={p.name} variants={p.variants} />
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge
                                 variant={

@@ -21,6 +21,7 @@ import {
 import { Loader2, Plus, Pencil, Trash2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { VendorProductDialog, VendorProductRow } from "@/components/vendor/VendorProductDialog";
+import { VariantStockDialog } from "./VariantStockDialog";
 import { mapDbVariant } from "@/hooks/useProducts";
 
 interface VendorOption {
@@ -155,7 +156,12 @@ export function VendorCatalogManagement() {
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
-                    <TableCell>{p.stock_quantity}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {p.stock_quantity}
+                        <VariantStockDialog productName={p.name} variants={p.variants} />
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
                         {p.approval_status.replace("_", " ")}

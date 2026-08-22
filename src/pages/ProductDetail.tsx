@@ -159,6 +159,12 @@ export default function ProductDetail() {
   // Get current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product?.price || 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
+  // A variant with its own photo (e.g. a color swatch) replaces the shared
+  // gallery entirely while selected; falls back to the product's own
+  // images otherwise.
+  const galleryImages = selectedVariant?.image_url
+    ? [selectedVariant.image_url]
+    : product?.images || [];
 
   const handleAddToCart = () => {
     if (!product) {
@@ -267,9 +273,9 @@ export default function ProductDetail() {
       <main className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Image Gallery with Zoom */}
-          <ImageGalleryWithZoom 
-            images={product.images || []} 
-            productName={product.name} 
+          <ImageGalleryWithZoom
+            images={galleryImages}
+            productName={product.name}
           />
 
           {/* Product Info */}
