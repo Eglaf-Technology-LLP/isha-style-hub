@@ -49,7 +49,7 @@ import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSecti
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
-import { ProductVariant, mapDbVariant } from "@/hooks/useProducts";
+import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { Truck, ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
@@ -65,6 +65,13 @@ interface VendorProduct {
   compare_at_price: number | null;
   sku: string | null;
   variants: ProductVariant[];
+  weight_grams: number | null;
+  length_cm: number | null;
+  breadth_cm: number | null;
+  height_cm: number | null;
+  specifications: ProductSpecification[];
+  country_of_origin: string;
+  net_quantity: string;
 }
 
 interface VendorOrder {
@@ -181,7 +188,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),

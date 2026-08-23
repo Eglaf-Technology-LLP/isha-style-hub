@@ -23,11 +23,13 @@ import { Loader2 } from "lucide-react";
 import { useCategories } from "@/hooks/useCategories";
 import {
   ProductVariant,
+  ProductSpecification,
   insertProductRecord,
   applyProductUpdate,
   fetchProductWithVariants,
 } from "@/hooks/useProducts";
 import { VariantManager } from "@/components/admin/VariantManager";
+import { ProductSpecificationsEditor } from "@/components/admin/ProductSpecificationsEditor";
 import { toast } from "sonner";
 
 export interface VendorProductRow {
@@ -47,6 +49,9 @@ export interface VendorProductRow {
   length_cm?: number | null;
   breadth_cm?: number | null;
   height_cm?: number | null;
+  specifications?: ProductSpecification[];
+  country_of_origin?: string;
+  net_quantity?: string;
 }
 
 interface Props {
@@ -72,6 +77,8 @@ const empty = {
   length_cm: "",
   breadth_cm: "",
   height_cm: "",
+  country_of_origin: "India",
+  net_quantity: "1 N",
 };
 
 export function VendorProductDialog({
@@ -85,6 +92,7 @@ export function VendorProductDialog({
   const { categories } = useCategories();
   const [form, setForm] = useState({ ...empty });
   const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [specifications, setSpecifications] = useState<ProductSpecification[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -105,11 +113,15 @@ export function VendorProductDialog({
         length_cm: product.length_cm != null ? String(product.length_cm) : "",
         breadth_cm: product.breadth_cm != null ? String(product.breadth_cm) : "",
         height_cm: product.height_cm != null ? String(product.height_cm) : "",
+        country_of_origin: product.country_of_origin || "India",
+        net_quantity: product.net_quantity || "1 N",
       });
       setVariants(product.variants || []);
+      setSpecifications(product.specifications || []);
     } else {
       setForm({ ...empty });
       setVariants([]);
+      setSpecifications([]);
     }
   }, [open, product]);
 
@@ -143,6 +155,9 @@ export function VendorProductDialog({
         length_cm: form.length_cm ? Number(form.length_cm) : null,
         breadth_cm: form.breadth_cm ? Number(form.breadth_cm) : null,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
+        specifications,
+        country_of_origin: form.country_of_origin.trim() || "India",
+        net_quantity: form.net_quantity.trim() || "1 N",
         // Trusted partners publish instantly, others go to the moderation
         // queue. "pending_review" (not "pending") is the real constraint
         // value - the insert-only normalization trigger masked this being
@@ -309,6 +324,28 @@ export function VendorProductDialog({
               />
             </div>
           </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vp-origin">Country of Origin</Label>
+              <Input
+                id="vp-origin"
+                value={form.country_of_origin}
+                onChange={(e) => set("country_of_origin", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vp-netqty">Net Quantity</Label>
+              <Input
+                id="vp-netqty"
+                placeholder="e.g. 1 N, 1 Set, 500 g"
+                value={form.net_quantity}
+                onChange={(e) => set("net_quantity", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <ProductSpecificationsEditor specifications={specifications} onChange={setSpecifications} />
 
           <VariantManager
             variants={variants}

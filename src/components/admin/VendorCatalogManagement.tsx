@@ -66,7 +66,7 @@ export function VendorCatalogManagement() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, product_variants(*)"
+          "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });

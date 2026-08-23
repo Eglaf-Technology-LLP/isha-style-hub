@@ -38,6 +38,7 @@ export function CompleteTheLook({ productId }: CompleteTheLookProps) {
           ...p,
           images: (p.images as string[]) || [],
           variants: (p.product_variants || []).map(mapDbVariant),
+          specifications: (p.specifications as unknown as Product["specifications"]) || [],
         }));
         // preserve AI ordering
         typed.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));

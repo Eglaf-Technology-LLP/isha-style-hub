@@ -41,6 +41,9 @@ export default function ProductDetail() {
     slug: string;
     is_trusted: boolean;
     return_window_days: number;
+    address: Record<string, string> | null;
+    contact_email: string | null;
+    contact_phone: string | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -74,6 +77,7 @@ export default function ProductDetail() {
           ...data,
           images: (data.images as string[]) || [],
           variants: (data.product_variants || []).map(mapDbVariant),
+          specifications: (data.specifications as unknown as Product["specifications"]) || [],
         };
 
         setProduct(typedProduct);
@@ -95,7 +99,7 @@ export default function ProductDetail() {
         if ((data as any).vendor_id) {
           const { data: vData } = await supabase
             .from("vendors")
-            .select("name, slug, is_trusted, return_window_days")
+            .select("name, slug, is_trusted, return_window_days, address, contact_email, contact_phone")
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
           if (vData) setVendorInfo(vData as any);
@@ -454,39 +458,12 @@ export default function ProductDetail() {
                   {product.description || "No description available."}
                 </p>
               </TabsContent>
-              <TabsContent value="details" className="mt-4">
+              <TabsContent value="details" className="mt-4 space-y-6">
                 <ul className="space-y-2 text-muted-foreground">
-                  <li>
-                    <span className="font-medium text-foreground">Sold by:</span>{" "}
-                    {vendorInfo ? (
-                      <Link
-                        to={`/store/${vendorInfo.slug}`}
-                        className="hover:text-primary transition-colors"
-                      >
-                        {vendorInfo.name}
-                      </Link>
-                    ) : (
-                      "Isha Fashion Hub"
-                    )}
-                  </li>
                   {vendorInfo && (
                     <li>
                       <span className="font-medium text-foreground">Returns:</span>{" "}
                       {vendorInfo.return_window_days}-day window
-                    </li>
-                  )}
-                  {category && (
-                    <li>
-                      <span className="font-medium text-foreground">
-                        Category:
-                      </span>{" "}
-                      {category.name}
-                    </li>
-                  )}
-                  {product.sku && (
-                    <li>
-                      <span className="font-medium text-foreground">SKU:</span>{" "}
-                      {product.sku}
                     </li>
                   )}
                   <li>
@@ -498,6 +475,81 @@ export default function ProductDetail() {
                       : "Out of Stock"}
                   </li>
                 </ul>
+
+                {product.specifications.length > 0 && (
+                  <div>
+                    <h3 className="font-medium text-foreground mb-3">Product Details</h3>
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                      {product.specifications.map((spec, i) => (
+                        <div key={i}>
+                          <dt className="text-sm font-medium text-foreground">{spec.label}</dt>
+                          <dd className="text-sm text-muted-foreground">{spec.value || "-"}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="font-medium text-foreground mb-3">Product Information</h3>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    <li>
+                      <span className="font-medium text-foreground">Product Code:</span>{" "}
+                      {product.sku || product.id.slice(0, 8)}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">MRP:</span>{" "}
+                      ₹{(product.compare_at_price ?? product.price).toFixed(2)} inclusive of all taxes
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Sold By:</span>{" "}
+                      {vendorInfo ? (
+                        <Link to={`/store/${vendorInfo.slug}`} className="hover:text-primary transition-colors">
+                          {vendorInfo.name}
+                        </Link>
+                      ) : (
+                        "Isha Fashion Hub"
+                      )}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Marketed By / Manufactured By:</span>{" "}
+                      {vendorInfo?.name || "Isha Fashion Hub"}
+                      {vendorInfo?.address && (
+                        <>
+                          , {vendorInfo.address.address_line1}
+                          {vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, {vendorInfo.address.city}, {vendorInfo.address.state} - {vendorInfo.address.pincode}, {vendorInfo.address.country || "India"}
+                        </>
+                      )}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Net Quantity:</span> {product.net_quantity}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Country of Origin:</span> {product.country_of_origin}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Customer Care Address:</span>{" "}
+                      {vendorInfo ? (
+                        <>
+                          {vendorInfo.address?.address_line1 && (
+                            <>
+                              {vendorInfo.address.address_line1}
+                              {vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, {vendorInfo.address.city}, {vendorInfo.address.state} - {vendorInfo.address.pincode}, {vendorInfo.address.country || "India"}.{" "}
+                            </>
+                          )}
+                          {vendorInfo.contact_phone && `Ph: ${vendorInfo.contact_phone}. `}
+                          {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
+                        </>
+                      ) : (
+                        "customercare@ishafashionhub.com"
+                      )}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">Commodity:</span>{" "}
+                      {category?.name || "Fashion"}
+                    </li>
+                  </ul>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

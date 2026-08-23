@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Json } from "@/integrations/supabase/types";
 
 export interface ProductVariant {
   id: string;
@@ -35,6 +36,11 @@ async function adjustStock(args: {
   if (error) throw error;
 }
 
+export interface ProductSpecification {
+  label: string;
+  value: string;
+}
+
 export interface Product {
   id: string;
   category_id: string | null;
@@ -54,6 +60,9 @@ export interface Product {
   length_cm: number | null;
   breadth_cm: number | null;
   height_cm: number | null;
+  specifications: ProductSpecification[];
+  country_of_origin: string;
+  net_quantity: string;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +102,13 @@ export interface ProductFormData {
   length_cm?: number | null;
   breadth_cm?: number | null;
   height_cm?: number | null;
+  // Free-form product details (Wash Care, Fabric, Package Contains...) -
+  // varies product to product, not a fixed schema. Compliance-style
+  // fields (Marketed By, Customer Care, Commodity) are computed from the
+  // vendor/category at display time instead of stored per product.
+  specifications?: ProductSpecification[];
+  country_of_origin?: string;
+  net_quantity?: string;
   // Only vendor-facing callers (VendorProductDialog) set these; omitting
   // them leaves vendor_id/approval_status untouched, matching this hook's
   // long-standing admin-only behavior.
@@ -147,6 +163,7 @@ export async function fetchProductWithVariants(id: string): Promise<Product> {
     ...data,
     images: (data.images as string[]) || [],
     variants: (data.product_variants || []).map(mapDbVariant),
+    specifications: (data.specifications as unknown as ProductSpecification[]) || [],
   };
 }
 
@@ -178,6 +195,9 @@ export async function insertProductRecord(
       length_cm: productData.length_cm || null,
       breadth_cm: productData.breadth_cm || null,
       height_cm: productData.height_cm || null,
+      specifications: (productData.specifications ?? []) as unknown as Json,
+      ...(productData.country_of_origin ? { country_of_origin: productData.country_of_origin } : {}),
+      ...(productData.net_quantity ? { net_quantity: productData.net_quantity } : {}),
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
       ...(productData.approval_status !== undefined
         ? { approval_status: productData.approval_status, rejection_reason: null }
@@ -254,6 +274,9 @@ export async function applyProductUpdate(
   if (productData.length_cm !== undefined) updateData.length_cm = productData.length_cm || null;
   if (productData.breadth_cm !== undefined) updateData.breadth_cm = productData.breadth_cm || null;
   if (productData.height_cm !== undefined) updateData.height_cm = productData.height_cm || null;
+  if (productData.specifications !== undefined) updateData.specifications = productData.specifications as unknown as Json;
+  if (productData.country_of_origin !== undefined) updateData.country_of_origin = productData.country_of_origin;
+  if (productData.net_quantity !== undefined) updateData.net_quantity = productData.net_quantity;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;
@@ -394,6 +417,7 @@ export function useProducts() {
         ...p,
         images: (p.images as string[]) || [],
         variants: (p.product_variants || []).map(mapDbVariant),
+        specifications: (p.specifications as unknown as ProductSpecification[]) || [],
       }));
 
       setProducts(typedProducts);

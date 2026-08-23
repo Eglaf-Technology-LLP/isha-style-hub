@@ -688,6 +688,7 @@ export type Database = {
           breadth_cm: number | null
           category_id: string | null
           compare_at_price: number | null
+          country_of_origin: string
           created_at: string
           description: string | null
           height_cm: number | null
@@ -697,10 +698,12 @@ export type Database = {
           length_cm: number | null
           low_stock_threshold: number
           name: string
+          net_quantity: string
           price: number
           rejection_reason: string | null
           related_product_ids: string[] | null
           sku: string | null
+          specifications: Json
           stock_quantity: number
           tags: string[] | null
           updated_at: string
@@ -712,6 +715,7 @@ export type Database = {
           breadth_cm?: number | null
           category_id?: string | null
           compare_at_price?: number | null
+          country_of_origin?: string
           created_at?: string
           description?: string | null
           height_cm?: number | null
@@ -721,10 +725,12 @@ export type Database = {
           length_cm?: number | null
           low_stock_threshold?: number
           name: string
+          net_quantity?: string
           price?: number
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
+          specifications?: Json
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string
@@ -736,6 +742,7 @@ export type Database = {
           breadth_cm?: number | null
           category_id?: string | null
           compare_at_price?: number | null
+          country_of_origin?: string
           created_at?: string
           description?: string | null
           height_cm?: number | null
@@ -745,10 +752,12 @@ export type Database = {
           length_cm?: number | null
           low_stock_threshold?: number
           name?: string
+          net_quantity?: string
           price?: number
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
+          specifications?: Json
           stock_quantity?: number
           tags?: string[] | null
           updated_at?: string

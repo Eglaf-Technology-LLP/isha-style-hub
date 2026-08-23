@@ -53,6 +53,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
           ...p,
           images: (p.images as string[]) || [],
           variants: (p.product_variants || []).map(mapDbVariant),
+          specifications: (p.specifications as unknown as Product["specifications"]) || [],
         }));
 
         setProducts(typedProducts);

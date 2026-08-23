@@ -47,6 +47,7 @@ import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/u
 import { Category } from "@/hooks/useCategories";
 import { Link } from "react-router-dom";
 import { VariantManager } from "./VariantManager";
+import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 
@@ -81,6 +82,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     length_cm: null,
     breadth_cm: null,
     height_cm: null,
+    specifications: [],
+    country_of_origin: "India",
+    net_quantity: "1 N",
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -102,6 +106,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       length_cm: null,
       breadth_cm: null,
       height_cm: null,
+      specifications: [],
+      country_of_origin: "India",
+      net_quantity: "1 N",
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -173,6 +180,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       length_cm: product.length_cm,
       breadth_cm: product.breadth_cm,
       height_cm: product.height_cm,
+      specifications: product.specifications || [],
+      country_of_origin: product.country_of_origin || "India",
+      net_quantity: product.net_quantity || "1 N",
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -381,6 +391,35 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           />
         </div>
       </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={isEdit ? "edit-origin" : "add-origin"}>Country of Origin</Label>
+          <Input
+            id={isEdit ? "edit-origin" : "add-origin"}
+            value={productForm.country_of_origin ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({ ...prev, country_of_origin: e.target.value }))
+            }
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={isEdit ? "edit-netqty" : "add-netqty"}>Net Quantity</Label>
+          <Input
+            id={isEdit ? "edit-netqty" : "add-netqty"}
+            placeholder="e.g. 1 N, 1 Set, 500 g"
+            value={productForm.net_quantity ?? ""}
+            onChange={(e) =>
+              setProductForm((prev) => ({ ...prev, net_quantity: e.target.value }))
+            }
+          />
+        </div>
+      </div>
+
+      <ProductSpecificationsEditor
+        specifications={productForm.specifications ?? []}
+        onChange={(specifications) => setProductForm((prev) => ({ ...prev, specifications }))}
+      />
 
       {/* Variant Management */}
       <VariantManager
