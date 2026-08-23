@@ -1,4 +1,10 @@
-import { corsHeaders, jsonResponse, serviceClient, mapShiprocketStatus } from "../_shared/shiprocket.ts";
+import {
+  corsHeaders,
+  jsonResponse,
+  serviceClient,
+  mapShiprocketStatus,
+  parseShiprocketTimestamp,
+} from "../_shared/shiprocket.ts";
 
 // Public endpoint - Shiprocket's own servers call this, not our frontend,
 // so it can't rely on a Supabase user JWT (this function has
@@ -45,9 +51,7 @@ Deno.serve(async (req) => {
     // Always record the raw event for the audit trail, even if we
     // couldn't match it to a shipment yet - "verify if anything is
     // missing or wrong" needs the full history, not just recognized ones.
-    const eventTimestamp = payload.current_timestamp
-      ? new Date(payload.current_timestamp.replace(" ", "T")).toISOString()
-      : new Date().toISOString();
+    const eventTimestamp = parseShiprocketTimestamp(payload.current_timestamp);
 
     await supabase.from("shipment_events").insert({
       shipment_id: shipment?.id ?? null,

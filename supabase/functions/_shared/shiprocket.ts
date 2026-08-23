@@ -247,6 +247,30 @@ export async function ensurePickupLocation(
   return { name: pickupLocationName, id: pickupId };
 }
 
+// Shiprocket's webhook `current_timestamp` field is "DD MM YYYY HH:mm:ss"
+// (confirmed against a real sample payload from their own docs) -
+// inconsistent with every OTHER date field in the very same payload
+// (pickup_scheduled_date etc use "YYYY-MM-DD HH:mm:ss"). Confirmed live:
+// naively treating it as ISO-ish throws "Invalid time value" and 500s the
+// whole webhook. Never throws here - falls back to "now" on any
+// unrecognized shape so a formatting surprise never drops a tracking event.
+export function parseShiprocketTimestamp(raw: string | undefined): string {
+  if (!raw) return new Date().toISOString();
+
+  const ddMmYyyy = raw.match(/^(\d{2}) (\d{2}) (\d{4}) (\d{2}:\d{2}:\d{2})$/);
+  if (ddMmYyyy) {
+    const [, dd, mm, yyyy, time] = ddMmYyyy;
+    const parsed = new Date(`${yyyy}-${mm}-${dd}T${time}`);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+
+  const isoAttempt = new Date(raw.replace(" ", "T"));
+  if (!isNaN(isoAttempt.getTime())) return isoAttempt.toISOString();
+
+  console.error("parseShiprocketTimestamp: unrecognized format, using now()", raw);
+  return new Date().toISOString();
+}
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
