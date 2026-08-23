@@ -106,23 +106,33 @@ export interface ProductFormData {
 export async function uploadProductImages(images: File[]): Promise<string[]> {
   const imageUrls: string[] = [];
   for (const image of images) {
-    const fileName = `${Date.now()}-${image.name}`;
-    const { error: uploadError } = await supabase.storage
-      .from("category-images")
-      .upload(`products/${fileName}`, image);
-
-    if (uploadError) {
-      console.error("Image upload error:", uploadError);
-      continue;
-    }
-
-    const { data: urlData } = supabase.storage
-      .from("category-images")
-      .getPublicUrl(`products/${fileName}`);
-
-    if (urlData) imageUrls.push(urlData.publicUrl);
+    const url = await uploadImageFile(image, "products");
+    if (url) imageUrls.push(url);
   }
   return imageUrls;
+}
+
+// Single-file upload, reused for variant images (and anywhere else that
+// needs one photo rather than a batch). folder picks the storage path
+// prefix - "products" for admin uploads, "vendor-uploads" for vendor
+// uploads, since the bucket's RLS only allows vendors to write under
+// that specific prefix (they can't write to "products" at all).
+export async function uploadImageFile(image: File, folder: "products" | "vendor-uploads"): Promise<string | null> {
+  const fileName = `${Date.now()}-${image.name}`;
+  const { error: uploadError } = await supabase.storage
+    .from("category-images")
+    .upload(`${folder}/${fileName}`, image);
+
+  if (uploadError) {
+    console.error("Image upload error:", uploadError);
+    return null;
+  }
+
+  const { data: urlData } = supabase.storage
+    .from("category-images")
+    .getPublicUrl(`${folder}/${fileName}`);
+
+  return urlData?.publicUrl ?? null;
 }
 
 export async function fetchProductWithVariants(id: string): Promise<Product> {

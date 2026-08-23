@@ -1,22 +1,27 @@
-import { useState, useMemo } from "react";
+import { useRef, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, X, Trash2 } from "lucide-react";
-import { ProductVariant } from "@/hooks/useProducts";
+import { Plus, X, Trash2, Upload, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { ProductVariant, uploadImageFile } from "@/hooks/useProducts";
 
 interface VariantManagerProps {
   variants: ProductVariant[];
   onChange: (variants: ProductVariant[]) => void;
   basePrice: number;
+  // Admin uploads land under "products" (existing bucket policy); vendors
+  // can only write under "vendor-uploads" - the bucket's RLS rejects
+  // anything else from a non-admin, so this must match the caller's role.
+  uploadFolder?: "products" | "vendor-uploads";
 }
 
 const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "Free Size"];
 const COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Gray", "Navy", "Beige", "Cream", "Maroon"];
 
-export function VariantManager({ variants, onChange, basePrice }: VariantManagerProps) {
+export function VariantManager({ variants, onChange, basePrice, uploadFolder = "products" }: VariantManagerProps) {
   // Derived fresh from `variants` every render, not seeded once at mount -
   // a one-time useState initializer here previously left these stuck on
   // whatever product first mounted this component (e.g. "Add New Product"
@@ -32,6 +37,30 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
   );
   const [newSize, setNewSize] = useState("");
   const [newColor, setNewColor] = useState("");
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetId = useRef<string | null>(null);
+
+  const triggerImageUpload = (variantId: string) => {
+    uploadTargetId.current = variantId;
+    fileInputRef.current?.click();
+  };
+
+  const handleImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const variantId = uploadTargetId.current;
+    e.target.value = "";
+    if (!file || !variantId) return;
+
+    setUploadingId(variantId);
+    const url = await uploadImageFile(file, uploadFolder);
+    setUploadingId(null);
+    if (!url) {
+      toast.error("Failed to upload image");
+      return;
+    }
+    updateVariant(variantId, "image_url", url);
+  };
 
   const generateVariantId = () => `variant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -137,6 +166,13 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
 
   return (
     <Card className="border-dashed">
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+        className="hidden"
+        onChange={handleImageFileSelected}
+      />
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Product Variants</CardTitle>
       </CardHeader>
@@ -261,26 +297,36 @@ export function VariantManager({ variants, onChange, basePrice }: VariantManager
                   key={variant.id}
                   className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg text-sm flex-wrap"
                 >
-                  {variant.image_url ? (
-                    <img
-                      src={variant.image_url}
-                      alt={variant.name}
-                      className="h-8 w-8 rounded object-cover shrink-0"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 rounded bg-muted shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => triggerImageUpload(variant.id)}
+                    disabled={uploadingId === variant.id}
+                    title={variant.image_url ? "Change photo" : "Upload photo"}
+                    className="relative h-8 w-8 rounded shrink-0 overflow-hidden border border-dashed border-border hover:border-primary transition-colors flex items-center justify-center bg-muted"
+                  >
+                    {uploadingId === variant.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    ) : variant.image_url ? (
+                      <img src={variant.image_url} alt={variant.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </button>
+                  {variant.image_url && uploadingId !== variant.id && (
+                    <button
+                      type="button"
+                      onClick={() => updateVariant(variant.id, "image_url", "")}
+                      className="text-xs text-muted-foreground hover:text-destructive -ml-1"
+                      title="Remove photo"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   )}
                   <span className="flex-1 min-w-[80px] font-medium truncate">
                     {variant.options?.size || variant.options?.Size || ""}
                     {(variant.options?.size || variant.options?.Size) && (variant.options?.color || variant.options?.Color) && " / "}
                     {variant.options?.color || variant.options?.Color || ""}
                   </span>
-                  <Input
-                    placeholder="Image URL (optional)"
-                    value={variant.image_url || ""}
-                    onChange={(e) => updateVariant(variant.id, "image_url", e.target.value)}
-                    className="w-40 h-7 text-xs"
-                  />
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">₹</span>
                     <Input

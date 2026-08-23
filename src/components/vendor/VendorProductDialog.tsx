@@ -314,6 +314,7 @@ export function VendorProductDialog({
             variants={variants}
             onChange={setVariants}
             basePrice={Number(form.price) || 0}
+            uploadFolder="vendor-uploads"
           />
 
           <div className="space-y-2">
