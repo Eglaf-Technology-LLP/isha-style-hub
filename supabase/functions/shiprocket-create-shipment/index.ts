@@ -9,6 +9,7 @@ import {
   shiprocketRequest,
   errorMessage,
   computeTotalWeightKg,
+  toIntOrNull,
 } from "../_shared/shiprocket.ts";
 
 // Parcel size defaults used whenever a product hasn't set its own -
@@ -172,10 +173,10 @@ Deno.serve(async (req) => {
       .insert({
         vendor_order_id,
         shipment_type: "forward",
-        shiprocket_order_id: p.order_id ?? null,
-        shiprocket_shipment_id: p.shipment_id ?? null,
+        shiprocket_order_id: toIntOrNull(p.order_id),
+        shiprocket_shipment_id: toIntOrNull(p.shipment_id),
         awb_code: p.awb_code || null,
-        courier_id: p.courier_company_id ?? null,
+        courier_id: toIntOrNull(p.courier_company_id),
         courier_name: p.courier_name ?? null,
         status: p.awb_code ? "awb_assigned" : "pending",
         label_url: p.label_url ?? null,
@@ -183,7 +184,19 @@ Deno.serve(async (req) => {
       })
       .select()
       .single();
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      // The Shiprocket order genuinely exists at this point even though
+      // we failed to record it - confirmed live (a DB-side failure here
+      // left a real orphaned "NEW" order in Shiprocket with no local
+      // record, which would have caused a duplicate booking on retry).
+      // No AWB has been assigned yet, so cancelling it back out is safe.
+      try {
+        await shiprocketRequest(supabase, "/orders/cancel", { method: "POST", body: { ids: [toIntOrNull(p.order_id)] } });
+      } catch (cancelErr) {
+        console.error("shiprocket-create-shipment: failed to cancel orphaned Shiprocket order after DB insert failure", cancelErr);
+      }
+      throw insertErr;
+    }
 
     await supabase.from("vendor_orders").update({ status: "confirmed" }).eq("id", vendor_order_id);
 

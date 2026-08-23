@@ -263,7 +263,7 @@ export async function ensurePickupLocation(
   let pickupId: number | null = null;
 
   if (sameName && addressMatches(sameName)) {
-    pickupId = sameName.id ?? null;
+    pickupId = toIntOrNull(sameName.id);
   } else {
     if (sameName) {
       // Base name is taken by a stale address - disambiguate rather
@@ -288,7 +288,7 @@ export async function ensurePickupLocation(
         pin_code: address.pincode,
       },
     });
-    pickupId = created?.pickup_id ?? created?.address?.id ?? null;
+    pickupId = toIntOrNull(created?.pickup_id ?? created?.address?.id);
   }
 
   const { error } = await supabase
@@ -383,6 +383,20 @@ export async function checkCourierServiceability(
     }));
   options.sort((a, b) => a.rate - b.rate);
   return options;
+}
+
+// Shiprocket's own responses sometimes carry "" (empty string) instead of
+// null/omitted for a numeric field that didn't get populated (e.g. AWB
+// assignment inside the Forward wrapper partially failing while order
+// creation itself succeeded). `?? null` does NOT catch "" - only
+// null/undefined - so it was passed straight through into an
+// integer/bigint column, which Postgres rejects with
+// 'invalid input syntax for type integer: ""'. Confirmed as a real,
+// reproducible bug from a live "Confirm & Ship" attempt, not a guess.
+export function toIntOrNull(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export const corsHeaders = {

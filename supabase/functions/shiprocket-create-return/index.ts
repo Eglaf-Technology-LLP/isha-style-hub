@@ -7,6 +7,7 @@ import {
   ensurePickupLocation,
   shiprocketRequest,
   errorMessage,
+  toIntOrNull,
 } from "../_shared/shiprocket.ts";
 
 const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
@@ -148,8 +149,8 @@ Deno.serve(async (req) => {
         vendor_order_id: vendorOrderId,
         return_request_id,
         shipment_type: "return",
-        shiprocket_order_id: createResult.order_id ?? null,
-        shiprocket_shipment_id: createResult.shipment_id ?? null,
+        shiprocket_order_id: toIntOrNull(createResult.order_id),
+        shiprocket_shipment_id: toIntOrNull(createResult.shipment_id),
         status: "pending",
         status_raw: createResult.status ?? null,
       })
@@ -172,7 +173,7 @@ Deno.serve(async (req) => {
           .from("shipments")
           .update({
             awb_code: awbData.awb_code,
-            courier_id: awbData.courier_company_id ?? null,
+            courier_id: toIntOrNull(awbData.courier_company_id),
             courier_name: awbData.courier_name ?? null,
             status: "awb_assigned",
           })

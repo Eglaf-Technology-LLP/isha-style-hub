@@ -5,6 +5,7 @@ import {
   mapShiprocketStatus,
   parseShiprocketTimestamp,
   errorMessage,
+  toIntOrNull,
 } from "../_shared/shiprocket.ts";
 
 // Public endpoint - Shiprocket's own servers call this, not our frontend,
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
       shipment_id: shipment?.id ?? null,
       awb_code: awbCode,
       event_status: rawStatus || null,
-      event_status_id: payload.current_status_id ?? payload.shipment_status_id ?? null,
+      event_status_id: toIntOrNull(payload.current_status_id ?? payload.shipment_status_id),
       activity: payload.scans?.[0]?.activity ?? null,
       location: payload.scans?.[0]?.location ?? null,
       event_timestamp: eventTimestamp,
