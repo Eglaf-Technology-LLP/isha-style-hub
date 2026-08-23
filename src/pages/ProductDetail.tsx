@@ -30,6 +30,7 @@ import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
+import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -44,6 +45,8 @@ export default function ProductDetail() {
     address: Record<string, string> | null;
     contact_email: string | null;
     contact_phone: string | null;
+    shipping_flat_rate: number;
+    free_shipping_threshold: number | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -99,7 +102,9 @@ export default function ProductDetail() {
         if ((data as any).vendor_id) {
           const { data: vData } = await supabase
             .from("vendors")
-            .select("name, slug, is_trusted, return_window_days, address, contact_email, contact_phone")
+            .select(
+              "name, slug, is_trusted, return_window_days, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
+            )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
           if (vData) setVendorInfo(vData as any);
@@ -430,9 +435,17 @@ export default function ProductDetail() {
               <div className="flex items-center gap-3">
                 <Truck className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-medium">Free Delivery</p>
+                  <p className="font-medium">
+                    {vendorInfo?.free_shipping_threshold != null
+                      ? "Free Delivery"
+                      : "Shipping"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    On orders above ₹999
+                    {vendorInfo?.free_shipping_threshold != null
+                      ? `On orders above ₹${vendorInfo.free_shipping_threshold}`
+                      : vendorInfo?.shipping_flat_rate
+                        ? `₹${vendorInfo.shipping_flat_rate} flat rate`
+                        : "Calculated at checkout"}
                   </p>
                 </div>
               </div>
@@ -441,10 +454,16 @@ export default function ProductDetail() {
                 <div>
                   <p className="font-medium">Easy Returns</p>
                   <p className="text-sm text-muted-foreground">
-                    7 days return policy
+                    {vendorInfo?.return_window_days ?? 7}-day return policy
                   </p>
                 </div>
               </div>
+              {product.vendor_id && (
+                <div className="pt-1 border-t border-border/60">
+                  <p className="text-sm font-medium mb-2">Check delivery date</p>
+                  <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} />
+                </div>
+              )}
             </div>
 
             {/* Product Details Tabs */}

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { ShoppingCart, Minus, Plus, Trash2, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/stores/cartStore";
+import { CartShippingEstimate } from "@/components/CartShippingEstimate";
 
 export function CartDrawer() {
   const [isOpen, setIsOpen] = useState(false);
@@ -132,7 +133,7 @@ export function CartDrawer() {
                     ₹{totalPrice.toFixed(0)}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground">Shipping & taxes calculated at checkout</p>
+                <CartShippingEstimate items={items} />
                 
                 <Button 
                   onClick={handleCheckout}

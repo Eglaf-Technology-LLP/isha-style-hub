@@ -1043,6 +1043,7 @@ export type Database = {
           return_request_id: string | null
           rto_initiated_at: string | null
           shipment_type: string
+          shiprocket_channel_order_id: string | null
           shiprocket_order_id: number | null
           shiprocket_shipment_id: number | null
           status: string
@@ -1065,6 +1066,7 @@ export type Database = {
           return_request_id?: string | null
           rto_initiated_at?: string | null
           shipment_type?: string
+          shiprocket_channel_order_id?: string | null
           shiprocket_order_id?: number | null
           shiprocket_shipment_id?: number | null
           status?: string
@@ -1087,6 +1089,7 @@ export type Database = {
           return_request_id?: string | null
           rto_initiated_at?: string | null
           shipment_type?: string
+          shiprocket_channel_order_id?: string | null
           shiprocket_order_id?: number | null
           shiprocket_shipment_id?: number | null
           status?: string
