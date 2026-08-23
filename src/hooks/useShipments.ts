@@ -3,6 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
+export interface CourierOption {
+  courierId: number;
+  courierName: string;
+  rate: number;
+  etd: string | null;
+  codAvailable: boolean;
+}
+
 export interface Shipment {
   id: string;
   vendor_order_id: string;
@@ -56,14 +64,32 @@ export function useShipments(vendorOrderIds: string[]) {
     fetchShipments();
   }, [fetchShipments]);
 
-  const shipNow = async (vendorOrderId: string): Promise<boolean> => {
+  // Step 1: real couriers + fares for this route, so the vendor picks one
+  // instead of Shiprocket silently auto-assigning. Read-only.
+  const checkServiceability = async (
+    vendorOrderId: string,
+  ): Promise<{ couriers: CourierOption[] } | null> => {
+    const { data, errorMessage: msg } = await invokeEdgeFunction<{ couriers: CourierOption[] }>(
+      "shiprocket-check-serviceability",
+      { vendor_order_id: vendorOrderId },
+    );
+    if (msg) {
+      toast.error(msg);
+      return null;
+    }
+    return data;
+  };
+
+  // Step 2: actually book the pickup with the courier the vendor chose.
+  const shipNow = async (vendorOrderId: string, courierId?: number): Promise<boolean> => {
     setActioningId(vendorOrderId);
-    const { data, errorMessage } = await invokeEdgeFunction("shiprocket-create-shipment", {
+    const { data, errorMessage: msg } = await invokeEdgeFunction("shiprocket-create-shipment", {
       vendor_order_id: vendorOrderId,
+      courier_id: courierId,
     });
     setActioningId(null);
-    if (errorMessage) {
-      toast.error(errorMessage);
+    if (msg) {
+      toast.error(msg);
       return false;
     }
     toast.success(
@@ -91,5 +117,14 @@ export function useShipments(vendorOrderIds: string[]) {
   const forwardShipmentFor = (vendorOrderId: string) =>
     shipments.find((s) => s.vendor_order_id === vendorOrderId && s.shipment_type === "forward") ?? null;
 
-  return { shipments, loading, actioningId, shipNow, cancelShipment, forwardShipmentFor, refetch: fetchShipments };
+  return {
+    shipments,
+    loading,
+    actioningId,
+    checkServiceability,
+    shipNow,
+    cancelShipment,
+    forwardShipmentFor,
+    refetch: fetchShipments,
+  };
 }

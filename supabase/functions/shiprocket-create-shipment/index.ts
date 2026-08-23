@@ -8,12 +8,12 @@ import {
   ensurePickupLocation,
   shiprocketRequest,
   errorMessage,
+  computeTotalWeightKg,
 } from "../_shared/shiprocket.ts";
 
-// Parcel weight/size defaults used whenever a product hasn't set its own -
+// Parcel size defaults used whenever a product hasn't set its own -
 // reasonable for folded apparel, documented here as the single source of
 // truth for the fallback. Never blocks shipment creation on missing data.
-const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
 const DEFAULT_LENGTH_CM = 25;
 const DEFAULT_BREADTH_CM = 20;
 const DEFAULT_HEIGHT_CM = 5;
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { vendor_order_id } = await req.json();
+    const { vendor_order_id, courier_id } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
 
     const userId = await getCallerUserId(req);
@@ -92,7 +92,6 @@ Deno.serve(async (req) => {
       .from("products")
       .select("id, sku, weight_grams")
       .in("id", productIds);
-    const weightByProductId = new Map((products ?? []).map((p) => [p.id, p.weight_grams]));
     const skuByProductId = new Map((products ?? []).map((p) => [p.id, p.sku]));
 
     // Cart items never carry a SKU snapshot (order_items.sku stays null
@@ -106,10 +105,7 @@ Deno.serve(async (req) => {
       : { data: [] };
     const skuByVariantId = new Map((variants ?? []).map((v) => [v.id, v.sku]));
 
-    const totalWeightGrams = items.reduce((sum, item) => {
-      const perUnit = weightByProductId.get(item.product_id) ?? DEFAULT_ITEM_WEIGHT_GRAMS;
-      return sum + perUnit * item.quantity;
-    }, 0);
+    const weightKg = await computeTotalWeightKg(supabase, items);
 
     const pickupLocation = await ensurePickupLocation(supabase, vendor as any);
 
@@ -148,10 +144,13 @@ Deno.serve(async (req) => {
       shipping_charges: vendorOrder.shipping_cost,
       total_discount: "0",
       sub_total: vendorOrder.subtotal,
-      weight: Math.max(totalWeightGrams / 1000, 0.1),
+      weight: weightKg,
       length: DEFAULT_LENGTH_CM,
       breadth: DEFAULT_BREADTH_CM,
       height: DEFAULT_HEIGHT_CM,
+      // The vendor picked this courier from the real rate list shown
+      // before booking - if omitted, Shiprocket silently auto-assigns one.
+      ...(courier_id ? { courier_id } : {}),
     };
 
     const result = await shiprocketRequest(supabase, "/shipments/create/forward-shipment", {

@@ -20,6 +20,25 @@ export class ShiprocketError extends Error {
 // Confirmed as the real bug behind a live "unknown error" report on
 // Ship Now, not a hypothetical.
 export function errorMessage(e: unknown): string {
+  // ShiprocketError's own .message is a generic "Shiprocket <path> failed"
+  // wrapper (see shiprocketRequest below) - the actually useful detail
+  // ("Invalid Pincode: 123455" etc.) lives in the response body Shiprocket
+  // sent back. Confirmed live: a bad pincode returns HTTP 404 with
+  // {"message": "Invalid Pincode: ..."} - without this, the vendor would
+  // see the useless generic wrapper instead of the real, actionable reason.
+  if (e instanceof ShiprocketError) {
+    const body = e.body as any;
+    const detail = body?.message || body?.payload?.error_message || body?.errors;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") {
+      try {
+        return Object.values(detail).flat().join("; ") || e.message;
+      } catch {
+        return e.message;
+      }
+    }
+    return e.message;
+  }
   if (e instanceof Error) return e.message;
   if (e && typeof e === "object" && "message" in e && typeof (e as any).message === "string") {
     return (e as any).message;
@@ -288,6 +307,63 @@ export function parseShiprocketTimestamp(raw: string | undefined): string {
 
   console.error("parseShiprocketTimestamp: unrecognized format, using now()", raw);
   return new Date().toISOString();
+}
+
+// Parcel weight default used whenever a product hasn't set its own -
+// reasonable for folded apparel. Never blocks a serviceability check or a
+// real shipment on missing data. Shared by both the courier-rate check
+// and the actual "Ship Now" booking so they always agree on weight.
+export const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
+
+export async function computeTotalWeightKg(
+  supabase: SupabaseClient,
+  items: { product_id: string; quantity: number }[],
+): Promise<number> {
+  const productIds = items.map((i) => i.product_id).filter(Boolean);
+  const { data: products } = await supabase.from("products").select("id, weight_grams").in("id", productIds);
+  const weightByProductId = new Map((products ?? []).map((p) => [p.id, p.weight_grams]));
+  const totalGrams = items.reduce((sum, item) => {
+    const perUnit = weightByProductId.get(item.product_id) ?? DEFAULT_ITEM_WEIGHT_GRAMS;
+    return sum + perUnit * item.quantity;
+  }, 0);
+  return Math.max(totalGrams / 1000, 0.1);
+}
+
+export interface CourierOption {
+  courierId: number;
+  courierName: string;
+  rate: number;
+  etd: string | null;
+  codAvailable: boolean;
+}
+
+// Real courier names/rates/ETDs for this pickup->delivery route, straight
+// from Shiprocket's own serviceability check - lets the vendor actually
+// pick a courier and see the fare instead of Shiprocket auto-assigning
+// one silently. Sorted cheapest first.
+export async function checkCourierServiceability(
+  supabase: SupabaseClient,
+  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number },
+): Promise<CourierOption[]> {
+  const result = await shiprocketRequest(
+    supabase,
+    `/courier/serviceability/?pickup_postcode=${encodeURIComponent(params.pickupPincode)}` +
+      `&delivery_postcode=${encodeURIComponent(params.deliveryPincode)}` +
+      `&cod=${params.cod ? 1 : 0}&weight=${params.weightKg}`,
+  );
+
+  const companies = result?.data?.available_courier_companies ?? [];
+  const options: CourierOption[] = companies
+    .filter((c: any) => !c.blocked)
+    .map((c: any) => ({
+      courierId: c.courier_company_id,
+      courierName: c.courier_name,
+      rate: Number(c.rate ?? c.freight_charge ?? 0),
+      etd: c.etd ?? null,
+      codAvailable: c.cod === 1,
+    }));
+  options.sort((a, b) => a.rate - b.rate);
+  return options;
 }
 
 export const corsHeaders = {

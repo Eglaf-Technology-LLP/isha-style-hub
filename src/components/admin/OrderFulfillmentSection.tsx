@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Truck, ExternalLink, XCircle } from "lucide-react";
+import { ExternalLink, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Order } from "@/hooks/useOrders";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
+import { ShipNowDialog } from "./ShipNowDialog";
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
@@ -35,7 +35,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
   });
   const vendorOrderIds = [...groups.keys()].filter((k) => !k.startsWith("no-vendor-"));
 
-  const { forwardShipmentFor, actioningId, shipNow, cancelShipment } = useShipments(vendorOrderIds);
+  const { forwardShipmentFor, actioningId, checkServiceability, shipNow, cancelShipment } = useShipments(vendorOrderIds);
 
   useEffect(() => {
     const vendorIds = [...new Set([...groups.values()].map((g) => g.vendorId).filter(Boolean))] as string[];
@@ -85,20 +85,13 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 status === "cancelled" ? (
                   <span className="text-xs text-muted-foreground">Cancelled</span>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs gap-1"
-                    disabled={actioningId === vendorOrderId}
-                    onClick={() => shipNow(vendorOrderId)}
-                  >
-                    {actioningId === vendorOrderId ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Truck className="h-3 w-3" />
-                    )}
-                    Ship Now
-                  </Button>
+                  <ShipNowDialog
+                    vendorOrderId={vendorOrderId}
+                    actioning={actioningId === vendorOrderId}
+                    checkServiceability={checkServiceability}
+                    shipNow={shipNow}
+                    triggerSize="sm"
+                  />
                 )
               ) : (
                 <div className="flex items-center gap-3 text-xs flex-wrap">

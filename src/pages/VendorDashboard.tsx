@@ -49,8 +49,9 @@ import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSecti
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
+import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
-import { Truck, ExternalLink, XCircle } from "lucide-react";
+import { ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
   id: string;
@@ -259,7 +260,7 @@ export default function VendorDashboard() {
     }
   };
 
-  const { forwardShipmentFor, actioningId, shipNow, cancelShipment } = useShipments(
+  const { forwardShipmentFor, actioningId, checkServiceability, shipNow, cancelShipment } = useShipments(
     orders.map((o) => o.id)
   );
 
@@ -601,19 +602,12 @@ export default function VendorDashboard() {
                                     return <span className="text-xs text-muted-foreground">Cancelled</span>;
                                   }
                                   return (
-                                    <Button
-                                      size="sm"
-                                      className="h-8 text-xs gap-1"
-                                      disabled={actioningId === o.id}
-                                      onClick={() => shipNow(o.id)}
-                                    >
-                                      {actioningId === o.id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                      ) : (
-                                        <Truck className="h-3 w-3" />
-                                      )}
-                                      Ship Now
-                                    </Button>
+                                    <ShipNowDialog
+                                      vendorOrderId={o.id}
+                                      actioning={actioningId === o.id}
+                                      checkServiceability={checkServiceability}
+                                      shipNow={shipNow}
+                                    />
                                   );
                                 }
                                 return (

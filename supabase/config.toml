@@ -23,3 +23,5 @@ verify_jwt = true
 verify_jwt = true
 [functions.shiprocket-ndr-action]
 verify_jwt = true
+[functions.shiprocket-check-serviceability]
+verify_jwt = true
