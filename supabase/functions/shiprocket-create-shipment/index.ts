@@ -113,12 +113,20 @@ Deno.serve(async (req) => {
     const shippingAddress = order.shipping_address as Record<string, string>;
     const isCod = order.payment_method === "cod";
 
+    // Shiprocket treats this as an idempotency key on their side, not just
+    // our own reference - confirmed live: reusing the bare vendor_order_id
+    // on a retry after a cancellation returned the SAME stale cancelled
+    // order (still bound to whatever pickup location it originally had)
+    // instead of creating a genuinely fresh one, silently defeating a
+    // pickup-address fix that should have applied. Unique per attempt.
+    const channelOrderId = `${vendorOrder.id}-${Date.now()}`;
+
     const payload = {
       mode: "Surface",
       request_pickup: true,
       print_label: true,
       generate_manifest: true,
-      order_id: vendorOrder.id,
+      order_id: channelOrderId,
       order_date: formatShiprocketDate(order.created_at),
       pickup_location: pickupLocation.name,
       billing_customer_name: order.customer_name,
@@ -173,6 +181,7 @@ Deno.serve(async (req) => {
       .insert({
         vendor_order_id,
         shipment_type: "forward",
+        shiprocket_channel_order_id: channelOrderId,
         shiprocket_order_id: toIntOrNull(p.order_id),
         shiprocket_shipment_id: toIntOrNull(p.shipment_id),
         awb_code: p.awb_code || null,

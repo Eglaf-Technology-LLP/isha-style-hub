@@ -42,11 +42,31 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!shipment && rawOrderId) {
-      const fallback = await supabase
+      // order_id we send is now unique per booking attempt
+      // (`${vendor_order_id}-${timestamp}`), not the bare vendor_order_id -
+      // match on the exact value we recorded when creating the shipment.
+      const byChannelId = await supabase
         .from("shipments")
         .select("id, shipment_type, vendor_order_id, return_request_id, status")
-        .eq("vendor_order_id", rawOrderId)
+        .eq("shiprocket_channel_order_id", rawOrderId)
         .maybeSingle();
+      shipment = byChannelId.data;
+    }
+
+    if (!shipment && rawOrderId) {
+      // Return/exchange shipments still use the bare vendor_order_id as
+      // their order_id - only try this if rawOrderId looks like a real
+      // UUID, since vendor_order_id is a uuid column and comparing it
+      // against our composite "<uuid>-<timestamp>" string would otherwise
+      // throw a Postgres type-cast error instead of just not matching.
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const fallback = uuidRe.test(rawOrderId)
+        ? await supabase
+            .from("shipments")
+            .select("id, shipment_type, vendor_order_id, return_request_id, status")
+            .eq("vendor_order_id", rawOrderId)
+            .maybeSingle()
+        : { data: null };
       shipment = fallback.data;
     }
 
