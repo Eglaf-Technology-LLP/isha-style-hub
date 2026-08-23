@@ -12,6 +12,25 @@ export class ShiprocketError extends Error {
   }
 }
 
+// Supabase's own PostgrestError (from `if (error) throw error` on any
+// `.select()`/`.insert()`/etc.) is a plain object, NOT an Error instance -
+// `e instanceof Error` is false for it. Every catch block in these
+// functions was falling through to a literal "Unknown error" for any real
+// DB failure, hiding the actual cause from both the user and the logs.
+// Confirmed as the real bug behind a live "unknown error" report on
+// Ship Now, not a hypothetical.
+export function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (e && typeof e === "object" && "message" in e && typeof (e as any).message === "string") {
+    return (e as any).message;
+  }
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 export function serviceClient(): SupabaseClient {
   const url = Deno.env.get("SUPABASE_URL")!;
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

@@ -4,6 +4,7 @@ import {
   serviceClient,
   mapShiprocketStatus,
   parseShiprocketTimestamp,
+  errorMessage,
 } from "../_shared/shiprocket.ts";
 
 // Public endpoint - Shiprocket's own servers call this, not our frontend,
@@ -117,6 +118,6 @@ Deno.serve(async (req) => {
     console.error("shiprocket-webhook error", e);
     // Still 200 here would hide real bugs; Shiprocket retries on non-200,
     // which is the right behavior for a genuine processing failure.
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

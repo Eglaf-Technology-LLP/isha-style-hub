@@ -7,6 +7,7 @@ import {
   isVendorMember,
   ensurePickupLocation,
   shiprocketRequest,
+  errorMessage,
 } from "../_shared/shiprocket.ts";
 
 // Parcel weight/size defaults used whenever a product hasn't set its own -
@@ -190,6 +191,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ shipment, already_shipped: false });
   } catch (e) {
     console.error("shiprocket-create-shipment error", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

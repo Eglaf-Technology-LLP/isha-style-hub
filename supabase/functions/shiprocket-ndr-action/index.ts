@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, shiprocketRequest } from "../_shared/shiprocket.ts";
+import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, shiprocketRequest, errorMessage } from "../_shared/shiprocket.ts";
 
 const VALID_ACTIONS = ["re-attempt", "return"];
 
@@ -53,6 +53,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ actioned: true, result });
   } catch (e) {
     console.error("shiprocket-ndr-action error", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

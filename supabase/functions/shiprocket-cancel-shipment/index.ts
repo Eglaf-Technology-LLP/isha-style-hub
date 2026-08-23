@@ -6,6 +6,7 @@ import {
   isAdmin,
   isVendorMember,
   shiprocketRequest,
+  errorMessage,
 } from "../_shared/shiprocket.ts";
 
 const NOT_YET_PICKED_UP = ["pending", "awb_assigned", "pickup_scheduled"];
@@ -70,6 +71,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ cancelled: true });
   } catch (e) {
     console.error("shiprocket-cancel-shipment error", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

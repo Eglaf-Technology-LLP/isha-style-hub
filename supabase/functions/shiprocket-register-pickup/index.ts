@@ -6,6 +6,7 @@ import {
   isAdmin,
   isVendorMember,
   ensurePickupLocation,
+  errorMessage,
 } from "../_shared/shiprocket.ts";
 
 // Registers a vendor's address as a Shiprocket pickup location so their
@@ -39,6 +40,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ pickup_location: pickupLocation.name, already_registered: alreadyRegistered });
   } catch (e) {
     console.error("shiprocket-register-pickup error", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

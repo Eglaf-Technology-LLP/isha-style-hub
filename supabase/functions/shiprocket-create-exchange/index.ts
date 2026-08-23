@@ -6,6 +6,7 @@ import {
   isAdmin,
   ensurePickupLocation,
   shiprocketRequest,
+  errorMessage,
 } from "../_shared/shiprocket.ts";
 
 const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
@@ -240,6 +241,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ shipments: shipmentRows, already_scheduled: false });
   } catch (e) {
     console.error("shiprocket-create-exchange error", e);
-    return jsonResponse({ error: e instanceof Error ? e.message : "Unknown error" }, 500);
+    return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });
