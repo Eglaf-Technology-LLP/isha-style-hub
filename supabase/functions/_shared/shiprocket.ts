@@ -243,17 +243,36 @@ export async function ensurePickupLocation(
     );
   }
 
-  const pickupLocationName = vendor.slug;
+  const existing = await shiprocketRequest(supabase, "/settings/company/pickup");
+  const existingLocations: any[] = existing?.data?.shipping_address ?? [];
+  const baseName = vendor.slug;
+  const sameName = existingLocations.find((p) => p.pickup_location === baseName);
+
+  // Shiprocket has no "update pickup address" API at all (confirmed
+  // absent from their full endpoint list) - only create and list. So a
+  // same-named registration is only safe to reuse if its address still
+  // actually matches; otherwise it's a stale leftover from before the
+  // vendor's address changed, and reusing it would silently ship from
+  // the wrong address. Confirmed live: exactly this happened for a real
+  // vendor after they corrected their pincode in Store Settings.
+  const addressMatches = (loc: any) =>
+    (loc.pin_code || "") === (address.pincode || "").trim() &&
+    (loc.address || "") === (address.address_line1 || "").trim();
+
+  let pickupLocationName = baseName;
   let pickupId: number | null = null;
 
-  const existing = await shiprocketRequest(supabase, "/settings/company/pickup");
-  const alreadyThere = (existing?.data?.shipping_address ?? []).find(
-    (p: any) => p.pickup_location === pickupLocationName,
-  );
-
-  if (alreadyThere) {
-    pickupId = alreadyThere.id ?? null;
+  if (sameName && addressMatches(sameName)) {
+    pickupId = sameName.id ?? null;
   } else {
+    if (sameName) {
+      // Base name is taken by a stale address - disambiguate rather
+      // than silently pointing at it or erroring out.
+      const takenNames = new Set(existingLocations.map((p) => p.pickup_location));
+      let suffix = 2;
+      while (takenNames.has(`${baseName}-${suffix}`)) suffix++;
+      pickupLocationName = `${baseName}-${suffix}`;
+    }
     const created = await shiprocketRequest(supabase, "/settings/company/addpickup", {
       method: "POST",
       body: {
