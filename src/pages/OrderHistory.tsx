@@ -16,6 +16,7 @@ import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight } f
 import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
+import { RefundHistory } from "@/components/RefundHistory";
 
 interface OrderItem {
   id: string;
@@ -403,6 +404,18 @@ export default function OrderHistory() {
                                   </div>
                                 );
                               })}
+                            </div>
+                          )}
+
+                          {/* orders.payment_status has no "partially_refunded" value in its
+                              check constraint - only "refunded" (whole payment). A partial
+                              refund on an otherwise "paid" order would still show here via
+                              RefundHistory querying refunds directly, but there's no order-level
+                              flag to gate on for that case without an extra query per order. */}
+                          {order.payment_status === "refunded" && (
+                            <div className="pt-4 border-t space-y-2">
+                              <p className="text-sm font-medium">Refunds</p>
+                              <RefundHistory orderId={order.id} />
                             </div>
                           )}
 

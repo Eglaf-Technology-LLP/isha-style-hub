@@ -37,8 +37,10 @@ import {
 } from "lucide-react";
 import { usePayments, Payment } from "@/hooks/usePayments";
 import { usePlatformRevenue } from "@/hooks/usePlatformRevenue";
+import { useRefunds } from "@/hooks/useRefunds";
 import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { RefundHistory } from "@/components/RefundHistory";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -61,6 +63,11 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
   const [refundReason, setRefundReason] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+
+  const { refunds: selectedPaymentRefunds } = useRefunds(selectedPayment?.order_id);
+  const hasRefundInFlight = selectedPaymentRefunds.some(
+    (r) => r.status === "initiated" || r.status === "processing"
+  );
 
   const stats = getPaymentStats();
   const visiblePayments = vendorFilter
@@ -433,37 +440,57 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                                         ).toFixed(2)}
                                       </p>
                                     </div>
-                                    <div className="space-y-2">
-                                      <Label>Refund Amount (₹)</Label>
-                                      <Input
-                                        type="number"
-                                        min="0.01"
-                                        max={payment.amount - payment.refund_amount}
-                                        step="0.01"
-                                        value={refundAmount}
-                                        onChange={(e) =>
-                                          setRefundAmount(e.target.value)
-                                        }
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label>Reason for Refund *</Label>
-                                      <Textarea
-                                        placeholder="Enter the reason for this refund..."
-                                        value={refundReason}
-                                        onChange={(e) =>
-                                          setRefundReason(e.target.value)
-                                        }
-                                        rows={3}
-                                      />
-                                    </div>
-                                    <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
-                                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                                      <p>
-                                        This action cannot be undone. The refund
-                                        will be recorded in the system.
-                                      </p>
-                                    </div>
+                                    {selectedPaymentRefunds.length > 0 && (
+                                      <div className="space-y-2">
+                                        <Label>Refund History</Label>
+                                        <RefundHistory orderId={payment.order_id} />
+                                      </div>
+                                    )}
+                                    {hasRefundInFlight ? (
+                                      <div className="flex items-center gap-2 p-3 bg-muted text-muted-foreground rounded-lg text-sm">
+                                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                        <p>
+                                          A refund is already submitted to Razorpay and still
+                                          processing for this payment. Wait for it to complete
+                                          before submitting another.
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <div className="space-y-2">
+                                          <Label>Refund Amount (₹)</Label>
+                                          <Input
+                                            type="number"
+                                            min="0.01"
+                                            max={payment.amount - payment.refund_amount}
+                                            step="0.01"
+                                            value={refundAmount}
+                                            onChange={(e) =>
+                                              setRefundAmount(e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <Label>Reason for Refund *</Label>
+                                          <Textarea
+                                            placeholder="Enter the reason for this refund..."
+                                            value={refundReason}
+                                            onChange={(e) =>
+                                              setRefundReason(e.target.value)
+                                            }
+                                            rows={3}
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-2 p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
+                                          <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                          <p>
+                                            This submits a real refund to Razorpay and cannot be
+                                            undone. It can take several days for the amount to
+                                            reflect in the customer's bank account.
+                                          </p>
+                                        </div>
+                                      </>
+                                    )}
                                     <div className="flex justify-end gap-3">
                                       <Button
                                         variant="outline"
@@ -471,20 +498,22 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                                       >
                                         Cancel
                                       </Button>
-                                      <Button
-                                        variant="destructive"
-                                        onClick={handleRefund}
-                                        disabled={
-                                          isProcessing ||
-                                          !refundAmount ||
-                                          !refundReason
-                                        }
-                                      >
-                                        {isProcessing && (
-                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                        )}
-                                        Process Refund
-                                      </Button>
+                                      {!hasRefundInFlight && (
+                                        <Button
+                                          variant="destructive"
+                                          onClick={handleRefund}
+                                          disabled={
+                                            isProcessing ||
+                                            !refundAmount ||
+                                            !refundReason
+                                          }
+                                        >
+                                          {isProcessing && (
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          )}
+                                          Process Refund
+                                        </Button>
+                                      )}
                                     </div>
                                   </div>
                                 </DialogContent>

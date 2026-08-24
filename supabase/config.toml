@@ -25,3 +25,11 @@ verify_jwt = true
 verify_jwt = true
 [functions.shiprocket-check-serviceability]
 verify_jwt = true
+[functions.create-razorpay-refund]
+verify_jwt = true
+
+# Razorpay's own servers call this, not our frontend - same exception as
+# shiprocket-webhook above. Authenticity is the HMAC signature over the
+# raw body (see supabase/functions/razorpay-webhook/index.ts), not a JWT.
+[functions.razorpay-webhook]
+verify_jwt = false

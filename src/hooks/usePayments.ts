@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 export interface Payment {
   id: string;
@@ -176,59 +177,36 @@ export function usePayments(isAdmin: boolean = false) {
     }
   };
 
+  // Calls the real Razorpay refund API via create-razorpay-refund - this
+  // used to only write payments.refund_amount/orders.payment_status
+  // directly, which recorded a refund locally without ever actually
+  // returning money to the customer. Real refund attempts (success or
+  // failure) now live in the `refunds` table (see useRefunds below).
   const processRefund = async (
     id: string,
     refundAmount: number,
     reason: string
   ): Promise<boolean> => {
-    try {
-      const payment = payments.find(p => p.id === id);
-      if (!payment) {
-        toast.error("Payment not found");
-        return false;
-      }
-
-      if (refundAmount <= 0) {
-        toast.error("Refund amount must be greater than 0");
-        return false;
-      }
-
-      if (refundAmount > payment.amount) {
-        toast.error("Refund amount cannot exceed payment amount");
-        return false;
-      }
-
-      const totalRefund = payment.refund_amount + refundAmount;
-      const newStatus: Payment["payment_status"] = 
-        totalRefund >= payment.amount ? "refunded" : "partially_refunded";
-
-      const { error } = await supabase
-        .from("payments")
-        .update({
-          payment_status: newStatus,
-          refund_amount: totalRefund,
-          refund_reason: reason,
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      // Update order payment status if fully refunded
-      if (newStatus === "refunded") {
-        await supabase
-          .from("orders")
-          .update({ payment_status: "refunded" })
-          .eq("id", payment.order_id);
-      }
-
-      await fetchPayments();
-      toast.success(`₹${refundAmount} refunded successfully`);
-      return true;
-    } catch (error: any) {
-      console.error("Error processing refund:", error);
-      toast.error(error.message || "Failed to process refund");
+    const payment = payments.find(p => p.id === id);
+    if (!payment) {
+      toast.error("Payment not found");
       return false;
     }
+
+    const { errorMessage } = await invokeEdgeFunction("create-razorpay-refund", {
+      order_id: payment.order_id,
+      amount: refundAmount,
+      reason,
+    });
+
+    if (errorMessage) {
+      toast.error(errorMessage);
+      return false;
+    }
+
+    await fetchPayments();
+    toast.success(`₹${refundAmount} refund submitted to Razorpay`);
+    return true;
   };
 
   const getPaymentsByOrder = (orderId: string): Payment[] => {

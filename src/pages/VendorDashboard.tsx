@@ -51,6 +51,7 @@ import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
+import { RefundHistory } from "@/components/RefundHistory";
 import { ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
@@ -566,6 +567,7 @@ export default function VendorDashboard() {
                           <TableHead>Status</TableHead>
                           <TableHead>Shipment</TableHead>
                           <TableHead></TableHead>
+                          <TableHead>Refunds</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -661,6 +663,12 @@ export default function VendorDashboard() {
                                   </div>
                                 );
                               })()}
+                            </TableCell>
+                            <TableCell>
+                              {/* Read-only - RLS scopes this to refunds on the vendor's own
+                                  sale in this order. Vendors can't trigger a refund, only
+                                  see one an admin already processed. */}
+                              <RefundHistory orderId={o.order_id} />
                             </TableCell>
                           </TableRow>
                         ))}

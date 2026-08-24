@@ -36,6 +36,7 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { RefundHistory } from "@/components/RefundHistory";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -95,6 +96,26 @@ export function ReturnManagement() {
           toast.error(`Approved, but scheduling the courier pickup failed: ${errorMessage}`);
         } else {
           toast.success("Reverse pickup scheduled with the courier");
+        }
+      }
+
+      // The real gateway refund only fires once the item is actually back
+      // (status "completed") - not on approval, when the customer hasn't
+      // shipped anything back yet. Before this, refundVal was only ever
+      // written to return_requests.refund_amount, a number nobody acted
+      // on; this is the fix, same create-razorpay-refund path the admin
+      // Payments tab uses.
+      if (status === "completed" && refundVal > 0) {
+        const { errorMessage } = await invokeEdgeFunction("create-razorpay-refund", {
+          order_id: selectedRequest.order_id,
+          amount: refundVal,
+          reason: adminNotes || selectedRequest.reason,
+          return_request_id: selectedRequest.id,
+        });
+        if (errorMessage) {
+          toast.error(`Marked completed, but the refund failed: ${errorMessage}`);
+        } else {
+          toast.success(`₹${refundVal} refund submitted to Razorpay`);
         }
       }
 
@@ -325,8 +346,13 @@ export function ReturnManagement() {
                         onChange={(e) => setRefundAmount(e.target.value)}
                         placeholder="0"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Submitted to Razorpay as a real refund only once this request is marked
+                        Completed.
+                      </p>
                     </div>
                   )}
+                  <RefundHistory orderId={selectedRequest.order_id} />
 
                   <div className="flex flex-wrap gap-2 pt-2">
                     {selectedRequest.status === "pending" && (
