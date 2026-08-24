@@ -52,6 +52,7 @@ export interface VendorProductRow {
   specifications?: ProductSpecification[];
   country_of_origin?: string;
   net_quantity?: string;
+  is_returnable?: boolean;
 }
 
 interface Props {
@@ -79,6 +80,7 @@ const empty = {
   height_cm: "",
   country_of_origin: "India",
   net_quantity: "1 N",
+  is_returnable: true,
 };
 
 export function VendorProductDialog({
@@ -115,6 +117,7 @@ export function VendorProductDialog({
         height_cm: product.height_cm != null ? String(product.height_cm) : "",
         country_of_origin: product.country_of_origin || "India",
         net_quantity: product.net_quantity || "1 N",
+        is_returnable: product.is_returnable ?? true,
       });
       setVariants(product.variants || []);
       setSpecifications(product.specifications || []);
@@ -158,6 +161,7 @@ export function VendorProductDialog({
         specifications,
         country_of_origin: form.country_of_origin.trim() || "India",
         net_quantity: form.net_quantity.trim() || "1 N",
+        is_returnable: form.is_returnable,
         // Trusted partners publish instantly, others go to the moderation
         // queue. "pending_review" (not "pending") is the real constraint
         // value - the insert-only normalization trigger masked this being
@@ -375,6 +379,20 @@ export function VendorProductDialog({
             <Switch
               checked={form.is_active}
               onCheckedChange={(v) => set("is_active", v)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium">Returnable</p>
+              <p className="text-xs text-muted-foreground">
+                Off for hygiene/opened-item products (innerwear, cosmetics) - blocks refund
+                requests only, customers can still request an exchange.
+              </p>
+            </div>
+            <Switch
+              checked={form.is_returnable}
+              onCheckedChange={(v) => set("is_returnable", v)}
             />
           </div>
         </div>

@@ -63,7 +63,22 @@ export function ReturnManagement() {
   const openDetail = (request: ReturnRequest) => {
     setSelectedRequest(request);
     setAdminNotes(request.admin_notes || "");
-    setRefundAmount(request.refund_amount?.toString() || "0");
+    // Default to the actual value of the items the customer selected,
+    // rather than always "0" - previously this field had zero relationship
+    // to what was in `items`, so an admin could accidentally refund the
+    // wrong amount. Still freely editable below; a previously-saved value
+    // takes priority over recomputing (don't clobber an admin's own entry).
+    const itemsTotal = (request.items || []).reduce(
+      (sum, item) => sum + (item.price ?? 0) * item.quantity,
+      0
+    );
+    setRefundAmount(
+      request.refund_amount
+        ? request.refund_amount.toString()
+        : request.request_type === "return"
+          ? itemsTotal.toFixed(2)
+          : "0"
+    );
     setIsDetailOpen(true);
   };
 

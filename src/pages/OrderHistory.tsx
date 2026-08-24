@@ -27,6 +27,7 @@ interface OrderItem {
   size: string | null;
   color: string | null;
   vendor_id: string | null;
+  is_returnable: boolean;
 }
 
 interface VendorOrderStatus {

@@ -23,6 +23,9 @@ interface OrderItem {
   price: number;
   size: string | null;
   color: string | null;
+  // Refund eligibility only, snapshotted at checkout - a non-returnable
+  // item can still be selected for an exchange, just not a refund.
+  is_returnable: boolean;
 }
 
 interface ReturnRequestFormProps {
@@ -58,8 +61,25 @@ export function ReturnRequestForm({
   const [exchangeDetails, setExchangeDetails] = useState<ExchangeDetails>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleItem = (itemId: string) => {
+  const toggleItem = (itemId: string, disabled: boolean) => {
+    if (disabled) return;
     setSelectedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  };
+
+  // Switching to "Return & Refund" auto-deselects any non-returnable item
+  // the customer had picked while browsing in exchange mode - a
+  // non-returnable item is only ever a valid selection for an exchange.
+  const changeRequestType = (v: "return" | "exchange") => {
+    setRequestType(v);
+    if (v === "return") {
+      setSelectedItems((prev) => {
+        const next = { ...prev };
+        orderItems.forEach((item) => {
+          if (!item.is_returnable) next[item.id] = false;
+        });
+        return next;
+      });
+    }
   };
 
   const handleSubmit = async () => {
@@ -113,7 +133,7 @@ export function ReturnRequestForm({
             <Label className="text-sm font-medium mb-2 block">Request Type</Label>
             <RadioGroup
               value={requestType}
-              onValueChange={(v) => setRequestType(v as "return" | "exchange")}
+              onValueChange={(v) => changeRequestType(v as "return" | "exchange")}
               className="flex gap-4"
             >
               <div className="flex items-center gap-2 border border-border rounded-lg p-3 flex-1 cursor-pointer hover:bg-muted/50">
@@ -137,26 +157,35 @@ export function ReturnRequestForm({
           <div>
             <Label className="text-sm font-medium mb-2 block">Select Items</Label>
             <div className="space-y-2">
-              {orderItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-3 p-3 border border-border rounded-lg"
-                >
-                  <Checkbox
-                    checked={!!selectedItems[item.id]}
-                    onCheckedChange={() => toggleItem(item.id)}
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{item.product_title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.size && `Size: ${item.size}`}
-                      {item.size && item.color && " • "}
-                      {item.color && `Color: ${item.color}`}
-                      {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
-                    </p>
+              {orderItems.map((item) => {
+                const disabled = requestType === "return" && !item.is_returnable;
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-3 p-3 border border-border rounded-lg ${disabled ? "opacity-60" : ""}`}
+                  >
+                    <Checkbox
+                      checked={!!selectedItems[item.id]}
+                      onCheckedChange={() => toggleItem(item.id, disabled)}
+                      disabled={disabled}
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{item.product_title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.size && `Size: ${item.size}`}
+                        {item.size && item.color && " • "}
+                        {item.color && `Color: ${item.color}`}
+                        {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
+                      </p>
+                      {disabled && (
+                        <p className="text-xs text-destructive mt-0.5">
+                          Not eligible for refund - exchange only
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

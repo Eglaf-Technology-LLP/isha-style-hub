@@ -63,6 +63,11 @@ export interface Product {
   specifications: ProductSpecification[];
   country_of_origin: string;
   net_quantity: string;
+  // Refund eligibility only - a non-returnable product can still be
+  // exchanged for a different size/colour, just not refunded for money.
+  // Snapshotted onto order_items at checkout so a later policy change here
+  // never retroactively affects an order already placed.
+  is_returnable: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -109,6 +114,7 @@ export interface ProductFormData {
   specifications?: ProductSpecification[];
   country_of_origin?: string;
   net_quantity?: string;
+  is_returnable?: boolean;
   // Only vendor-facing callers (VendorProductDialog) set these; omitting
   // them leaves vendor_id/approval_status untouched, matching this hook's
   // long-standing admin-only behavior.
@@ -196,6 +202,7 @@ export async function insertProductRecord(
       breadth_cm: productData.breadth_cm || null,
       height_cm: productData.height_cm || null,
       specifications: (productData.specifications ?? []) as unknown as Json,
+      is_returnable: productData.is_returnable ?? true,
       ...(productData.country_of_origin ? { country_of_origin: productData.country_of_origin } : {}),
       ...(productData.net_quantity ? { net_quantity: productData.net_quantity } : {}),
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
@@ -277,6 +284,7 @@ export async function applyProductUpdate(
   if (productData.specifications !== undefined) updateData.specifications = productData.specifications as unknown as Json;
   if (productData.country_of_origin !== undefined) updateData.country_of_origin = productData.country_of_origin;
   if (productData.net_quantity !== undefined) updateData.net_quantity = productData.net_quantity;
+  if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;

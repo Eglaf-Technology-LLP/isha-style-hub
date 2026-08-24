@@ -70,6 +70,45 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Defense in depth: the UI already stops a customer selecting a
+    // non-returnable item for "Return & Refund", but this is the only
+    // place that actually moves money, so it re-derives eligibility from
+    // order_items.is_returnable itself rather than trusting that the UI
+    // guard was never bypassed (a direct DB edit, a future UI bug, etc).
+    if (return_request_id) {
+      const { data: returnRequest, error: rrErr } = await supabase
+        .from("return_requests")
+        .select("items, request_type")
+        .eq("id", return_request_id)
+        .maybeSingle();
+      if (rrErr) throw rrErr;
+
+      if (returnRequest?.request_type === "return") {
+        const orderItemIds = ((returnRequest.items as any[]) ?? [])
+          .map((i) => i.order_item_id)
+          .filter(Boolean);
+        if (orderItemIds.length > 0) {
+          const { data: eligibleItems, error: oiErr } = await supabase
+            .from("order_items")
+            .select("id, price, quantity, is_returnable")
+            .in("id", orderItemIds);
+          if (oiErr) throw oiErr;
+
+          const eligibleTotal = (eligibleItems ?? [])
+            .filter((oi) => oi.is_returnable)
+            .reduce((sum, oi) => sum + Number(oi.price) * oi.quantity, 0);
+          if (refundAmount > eligibleTotal) {
+            return jsonResponse(
+              {
+                error: `Refund amount exceeds the refundable value of the selected items (₹${eligibleTotal.toFixed(2)}) - one or more selected items may be non-returnable`,
+              },
+              400,
+            );
+          }
+        }
+      }
+    }
+
     const { data: refundRow, error: insertErr } = await supabase
       .from("refunds")
       .insert({

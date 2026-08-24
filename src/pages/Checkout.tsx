@@ -482,6 +482,20 @@ export default function Checkout() {
         if (vendorOrdersError) throw vendorOrdersError;
       }
 
+      // Snapshotted onto order_items below rather than joined live at
+      // return-request time - a vendor changing this after the sale must
+      // not retroactively change what the customer is entitled to return,
+      // same reasoning price/title/size/color are already snapshotted
+      // instead of read live from products.
+      const { data: returnabilityRows, error: returnabilityErr } = await supabase
+        .from("products")
+        .select("id, is_returnable")
+        .in("id", [...new Set(items.map((item) => item.productId))]);
+      if (returnabilityErr) throw returnabilityErr;
+      const isReturnableByProductId = new Map(
+        (returnabilityRows || []).map((p) => [p.id, p.is_returnable])
+      );
+
       // Create order items, linked to their vendor and vendor order
       const orderItems = items.map((item) => ({
         order_id: newOrderId,
@@ -495,6 +509,7 @@ export default function Checkout() {
         price: parseFloat(item.price.amount),
         vendor_id: item.vendorId,
         vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
+        is_returnable: isReturnableByProductId.get(item.productId) ?? true,
       }));
 
       const { error: itemsError } = await supabase

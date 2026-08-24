@@ -85,6 +85,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     specifications: [],
     country_of_origin: "India",
     net_quantity: "1 N",
+    is_returnable: true,
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -109,6 +110,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       specifications: [],
       country_of_origin: "India",
       net_quantity: "1 N",
+      is_returnable: true,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -183,6 +185,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       specifications: product.specifications || [],
       country_of_origin: product.country_of_origin || "India",
       net_quantity: product.net_quantity || "1 N",
+      is_returnable: product.is_returnable ?? true,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -414,6 +417,23 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             }
           />
         </div>
+      </div>
+
+      <div className="flex items-center justify-between border border-border rounded-lg p-3">
+        <div>
+          <Label htmlFor={isEdit ? "edit-returnable" : "add-returnable"}>Returnable</Label>
+          <p className="text-xs text-muted-foreground">
+            Off for hygiene/opened-item products (innerwear, cosmetics) - blocks refund requests
+            only, exchange is still allowed.
+          </p>
+        </div>
+        <Switch
+          id={isEdit ? "edit-returnable" : "add-returnable"}
+          checked={productForm.is_returnable ?? true}
+          onCheckedChange={(checked) =>
+            setProductForm((prev) => ({ ...prev, is_returnable: checked }))
+          }
+        />
       </div>
 
       <ProductSpecificationsEditor
