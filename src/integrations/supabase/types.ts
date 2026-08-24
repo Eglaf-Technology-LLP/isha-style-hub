@@ -371,6 +371,7 @@ export type Database = {
           color: string | null
           created_at: string
           id: string
+          is_returnable: boolean
           order_id: string
           price: number
           product_id: string
@@ -387,6 +388,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           id?: string
+          is_returnable?: boolean
           order_id: string
           price: number
           product_id: string
@@ -403,6 +405,7 @@ export type Database = {
           color?: string | null
           created_at?: string
           id?: string
+          is_returnable?: boolean
           order_id?: string
           price?: number
           product_id?: string
@@ -695,6 +698,7 @@ export type Database = {
           id: string
           images: string[] | null
           is_active: boolean
+          is_returnable: boolean
           length_cm: number | null
           low_stock_threshold: number
           name: string
@@ -722,6 +726,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          is_returnable?: boolean
           length_cm?: number | null
           low_stock_threshold?: number
           name: string
@@ -749,6 +754,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           is_active?: boolean
+          is_returnable?: boolean
           length_cm?: number | null
           low_stock_threshold?: number
           name?: string
@@ -878,6 +884,85 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          failure_reason: string | null
+          gateway_processed_at: string | null
+          id: string
+          initiated_at: string
+          initiated_by: string | null
+          order_id: string
+          payment_id: string
+          razorpay_payment_id: string
+          razorpay_refund_id: string | null
+          reason: string | null
+          return_request_id: string | null
+          speed: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          failure_reason?: string | null
+          gateway_processed_at?: string | null
+          id?: string
+          initiated_at?: string
+          initiated_by?: string | null
+          order_id: string
+          payment_id: string
+          razorpay_payment_id: string
+          razorpay_refund_id?: string | null
+          reason?: string | null
+          return_request_id?: string | null
+          speed?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          failure_reason?: string | null
+          gateway_processed_at?: string | null
+          id?: string
+          initiated_at?: string
+          initiated_by?: string | null
+          order_id?: string
+          payment_id?: string
+          razorpay_payment_id?: string
+          razorpay_refund_id?: string | null
+          reason?: string | null
+          return_request_id?: string | null
+          speed?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refunds_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "refunds_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       return_requests: {
         Row: {
