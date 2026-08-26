@@ -19,6 +19,8 @@ import {
   AlertTriangle,
   RotateCcw,
   Store,
+  ShieldAlert,
+  Landmark,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -44,6 +46,8 @@ import { VendorManagement } from "@/components/admin/VendorManagement";
 import { ProductModeration } from "@/components/admin/ProductModeration";
 import { VendorCatalogManagement } from "@/components/admin/VendorCatalogManagement";
 import { VendorPerformanceAnalytics } from "@/components/admin/VendorPerformanceAnalytics";
+import { DisputeManagement } from "@/components/admin/DisputeManagement";
+import { SettlementLedger } from "@/components/admin/SettlementLedger";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -294,6 +298,14 @@ export default function Admin() {
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">Payments</span>
             </TabsTrigger>
+            <TabsTrigger value="disputes" className="flex items-center gap-1">
+              <ShieldAlert className="h-4 w-4" />
+              <span className="hidden sm:inline">Disputes</span>
+            </TabsTrigger>
+            <TabsTrigger value="settlements" className="flex items-center gap-1">
+              <Landmark className="h-4 w-4" />
+              <span className="hidden sm:inline">Settlements</span>
+            </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-1">
               <Store className="h-4 w-4" />
               <span className="hidden sm:inline">Vendors</span>
@@ -417,6 +429,14 @@ export default function Admin() {
           {/* Payments Tab */}
           <TabsContent value="payments">
             <PaymentManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="disputes">
+            <DisputeManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="settlements">
+            <SettlementLedger isAdmin={isAdmin} />
           </TabsContent>
 
           {/* Vendors Tab */}

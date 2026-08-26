@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -130,6 +130,60 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      disputes: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          order_id: string | null
+          payment_id: string | null
+          razorpay_dispute_id: string
+          reason_code: string | null
+          respond_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payment_id?: string | null
+          razorpay_dispute_id: string
+          reason_code?: string | null
+          respond_by?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          order_id?: string | null
+          payment_id?: string | null
+          razorpay_dispute_id?: string
+          reason_code?: string | null
+          respond_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
             referencedColumns: ["id"]
           },
         ]
@@ -501,6 +555,51 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      payment_events: {
+        Row: {
+          event_type: string
+          id: string
+          order_id: string | null
+          payment_id: string | null
+          raw_payload: Json
+          razorpay_entity_id: string | null
+          received_at: string
+        }
+        Insert: {
+          event_type: string
+          id?: string
+          order_id?: string | null
+          payment_id?: string | null
+          raw_payload: Json
+          razorpay_entity_id?: string | null
+          received_at?: string
+        }
+        Update: {
+          event_type?: string
+          id?: string
+          order_id?: string | null
+          payment_id?: string | null
+          raw_payload?: Json
+          razorpay_entity_id?: string | null
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_events_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -1062,6 +1161,39 @@ export type Database = {
           pincode?: string
           state?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      settlements: {
+        Row: {
+          amount: number
+          created_at: string
+          fees: number | null
+          id: string
+          razorpay_settlement_id: string
+          settled_at: string
+          tax: number | null
+          utr: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          fees?: number | null
+          id?: string
+          razorpay_settlement_id: string
+          settled_at: string
+          tax?: number | null
+          utr?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          fees?: number | null
+          id?: string
+          razorpay_settlement_id?: string
+          settled_at?: string
+          tax?: number | null
+          utr?: string | null
         }
         Relationships: []
       }

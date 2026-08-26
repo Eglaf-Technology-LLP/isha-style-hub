@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { useRefunds } from "@/hooks/useRefunds";
+import { RefundReceiptDialog } from "@/components/RefundReceiptDialog";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   initiated: { label: "Initiated", variant: "secondary" },
@@ -55,6 +56,11 @@ export function RefundHistory({ orderId }: { orderId: string }) {
             )}
             {refund.status === "failed" && refund.failure_reason && (
               <p className="text-xs text-destructive">Failed: {refund.failure_reason}</p>
+            )}
+            {refund.status === "processed" && (
+              <div className="pt-1">
+                <RefundReceiptDialog refund={refund} />
+              </div>
             )}
           </div>
         );
