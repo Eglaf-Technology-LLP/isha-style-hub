@@ -24,13 +24,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const payload = await req.json();
+    // Shiprocket's dashboard "Test Webhook" button (and any bare
+    // connectivity ping) sends an empty/near-empty body, not a real
+    // event - req.json() throws on that, which used to 500 back to
+    // Shiprocket and could read as "the endpoint is broken" in their UI
+    // even though auth and routing both succeeded. Treat an unparseable
+    // or awb-less body as a successful test ping instead of an error.
+    const payload = await req.json().catch(() => ({}));
     const awbCode: string | undefined = payload.awb;
     const rawOrderId: string | undefined = payload.order_id;
     const rawStatus: string = payload.current_status || payload.shipment_status || "";
 
     if (!awbCode) {
-      return jsonResponse({ error: "Missing awb in payload" }, 400);
+      // 200, not 400 - a real event always has an awb, so a missing one
+      // is a test/ping, not a malformed real call. A non-2xx here is
+      // exactly what makes Shiprocket's dashboard show the connection as
+      // failing even though the token and URL are both actually correct.
+      return jsonResponse({ received: true, test: true });
     }
 
     const supabase = serviceClient();
