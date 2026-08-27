@@ -32,6 +32,7 @@ import {
 import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Pencil, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { VendorImportExportDialog } from "./VendorImportExportDialog";
 
 interface AdminVendor {
   id: string;
@@ -155,8 +156,9 @@ export function VendorManagement() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Vendor applications & stores</CardTitle>
+        <VendorImportExportDialog vendors={vendors} onImported={fetchVendors} />
       </CardHeader>
       <CardContent>
         {loading ? (
