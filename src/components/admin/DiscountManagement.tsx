@@ -44,6 +44,7 @@ import {
 import { useDiscounts, Discount, DiscountFormData } from "@/hooks/useDiscounts";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { DiscountImportExportDialog } from "./DiscountImportExportDialog";
 
 export function DiscountManagement() {
   const {
@@ -359,6 +360,12 @@ export function DiscountManagement() {
             Manage promotional codes and discounts
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <DiscountImportExportDialog
+          discounts={discounts}
+          addDiscount={addDiscount}
+          updateDiscount={updateDiscount}
+        />
         <Dialog open={isAddingDiscount} onOpenChange={setIsAddingDiscount}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
@@ -376,6 +383,7 @@ export function DiscountManagement() {
             {renderDiscountFormContent()}
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <CardContent className="p-6">

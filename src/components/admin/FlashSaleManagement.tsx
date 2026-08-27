@@ -37,6 +37,7 @@ import { useFlashSales, FlashSale, FlashSaleFormData } from "@/hooks/useFlashSal
 import { useProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { FlashSaleImportExportDialog } from "./FlashSaleImportExportDialog";
 
 export function FlashSaleManagement() {
   const {
@@ -316,6 +317,12 @@ export function FlashSaleManagement() {
             Create time-limited promotional sales
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <FlashSaleImportExportDialog
+          flashSales={flashSales}
+          createFlashSale={createFlashSale}
+          updateFlashSale={updateFlashSale}
+        />
         <Dialog open={isAddingFlashSale} onOpenChange={setIsAddingFlashSale}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
@@ -333,6 +340,7 @@ export function FlashSaleManagement() {
             {renderFlashSaleFormContent()}
           </DialogContent>
         </Dialog>
+        </div>
       </CardHeader>
 
       <CardContent>

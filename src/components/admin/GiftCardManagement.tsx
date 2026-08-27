@@ -36,6 +36,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { GiftCardImportExportDialog } from "./GiftCardImportExportDialog";
 
 interface GiftCard {
   id: string;
@@ -391,6 +392,8 @@ export function GiftCardManagement() {
             Create and manage gift cards
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <GiftCardImportExportDialog giftCards={giftCards} onImported={fetchGiftCards} />
         <Dialog open={isAddingGiftCard} onOpenChange={setIsAddingGiftCard}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>
@@ -408,6 +411,7 @@ export function GiftCardManagement() {
             {renderGiftCardFormContent()}
           </DialogContent>
         </Dialog>
+        </div>
       </CardHeader>
 
       <CardContent>
