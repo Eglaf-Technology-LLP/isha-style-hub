@@ -157,7 +157,13 @@ export function FlashSaleManagement() {
     );
   }
 
-  const FlashSaleFormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
+  // A plain function returning JSX, called directly - not a JSX component.
+  // As `const FlashSaleFormContent = (...) => (...)` used via
+  // `<FlashSaleFormContent />`, this got a brand-new function identity every
+  // render (any keystroke re-renders the parent), which made React treat it
+  // as a different component type each time and remount the whole subtree -
+  // every input lost focus after a single character.
+  const renderFlashSaleFormContent = ({ isEdit = false }: { isEdit?: boolean } = {}) => (
     <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-2">
         <Label>Sale Name *</Label>
@@ -324,7 +330,7 @@ export function FlashSaleManagement() {
                 Set up a time-limited promotional sale
               </DialogDescription>
             </DialogHeader>
-            <FlashSaleFormContent />
+            {renderFlashSaleFormContent()}
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -399,7 +405,7 @@ export function FlashSaleManagement() {
                             Update flash sale details
                           </DialogDescription>
                         </DialogHeader>
-                        <FlashSaleFormContent isEdit />
+                        {renderFlashSaleFormContent({ isEdit: true })}
                       </DialogContent>
                     </Dialog>
                     <AlertDialog>

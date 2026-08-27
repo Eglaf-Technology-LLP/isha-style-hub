@@ -246,7 +246,13 @@ export function GiftCardManagement() {
     );
   }
 
-  const GiftCardFormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
+  // A plain function returning JSX, called directly - not a JSX component.
+  // As `const GiftCardFormContent = (...) => (...)` used via
+  // `<GiftCardFormContent />`, this got a brand-new function identity every
+  // render (any keystroke in the form re-renders the parent), which made
+  // React treat it as a different component type each time and remount the
+  // whole subtree - every input lost focus after a single character.
+  const renderGiftCardFormContent = ({ isEdit = false }: { isEdit?: boolean } = {}) => (
     <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-2">
         <Label>Gift Card Code</Label>
@@ -399,7 +405,7 @@ export function GiftCardManagement() {
                 Create a new gift card with a unique code
               </DialogDescription>
             </DialogHeader>
-            <GiftCardFormContent />
+            {renderGiftCardFormContent()}
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -484,7 +490,7 @@ export function GiftCardManagement() {
                             Update gift card details
                           </DialogDescription>
                         </DialogHeader>
-                        <GiftCardFormContent isEdit />
+                        {renderGiftCardFormContent({ isEdit: true })}
                       </DialogContent>
                     </Dialog>
                     <AlertDialog>

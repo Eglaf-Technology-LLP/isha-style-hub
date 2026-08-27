@@ -164,7 +164,13 @@ export function DiscountManagement() {
     );
   }
 
-  const DiscountFormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
+  // A plain function returning JSX, called directly - not a JSX component.
+  // As `const DiscountFormContent = (...) => (...)` used via
+  // `<DiscountFormContent />`, this got a brand-new function identity every
+  // render (any keystroke re-renders the parent), which made React treat it
+  // as a different component type each time and remount the whole subtree -
+  // every input lost focus after a single character.
+  const renderDiscountFormContent = ({ isEdit = false }: { isEdit?: boolean } = {}) => (
     <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -367,7 +373,7 @@ export function DiscountManagement() {
                 Create a new discount or coupon code
               </DialogDescription>
             </DialogHeader>
-            <DiscountFormContent />
+            {renderDiscountFormContent()}
           </DialogContent>
         </Dialog>
       </div>
@@ -452,7 +458,7 @@ export function DiscountManagement() {
                           Update discount details
                         </DialogDescription>
                       </DialogHeader>
-                      <DiscountFormContent isEdit />
+                      {renderDiscountFormContent({ isEdit: true })}
                     </DialogContent>
                   </Dialog>
                   <AlertDialog>
