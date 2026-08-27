@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { useRefunds } from "@/hooks/useRefunds";
 import { RefundReceiptDialog } from "@/components/RefundReceiptDialog";
 
-const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+export const refundStatusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   initiated: { label: "Initiated", variant: "secondary" },
   processing: { label: "Processing", variant: "outline" },
   processed: { label: "Processed", variant: "default" },
@@ -33,7 +33,7 @@ export function RefundHistory({ orderId }: { orderId: string }) {
   return (
     <div className="space-y-2">
       {refunds.map((refund) => {
-        const config = statusConfig[refund.status] || statusConfig.initiated;
+        const config = refundStatusConfig[refund.status] || refundStatusConfig.initiated;
         return (
           <div key={refund.id} className="p-3 border border-border rounded-lg text-sm space-y-1">
             <div className="flex items-center justify-between">
