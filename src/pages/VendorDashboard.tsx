@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useVendor } from "@/hooks/useVendor";
+import { useCategories } from "@/hooks/useCategories";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialo
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
+import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
@@ -104,6 +106,7 @@ const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_
 export default function VendorDashboard() {
   const { vendor, loading, refresh: refreshVendor } = useVendor();
   const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id);
+  const { categories } = useCategories();
   const navigate = useNavigate();
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -437,15 +440,24 @@ export default function VendorDashboard() {
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" /> Your products
                 </CardTitle>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setEditingProduct(null);
-                    setProductDialogOpen(true);
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" /> Add product
-                </Button>
+                <div className="flex items-center gap-2">
+                  <ProductImportExportDialog
+                    products={products}
+                    categories={categories}
+                    vendorId={vendor.id}
+                    isVendorTrusted={vendor.is_trusted}
+                    onImported={fetchAll}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setProductDialogOpen(true);
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Add product
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {dataLoading ? (

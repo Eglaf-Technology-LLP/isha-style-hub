@@ -37,11 +37,14 @@ export function useCategories() {
     }
   };
 
-  const addCategory = async (name: string, description?: string, imageFile?: File) => {
+  const addCategory = async (name: string, description?: string, imageFile?: File, imageUrl?: string) => {
     try {
       const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-      let image_url = null;
+      // imageFile (a real upload) takes priority; imageUrl is the bulk-
+      // import path, where a spreadsheet cell can only ever carry a URL,
+      // never a file.
+      let image_url = imageUrl || null;
 
       if (imageFile) {
         const fileExt = imageFile.name.split('.').pop();
@@ -89,6 +92,9 @@ export function useCategories() {
 
   const updateCategory = async (id: string, updates: Partial<Category>, imageFile?: File) => {
     try {
+      // updates.image_url already carries the bulk-import URL path when
+      // set directly by the caller (no separate imageUrl param needed here
+      // since, unlike addCategory, this already takes a full Partial<Category>).
       let image_url = updates.image_url;
 
       if (imageFile) {

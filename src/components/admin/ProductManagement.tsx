@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/useProducts";
 import { Category } from "@/hooks/useCategories";
+import { ProductImportExportDialog } from "./ProductImportExportDialog";
 import { Link } from "react-router-dom";
 import { VariantManager } from "./VariantManager";
 import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
@@ -64,6 +65,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     deleteProduct,
     toggleProductStatus,
     removeProductImage,
+    refetch,
   } = useProducts();
 
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
@@ -553,6 +555,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         </div>
         <div className="flex items-center gap-2">
           <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
+          <ProductImportExportDialog products={products} categories={categories} onImported={refetch} />
         <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
           <DialogTrigger asChild>
             <Button onClick={() => resetForm()}>

@@ -33,6 +33,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCategories, Category } from "@/hooks/useCategories";
+import { CategoryImportExportDialog } from "./CategoryImportExportDialog";
 
 export function CategoryManagement() {
   const {
@@ -234,23 +235,26 @@ export function CategoryManagement() {
             Manage product categories with images
           </p>
         </div>
-        <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
-          <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Category
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Category</DialogTitle>
-              <DialogDescription>
-                Create a new product category
-              </DialogDescription>
-            </DialogHeader>
-            {renderFormFields(false)}
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <CategoryImportExportDialog categories={categories} />
+          <Dialog open={isAddingCategory} onOpenChange={setIsAddingCategory}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Category
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Category</DialogTitle>
+                <DialogDescription>
+                  Create a new product category
+                </DialogDescription>
+              </DialogHeader>
+              {renderFormFields(false)}
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <CardContent className="p-6">
