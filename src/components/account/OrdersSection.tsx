@@ -283,22 +283,31 @@ export function OrdersSection() {
                                 </p>
                               )}
                               {group.items.map((item) => (
-                                <div key={item.id} className="flex items-center gap-2 text-sm">
+                                <div key={item.id} className="flex items-start gap-2 text-sm">
                                   {item.image ? (
                                     <img src={item.image} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
                                   ) : (
                                     <div className="h-9 w-9 rounded bg-muted shrink-0" />
                                   )}
                                   <div className="flex-1 min-w-0">
-                                    <span className="font-medium">{item.product_title}</span>
-                                    {(item.size || item.color) && (
-                                      <span className="text-muted-foreground">
-                                        {" "}• {[item.size, item.color].filter(Boolean).join(" / ")}
-                                      </span>
-                                    )}
-                                    <span className="text-muted-foreground"> x{item.quantity}</span>
+                                    <p className="font-medium truncate">{item.product_title}</p>
+                                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                                      {item.size && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                          Size {item.size}
+                                        </Badge>
+                                      )}
+                                      {item.color && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                          {item.color}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                        Qty {item.quantity}
+                                      </Badge>
+                                    </div>
                                   </div>
-                                  <span className="shrink-0">₹{(item.price * item.quantity).toFixed(0)}</span>
+                                  <span className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
                                 </div>
                               ))}
                               {group.vendorOrder && (

@@ -365,7 +365,7 @@ export default function OrderHistory() {
                               {group.items.map((item) => (
                                 <div
                                   key={item.id}
-                                  className="flex items-center gap-3 border-b border-border pb-3 last:border-0"
+                                  className="flex items-start gap-3 border-b border-border pb-3 last:border-0"
                                 >
                                   {item.image ? (
                                     <img src={item.image} alt="" className="h-14 w-14 rounded-md object-cover shrink-0" />
@@ -374,12 +374,26 @@ export default function OrderHistory() {
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <p className="font-medium">{item.product_title}</p>
-                                    <div className="text-sm text-muted-foreground">
-                                      {item.variant_title && <span>{item.variant_title}</span>}
-                                      {item.size && <span> • Size: {item.size}</span>}
-                                      {item.color && <span> • Color: {item.color}</span>}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                      {item.variant_title && (
+                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                                          {item.variant_title}
+                                        </Badge>
+                                      )}
+                                      {item.size && (
+                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                                          Size {item.size}
+                                        </Badge>
+                                      )}
+                                      {item.color && (
+                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                                          {item.color}
+                                        </Badge>
+                                      )}
+                                      <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
+                                        Qty {item.quantity}
+                                      </Badge>
                                     </div>
-                                    <p className="text-sm">Qty: {item.quantity}</p>
                                   </div>
                                   <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
                                 </div>
