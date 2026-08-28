@@ -32,8 +32,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { vendor_order_id, courier_id } = await req.json();
+    const { vendor_order_id, courier_id, courier_etd } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
+
+    // courier_etd is the exact date already shown to the vendor for this
+    // courier before booking (checkCourierServiceability) - persisted here
+    // since it's the only place it can live once a shipment exists.
+    // Validated the same way DeliveryEstimate.tsx already proves a real
+    // etd behaves (a valid Date, not a relative string like "3 days") -
+    // never blocks booking on a missing/malformed value.
+    const parsedEtd = courier_etd ? new Date(courier_etd) : null;
+    const estimatedDeliveryDate =
+      parsedEtd && !isNaN(parsedEtd.getTime()) ? parsedEtd.toISOString().slice(0, 10) : null;
 
     const userId = await getCallerUserId(req);
     if (!userId) return jsonResponse({ error: "Unauthorized" }, 401);
@@ -190,6 +200,7 @@ Deno.serve(async (req) => {
         status: p.awb_code ? "awb_assigned" : "pending",
         label_url: p.label_url ?? null,
         manifest_url: p.manifest_url ?? null,
+        estimated_delivery_date: estimatedDeliveryDate,
       })
       .select()
       .single();

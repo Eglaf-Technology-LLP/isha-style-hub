@@ -14,29 +14,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
-import { OrderCancellationDialog } from "@/components/OrderCancellationDialog";
+import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
+import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { resolveOrderItemImages } from "@/lib/orderItemImage";
 
-// Matches cancel-vendor-order's own BLOCKED_STATUSES - kept here purely to
-// decide whether to show the Cancel button at all; the edge function is
-// still the real authority and re-checks this itself.
+// Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
+// purely to decide whether to show the Cancel action at all; the edge
+// function is still the real authority and re-checks this itself.
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 interface OrderItem {
   id: string;
+  product_id: string;
+  variant_id: string;
   product_title: string;
   variant_title: string | null;
   quantity: number;
   price: number;
   size: string | null;
   color: string | null;
+  vendor_order_id: string | null;
+  image: string | null;
 }
 
-interface VendorOrderStatus {
+// Internal fulfillment/grouping details only - never rendered as "which
+// vendor," just used to derive a status timeline and to know which items
+// ship together.
+interface VendorOrderInfo {
   id: string;
-  vendor_id: string;
-  vendor_name: string;
   status: string;
-  awb_code: string | null;
+  updated_at: string;
+  shipment: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
 }
 
 interface Order {
@@ -49,10 +58,12 @@ interface Order {
   shipping_cost: number;
   total: number;
   order_items: OrderItem[];
-  vendor_orders: VendorOrderStatus[];
+  vendor_orders: VendorOrderInfo[];
 }
 
-const statusColors: Record<string, string> = {
+// Used only for the single-shipment summary badge in the collapsed card
+// header - the expanded timeline is the detailed view.
+const shipmentStatusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-blue-100 text-blue-800",
   processing: "bg-purple-100 text-purple-800",
@@ -77,7 +88,6 @@ export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [cancellingVendorOrder, setCancellingVendorOrder] = useState<VendorOrderStatus | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
@@ -106,32 +116,53 @@ export function OrdersSection() {
 
       if (error) throw error;
 
-      // Fetch order items and each vendor's own fulfillment status - a
-      // multi-vendor order has one top-level order_status but each vendor
-      // updates their own vendor_orders.status independently.
+      // Fetch order items and each shipment's own fulfillment status - a
+      // multi-item order can have more than one shipment, each updating
+      // independently, even though vendor identity is never shown here.
       const ordersWithItems = await Promise.all(
         (ordersData || []).map(async (order) => {
           const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
             supabase
               .from("order_items")
-              .select("id, product_title, variant_title, quantity, price, size, color")
+              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, size, color, vendor_order_id")
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
-              .select("id, vendor_id, status, vendor:vendors(name), shipments(awb_code, shipment_type)")
+              .select(
+                "id, status, updated_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+              )
               .eq("order_id", order.id),
           ]);
 
+          const imageByItemId = await resolveOrderItemImages(
+            (itemsData || []).map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id })),
+          );
+
           return {
             ...order,
-            order_items: itemsData || [],
-            vendor_orders: (vendorOrdersData || []).map((vo: any) => ({
-              id: vo.id,
-              vendor_id: vo.vendor_id,
-              vendor_name: vo.vendor?.name || "Vendor",
-              status: vo.status,
-              awb_code: (vo.shipments || []).find((s: any) => s.shipment_type === "forward")?.awb_code || null,
+            order_items: (itemsData || []).map((item) => ({
+              ...item,
+              image: imageByItemId.get(item.id) ?? null,
             })),
+            vendor_orders: (vendorOrdersData || []).map((vo: any) => {
+              const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
+              return {
+                id: vo.id,
+                status: vo.status,
+                updated_at: vo.updated_at,
+                shipment: forwardShipment
+                  ? {
+                      awb_code: forwardShipment.awb_code,
+                      courier_name: forwardShipment.courier_name,
+                      created_at: forwardShipment.created_at,
+                      pickup_scheduled_at: forwardShipment.pickup_scheduled_at,
+                      picked_up_at: forwardShipment.picked_up_at,
+                      delivered_at: forwardShipment.delivered_at,
+                      estimated_delivery_date: forwardShipment.estimated_delivery_date,
+                    }
+                  : null,
+              };
+            }),
           };
         })
       );
@@ -181,7 +212,27 @@ export function OrdersSection() {
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {orders.map((order) => {
+              const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
+              const itemsByVendorOrder = new Map<string, OrderItem[]>();
+              for (const item of order.order_items) {
+                const key = item.vendor_order_id ?? "";
+                itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
+              }
+              const shipmentGroups = [...itemsByVendorOrder.entries()]
+                .map(([vendorOrderId, groupItems]) => ({
+                  vendorOrderId,
+                  items: groupItems,
+                  vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
+                }))
+                .filter((g) => g.vendorOrder);
+              const showGroupLabels = shipmentGroups.length > 1;
+
+              const hasCancellableItems = order.vendor_orders.some(
+                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
+              );
+
+              return (
               <Card key={order.id}>
                 <CardContent className="pt-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
@@ -193,10 +244,24 @@ export function OrdersSection() {
                         {format(new Date(order.created_at), "PPP")}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Badge className={statusColors[order.order_status] || "bg-muted"}>
-                        {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
+                        <Badge className={`${shipmentStatusColors[shipmentGroups[0].vendorOrder.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
+                          {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
+                            shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                        </Badge>
+                      )}
+                      {hasCancellableItems && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+                          onClick={() => setCancellingOrder(order)}
+                        >
+                          <Ban className="h-3 w-3" />
+                          Cancel Order
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -208,66 +273,47 @@ export function OrdersSection() {
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="space-y-2 pt-2">
-                          {order.order_items.map((item) => (
-                            <div key={item.id} className="flex justify-between text-sm">
-                              <div>
-                                <span className="font-medium">{item.product_title}</span>
-                                {(item.size || item.color) && (
-                                  <span className="text-muted-foreground">
-                                    {" "}• {[item.size, item.color].filter(Boolean).join(" / ")}
-                                  </span>
-                                )}
-                                <span className="text-muted-foreground"> x{item.quantity}</span>
-                              </div>
-                              <span>₹{(item.price * item.quantity).toFixed(0)}</span>
+                        <div className="space-y-3">
+                          {shipmentGroups.map((group, i) => (
+                            <div key={group.vendorOrderId || i} className={showGroupLabels ? "border border-border rounded-lg p-2 space-y-2" : "space-y-2"}>
+                              {showGroupLabels && (
+                                <p className="text-[10px] font-medium text-muted-foreground">
+                                  Part {i + 1} of {shipmentGroups.length}
+                                </p>
+                              )}
+                              {group.items.map((item) => (
+                                <div key={item.id} className="flex items-center gap-2 text-sm">
+                                  {item.image ? (
+                                    <img src={item.image} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
+                                  ) : (
+                                    <div className="h-9 w-9 rounded bg-muted shrink-0" />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium">{item.product_title}</span>
+                                    {(item.size || item.color) && (
+                                      <span className="text-muted-foreground">
+                                        {" "}• {[item.size, item.color].filter(Boolean).join(" / ")}
+                                      </span>
+                                    )}
+                                    <span className="text-muted-foreground"> x{item.quantity}</span>
+                                  </div>
+                                  <span className="shrink-0">₹{(item.price * item.quantity).toFixed(0)}</span>
+                                </div>
+                              ))}
+                              {group.vendorOrder && (
+                                <OrderStatusTimeline
+                                  compact
+                                  timeline={buildOrderTimeline({
+                                    vendorOrderStatus: group.vendorOrder.status,
+                                    vendorOrderUpdatedAt: group.vendorOrder.updated_at,
+                                    orderPlacedAt: order.created_at,
+                                    shipment: group.vendorOrder.shipment,
+                                  })}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
-                        {/* Per-vendor fulfillment status */}
-                        {order.vendor_orders.length > 0 && (
-                          <div className="pt-3 border-t space-y-1.5 mt-2">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {order.vendor_orders.length > 1
-                                ? "Fulfillment Status by Vendor"
-                                : "Fulfillment Status"}
-                            </p>
-                            {order.vendor_orders.map((vo) => (
-                              <div key={vo.vendor_id} className="flex items-center justify-between gap-2 text-xs">
-                                <span className="font-medium">{vo.vendor_name}</span>
-                                <div className="flex items-center gap-2">
-                                  {vo.awb_code && (
-                                    <a
-                                      href={`https://shiprocket.co/tracking/${vo.awb_code}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-primary hover:underline"
-                                    >
-                                      Track
-                                    </a>
-                                  )}
-                                  <Badge className={`${statusColors[vo.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
-                                    {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
-                                  </Badge>
-                                  {!NOT_CANCELLABLE_STATUSES.includes(vo.status) && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive gap-1"
-                                      onClick={() => {
-                                        setCancellingVendorOrder(vo);
-                                        setCancellingOrder(order);
-                                      }}
-                                    >
-                                      <Ban className="h-2.5 w-2.5" />
-                                      Cancel
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                         {/* Return/Exchange status */}
                         {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                           <div className="pt-3 border-t space-y-2 mt-2">
@@ -309,22 +355,35 @@ export function OrdersSection() {
                   </Accordion>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
     </Card>
-    {cancellingVendorOrder && cancellingOrder && (
+    {cancellingOrder && (
       <OrderCancellationDialog
-        vendorOrderId={cancellingVendorOrder.id}
-        vendorName={cancellingVendorOrder.vendor_name}
+        items={cancellingOrder.order_items
+          .filter((item) => item.vendor_order_id)
+          .map((item): CancellableOrderItem => {
+            const vo = cancellingOrder.vendor_orders.find((v) => v.id === item.vendor_order_id);
+            return {
+              id: item.id,
+              vendorOrderId: item.vendor_order_id as string,
+              vendorOrderStatus: vo?.status ?? "pending",
+              productTitle: item.product_title,
+              variantTitle: item.variant_title,
+              size: item.size,
+              color: item.color,
+              quantity: item.quantity,
+              price: item.price,
+              image: item.image,
+            };
+          })}
         isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
-        open={!!cancellingVendorOrder}
+        open={!!cancellingOrder}
         onOpenChange={(open) => {
-          if (!open) {
-            setCancellingVendorOrder(null);
-            setCancellingOrder(null);
-          }
+          if (!open) setCancellingOrder(null);
         }}
         onSuccess={fetchOrders}
       />

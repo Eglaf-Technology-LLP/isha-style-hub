@@ -18,7 +18,7 @@ interface ShipNowDialogProps {
   vendorOrderId: string;
   actioning: boolean;
   checkServiceability: (vendorOrderId: string) => Promise<{ couriers: CourierOption[] } | null>;
-  shipNow: (vendorOrderId: string, courierId?: number) => Promise<boolean>;
+  shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null) => Promise<boolean>;
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
 }
@@ -58,7 +58,8 @@ export function ShipNowDialog({
   const confirmShip = async () => {
     if (!selectedCourierId) return;
     setBooking(true);
-    const success = await shipNow(vendorOrderId, selectedCourierId);
+    const selectedEtd = couriers?.find((c) => c.courierId === selectedCourierId)?.etd ?? null;
+    const success = await shipNow(vendorOrderId, selectedCourierId, selectedEtd);
     setBooking(false);
     if (success) setOpen(false);
   };

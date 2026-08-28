@@ -27,7 +27,7 @@ verify_jwt = true
 verify_jwt = true
 [functions.create-razorpay-refund]
 verify_jwt = true
-[functions.cancel-vendor-order]
+[functions.cancel-order-items]
 verify_jwt = true
 
 # Called only server-to-server from cancel-vendor-order (via the

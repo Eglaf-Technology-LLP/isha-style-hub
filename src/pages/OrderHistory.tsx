@@ -17,34 +17,41 @@ import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
-import { OrderCancellationDialog } from "@/components/OrderCancellationDialog";
+import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
+import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { resolveOrderItemImages } from "@/lib/orderItemImage";
 
-// Matches cancel-vendor-order's own BLOCKED_STATUSES - kept here purely to
-// decide whether to show the Cancel button at all; the edge function is
-// still the real authority and re-checks this itself.
+// Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
+// purely to decide whether to show the Cancel action at all; the edge
+// function is still the real authority and re-checks this itself.
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 interface OrderItem {
   id: string;
+  product_id: string;
+  variant_id: string;
   product_title: string;
   variant_title: string | null;
   quantity: number;
   price: number;
   size: string | null;
   color: string | null;
-  vendor_id: string | null;
+  vendor_order_id: string | null;
   is_returnable: boolean;
+  image: string | null;
 }
 
-interface VendorOrderStatus {
+// Every field here is an internal fulfillment/grouping detail - never
+// rendered as "which vendor," only used to derive a status timeline and to
+// know which items ship together.
+interface VendorOrderInfo {
   id: string;
-  vendor_id: string;
-  vendor_name: string;
   status: string;
+  updated_at: string;
   tracking_number: string | null;
   carrier: string | null;
-  awb_code: string | null;
-  courier_name: string | null;
+  shipment: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
 }
 
 interface Order {
@@ -65,20 +72,8 @@ interface Order {
     pincode: string;
   };
   order_items: OrderItem[];
-  vendor_orders: VendorOrderStatus[];
+  vendor_orders: VendorOrderInfo[];
 }
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-800",
-  confirmed: "bg-blue-100 text-blue-800",
-  processing: "bg-purple-100 text-purple-800",
-  shipped: "bg-indigo-100 text-indigo-800",
-  out_for_delivery: "bg-indigo-100 text-indigo-800",
-  delivered: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  returned: "bg-gray-100 text-gray-800",
-  ndr: "bg-orange-100 text-orange-800",
-};
 
 const returnStatusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending Review", className: "bg-yellow-100 text-yellow-800" },
@@ -96,6 +91,21 @@ const paymentStatusColors: Record<string, string> = {
   refunded: "bg-gray-100 text-gray-800",
 };
 
+// Used only for the single-shipment summary badge in the collapsed card
+// header - the expanded timeline is the detailed view, this is just a
+// glance without expanding.
+const shipmentStatusColors: Record<string, string> = {
+  pending: "bg-yellow-100 text-yellow-800",
+  confirmed: "bg-blue-100 text-blue-800",
+  processing: "bg-purple-100 text-purple-800",
+  shipped: "bg-indigo-100 text-indigo-800",
+  out_for_delivery: "bg-indigo-100 text-indigo-800",
+  delivered: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800",
+  returned: "bg-gray-100 text-gray-800",
+  ndr: "bg-orange-100 text-orange-800",
+};
+
 export default function OrderHistory() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -103,7 +113,6 @@ export default function OrderHistory() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
-  const [cancellingVendorOrder, setCancellingVendorOrder] = useState<VendorOrderStatus | null>(null);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
@@ -133,10 +142,10 @@ export default function OrderHistory() {
 
       if (ordersError) throw ordersError;
 
-      // Fetch order items and each vendor's own fulfillment status for
-      // each order - a multi-vendor order has one order_status at the
-      // top level but each vendor updates their own vendor_orders.status
-      // independently, so the customer needs to see both.
+      // Fetch order items and each shipment's own fulfillment status for
+      // each order - a multi-item order can have more than one shipment
+      // (each with its own status/dates) even though vendor identity is
+      // never surfaced to the customer.
       const ordersWithItems = await Promise.all(
         (ordersData || []).map(async (order) => {
           const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
@@ -144,26 +153,41 @@ export default function OrderHistory() {
             supabase
               .from("vendor_orders")
               .select(
-                "id, vendor_id, status, tracking_number, carrier, vendor:vendors(name), shipments(awb_code, courier_name, shipment_type)"
+                "id, status, updated_at, tracking_number, carrier, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
           ]);
 
+          const imageByItemId = await resolveOrderItemImages(
+            (itemsData || []).map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id })),
+          );
+
           return {
             ...order,
             shipping_address: order.shipping_address as Order["shipping_address"],
-            order_items: itemsData || [],
+            order_items: (itemsData || []).map((item) => ({
+              ...item,
+              image: imageByItemId.get(item.id) ?? null,
+            })),
             vendor_orders: (vendorOrdersData || []).map((vo: any) => {
               const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
               return {
                 id: vo.id,
-                vendor_id: vo.vendor_id,
-                vendor_name: vo.vendor?.name || "Vendor",
                 status: vo.status,
+                updated_at: vo.updated_at,
                 tracking_number: vo.tracking_number,
                 carrier: vo.carrier,
-                awb_code: forwardShipment?.awb_code || null,
-                courier_name: forwardShipment?.courier_name || null,
+                shipment: forwardShipment
+                  ? {
+                      awb_code: forwardShipment.awb_code,
+                      courier_name: forwardShipment.courier_name,
+                      created_at: forwardShipment.created_at,
+                      pickup_scheduled_at: forwardShipment.pickup_scheduled_at,
+                      picked_up_at: forwardShipment.picked_up_at,
+                      delivered_at: forwardShipment.delivered_at,
+                      estimated_delivery_date: forwardShipment.estimated_delivery_date,
+                    }
+                  : null,
               };
             }),
           };
@@ -236,7 +260,7 @@ export default function OrderHistory() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -263,7 +287,28 @@ export default function OrderHistory() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {orders.map((order) => (
+            {orders.map((order) => {
+              const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
+              const itemsByVendorOrder = new Map<string, OrderItem[]>();
+              for (const item of order.order_items) {
+                const key = item.vendor_order_id ?? "";
+                itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
+              }
+              const shipmentGroups = [...itemsByVendorOrder.entries()]
+                .map(([vendorOrderId, groupItems]) => ({
+                  vendorOrderId,
+                  items: groupItems,
+                  vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
+                }))
+                .filter((g) => g.vendorOrder);
+              const showGroupLabels = shipmentGroups.length > 1;
+
+              const hasCancellableItems = order.vendor_orders.some(
+                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
+              );
+              const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
+
+              return (
               <Card key={order.id}>
                 <CardHeader className="pb-2">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -275,13 +320,27 @@ export default function OrderHistory() {
                         Placed on {format(new Date(order.created_at), "PPP 'at' p")}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Badge className={statusColors[order.order_status] || "bg-muted"}>
-                        {order.order_status.charAt(0).toUpperCase() + order.order_status.slice(1)}
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
+                        <Badge className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status] || "bg-muted"}>
+                          {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
+                            shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                        </Badge>
+                      )}
                       <Badge className={paymentStatusColors[order.payment_status] || "bg-muted"}>
                         Payment: {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
                       </Badge>
+                      {hasCancellableItems && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
+                          onClick={() => setCancellingOrder(order)}
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          Cancel Order
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -294,26 +353,72 @@ export default function OrderHistory() {
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="space-y-3 pt-2">
-                          {order.order_items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex justify-between items-start border-b border-border pb-3 last:border-0"
-                            >
-                              <div>
-                                <p className="font-medium">{item.product_title}</p>
-                                <div className="text-sm text-muted-foreground">
-                                  {item.variant_title && <span>{item.variant_title}</span>}
-                                  {item.size && <span> • Size: {item.size}</span>}
-                                  {item.color && <span> • Color: {item.color}</span>}
+                        <div className="space-y-5 pt-2">
+                          {shipmentGroups.map((group, i) => (
+                            <div key={group.vendorOrderId || i} className={showGroupLabels ? "border border-border rounded-lg p-3 space-y-3" : "space-y-3"}>
+                              {showGroupLabels && (
+                                <p className="text-xs font-medium text-muted-foreground">
+                                  Part {i + 1} of {shipmentGroups.length}
+                                </p>
+                              )}
+                              {group.items.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="flex items-center gap-3 border-b border-border pb-3 last:border-0"
+                                >
+                                  {item.image ? (
+                                    <img src={item.image} alt="" className="h-14 w-14 rounded-md object-cover shrink-0" />
+                                  ) : (
+                                    <div className="h-14 w-14 rounded-md bg-muted shrink-0" />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium">{item.product_title}</p>
+                                    <div className="text-sm text-muted-foreground">
+                                      {item.variant_title && <span>{item.variant_title}</span>}
+                                      {item.size && <span> • Size: {item.size}</span>}
+                                      {item.color && <span> • Color: {item.color}</span>}
+                                    </div>
+                                    <p className="text-sm">Qty: {item.quantity}</p>
+                                  </div>
+                                  <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
                                 </div>
-                                <p className="text-sm">Qty: {item.quantity}</p>
-                              </div>
-                              <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
+                              ))}
+                              {group.vendorOrder && (
+                                <div className="pt-1 space-y-2">
+                                  <OrderStatusTimeline
+                                    timeline={buildOrderTimeline({
+                                      vendorOrderStatus: group.vendorOrder.status,
+                                      vendorOrderUpdatedAt: group.vendorOrder.updated_at,
+                                      orderPlacedAt: order.created_at,
+                                      shipment: group.vendorOrder.shipment,
+                                    })}
+                                  />
+                                  {group.vendorOrder.shipment?.awb_code ? (
+                                    <a
+                                      href={`https://shiprocket.co/tracking/${group.vendorOrder.shipment.awb_code}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-xs text-primary hover:underline inline-block"
+                                    >
+                                      {group.vendorOrder.shipment.courier_name
+                                        ? `${group.vendorOrder.shipment.courier_name} • `
+                                        : ""}
+                                      Track shipment
+                                    </a>
+                                  ) : (
+                                    group.vendorOrder.tracking_number && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {group.vendorOrder.carrier ? `${group.vendorOrder.carrier} • ` : ""}
+                                        {group.vendorOrder.tracking_number}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))}
-                          
-                          <div className="pt-3 space-y-1 text-sm">
+
+                          <div className="pt-3 space-y-1 text-sm border-t">
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">Subtotal</span>
                               <span>₹{order.subtotal.toFixed(2)}</span>
@@ -327,59 +432,6 @@ export default function OrderHistory() {
                               <span>₹{order.total.toFixed(2)}</span>
                             </div>
                           </div>
-                          
-                          {order.vendor_orders.length > 0 && (
-                            <div className="pt-4 border-t space-y-2">
-                              <p className="text-sm font-medium">
-                                {order.vendor_orders.length > 1
-                                  ? "Fulfillment Status by Vendor"
-                                  : "Fulfillment Status"}
-                              </p>
-                              {order.vendor_orders.map((vo) => (
-                                <div
-                                  key={vo.vendor_id}
-                                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-muted rounded-lg text-sm"
-                                >
-                                  <span className="font-medium">{vo.vendor_name}</span>
-                                  <div className="flex items-center gap-2">
-                                    {vo.awb_code ? (
-                                      <a
-                                        href={`https://shiprocket.co/tracking/${vo.awb_code}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs text-primary hover:underline"
-                                      >
-                                        {vo.courier_name ? `${vo.courier_name} • ` : ""}Track shipment
-                                      </a>
-                                    ) : (
-                                      vo.tracking_number && (
-                                        <span className="text-xs text-muted-foreground">
-                                          {vo.carrier ? `${vo.carrier} • ` : ""}{vo.tracking_number}
-                                        </span>
-                                      )
-                                    )}
-                                    <Badge className={statusColors[vo.status] || "bg-muted"}>
-                                      {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
-                                    </Badge>
-                                    {!NOT_CANCELLABLE_STATUSES.includes(vo.status) && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-xs text-destructive hover:text-destructive gap-1"
-                                        onClick={() => {
-                                          setCancellingVendorOrder(vo);
-                                          setCancellingOrder(order);
-                                        }}
-                                      >
-                                        <Ban className="h-3 w-3" />
-                                        Cancel
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
 
                           <div className="pt-4 border-t">
                             <p className="text-sm font-medium mb-1">Shipping Address</p>
@@ -467,7 +519,8 @@ export default function OrderHistory() {
                   </Accordion>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -486,17 +539,29 @@ export default function OrderHistory() {
         />
       )}
 
-      {cancellingVendorOrder && cancellingOrder && (
+      {cancellingOrder && (
         <OrderCancellationDialog
-          vendorOrderId={cancellingVendorOrder.id}
-          vendorName={cancellingVendorOrder.vendor_name}
+          items={cancellingOrder.order_items
+            .filter((item) => item.vendor_order_id)
+            .map((item): CancellableOrderItem => {
+              const vo = cancellingOrder.vendor_orders.find((v) => v.id === item.vendor_order_id);
+              return {
+                id: item.id,
+                vendorOrderId: item.vendor_order_id as string,
+                vendorOrderStatus: vo?.status ?? "pending",
+                productTitle: item.product_title,
+                variantTitle: item.variant_title,
+                size: item.size,
+                color: item.color,
+                quantity: item.quantity,
+                price: item.price,
+                image: item.image,
+              };
+            })}
           isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
-          open={!!cancellingVendorOrder}
+          open={!!cancellingOrder}
           onOpenChange={(open) => {
-            if (!open) {
-              setCancellingVendorOrder(null);
-              setCancellingOrder(null);
-            }
+            if (!open) setCancellingOrder(null);
           }}
           onSuccess={checkAuthAndFetchOrders}
         />

@@ -26,6 +26,7 @@ export interface Shipment {
   picked_up_at: string | null;
   delivered_at: string | null;
   rto_initiated_at: string | null;
+  estimated_delivery_date: string | null;
   created_at: string;
 }
 
@@ -81,11 +82,15 @@ export function useShipments(vendorOrderIds: string[]) {
   };
 
   // Step 2: actually book the pickup with the courier the vendor chose.
-  const shipNow = async (vendorOrderId: string, courierId?: number): Promise<boolean> => {
+  // courierEtd is the exact etd already shown for that courier in step 1 -
+  // passed through so the real promised date gets persisted instead of
+  // discarded once booking succeeds.
+  const shipNow = async (vendorOrderId: string, courierId?: number, courierEtd?: string | null): Promise<boolean> => {
     setActioningId(vendorOrderId);
     const { data, errorMessage: msg } = await invokeEdgeFunction("shiprocket-create-shipment", {
       vendor_order_id: vendorOrderId,
       courier_id: courierId,
+      courier_etd: courierEtd,
     });
     setActioningId(null);
     if (msg) {
