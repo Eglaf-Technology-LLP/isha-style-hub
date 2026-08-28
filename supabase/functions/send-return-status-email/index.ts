@@ -80,6 +80,13 @@ function getStatusContent(status: string, requestType: string) {
             : "Your exchange has been completed. We hope you love the replacement!",
         color: "#22c55e",
       };
+    case "pickup_failed":
+      return {
+        heading: `A Quick Update on Your ${typeLabel}`,
+        message:
+          "We ran into a hiccup getting the courier pickup scheduled. Our team has been notified and will sort this out shortly - no action is needed from you right now.",
+        color: "#f59e0b",
+      };
     default:
       return {
         heading: `${typeLabel} Request Update`,
@@ -208,6 +215,48 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const emailResult = await sendEmail(order.customer_email, subject, emailHtml);
+
+    // pickup_failed needs a human to actually act (reschedule the pickup,
+    // contact the customer) - unlike every other status here, which is
+    // purely informational, this is the one case that also alerts admins
+    // and the affected vendor(s), not just the customer.
+    if (newStatus === "pickup_failed") {
+      const orderItemIds = items.map((item: any) => item.order_item_id).filter(Boolean);
+      const { data: affectedItems } = orderItemIds.length
+        ? await supabase.from("order_items").select("vendor_id").in("id", orderItemIds)
+        : { data: [] as { vendor_id: string | null }[] };
+      const vendorIds = [
+        ...new Set((affectedItems ?? []).map((i) => i.vendor_id).filter((v): v is string => !!v)),
+      ];
+
+      const { data: vendors } = vendorIds.length
+        ? await supabase.from("vendors").select("contact_email").in("id", vendorIds)
+        : { data: [] as { contact_email: string | null }[] };
+      const vendorEmails = (vendors ?? []).map((v) => v.contact_email).filter((e): e is string => !!e);
+
+      // No email column anywhere in `public` schema - admin addresses
+      // have to come from the Auth Admin API per user_roles row, same
+      // resolution already proven in send-order-cancellation-notice.
+      const { data: adminRoles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+      const adminEmails = (
+        await Promise.all(
+          (adminRoles ?? []).map(async (r) => {
+            const { data, error } = await supabase.auth.admin.getUserById(r.user_id);
+            if (error || !data.user?.email) return null;
+            return data.user.email;
+          }),
+        )
+      ).filter((e): e is string => !!e);
+
+      const attentionSubject = `Action needed: courier pickup failed - #${requestId} | Isha Fashion Hub`;
+      await Promise.all(
+        [...vendorEmails, ...adminEmails].map((email) =>
+          sendEmail(email, attentionSubject, emailHtml).catch((e) =>
+            console.error("send-return-status-email: attention email failed", email, e),
+          ),
+        ),
+      );
+    }
 
     return new Response(JSON.stringify({ success: true, ...emailResult }), {
       status: 200,

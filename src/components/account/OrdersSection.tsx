@@ -82,6 +82,7 @@ const returnStatusConfig: Record<string, { label: string; className: string }> =
   picked_up: { label: "Items Picked Up", className: "bg-indigo-100 text-indigo-800" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800" },
+  pickup_failed: { label: "Pickup Issue - We're On It", className: "bg-amber-100 text-amber-800" },
 };
 
 export function OrdersSection() {
@@ -320,6 +321,12 @@ export function OrdersSection() {
                             <p className="text-xs font-medium text-muted-foreground">Return / Exchange</p>
                             {returnsByOrder[order.id].map((rr) => {
                               const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
+                              const exchangeTargets = rr.request_type === "exchange"
+                                ? (rr.items || [])
+                                    .map((item) => item.exchange_to ?? (rr.exchange_details ? { size: rr.exchange_details.new_size ?? null, color: rr.exchange_details.new_color ?? null } : null))
+                                    .filter((t): t is { size: string | null; color: string | null } => !!t && !!(t.size || t.color))
+                                    .map((t) => [t.size, t.color].filter(Boolean).join("/"))
+                                : [];
                               return (
                                 <div key={rr.id} className="flex items-center justify-between gap-2 text-xs">
                                   <div className="flex items-center gap-1.5">
@@ -331,6 +338,9 @@ export function OrdersSection() {
                                     <span className="font-medium">
                                       {rr.request_type === "return" ? "Return" : "Exchange"}
                                     </span>
+                                    {exchangeTargets.length > 0 && (
+                                      <span className="text-muted-foreground">→ {exchangeTargets.join(", ")}</span>
+                                    )}
                                   </div>
                                   <div className="flex items-center gap-1.5">
                                     <Badge className={`${statusInfo.className} text-[10px] px-1.5 py-0`}>{statusInfo.label}</Badge>

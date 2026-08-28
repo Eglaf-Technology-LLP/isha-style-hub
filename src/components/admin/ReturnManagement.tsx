@@ -45,9 +45,17 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   picked_up: { label: "Picked Up", variant: "outline" },
   completed: { label: "Completed", variant: "default" },
   cancelled: { label: "Cancelled", variant: "destructive" },
+  pickup_failed: { label: "Pickup Failed - Needs Attention", variant: "destructive" },
 };
 
-export function ReturnManagement() {
+interface ReturnManagementProps {
+  // Vendor's own Returns tab: RLS already scopes visibility to their own
+  // items, this just hides the admin-only actions (approve/reject/status
+  // changes/refund/retry) - approval stays admin-only, unchanged.
+  readOnly?: boolean;
+}
+
+export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
   const { returnRequests, loading, updateReturnStatus } = useReturnRequests(true);
   const [selectedRequest, setSelectedRequest] = useState<ReturnRequest | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -55,12 +63,14 @@ export function ReturnManagement() {
   const [refundAmount, setRefundAmount] = useState("");
   const [updating, setUpdating] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+  const [hasShipment, setHasShipment] = useState<boolean | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const visibleRequests = vendorFilter
     ? returnRequests.filter((r) => r.vendorIds.includes(vendorFilter))
     : returnRequests;
 
-  const openDetail = (request: ReturnRequest) => {
+  const openDetail = async (request: ReturnRequest) => {
     setSelectedRequest(request);
     setAdminNotes(request.admin_notes || "");
     // Default to the actual value of the items the customer selected,
@@ -79,7 +89,36 @@ export function ReturnManagement() {
           ? itemsTotal.toFixed(2)
           : "0"
     );
+    setHasShipment(null);
     setIsDetailOpen(true);
+
+    if (!readOnly && request.status === "approved") {
+      const { data } = await supabase
+        .from("shipments")
+        .select("id")
+        .eq("return_request_id", request.id)
+        .maybeSingle();
+      setHasShipment(!!data);
+    }
+  };
+
+  // approve already fires this once; this just re-invokes the same
+  // idempotent function for a return stuck "approved" with no shipment -
+  // both edge functions already guard against double-booking via
+  // return_request_id, so calling again is safe.
+  const retryCourierBooking = async () => {
+    if (!selectedRequest) return;
+    setRetrying(true);
+    const fnName =
+      selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
+    const { errorMessage } = await invokeEdgeFunction(fnName, { return_request_id: selectedRequest.id });
+    setRetrying(false);
+    if (errorMessage) {
+      toast.error(`Retry failed: ${errorMessage}`);
+    } else {
+      toast.success("Reverse pickup scheduled with the courier");
+      setHasShipment(true);
+    }
   };
 
   const handleStatusUpdate = async (status: ReturnRequest["status"]) => {
@@ -165,11 +204,11 @@ export function ReturnManagement() {
         <div>
           <h3 className="text-lg font-semibold">Returns & Exchanges</h3>
           <p className="text-sm text-muted-foreground">
-            Manage customer return and exchange requests
+            {readOnly ? "Return and exchange requests for your products" : "Manage customer return and exchange requests"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
+          {!readOnly && <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />}
           <Badge variant="secondary">
             {visibleRequests.filter((r) => r.status === "pending").length} Pending
           </Badge>
@@ -303,120 +342,155 @@ export function ReturnManagement() {
                 <div>
                   <p className="text-sm font-medium mb-2">Items</p>
                   <div className="space-y-2">
-                    {selectedRequest.items?.map((item, idx) => (
-                      <div key={idx} className="flex justify-between p-3 border border-border rounded-lg text-sm">
-                        <div>
-                          <p className="font-medium">{item.product_title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.size && `Size: ${item.size}`}
-                            {item.size && item.color && " • "}
-                            {item.color && `Color: ${item.color}`}
-                            {" • "}Qty: {item.quantity}
-                          </p>
+                    {selectedRequest.items?.map((item, idx) => {
+                      // Older requests only ever had one request-level
+                      // exchange_details target; new ones carry it per
+                      // item. Fall back so historical rows still display.
+                      const exchangeTo =
+                        item.exchange_to ??
+                        (selectedRequest.exchange_details
+                          ? {
+                              size: selectedRequest.exchange_details.new_size ?? null,
+                              color: selectedRequest.exchange_details.new_color ?? null,
+                            }
+                          : null);
+                      return (
+                        <div key={idx} className="flex gap-3 p-3 border border-border rounded-lg text-sm">
+                          {item.photo_url ? (
+                            <img
+                              src={item.photo_url}
+                              alt=""
+                              className="h-14 w-14 rounded-md object-cover border border-border shrink-0 cursor-pointer"
+                              onClick={() => window.open(item.photo_url, "_blank")}
+                            />
+                          ) : (
+                            <div className="h-14 w-14 rounded-md bg-muted shrink-0 flex items-center justify-center text-[10px] text-muted-foreground text-center">
+                              No photo
+                            </div>
+                          )}
+                          <div className="flex-1 flex justify-between">
+                            <div>
+                              <p className="font-medium">{item.product_title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.size && `Size: ${item.size}`}
+                                {item.size && item.color && " • "}
+                                {item.color && `Color: ${item.color}`}
+                                {" • "}Qty: {item.quantity}
+                              </p>
+                              {selectedRequest.request_type === "exchange" && exchangeTo && (exchangeTo.size || exchangeTo.color) && (
+                                <p className="text-xs text-primary mt-0.5">
+                                  Exchange for: {[exchangeTo.size, exchangeTo.color].filter(Boolean).join(" / ")}
+                                </p>
+                              )}
+                            </div>
+                            {item.price && <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>}
+                          </div>
                         </div>
-                        {item.price && <p className="font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Exchange Details */}
-                {selectedRequest.request_type === "exchange" && selectedRequest.exchange_details && (
-                  <>
-                    <Separator />
-                    <div>
-                      <p className="text-sm font-medium mb-2">Exchange For</p>
-                      <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
-                        {selectedRequest.exchange_details.new_size && (
-                          <p>New Size: <span className="font-medium">{selectedRequest.exchange_details.new_size}</span></p>
-                        )}
-                        {selectedRequest.exchange_details.new_color && (
-                          <p>New Color: <span className="font-medium">{selectedRequest.exchange_details.new_color}</span></p>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-
                 <Separator />
 
-                {/* Admin Actions */}
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">Admin Response</p>
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Admin Notes</Label>
-                    <Textarea
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Add notes about this request..."
-                      rows={3}
-                    />
-                  </div>
-                  {selectedRequest.request_type === "return" && (
+                {!readOnly ? (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium">Admin Response</p>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Refund Amount (₹)</Label>
-                      <Input
-                        type="number"
-                        value={refundAmount}
-                        onChange={(e) => setRefundAmount(e.target.value)}
-                        placeholder="0"
+                      <Label className="text-xs text-muted-foreground">Admin Notes</Label>
+                      <Textarea
+                        value={adminNotes}
+                        onChange={(e) => setAdminNotes(e.target.value)}
+                        placeholder="Add notes about this request..."
+                        rows={3}
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Submitted to Razorpay as a real refund only once this request is marked
-                        Completed.
-                      </p>
                     </div>
-                  )}
-                  <RefundHistory orderId={selectedRequest.order_id} />
+                    {selectedRequest.request_type === "return" && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Refund Amount (₹)</Label>
+                        <Input
+                          type="number"
+                          value={refundAmount}
+                          onChange={(e) => setRefundAmount(e.target.value)}
+                          placeholder="0"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Submitted to Razorpay as a real refund only once this request is marked
+                          Completed.
+                        </p>
+                      </div>
+                    )}
+                    <RefundHistory orderId={selectedRequest.order_id} />
 
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {selectedRequest.status === "pending" && (
-                      <>
+                    {selectedRequest.status === "approved" && hasShipment === false && (
+                      <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3">
+                        <p className="text-xs text-destructive flex-1">
+                          No courier pickup has been booked for this request yet - the original
+                          scheduling attempt may have failed.
+                        </p>
+                        <Button size="sm" variant="destructive" onClick={retryCourierBooking} disabled={retrying} className="gap-1 shrink-0">
+                          {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
+                          Retry Courier Booking
+                        </Button>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {selectedRequest.status === "pending" && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleStatusUpdate("approved")}
+                            disabled={updating}
+                            className="gap-1"
+                          >
+                            {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleStatusUpdate("rejected")}
+                            disabled={updating}
+                            className="gap-1"
+                          >
+                            {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {selectedRequest.status === "approved" && (
                         <Button
                           size="sm"
-                          onClick={() => handleStatusUpdate("approved")}
+                          onClick={() => handleStatusUpdate("picked_up")}
+                          disabled={updating}
+                          className="gap-1"
+                        >
+                          {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
+                          Mark Picked Up
+                        </Button>
+                      )}
+                      {(selectedRequest.status === "picked_up" || selectedRequest.status === "approved") && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleStatusUpdate("completed")}
                           disabled={updating}
                           className="gap-1"
                         >
                           {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
-                          Approve
+                          Mark Completed
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleStatusUpdate("rejected")}
-                          disabled={updating}
-                          className="gap-1"
-                        >
-                          {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                          Reject
-                        </Button>
-                      </>
-                    )}
-                    {selectedRequest.status === "approved" && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleStatusUpdate("picked_up")}
-                        disabled={updating}
-                        className="gap-1"
-                      >
-                        {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
-                        Mark Picked Up
-                      </Button>
-                    )}
-                    {(selectedRequest.status === "picked_up" || selectedRequest.status === "approved") && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleStatusUpdate("completed")}
-                        disabled={updating}
-                        className="gap-1"
-                      >
-                        {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
-                        Mark Completed
-                      </Button>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  selectedRequest.admin_notes && (
+                    <div>
+                      <p className="text-sm font-medium mb-1">Note from our team</p>
+                      <p className="text-sm bg-muted p-3 rounded-lg">{selectedRequest.admin_notes}</p>
+                    </div>
+                  )
+                )}
               </div>
             </ScrollArea>
           )}

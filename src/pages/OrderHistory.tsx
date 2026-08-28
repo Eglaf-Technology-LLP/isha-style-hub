@@ -82,6 +82,7 @@ const returnStatusConfig: Record<string, { label: string; className: string }> =
   picked_up: { label: "Items Picked Up", className: "bg-indigo-100 text-indigo-800" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800" },
+  pickup_failed: { label: "Pickup Issue - We're On It", className: "bg-amber-100 text-amber-800" },
 };
 
 const paymentStatusColors: Record<string, string> = {
@@ -449,35 +450,65 @@ export default function OrderHistory() {
                               {returnsByOrder[order.id].map((rr) => {
                                 const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
                                 return (
-                                  <div key={rr.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-muted rounded-lg text-sm">
-                                    <div className="flex items-center gap-2">
-                                      {rr.request_type === "return" ? (
-                                        <RotateCcw className="h-4 w-4 text-muted-foreground" />
-                                      ) : (
-                                        <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
-                                      )}
-                                      <span className="font-medium">
-                                        {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
-                                      </span>
-                                      <span className="text-muted-foreground">
-                                        {format(new Date(rr.created_at), "MMM d, yyyy")}
-                                      </span>
+                                  <div key={rr.id} className="p-3 bg-muted rounded-lg text-sm space-y-2">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        {rr.request_type === "return" ? (
+                                          <RotateCcw className="h-4 w-4 text-muted-foreground" />
+                                        ) : (
+                                          <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                                        )}
+                                        <span className="font-medium">
+                                          {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                          {format(new Date(rr.created_at), "MMM d, yyyy")}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {!!rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
+                                          <span className="text-xs text-green-700 font-medium">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
+                                        )}
+                                        <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+                                        {rr.status === "pending" && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-xs text-destructive hover:text-destructive"
+                                            onClick={() => cancelReturnRequest(rr.id)}
+                                          >
+                                            Cancel
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      {rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
-                                        <span className="text-xs text-green-700 font-medium">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
-                                      )}
-                                      <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
-                                      {rr.status === "pending" && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-7 text-xs text-destructive hover:text-destructive"
-                                          onClick={() => cancelReturnRequest(rr.id)}
-                                        >
-                                          Cancel
-                                        </Button>
-                                      )}
+                                    <div className="space-y-1.5 pt-1 border-t border-border/60">
+                                      {(rr.items || []).map((item, idx) => {
+                                        const exchangeTo =
+                                          item.exchange_to ??
+                                          (rr.exchange_details
+                                            ? { size: rr.exchange_details.new_size ?? null, color: rr.exchange_details.new_color ?? null }
+                                            : null);
+                                        return (
+                                          <div key={idx} className="flex items-center gap-2 text-xs">
+                                            {item.photo_url ? (
+                                              <img
+                                                src={item.photo_url}
+                                                alt=""
+                                                className="h-8 w-8 rounded object-cover border border-border shrink-0"
+                                              />
+                                            ) : (
+                                              <div className="h-8 w-8 rounded bg-background shrink-0" />
+                                            )}
+                                            <span className="font-medium">{item.product_title}</span>
+                                            {rr.request_type === "exchange" && exchangeTo && (exchangeTo.size || exchangeTo.color) && (
+                                              <span className="text-muted-foreground">
+                                                → Exchange for: {[exchangeTo.size, exchangeTo.color].filter(Boolean).join(" / ")}
+                                              </span>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 );

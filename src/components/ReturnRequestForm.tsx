@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Dialog,
@@ -12,11 +11,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, RotateCcw, ArrowLeftRight } from "lucide-react";
-import { useReturnRequests, ReturnItem, ExchangeDetails } from "@/hooks/useReturnRequests";
+import { Loader2, RotateCcw, ArrowLeftRight, Upload, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
+import { useReturnRequests, ReturnItem } from "@/hooks/useReturnRequests";
+import { VariantSelector } from "@/components/VariantSelector";
+import { fetchExchangeableVariants, ExchangeVariantOption } from "@/lib/exchangeVariants";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrderItem {
   id: string;
+  product_id: string;
   product_title: string;
   variant_title: string | null;
   quantity: number;
@@ -46,6 +50,11 @@ const RETURN_REASONS = [
   "Other",
 ];
 
+interface ExchangeTarget {
+  size: string | null;
+  color: string | null;
+}
+
 export function ReturnRequestForm({
   orderId,
   orderItems,
@@ -58,12 +67,34 @@ export function ReturnRequestForm({
   const [reason, setReason] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
-  const [exchangeDetails, setExchangeDetails] = useState<ExchangeDetails>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const toggleItem = (itemId: string, disabled: boolean) => {
+  const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string>>({});
+  const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
+
+  const [exchangeTargets, setExchangeTargets] = useState<Record<string, ExchangeTarget>>({});
+  const [variantsByProductId, setVariantsByProductId] = useState<Record<string, ExchangeVariantOption[]>>({});
+  const [loadingVariantsForProductId, setLoadingVariantsForProductId] = useState<Record<string, boolean>>({});
+
+  const ensureVariantsLoaded = async (productId: string) => {
+    if (variantsByProductId[productId] || loadingVariantsForProductId[productId]) return;
+    setLoadingVariantsForProductId((prev) => ({ ...prev, [productId]: true }));
+    try {
+      const variants = await fetchExchangeableVariants(productId);
+      setVariantsByProductId((prev) => ({ ...prev, [productId]: variants }));
+    } catch {
+      toast.error("Couldn't load available sizes/colors for one of the items");
+    } finally {
+      setLoadingVariantsForProductId((prev) => ({ ...prev, [productId]: false }));
+    }
+  };
+
+  const toggleItem = (item: OrderItem, disabled: boolean) => {
     if (disabled) return;
-    setSelectedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+    setSelectedItems((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
+    if (requestType === "exchange" && !selectedItems[item.id]) {
+      ensureVariantsLoaded(item.product_id);
+    }
   };
 
   // Switching to "Return & Refund" auto-deselects any non-returnable item
@@ -79,15 +110,71 @@ export function ReturnRequestForm({
         });
         return next;
       });
+    } else {
+      orderItems.forEach((item) => {
+        if (selectedItems[item.id]) ensureVariantsLoaded(item.product_id);
+      });
     }
+  };
+
+  const handlePhotoSelect = async (itemId: string, file: File | undefined) => {
+    if (!file) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      toast.error("Please sign in to upload a photo");
+      return;
+    }
+    setUploadingItemId(itemId);
+    try {
+      const path = `${session.user.id}/returns/${itemId}-${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from("category-images").upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from("category-images").getPublicUrl(path);
+      setItemPhotoUrls((prev) => ({ ...prev, [itemId]: urlData.publicUrl }));
+    } catch {
+      toast.error("Photo upload failed - please try again");
+    } finally {
+      setUploadingItemId(null);
+    }
+  };
+
+  const setExchangeTarget = (itemId: string, patch: Partial<ExchangeTarget>) => {
+    setExchangeTargets((prev) => ({
+      ...prev,
+      [itemId]: { size: null, color: null, ...prev[itemId], ...patch },
+    }));
   };
 
   const handleSubmit = async () => {
     const chosen = orderItems.filter((item) => selectedItems[item.id]);
-    if (chosen.length === 0) {
+    if (chosen.length === 0 || !reason) return;
+
+    if (chosen.some((item) => !itemPhotoUrls[item.id])) {
+      toast.error("Please upload a photo (with the tag attached) for every selected item");
       return;
     }
-    if (!reason) return;
+
+    if (requestType === "exchange") {
+      for (const item of chosen) {
+        const variants = variantsByProductId[item.product_id] ?? [];
+        const inStock = variants.filter((v) => v.stock > 0);
+        const needsSize = variants.some((v) => v.size);
+        const needsColor = variants.some((v) => v.color);
+        const target = exchangeTargets[item.id];
+        if (inStock.length === 0 && variants.length > 0) {
+          toast.error(`Nothing is currently in stock to exchange "${item.product_title}" into`);
+          return;
+        }
+        if (needsSize && !target?.size) {
+          toast.error(`Please pick a size to exchange "${item.product_title}" into`);
+          return;
+        }
+        if (needsColor && !target?.color) {
+          toast.error(`Please pick a color to exchange "${item.product_title}" into`);
+          return;
+        }
+      }
+    }
 
     setSubmitting(true);
     const items: ReturnItem[] = chosen.map((item) => ({
@@ -97,6 +184,8 @@ export function ReturnRequestForm({
       size: item.size,
       color: item.color,
       price: item.price,
+      photo_url: itemPhotoUrls[item.id],
+      exchange_to: requestType === "exchange" ? (exchangeTargets[item.id] ?? { size: null, color: null }) : undefined,
     }));
 
     const success = await createReturnRequest({
@@ -105,7 +194,6 @@ export function ReturnRequestForm({
       reason,
       additional_notes: additionalNotes || undefined,
       items,
-      exchange_details: requestType === "exchange" ? exchangeDetails : undefined,
     });
 
     setSubmitting(false);
@@ -153,36 +241,147 @@ export function ReturnRequestForm({
             </RadioGroup>
           </div>
 
+          {/* Tag instruction - required for either request type */}
+          <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-800">
+              Please photograph each item together with its original tag still attached.{" "}
+              <strong>Do not remove or damage the tag</strong> - items without a visible, intact
+              tag can't be accepted for return or exchange.
+            </p>
+          </div>
+
           {/* Select Items */}
           <div>
             <Label className="text-sm font-medium mb-2 block">Select Items</Label>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {orderItems.map((item) => {
                 const disabled = requestType === "return" && !item.is_returnable;
+                const selected = !!selectedItems[item.id];
+                const variants = variantsByProductId[item.product_id] ?? [];
+                const inStock = variants.filter((v) => v.stock > 0);
+                const target = exchangeTargets[item.id] ?? { size: null, color: null };
+                const availableSizes = [...new Set(inStock.map((v) => v.size).filter((s): s is string => !!s))];
+                const availableColors = [
+                  ...new Set(
+                    inStock
+                      .filter((v) => !target.size || v.size === target.size)
+                      .map((v) => v.color)
+                      .filter((c): c is string => !!c),
+                  ),
+                ];
+
                 return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-3 p-3 border border-border rounded-lg ${disabled ? "opacity-60" : ""}`}
+                    className={`border border-border rounded-lg p-3 space-y-3 ${disabled ? "opacity-60" : ""}`}
                   >
-                    <Checkbox
-                      checked={!!selectedItems[item.id]}
-                      onCheckedChange={() => toggleItem(item.id, disabled)}
-                      disabled={disabled}
-                    />
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{item.product_title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.size && `Size: ${item.size}`}
-                        {item.size && item.color && " • "}
-                        {item.color && `Color: ${item.color}`}
-                        {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
-                      </p>
-                      {disabled && (
-                        <p className="text-xs text-destructive mt-0.5">
-                          Not eligible for refund - exchange only
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={() => toggleItem(item, disabled)}
+                        disabled={disabled}
+                      />
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{item.product_title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.size && `Size: ${item.size}`}
+                          {item.size && item.color && " • "}
+                          {item.color && `Color: ${item.color}`}
+                          {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
                         </p>
-                      )}
+                        {disabled && (
+                          <p className="text-xs text-destructive mt-0.5">
+                            Not eligible for refund - exchange only
+                          </p>
+                        )}
+                      </div>
                     </div>
+
+                    {selected && (
+                      <div className="pl-8 space-y-3">
+                        {requestType === "exchange" && (
+                          <div className="space-y-2">
+                            {loadingVariantsForProductId[item.product_id] ? (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Loading available sizes/colors...
+                              </div>
+                            ) : (
+                              <>
+                                {availableSizes.length > 0 && (
+                                  <VariantSelector
+                                    label="Exchange for size"
+                                    type="size"
+                                    options={availableSizes}
+                                    selected={target.size}
+                                    onSelect={(size) => setExchangeTarget(item.id, { size })}
+                                  />
+                                )}
+                                {availableColors.length > 0 && (
+                                  <VariantSelector
+                                    label="Exchange for color"
+                                    type="color"
+                                    options={availableColors}
+                                    selected={target.color}
+                                    onSelect={(color) => setExchangeTarget(item.id, { color })}
+                                  />
+                                )}
+                                {inStock.length === 0 && variants.length > 0 && (
+                                  <p className="text-xs text-destructive">
+                                    Nothing is currently in stock to exchange this item into.
+                                  </p>
+                                )}
+                                {inStock.length > 0 &&
+                                  availableColors.length === 0 &&
+                                  target.size &&
+                                  variants.some((v) => v.color) && (
+                                    <p className="text-xs text-destructive">
+                                      No colors currently in stock for size {target.size}.
+                                    </p>
+                                  )}
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">
+                            Photo with tag attached (required)
+                          </Label>
+                          <div className="flex items-center gap-3">
+                            {itemPhotoUrls[item.id] ? (
+                              <img
+                                src={itemPhotoUrls[item.id]}
+                                alt=""
+                                className="h-14 w-14 rounded-md object-cover border border-border"
+                              />
+                            ) : (
+                              <div className="h-14 w-14 rounded-md bg-muted flex items-center justify-center">
+                                <Upload className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <label className="cursor-pointer">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium border border-border rounded-md px-3 py-1.5 hover:bg-muted">
+                                {uploadingItemId === item.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Upload className="h-3 w-3" />
+                                )}
+                                {itemPhotoUrls[item.id] ? "Replace photo" : "Upload photo"}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                                className="hidden"
+                                disabled={uploadingItemId === item.id}
+                                onChange={(e) => handlePhotoSelect(item.id, e.target.files?.[0])}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -204,35 +403,6 @@ export function ReturnRequestForm({
             </RadioGroup>
           </div>
 
-          {/* Exchange Details */}
-          {requestType === "exchange" && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium block">Exchange For</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs text-muted-foreground">New Size</Label>
-                  <Input
-                    placeholder="e.g. L, XL"
-                    value={exchangeDetails.new_size || ""}
-                    onChange={(e) =>
-                      setExchangeDetails((prev) => ({ ...prev, new_size: e.target.value }))
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">New Color</Label>
-                  <Input
-                    placeholder="e.g. Blue"
-                    value={exchangeDetails.new_color || ""}
-                    onChange={(e) =>
-                      setExchangeDetails((prev) => ({ ...prev, new_color: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Additional Notes */}
           <div>
             <Label className="text-sm font-medium mb-2 block">Additional Notes (Optional)</Label>
@@ -247,7 +417,7 @@ export function ReturnRequestForm({
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={submitting || !hasSelection || !reason}
+            disabled={submitting || !hasSelection || !reason || uploadingItemId !== null}
           >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Submit {requestType === "return" ? "Return" : "Exchange"} Request

@@ -130,17 +130,35 @@ Deno.serve(async (req) => {
     }
 
     if (isReturnLeg && shipment.return_request_id) {
+      // rto/ndr/lost/cancelled on the reverse leg used to no-op here
+      // entirely - return_requests.status stayed on "approved" forever
+      // with no signal to anyone that the pickup actually failed. Mapped
+      // to a distinct status instead of being silently dropped.
       const returnStatusMap: Record<string, string> = {
         picked_up: "picked_up",
         delivered: "completed",
+        rto: "pickup_failed",
+        ndr: "pickup_failed",
+        lost: "pickup_failed",
+        cancelled: "pickup_failed",
       };
       const newReturnStatus = returnStatusMap[mapped.shipmentStatus];
       if (newReturnStatus) {
-        await supabase
+        const { data: updatedRequest } = await supabase
           .from("return_requests")
           .update({ status: newReturnStatus })
           .eq("id", shipment.return_request_id)
-          .not("status", "in", "(rejected,cancelled,completed)");
+          .not("status", "in", "(rejected,cancelled,completed)")
+          .select("id")
+          .maybeSingle();
+
+        if (updatedRequest && newReturnStatus === "pickup_failed") {
+          supabase.functions
+            .invoke("send-return-status-email", {
+              body: { returnRequestId: shipment.return_request_id, newStatus: "pickup_failed" },
+            })
+            .catch((e: unknown) => console.error("shiprocket-webhook: pickup_failed notice failed", e));
+        }
       }
     }
 

@@ -7,7 +7,7 @@ export interface ReturnRequest {
   order_id: string;
   user_id: string;
   request_type: "return" | "exchange";
-  status: "pending" | "approved" | "rejected" | "picked_up" | "completed" | "cancelled";
+  status: "pending" | "approved" | "rejected" | "picked_up" | "completed" | "cancelled" | "pickup_failed";
   reason: string;
   additional_notes: string | null;
   items: ReturnItem[];
@@ -28,9 +28,22 @@ export interface ReturnItem {
   size?: string | null;
   color?: string | null;
   price?: number;
+  // Required for every new submission (return or exchange) - proof the
+  // tag is still attached. Optional in the type only so old rows
+  // (submitted before this existed) don't fail to render.
+  photo_url?: string;
+  // Per-item exchange target, replacing the old request-level
+  // exchange_details.new_size/new_color - a request can hold items from
+  // different products, which couldn't share one target meaningfully.
+  exchange_to?: {
+    size: string | null;
+    color: string | null;
+  };
 }
 
 export interface ExchangeDetails {
+  // Legacy request-level target, superseded by ReturnItem.exchange_to -
+  // kept only so old rows still display correctly.
   new_size?: string;
   new_color?: string;
   notes?: string;

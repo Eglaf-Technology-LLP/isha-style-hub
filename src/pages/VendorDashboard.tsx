@@ -37,6 +37,7 @@ import {
   LayoutDashboard,
   BarChart3,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,6 +55,7 @@ import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
+import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
 
 interface VendorProduct {
@@ -334,7 +336,7 @@ export default function VendorDashboard() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-3xl grid-cols-6">
+          <TabsList className="grid w-full max-w-4xl grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -359,6 +361,10 @@ export default function VendorDashboard() {
             <TabsTrigger value="orders" className="flex items-center gap-1">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
+            </TabsTrigger>
+            <TabsTrigger value="returns" className="flex items-center gap-1">
+              <RotateCcw className="h-4 w-4" />
+              <span className="hidden sm:inline">Returns</span>
             </TabsTrigger>
             <TabsTrigger value="payouts" className="flex items-center gap-1">
               <Landmark className="h-4 w-4" />
@@ -692,6 +698,11 @@ export default function VendorDashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Returns Tab - read-only, RLS scopes visibility to this vendor's own items; approval stays admin-only */}
+          <TabsContent value="returns">
+            <ReturnManagement readOnly />
           </TabsContent>
 
           {/* Payouts Tab */}
