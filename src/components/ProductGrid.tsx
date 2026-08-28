@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ProductCard } from "./ProductCard";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ShoppingBag } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Product, mapDbVariant } from "@/hooks/useProducts";
 
 interface ProductGridProps {
@@ -84,25 +84,13 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
     );
   }
 
+  // ProductGrid is only ever used once in this app - the homepage's
+  // "Featured Products" section, stacked among several other sections. A
+  // "No products found, check back later" block sitting mid-homepage when
+  // there's simply nothing to feature yet looks broken, not helpful - the
+  // section should just not exist rather than announce its own emptiness.
   if (products.length === 0) {
-    return (
-      <div className="py-16">
-        <div className="container mx-auto px-4">
-          {title && (
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-center mb-12">
-              {title}
-            </h2>
-          )}
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
-            <h3 className="text-xl font-medium mb-2">No products found</h3>
-            <p className="text-muted-foreground max-w-md">
-              We're adding new products soon. Check back later!
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
