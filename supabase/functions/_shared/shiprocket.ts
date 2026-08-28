@@ -327,19 +327,31 @@ export const NOT_YET_PICKED_UP_STATUSES = ["pending", "awb_assigned", "pickup_sc
 export interface ShiprocketCancelResult {
   attempted: boolean; // was there actually a shipment to try cancelling?
   alreadyPickedUp: boolean; // shipment existed but is past the point Shiprocket allows a clean cancel
-  shipmentCancelled: boolean; // did we actually flip shipments.status to cancelled
+  shipmentCancelled: boolean; // did we actually cancel/remove the shipments row
+}
+
+export interface CancelShiprocketShipmentOptions {
+  // Change Courier (shiprocket-cancel-shipment's admin/vendor "redo the
+  // booking" path) deletes the row so a fresh Ship Now finds nothing and
+  // books genuinely new - there's no order-level cancellation to keep a
+  // record of, the booking was simply a mistake to correct. A real
+  // cancellation (the default - customer self-service, or admin's own
+  // "Cancel Order") keeps the row marked cancelled instead, preserving the
+  // audit trail of what was booked before the order was actually cancelled.
+  deleteOnCancel?: boolean;
 }
 
 // Cancels a vendor_order's forward shipment on Shiprocket's side, if one
 // exists and hasn't been picked up yet. Deliberately does NOT touch
 // vendor_orders.status itself - callers own that, since they differ on
 // what "already picked up" should mean: shiprocket-cancel-shipment (admin/
-// vendor path) refuses outright, cancel-vendor-order (customer path)
+// vendor path) refuses outright, cancel-order-items (customer path)
 // proceeds anyway as a best-effort cancel - the courier booking can't be
 // undone, but the customer's cancellation/refund still goes through.
 export async function cancelShiprocketShipment(
   supabase: SupabaseClient,
   vendorOrderId: string,
+  options: CancelShiprocketShipmentOptions = {},
 ): Promise<ShiprocketCancelResult> {
   const { data: shipment } = await supabase
     .from("shipments")
@@ -368,6 +380,11 @@ export async function cancelShiprocketShipment(
     });
   }
 
-  await supabase.from("shipments").update({ status: "cancelled" }).eq("id", shipment.id);
+  if (options.deleteOnCancel) {
+    // shipment_events has ON DELETE CASCADE on shipment_id - no orphans.
+    await supabase.from("shipments").delete().eq("id", shipment.id);
+  } else {
+    await supabase.from("shipments").update({ status: "cancelled" }).eq("id", shipment.id);
+  }
   return { attempted: true, alreadyPickedUp: false, shipmentCancelled: true };
 }

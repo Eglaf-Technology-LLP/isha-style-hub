@@ -33,16 +33,22 @@ Deno.serve(async (req) => {
       (await isAdmin(supabase, userId)) || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
-    const result = await cancelShiprocketShipment(supabase, vendor_order_id);
+    // This is "undo the booking so a different courier can be picked," not
+    // "cancel the order" - deliberately never touches vendor_orders.status.
+    // Genuinely cancelling a vendor's fulfillment is a separate, explicit
+    // action (cancel-order-items) with its own refund/notification
+    // handling - this function must never have that side effect.
+    const result = await cancelShiprocketShipment(supabase, vendor_order_id, { deleteOnCancel: true });
 
+    if (!result.attempted) {
+      return jsonResponse({ error: "No shipment booking found to cancel" }, 400);
+    }
     if (result.alreadyPickedUp) {
       return jsonResponse(
         { error: "This order has already been picked up by the courier - cancel is no longer possible, use a return instead." },
         400,
       );
     }
-
-    await supabase.from("vendor_orders").update({ status: "cancelled" }).eq("id", vendor_order_id);
 
     return jsonResponse({ cancelled: true });
   } catch (e) {
