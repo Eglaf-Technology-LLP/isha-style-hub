@@ -31,7 +31,7 @@ export function CompleteTheLook({ productId }: CompleteTheLookProps) {
         }
         const { data: prods } = await supabase
           .from("products")
-          .select("*, product_variants(*)")
+          .select("*, product_variants(*), vendor:vendors(name)")
           .in("id", ids);
 
         const typed: Product[] = (prods || []).map((p) => ({

@@ -70,6 +70,12 @@ export interface Product {
   is_returnable: boolean;
   created_at: string;
   updated_at: string;
+  // Optional/nullable - only populated by queries that join it in
+  // (listing pages), not by every caller of this shared type (e.g. admin
+  // forms). Null for a genuinely platform-direct product (vendor_id is
+  // null); ProductCard falls back to the platform's own name in that case,
+  // which is the semantically correct display, not just a safety net.
+  vendor?: { name: string } | null;
 }
 
 export function mapDbVariant(v: {
@@ -416,7 +422,7 @@ export function useProducts() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_variants(*)")
+        .select("*, product_variants(*), vendor:vendors(name)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

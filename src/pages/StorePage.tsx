@@ -64,6 +64,9 @@ export default function StorePage() {
             ...p,
             images: (p.images as string[]) || [],
             variants: (p.product_variants || []).map(mapDbVariant),
+            // Every product on this page belongs to the same vendor - no
+            // need for a redundant join, the page already has it loaded.
+            vendor: { name: v.name },
           }))
         );
       } catch (e) {

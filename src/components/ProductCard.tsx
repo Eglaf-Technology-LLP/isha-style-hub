@@ -122,7 +122,7 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* Product Info */}
       <div className="mt-4 space-y-1">
         <p className="text-xs text-muted-foreground uppercase tracking-wide">
-          Isha Fashion Hub
+          {product.vendor?.name || "Isha Fashion Hub"}
         </p>
         <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
           {product.name}

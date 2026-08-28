@@ -21,7 +21,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
       try {
         let query = supabase
           .from("products")
-          .select("*, product_variants(*)")
+          .select("*, product_variants(*), vendor:vendors(name)")
           .eq("is_active", true)
           .eq("approval_status", "approved")
           .order("created_at", { ascending: false });
