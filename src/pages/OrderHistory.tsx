@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -12,11 +12,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight } from "lucide-react";
+import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ban } from "lucide-react";
 import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
+import { OrderCancellationDialog } from "@/components/OrderCancellationDialog";
+
+// Matches cancel-vendor-order's own BLOCKED_STATUSES - kept here purely to
+// decide whether to show the Cancel button at all; the edge function is
+// still the real authority and re-checks this itself.
+const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 interface OrderItem {
   id: string;
@@ -31,6 +37,7 @@ interface OrderItem {
 }
 
 interface VendorOrderStatus {
+  id: string;
   vendor_id: string;
   vendor_name: string;
   status: string;
@@ -45,6 +52,7 @@ interface Order {
   created_at: string;
   order_status: string;
   payment_status: string;
+  payment_method: string;
   subtotal: number;
   shipping_cost: number;
   total: number;
@@ -95,6 +103,8 @@ export default function OrderHistory() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
+  const [cancellingVendorOrder, setCancellingVendorOrder] = useState<VendorOrderStatus | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
@@ -103,71 +113,72 @@ export default function OrderHistory() {
     return acc;
   }, {});
 
+  const checkAuthAndFetchOrders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session) {
+      setIsAuthenticated(false);
+      setLoading(false);
+      return;
+    }
+
+    setIsAuthenticated(true);
+
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (ordersError) throw ordersError;
+
+      // Fetch order items and each vendor's own fulfillment status for
+      // each order - a multi-vendor order has one order_status at the
+      // top level but each vendor updates their own vendor_orders.status
+      // independently, so the customer needs to see both.
+      const ordersWithItems = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
+            supabase.from("order_items").select("*").eq("order_id", order.id),
+            supabase
+              .from("vendor_orders")
+              .select(
+                "id, vendor_id, status, tracking_number, carrier, vendor:vendors(name), shipments(awb_code, courier_name, shipment_type)"
+              )
+              .eq("order_id", order.id),
+          ]);
+
+          return {
+            ...order,
+            shipping_address: order.shipping_address as Order["shipping_address"],
+            order_items: itemsData || [],
+            vendor_orders: (vendorOrdersData || []).map((vo: any) => {
+              const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
+              return {
+                id: vo.id,
+                vendor_id: vo.vendor_id,
+                vendor_name: vo.vendor?.name || "Vendor",
+                status: vo.status,
+                tracking_number: vo.tracking_number,
+                carrier: vo.carrier,
+                awb_code: forwardShipment?.awb_code || null,
+                courier_name: forwardShipment?.courier_name || null,
+              };
+            }),
+          };
+        })
+      );
+
+      setOrders(ordersWithItems);
+    } catch (error) {
+      console.error("Error fetching orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const checkAuthAndFetchOrders = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        setIsAuthenticated(false);
-        setLoading(false);
-        return;
-      }
-
-      setIsAuthenticated(true);
-
-      try {
-        const { data: ordersData, error: ordersError } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .order("created_at", { ascending: false });
-
-        if (ordersError) throw ordersError;
-
-        // Fetch order items and each vendor's own fulfillment status for
-        // each order - a multi-vendor order has one order_status at the
-        // top level but each vendor updates their own vendor_orders.status
-        // independently, so the customer needs to see both.
-        const ordersWithItems = await Promise.all(
-          (ordersData || []).map(async (order) => {
-            const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
-              supabase.from("order_items").select("*").eq("order_id", order.id),
-              supabase
-                .from("vendor_orders")
-                .select(
-                  "vendor_id, status, tracking_number, carrier, vendor:vendors(name), shipments(awb_code, courier_name, shipment_type)"
-                )
-                .eq("order_id", order.id),
-            ]);
-
-            return {
-              ...order,
-              shipping_address: order.shipping_address as Order["shipping_address"],
-              order_items: itemsData || [],
-              vendor_orders: (vendorOrdersData || []).map((vo: any) => {
-                const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
-                return {
-                  vendor_id: vo.vendor_id,
-                  vendor_name: vo.vendor?.name || "Vendor",
-                  status: vo.status,
-                  tracking_number: vo.tracking_number,
-                  carrier: vo.carrier,
-                  awb_code: forwardShipment?.awb_code || null,
-                  courier_name: forwardShipment?.courier_name || null,
-                };
-              }),
-            };
-          })
-        );
-
-        setOrders(ordersWithItems);
-      } catch (error) {
-        console.error("Error fetching orders:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     checkAuthAndFetchOrders();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -180,7 +191,7 @@ export default function OrderHistory() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkAuthAndFetchOrders]);
 
   if (loading) {
     return (
@@ -350,6 +361,20 @@ export default function OrderHistory() {
                                     <Badge className={statusColors[vo.status] || "bg-muted"}>
                                       {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
                                     </Badge>
+                                    {!NOT_CANCELLABLE_STATUSES.includes(vo.status) && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs text-destructive hover:text-destructive gap-1"
+                                        onClick={() => {
+                                          setCancellingVendorOrder(vo);
+                                          setCancellingOrder(order);
+                                        }}
+                                      >
+                                        <Ban className="h-3 w-3" />
+                                        Cancel
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -458,6 +483,22 @@ export default function OrderHistory() {
               setReturnOrderItems([]);
             }
           }}
+        />
+      )}
+
+      {cancellingVendorOrder && cancellingOrder && (
+        <OrderCancellationDialog
+          vendorOrderId={cancellingVendorOrder.id}
+          vendorName={cancellingVendorOrder.vendor_name}
+          isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
+          open={!!cancellingVendorOrder}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCancellingVendorOrder(null);
+              setCancellingOrder(null);
+            }
+          }}
+          onSuccess={checkAuthAndFetchOrders}
         />
       )}
 

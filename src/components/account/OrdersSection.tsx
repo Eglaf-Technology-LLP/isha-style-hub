@@ -9,11 +9,17 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight } from "lucide-react";
+import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight, Ban } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
+import { OrderCancellationDialog } from "@/components/OrderCancellationDialog";
+
+// Matches cancel-vendor-order's own BLOCKED_STATUSES - kept here purely to
+// decide whether to show the Cancel button at all; the edge function is
+// still the real authority and re-checks this itself.
+const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 interface OrderItem {
   id: string;
@@ -26,6 +32,7 @@ interface OrderItem {
 }
 
 interface VendorOrderStatus {
+  id: string;
   vendor_id: string;
   vendor_name: string;
   status: string;
@@ -37,6 +44,7 @@ interface Order {
   created_at: string;
   order_status: string;
   payment_status: string;
+  payment_method: string;
   subtotal: number;
   shipping_cost: number;
   total: number;
@@ -69,6 +77,8 @@ export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancellingVendorOrder, setCancellingVendorOrder] = useState<VendorOrderStatus | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
@@ -89,7 +99,7 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, subtotal, shipping_cost, total")
+        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -108,7 +118,7 @@ export function OrdersSection() {
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
-              .select("vendor_id, status, vendor:vendors(name), shipments(awb_code, shipment_type)")
+              .select("id, vendor_id, status, vendor:vendors(name), shipments(awb_code, shipment_type)")
               .eq("order_id", order.id),
           ]);
 
@@ -116,6 +126,7 @@ export function OrdersSection() {
             ...order,
             order_items: itemsData || [],
             vendor_orders: (vendorOrdersData || []).map((vo: any) => ({
+              id: vo.id,
               vendor_id: vo.vendor_id,
               vendor_name: vo.vendor?.name || "Vendor",
               status: vo.status,
@@ -142,6 +153,7 @@ export function OrdersSection() {
   }
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
@@ -237,6 +249,20 @@ export function OrdersSection() {
                                   <Badge className={`${statusColors[vo.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
                                     {vo.status.charAt(0).toUpperCase() + vo.status.slice(1).replace(/_/g, " ")}
                                   </Badge>
+                                  {!NOT_CANCELLABLE_STATUSES.includes(vo.status) && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive gap-1"
+                                      onClick={() => {
+                                        setCancellingVendorOrder(vo);
+                                        setCancellingOrder(order);
+                                      }}
+                                    >
+                                      <Ban className="h-2.5 w-2.5" />
+                                      Cancel
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -288,5 +314,21 @@ export function OrdersSection() {
         )}
       </CardContent>
     </Card>
+    {cancellingVendorOrder && cancellingOrder && (
+      <OrderCancellationDialog
+        vendorOrderId={cancellingVendorOrder.id}
+        vendorName={cancellingVendorOrder.vendor_name}
+        isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
+        open={!!cancellingVendorOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancellingVendorOrder(null);
+            setCancellingOrder(null);
+          }
+        }}
+        onSuccess={fetchOrders}
+      />
+    )}
+    </>
   );
 }

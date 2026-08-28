@@ -5,11 +5,9 @@ import {
   getCallerUserId,
   isAdmin,
   isVendorMember,
-  shiprocketRequest,
   errorMessage,
+  cancelShiprocketShipment,
 } from "../_shared/shiprocket.ts";
-
-const NOT_YET_PICKED_UP = ["pending", "awb_assigned", "pickup_scheduled"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -35,37 +33,15 @@ Deno.serve(async (req) => {
       (await isAdmin(supabase, userId)) || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
-    const { data: shipment } = await supabase
-      .from("shipments")
-      .select("id, awb_code, shiprocket_order_id, status")
-      .eq("vendor_order_id", vendor_order_id)
-      .eq("shipment_type", "forward")
-      .maybeSingle();
+    const result = await cancelShiprocketShipment(supabase, vendor_order_id);
 
-    if (shipment && !NOT_YET_PICKED_UP.includes(shipment.status)) {
+    if (result.alreadyPickedUp) {
       return jsonResponse(
-        { error: `This order has already been picked up by the courier (status: ${shipment.status}) - cancel is no longer possible, use a return instead.` },
+        { error: "This order has already been picked up by the courier - cancel is no longer possible, use a return instead." },
         400,
       );
     }
 
-    if (shipment?.awb_code) {
-      await shiprocketRequest(supabase, "/orders/cancel/shipment/awbs", {
-        method: "POST",
-        body: { awbs: [shipment.awb_code] },
-      });
-    } else if (shipment?.shiprocket_order_id) {
-      await shiprocketRequest(supabase, "/orders/cancel", {
-        method: "POST",
-        body: { ids: [shipment.shiprocket_order_id] },
-      });
-    }
-    // If no shipment was ever created, there's nothing to cancel on
-    // Shiprocket's side - just flip the local status below.
-
-    if (shipment) {
-      await supabase.from("shipments").update({ status: "cancelled" }).eq("id", shipment.id);
-    }
     await supabase.from("vendor_orders").update({ status: "cancelled" }).eq("id", vendor_order_id);
 
     return jsonResponse({ cancelled: true });

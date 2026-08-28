@@ -321,3 +321,53 @@ export function toIntOrNull(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+
+export const NOT_YET_PICKED_UP_STATUSES = ["pending", "awb_assigned", "pickup_scheduled"];
+
+export interface ShiprocketCancelResult {
+  attempted: boolean; // was there actually a shipment to try cancelling?
+  alreadyPickedUp: boolean; // shipment existed but is past the point Shiprocket allows a clean cancel
+  shipmentCancelled: boolean; // did we actually flip shipments.status to cancelled
+}
+
+// Cancels a vendor_order's forward shipment on Shiprocket's side, if one
+// exists and hasn't been picked up yet. Deliberately does NOT touch
+// vendor_orders.status itself - callers own that, since they differ on
+// what "already picked up" should mean: shiprocket-cancel-shipment (admin/
+// vendor path) refuses outright, cancel-vendor-order (customer path)
+// proceeds anyway as a best-effort cancel - the courier booking can't be
+// undone, but the customer's cancellation/refund still goes through.
+export async function cancelShiprocketShipment(
+  supabase: SupabaseClient,
+  vendorOrderId: string,
+): Promise<ShiprocketCancelResult> {
+  const { data: shipment } = await supabase
+    .from("shipments")
+    .select("id, awb_code, shiprocket_order_id, status")
+    .eq("vendor_order_id", vendorOrderId)
+    .eq("shipment_type", "forward")
+    .maybeSingle();
+
+  if (!shipment) {
+    return { attempted: false, alreadyPickedUp: false, shipmentCancelled: false };
+  }
+
+  if (!NOT_YET_PICKED_UP_STATUSES.includes(shipment.status)) {
+    return { attempted: true, alreadyPickedUp: true, shipmentCancelled: false };
+  }
+
+  if (shipment.awb_code) {
+    await shiprocketRequest(supabase, "/orders/cancel/shipment/awbs", {
+      method: "POST",
+      body: { awbs: [shipment.awb_code] },
+    });
+  } else if (shipment.shiprocket_order_id) {
+    await shiprocketRequest(supabase, "/orders/cancel", {
+      method: "POST",
+      body: { ids: [shipment.shiprocket_order_id] },
+    });
+  }
+
+  await supabase.from("shipments").update({ status: "cancelled" }).eq("id", shipment.id);
+  return { attempted: true, alreadyPickedUp: false, shipmentCancelled: true };
+}

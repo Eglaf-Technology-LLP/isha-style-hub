@@ -9,7 +9,13 @@ const corsHeaders = {
 
 interface OrderEmailRequest {
   orderId: string;
-  type: "confirmation" | "shipped" | "delivered";
+  type: "confirmation" | "shipped" | "delivered" | "cancelled";
+  // Cancellation is per-vendor - a multi-vendor order can have one
+  // vendor's portion cancelled while the rest ships normally, so the
+  // "cancelled" case needs to know which vendor_order this was to phrase
+  // a partial cancellation correctly instead of implying the whole order
+  // was cancelled.
+  vendorOrderId?: string;
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
@@ -48,7 +54,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { orderId, type }: OrderEmailRequest = await req.json();
+    const { orderId, type, vendorOrderId }: OrderEmailRequest = await req.json();
 
     if (!orderId || !type) {
       throw new Error("Missing orderId or type");
@@ -73,6 +79,20 @@ const handler = async (req: Request): Promise<Response> => {
       .select("*")
       .eq("order_id", orderId);
 
+    // order.order_status is only "cancelled" here if every vendor_order was
+    // already cancelled by the time this fires - cancel-vendor-order updates
+    // that before invoking this function, so no race with the check below.
+    let cancelledVendorName: string | null = null;
+    if (type === "cancelled" && vendorOrderId) {
+      const { data: vo } = await supabase
+        .from("vendor_orders")
+        .select("vendor:vendors(name)")
+        .eq("id", vendorOrderId)
+        .maybeSingle();
+      cancelledVendorName = (vo as any)?.vendor?.name ?? null;
+    }
+    const isPartialCancellation = type === "cancelled" && order.order_status !== "cancelled";
+
     let subject: string;
     let heading: string;
     let message: string;
@@ -95,6 +115,22 @@ const handler = async (req: Request): Promise<Response> => {
         heading = "Your order has been delivered!";
         message = "We hope you love your purchase!";
         break;
+      case "cancelled": {
+        const refundNote =
+          order.payment_method === "razorpay"
+            ? " If you paid online, your refund will be credited to your original payment method within a few business days."
+            : "";
+        if (isPartialCancellation) {
+          subject = `Part of Your Order Cancelled - #${orderNumber} | Isha Fashion Hub`;
+          heading = "Part of your order has been cancelled";
+          message = `The ${cancelledVendorName || "selected"} portion of your order has been cancelled as requested. The rest of your order is still being processed.${refundNote}`;
+        } else {
+          subject = `Order Cancelled - #${orderNumber} | Isha Fashion Hub`;
+          heading = "Your order has been cancelled";
+          message = `As requested, your order has been cancelled.${refundNote}`;
+        }
+        break;
+      }
       default:
         throw new Error("Invalid email type");
     }

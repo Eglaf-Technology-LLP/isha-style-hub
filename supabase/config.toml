@@ -27,6 +27,16 @@ verify_jwt = true
 verify_jwt = true
 [functions.create-razorpay-refund]
 verify_jwt = true
+[functions.cancel-vendor-order]
+verify_jwt = true
+
+# Called only server-to-server from cancel-vendor-order (via the
+# service-role client, whose key is itself a valid JWT) - never invoked
+# directly by the frontend, but still gets the platform's JWT gate rather
+# than the webhook-style x-api-key exception, since the caller here is
+# always our own backend, not an external service.
+[functions.send-order-cancellation-notice]
+verify_jwt = true
 
 # Razorpay's own servers call this, not our frontend - same exception as
 # shiprocket-webhook above. Authenticity is the HMAC signature over the
