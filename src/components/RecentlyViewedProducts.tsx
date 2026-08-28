@@ -3,6 +3,7 @@ import { X, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
+import { getOptimizedImageUrl } from "@/lib/imageUrl";
 
 export function RecentlyViewedProducts() {
   const { recentlyViewed, loading, clearRecentlyViewed } = useRecentlyViewed();
@@ -32,8 +33,10 @@ export function RecentlyViewedProducts() {
                 <div className="aspect-square bg-muted">
                   {item.product?.images?.[0] ? (
                     <img
-                      src={item.product.images[0]}
+                      src={getOptimizedImageUrl(item.product.images[0], { width: 300 })}
                       alt={item.product.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (

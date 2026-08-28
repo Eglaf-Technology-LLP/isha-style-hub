@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { WishlistButton } from "@/components/WishlistButton";
 import { CompareButton } from "@/components/ProductComparison";
 import { CompareProduct } from "@/stores/comparisonStore";
+import { getOptimizedImageUrl } from "@/lib/imageUrl";
 
 interface ProductCardProps {
   product: Product;
@@ -71,8 +72,10 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Image */}
         {showImage ? (
           <img
-            src={mainImage}
+            src={getOptimizedImageUrl(mainImage, { width: 500 })}
             alt={product.name}
+            loading="lazy"
+            decoding="async"
             onError={() => setImageError(true)}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />

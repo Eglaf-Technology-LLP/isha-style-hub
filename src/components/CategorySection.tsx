@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowRight } from "lucide-react";
+import { getOptimizedImageUrl } from "@/lib/imageUrl";
 
 interface Category {
   id: string;
@@ -110,8 +111,10 @@ export function CategorySection() {
               {category.image_url ? (
                 <>
                   <img
-                    src={category.image_url}
+                    src={getOptimizedImageUrl(category.image_url, { width: 500 })}
                     alt={category.name}
+                    loading="lazy"
+                    decoding="async"
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
