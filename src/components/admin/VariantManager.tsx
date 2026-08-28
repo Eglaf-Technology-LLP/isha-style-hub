@@ -144,7 +144,7 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
 
   const updateVariant = (
     variantId: string,
-    field: "price" | "stock" | "image_url",
+    field: "price" | "stock" | "image_url" | "sku",
     value: number | string
   ) => {
     onChange(variants.map(v =>
@@ -327,6 +327,15 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
                     {(variant.options?.size || variant.options?.Size) && (variant.options?.color || variant.options?.Color) && " / "}
                     {variant.options?.color || variant.options?.Color || ""}
                   </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">SKU:</span>
+                    <Input
+                      placeholder="SKU"
+                      value={variant.sku ?? ""}
+                      onChange={(e) => updateVariant(variant.id, "sku", e.target.value)}
+                      className="w-24 h-7 text-xs"
+                    />
+                  </div>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">₹</span>
                     <Input
