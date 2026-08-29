@@ -77,7 +77,7 @@ export function InvoiceDownloadButton({ vendorOrderId }: { vendorOrderId: string
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto print:max-h-none print:overflow-visible print:static print:transform-none">
           <style>{`
             @media print {
               body * { visibility: hidden; }
