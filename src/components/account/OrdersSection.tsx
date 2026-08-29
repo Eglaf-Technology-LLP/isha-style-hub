@@ -16,6 +16,7 @@ import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
 import { ReorderDialog } from "@/components/ReorderDialog";
+import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
@@ -325,15 +326,18 @@ export function OrdersSection() {
                                 </div>
                               ))}
                               {group.vendorOrder && (
-                                <OrderStatusTimeline
-                                  compact
-                                  timeline={buildOrderTimeline({
-                                    vendorOrderStatus: group.vendorOrder.status,
-                                    vendorOrderUpdatedAt: group.vendorOrder.updated_at,
-                                    orderPlacedAt: order.created_at,
-                                    shipment: group.vendorOrder.shipment,
-                                  })}
-                                />
+                                <>
+                                  <OrderStatusTimeline
+                                    compact
+                                    timeline={buildOrderTimeline({
+                                      vendorOrderStatus: group.vendorOrder.status,
+                                      vendorOrderUpdatedAt: group.vendorOrder.updated_at,
+                                      orderPlacedAt: order.created_at,
+                                      shipment: group.vendorOrder.shipment,
+                                    })}
+                                  />
+                                  <InvoiceDownloadButton vendorOrderId={group.vendorOrderId} />
+                                </>
                               )}
                             </div>
                           ))}

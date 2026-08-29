@@ -18,6 +18,7 @@ import { useShipments } from "@/hooks/useShipments";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
 import { ShipNowDialog } from "./ShipNowDialog";
+import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
@@ -125,6 +126,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                   {status.replace(/_/g, " ")}
                 </Badge>
               </div>
+
+              <InvoiceDownloadButton vendorOrderId={vendorOrderId} />
 
               {!shipment || (!shipment.awb_code && shipment.status === "cancelled") ? (
                 status === "cancelled" ? (

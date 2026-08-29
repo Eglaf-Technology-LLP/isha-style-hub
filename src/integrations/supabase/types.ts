@@ -283,6 +283,85 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          billing_address: Json
+          billing_name: string
+          created_at: string
+          id: string
+          invoice_number: string
+          issued_at: string
+          order_id: string
+          seller_address: Json | null
+          seller_gstin: string | null
+          seller_name: string
+          shipping_cost: number
+          subtotal: number
+          tax_amount: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Insert: {
+          billing_address: Json
+          billing_name: string
+          created_at?: string
+          id?: string
+          invoice_number: string
+          issued_at?: string
+          order_id: string
+          seller_address?: Json | null
+          seller_gstin?: string | null
+          seller_name: string
+          shipping_cost?: number
+          subtotal: number
+          tax_amount?: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Update: {
+          billing_address?: Json
+          billing_name?: string
+          created_at?: string
+          id?: string
+          invoice_number?: string
+          issued_at?: string
+          order_id?: string
+          seller_address?: Json | null
+          seller_gstin?: string | null
+          seller_name?: string
+          shipping_cost?: number
+          subtotal?: number
+          tax_amount?: number
+          total?: number
+          vendor_id?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: true
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loyalty_points: {
         Row: {
           created_at: string
@@ -1897,6 +1976,7 @@ export type Database = {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      next_invoice_seq: { Args: never; Returns: number }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean

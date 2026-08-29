@@ -19,6 +19,7 @@ import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
 import { ReorderDialog } from "@/components/ReorderDialog";
+import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
@@ -465,6 +466,9 @@ export default function OrderHistory() {
                                       </span>
                                     )
                                   )}
+                                  <div>
+                                    <InvoiceDownloadButton vendorOrderId={group.vendorOrderId} />
+                                  </div>
                                 </div>
                               )}
                             </div>

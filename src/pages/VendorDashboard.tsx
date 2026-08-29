@@ -50,6 +50,7 @@ import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { VendorEarningsBreakdown } from "@/components/vendor/VendorEarningsBreakdown";
 import { VendorPayoutHistory } from "@/components/vendor/VendorPayoutHistory";
+import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
@@ -599,6 +600,7 @@ export default function VendorDashboard() {
                           <TableHead>Shipment</TableHead>
                           <TableHead></TableHead>
                           <TableHead>Refunds</TableHead>
+                          <TableHead>Invoice</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -704,6 +706,9 @@ export default function VendorDashboard() {
                                   see one an admin already processed. Compact summary here,
                                   not the full card - "Details" opens the full breakdown. */}
                               <RefundSummaryCell orderId={o.order_id} />
+                            </TableCell>
+                            <TableCell>
+                              <InvoiceDownloadButton vendorOrderId={o.id} />
                             </TableCell>
                           </TableRow>
                         ))}
