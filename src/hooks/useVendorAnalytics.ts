@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { subDays, format, parseISO } from "date-fns";
+import { subDays, startOfDay, startOfWeek, startOfMonth, format, parseISO } from "date-fns";
 import {
   AnalyticsData,
+  AnalyticsGroupBy,
   DailySales,
   ProductSales,
   CategoryPerformance,
@@ -11,7 +12,11 @@ import {
 // Same shape and computation as useAnalytics, scoped to one vendor's own
 // vendor_orders/order_items instead of the whole store's orders - "revenue"
 // here is this vendor's gross sales (subtotal + shipping), not the platform's.
-export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d" | "30d" | "90d" = "30d") {
+export function useVendorAnalytics(
+  vendorId: string | undefined,
+  dateRange: "7d" | "30d" | "90d" = "30d",
+  groupBy: AnalyticsGroupBy = "day",
+) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,7 +33,7 @@ export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d"
 
   useEffect(() => {
     if (vendorId) fetchAnalytics();
-  }, [dateRange, vendorId]);
+  }, [dateRange, groupBy, vendorId]);
 
   const fetchAnalytics = async () => {
     if (!vendorId) return;
@@ -91,9 +96,16 @@ export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d"
       const ordersGrowth =
         prevTotalOrders > 0 ? ((totalOrders - prevTotalOrders) / prevTotalOrders) * 100 : 0;
 
+      const bucketStart = (dateStr: string): Date => {
+        const d = parseISO(dateStr);
+        if (groupBy === "week") return startOfWeek(d);
+        if (groupBy === "month") return startOfMonth(d);
+        return startOfDay(d);
+      };
+
       const salesByDate: Record<string, DailySales> = {};
       paidOrders.forEach((vo) => {
-        const date = format(parseISO(vo.created_at), "yyyy-MM-dd");
+        const date = format(bucketStart(vo.created_at), "yyyy-MM-dd");
         if (!salesByDate[date]) salesByDate[date] = { date, revenue: 0, orders: 0 };
         salesByDate[date].revenue += orderRevenue(vo);
         salesByDate[date].orders += 1;

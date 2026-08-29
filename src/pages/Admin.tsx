@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   Landmark,
   Ban,
+  HandCoins,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ import { VendorPerformanceAnalytics } from "@/components/admin/VendorPerformance
 import { DisputeManagement } from "@/components/admin/DisputeManagement";
 import { SettlementLedger } from "@/components/admin/SettlementLedger";
 import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
+import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -327,6 +329,10 @@ export default function Admin() {
               <Landmark className="h-4 w-4" />
               <span className="hidden sm:inline">Settlements</span>
             </TabsTrigger>
+            <TabsTrigger value="vendor-payouts" className="flex items-center gap-1">
+              <HandCoins className="h-4 w-4" />
+              <span className="hidden sm:inline">Payouts</span>
+            </TabsTrigger>
             <TabsTrigger value="vendors" className="flex items-center gap-1">
               <Store className="h-4 w-4" />
               <span className="hidden sm:inline">Vendors</span>
@@ -463,6 +469,10 @@ export default function Admin() {
 
           <TabsContent value="settlements">
             <SettlementLedger isAdmin={isAdmin} />
+          </TabsContent>
+
+          <TabsContent value="vendor-payouts">
+            <VendorPayoutManagement isAdmin={isAdmin} />
           </TabsContent>
 
           {/* Vendors Tab */}

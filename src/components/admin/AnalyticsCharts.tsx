@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnalyticsData } from "@/hooks/useAnalytics";
+import { AnalyticsData, AnalyticsGroupBy } from "@/hooks/useAnalytics";
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package, Users } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 import { format, parseISO } from "date-fns";
@@ -17,8 +17,16 @@ interface AnalyticsChartsProps {
   loading: boolean;
   dateRange: DateRange;
   onDateRangeChange: (range: DateRange) => void;
+  groupBy: AnalyticsGroupBy;
+  onGroupByChange: (groupBy: AnalyticsGroupBy) => void;
   revenueLabel?: string;
 }
+
+const groupByLabels: Record<AnalyticsGroupBy, string> = {
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+};
 
 // Shared by the super-admin's store-wide Sales Analytics and each vendor's
 // own scoped view - same charts, fed by whichever hook computed the numbers
@@ -29,6 +37,8 @@ export function AnalyticsCharts({
   loading,
   dateRange,
   onDateRangeChange,
+  groupBy,
+  onGroupByChange,
   revenueLabel = "Total Revenue",
 }: AnalyticsChartsProps) {
   if (loading) {
@@ -65,26 +75,42 @@ export function AnalyticsCharts({
     );
   }
 
+  const displayDateFormat = groupBy === "month" ? "MMM yyyy" : "MMM dd";
   const chartData = data.dailySales.map((d) => ({
     ...d,
-    displayDate: format(parseISO(d.date), "MMM dd"),
+    displayDate:
+      groupBy === "week"
+        ? `Wk of ${format(parseISO(d.date), displayDateFormat)}`
+        : format(parseISO(d.date), displayDateFormat),
   }));
 
   return (
     <div className="space-y-6">
       {/* Date Range Selector */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-2xl font-bold">{title}</h2>
-        <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-            <SelectItem value="90d">Last 90 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={groupBy} onValueChange={(v) => onGroupByChange(v as AnalyticsGroupBy)}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue placeholder="Group by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Daily</SelectItem>
+              <SelectItem value="week">Weekly</SelectItem>
+              <SelectItem value="month">Monthly</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={dateRange} onValueChange={(v) => onDateRangeChange(v as DateRange)}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -177,7 +203,7 @@ export function AnalyticsCharts({
       <Card>
         <CardHeader>
           <CardTitle>Revenue Trend</CardTitle>
-          <CardDescription>Daily revenue over the selected period</CardDescription>
+          <CardDescription>{groupByLabels[groupBy]} revenue over the selected period</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px]">

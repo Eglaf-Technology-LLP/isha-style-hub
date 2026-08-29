@@ -48,6 +48,8 @@ import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
+import { VendorEarningsBreakdown } from "@/components/vendor/VendorEarningsBreakdown";
+import { VendorPayoutHistory } from "@/components/vendor/VendorPayoutHistory";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
@@ -86,6 +88,7 @@ interface VendorOrder {
   order_id: string;
   subtotal: number;
   shipping_cost: number;
+  commission_amount: number;
   net_payable: number;
   status: string;
   tracking_number: string | null;
@@ -204,7 +207,7 @@ export default function VendorDashboard() {
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, net_payable, status, tracking_number, carrier, created_at"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -434,6 +437,7 @@ export default function VendorDashboard() {
                 </CardContent>
               </Card>
             </div>
+            <VendorEarningsBreakdown vendorId={vendor.id} />
           </TabsContent>
 
           {/* Analytics Tab */}
@@ -589,7 +593,8 @@ export default function VendorDashboard() {
                         <TableRow>
                           <TableHead>Order</TableHead>
                           <TableHead>Customer</TableHead>
-                          <TableHead>Total</TableHead>
+                          <TableHead>Commission</TableHead>
+                          <TableHead>Net Payable</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Shipment</TableHead>
                           <TableHead></TableHead>
@@ -616,7 +621,10 @@ export default function VendorDashboard() {
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell>₹{Number(o.net_payable).toFixed(0)}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              -₹{Number(o.commission_amount || 0).toFixed(0)}
+                            </TableCell>
+                            <TableCell className="font-medium">₹{Number(o.net_payable).toFixed(0)}</TableCell>
                             <TableCell>
                               <Badge className={`${statusColors[o.status] || "bg-muted"} capitalize`}>
                                 {o.status.replace(/_/g, " ")}
@@ -780,6 +788,9 @@ export default function VendorDashboard() {
                 </Button>
               </CardContent>
             </Card>
+            <div className="mt-6">
+              <VendorPayoutHistory vendorId={vendor.id} />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

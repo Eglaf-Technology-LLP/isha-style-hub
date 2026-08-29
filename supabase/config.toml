@@ -29,6 +29,8 @@ verify_jwt = true
 verify_jwt = true
 [functions.cancel-order-items]
 verify_jwt = true
+[functions.generate-vendor-payouts]
+verify_jwt = true
 
 # Called only server-to-server from cancel-vendor-order (via the
 # service-role client, whose key is itself a valid JWT) - never invoked

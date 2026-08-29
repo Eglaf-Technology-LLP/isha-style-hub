@@ -36,7 +36,12 @@ export interface AnalyticsData {
   ordersGrowth: number;
 }
 
-export function useAnalytics(dateRange: "7d" | "30d" | "90d" = "30d") {
+export type AnalyticsGroupBy = "day" | "week" | "month";
+
+export function useAnalytics(
+  dateRange: "7d" | "30d" | "90d" = "30d",
+  groupBy: AnalyticsGroupBy = "day",
+) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +66,7 @@ export function useAnalytics(dateRange: "7d" | "30d" | "90d" = "30d") {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [dateRange]);
+  }, [dateRange, groupBy]);
 
   const fetchAnalytics = async () => {
     setLoading(true);
@@ -122,10 +127,19 @@ export function useAnalytics(dateRange: "7d" | "30d" | "90d" = "30d") {
         ? ((totalOrders - prevTotalOrders) / prevTotalOrders) * 100 
         : 0;
 
-      // Daily sales aggregation
+      // Sales aggregation, bucketed by day/week/month. The bucket key is
+      // always the period's own start date ("yyyy-MM-dd") regardless of
+      // grouping - AnalyticsCharts.tsx decides how to label it.
+      const bucketStart = (dateStr: string): Date => {
+        const d = parseISO(dateStr);
+        if (groupBy === "week") return startOfWeek(d);
+        if (groupBy === "month") return startOfMonth(d);
+        return startOfDay(d);
+      };
+
       const salesByDate: Record<string, DailySales> = {};
       paidOrders.forEach(order => {
-        const date = format(parseISO(order.created_at), "yyyy-MM-dd");
+        const date = format(bucketStart(order.created_at), "yyyy-MM-dd");
         if (!salesByDate[date]) {
           salesByDate[date] = { date, revenue: 0, orders: 0 };
         }

@@ -1581,6 +1581,7 @@ export type Database = {
           id: string
           net_payable: number
           order_id: string
+          payout_id: string | null
           shipping_cost: number
           status: string
           subtotal: number
@@ -1596,6 +1597,7 @@ export type Database = {
           id?: string
           net_payable?: number
           order_id: string
+          payout_id?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1611,6 +1613,7 @@ export type Database = {
           id?: string
           net_payable?: number
           order_id?: string
+          payout_id?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1624,6 +1627,13 @@ export type Database = {
             columns: ["order_id"]
             isOneToOne: false
             referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_orders_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_payouts"
             referencedColumns: ["id"]
           },
           {
@@ -1687,6 +1697,7 @@ export type Database = {
           id: string
           net_payable: number
           paid_at: string | null
+          payment_reference: string | null
           period_end: string
           period_start: string
           status: string
@@ -1700,6 +1711,7 @@ export type Database = {
           id?: string
           net_payable?: number
           paid_at?: string | null
+          payment_reference?: string | null
           period_end: string
           period_start: string
           status?: string
@@ -1713,6 +1725,7 @@ export type Database = {
           id?: string
           net_payable?: number
           paid_at?: string | null
+          payment_reference?: string | null
           period_end?: string
           period_start?: string
           status?: string
