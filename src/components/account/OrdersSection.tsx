@@ -9,12 +9,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight, Ban } from "lucide-react";
+import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight, Ban, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { format } from "date-fns";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { ReorderDialog } from "@/components/ReorderDialog";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
@@ -34,6 +35,7 @@ interface OrderItem {
   price: number;
   size: string | null;
   color: string | null;
+  vendor_id: string | null;
   vendor_order_id: string | null;
   image: string | null;
 }
@@ -90,6 +92,7 @@ export function OrdersSection() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
@@ -125,7 +128,7 @@ export function OrdersSection() {
           const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
             supabase
               .from("order_items")
-              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, size, color, vendor_order_id")
+              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, size, color, vendor_id, vendor_order_id")
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
@@ -261,6 +264,17 @@ export function OrdersSection() {
                         >
                           <Ban className="h-3 w-3" />
                           Cancel Order
+                        </Button>
+                      )}
+                      {!hasCancellableItems && order.vendor_orders.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => setReorderingOrder(order)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Reorder
                         </Button>
                       )}
                     </div>
@@ -405,6 +419,15 @@ export function OrdersSection() {
           if (!open) setCancellingOrder(null);
         }}
         onSuccess={fetchOrders}
+      />
+    )}
+    {reorderingOrder && (
+      <ReorderDialog
+        items={reorderingOrder.order_items}
+        open={!!reorderingOrder}
+        onOpenChange={(open) => {
+          if (!open) setReorderingOrder(null);
+        }}
       />
     )}
     </>

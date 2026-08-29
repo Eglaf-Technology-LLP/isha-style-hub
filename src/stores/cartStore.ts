@@ -24,6 +24,7 @@ interface CartStore {
 
   // Actions
   addItem: (item: CartItem) => void;
+  addItems: (items: CartItem[]) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeItem: (variantId: string) => void;
   clearCart: () => void;
@@ -51,6 +52,21 @@ export const useCartStore = create<CartStore>()(
         } else {
           set({ items: [...items, item] });
         }
+      },
+
+      // Same merge-by-variantId rule as addItem, applied once over a batch
+      // (Reorder) instead of one set() call per item.
+      addItems: (newItems) => {
+        let items = get().items;
+        for (const item of newItems) {
+          const existingItem = items.find((i) => i.variantId === item.variantId);
+          items = existingItem
+            ? items.map((i) =>
+                i.variantId === item.variantId ? { ...i, quantity: i.quantity + item.quantity } : i,
+              )
+            : [...items, item];
+        }
+        set({ items });
       },
 
       updateQuantity: (variantId, quantity) => {

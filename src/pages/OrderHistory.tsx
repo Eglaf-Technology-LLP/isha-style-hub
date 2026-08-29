@@ -12,12 +12,13 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ban } from "lucide-react";
+import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ban, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { ReorderDialog } from "@/components/ReorderDialog";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
@@ -37,6 +38,7 @@ interface OrderItem {
   price: number;
   size: string | null;
   color: string | null;
+  vendor_id: string | null;
   vendor_order_id: string | null;
   is_returnable: boolean;
   image: string | null;
@@ -139,6 +141,7 @@ export default function OrderHistory() {
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
+  const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
@@ -363,6 +366,17 @@ export default function OrderHistory() {
                         >
                           <Ban className="h-3.5 w-3.5" />
                           Cancel Order
+                        </Button>
+                      )}
+                      {!hasCancellableItems && order.vendor_orders.length > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => setReorderingOrder(order)}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Reorder
                         </Button>
                       )}
                     </div>
@@ -632,6 +646,16 @@ export default function OrderHistory() {
             if (!open) setCancellingOrder(null);
           }}
           onSuccess={checkAuthAndFetchOrders}
+        />
+      )}
+
+      {reorderingOrder && (
+        <ReorderDialog
+          items={reorderingOrder.order_items}
+          open={!!reorderingOrder}
+          onOpenChange={(open) => {
+            if (!open) setReorderingOrder(null);
+          }}
         />
       )}
 
