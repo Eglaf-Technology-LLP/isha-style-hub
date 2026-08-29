@@ -92,6 +92,30 @@ const paymentStatusColors: Record<string, string> = {
   refunded: "bg-gray-100 text-gray-800",
 };
 
+// Once an order is cancelled, "Payment: Pending" reads as if we're still
+// waiting on the customer to pay a COD order that's never going to be
+// fulfilled - and "Payment: Paid" reads as if nothing happened, even
+// while a real refund is (or should be) in progress. Neither is wrong
+// data, just a confusing label for a cancelled order specifically.
+function paymentStatusDisplay(order: {
+  payment_status: string;
+  payment_method: string;
+  order_status: string;
+}): { label: string; className: string } {
+  if (order.order_status === "cancelled" && order.payment_status !== "refunded") {
+    if (order.payment_method === "cod") {
+      return { label: "Payment: Not Required", className: "bg-gray-100 text-gray-800" };
+    }
+    if (order.payment_status === "paid") {
+      return { label: "Payment: Refund Processing", className: "bg-amber-100 text-amber-800" };
+    }
+  }
+  return {
+    label: `Payment: ${order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}`,
+    className: paymentStatusColors[order.payment_status] || "bg-muted",
+  };
+}
+
 // Used only for the single-shipment summary badge in the collapsed card
 // header - the expanded timeline is the detailed view, this is just a
 // glance without expanding.
@@ -308,6 +332,7 @@ export default function OrderHistory() {
                 (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
               );
               const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
+              const paymentDisplay = paymentStatusDisplay(order);
 
               return (
               <Card key={order.id}>
@@ -328,9 +353,7 @@ export default function OrderHistory() {
                             shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
                         </Badge>
                       )}
-                      <Badge className={paymentStatusColors[order.payment_status] || "bg-muted"}>
-                        Payment: {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
-                      </Badge>
+                      <Badge className={paymentDisplay.className}>{paymentDisplay.label}</Badge>
                       {hasCancellableItems && (
                         <Button
                           variant="outline"
