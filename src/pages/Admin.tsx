@@ -21,6 +21,7 @@ import {
   Store,
   ShieldAlert,
   Landmark,
+  Ban,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ import { useDiscounts } from "@/hooks/useDiscounts";
 import { useFlashSales } from "@/hooks/useFlashSales";
 import { usePayments } from "@/hooks/usePayments";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
+import { useReturnRequests } from "@/hooks/useReturnRequests";
 import { ProductManagement } from "@/components/admin/ProductManagement";
 import { PromotionsManagement } from "@/components/admin/PromotionsManagement";
 import { PaymentManagement } from "@/components/admin/PaymentManagement";
@@ -48,6 +50,7 @@ import { VendorCatalogManagement } from "@/components/admin/VendorCatalogManagem
 import { VendorPerformanceAnalytics } from "@/components/admin/VendorPerformanceAnalytics";
 import { DisputeManagement } from "@/components/admin/DisputeManagement";
 import { SettlementLedger } from "@/components/admin/SettlementLedger";
+import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -74,6 +77,10 @@ export default function Admin() {
   const { activeFlashSales } = useFlashSales(isAdmin);
   const { getPaymentStats } = usePayments(isAdmin);
   const { totalAlerts: lowStockAlerts } = useLowStockAlerts();
+  const { returnRequests } = useReturnRequests(isAdmin);
+
+  const pendingOrdersCount = orders.filter((o) => o.order_status === "pending").length;
+  const pendingReturnsCount = returnRequests.filter((r) => r.status === "pending").length;
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
   const [isSignUp, setIsSignUp] = useState(false);
@@ -256,7 +263,7 @@ export default function Admin() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full max-w-5xl grid-cols-10">
+          <TabsList className="flex flex-wrap h-auto w-full max-w-5xl justify-start">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -282,13 +289,27 @@ export default function Admin() {
               <FolderOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Categories</span>
             </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-1">
+            <TabsTrigger value="orders" className="flex items-center gap-1 relative">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
+              {pendingOrdersCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  {pendingOrdersCount}
+                </Badge>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="returns" className="flex items-center gap-1">
+            <TabsTrigger value="returns" className="flex items-center gap-1 relative">
               <RotateCcw className="h-4 w-4" />
               <span className="hidden sm:inline">Returns</span>
+              {pendingReturnsCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  {pendingReturnsCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="cancelled" className="flex items-center gap-1">
+              <Ban className="h-4 w-4" />
+              <span className="hidden sm:inline">Cancelled</span>
             </TabsTrigger>
             <TabsTrigger value="promotions" className="flex items-center gap-1">
               <Sparkles className="h-4 w-4" />
@@ -419,6 +440,11 @@ export default function Admin() {
           {/* Returns Tab */}
           <TabsContent value="returns">
             <ReturnManagement />
+          </TabsContent>
+
+          {/* Cancelled Orders Tab */}
+          <TabsContent value="cancelled">
+            <CancelledOrdersManagement isAdmin={isAdmin} />
           </TabsContent>
 
           {/* Promotions Tab */}

@@ -43,7 +43,7 @@ export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d"
 
       const { data: prevVendorOrders, error: prevError } = await supabase
         .from("vendor_orders")
-        .select("subtotal, shipping_cost, order:orders(payment_status)")
+        .select("subtotal, shipping_cost, status, order:orders(payment_status)")
         .eq("vendor_id", vendorId)
         .gte("created_at", previousPeriodStart.toISOString())
         .lt("created_at", dateFilter.toISOString());
@@ -67,7 +67,13 @@ export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d"
         return (o as { payment_status?: string } | null)?.payment_status;
       };
 
-      const paidOrders = (vendorOrders || []).filter((vo) => paymentStatusOf(vo.order) === "paid");
+      // A cancelled vendor_order's subtotal must not keep counting as revenue -
+      // the parent order's own payment_status alone can't catch this (a
+      // partial cancellation on a multi-vendor order never moves
+      // orders.payment_status off "paid").
+      const paidOrders = (vendorOrders || []).filter(
+        (vo) => paymentStatusOf(vo.order) === "paid" && vo.status !== "cancelled",
+      );
       const orderRevenue = (vo: { subtotal: number; shipping_cost: number }) =>
         Number(vo.subtotal || 0) + Number(vo.shipping_cost || 0);
 
@@ -75,7 +81,9 @@ export function useVendorAnalytics(vendorId: string | undefined, dateRange: "7d"
       const totalOrders = vendorOrders?.length || 0;
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-      const prevPaidOrders = (prevVendorOrders || []).filter((vo) => paymentStatusOf(vo.order) === "paid");
+      const prevPaidOrders = (prevVendorOrders || []).filter(
+        (vo) => paymentStatusOf(vo.order) === "paid" && vo.status !== "cancelled",
+      );
       const prevRevenue = prevPaidOrders.reduce((sum, vo) => sum + orderRevenue(vo), 0);
       const prevTotalOrders = prevVendorOrders?.length || 0;
 

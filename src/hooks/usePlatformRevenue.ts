@@ -31,16 +31,26 @@ export function usePlatformRevenue(isAdmin: boolean = false) {
       const [vendorOrdersRes, paymentsRes] = await Promise.all([
         supabase
           .from("vendor_orders")
-          .select("commission_amount, net_payable, order:orders(payment_status)"),
+          .select("status, commission_amount, net_payable, order:orders(payment_status)"),
         supabase.from("payments").select("gateway_fee, payment_status"),
       ]);
 
       if (vendorOrdersRes.error) throw vendorOrdersRes.error;
       if (paymentsRes.error) throw paymentsRes.error;
 
+      // A cancelled vendor_order keeps its commission_amount/net_payable
+      // values on the row (they're never zeroed out - that's the original
+      // figure for the record), but it must not count as live revenue or
+      // payout obligation anymore. The parent order's own payment_status
+      // alone isn't enough to catch this: a partial cancellation on a
+      // multi-vendor order never flips orders.payment_status away from
+      // "paid" (it only ever reaches "refunded" once the whole payment is
+      // refunded - see _shared/refunds.ts's reconcileRefundTotals), so a
+      // cancelled-and-refunded vendor's figures would otherwise keep
+      // counting indefinitely, not just transiently.
       const paidVendorOrders = (vendorOrdersRes.data || []).filter((vo) => {
         const order = Array.isArray(vo.order) ? vo.order[0] : vo.order;
-        return order?.payment_status === "paid";
+        return order?.payment_status === "paid" && vo.status !== "cancelled";
       });
 
       const platformCommissionEarned = paidVendorOrders.reduce(

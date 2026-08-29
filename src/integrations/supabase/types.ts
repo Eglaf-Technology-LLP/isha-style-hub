@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -419,6 +419,61 @@ export type Database = {
           unsubscribed_at?: string | null
         }
         Relationships: []
+      }
+      order_cancellations: {
+        Row: {
+          cancelled_by: string | null
+          created_at: string
+          id: string
+          order_id: string
+          reason: string | null
+          refund_id: string | null
+          vendor_order_id: string
+          was_already_shipped: boolean
+        }
+        Insert: {
+          cancelled_by?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          reason?: string | null
+          refund_id?: string | null
+          vendor_order_id: string
+          was_already_shipped?: boolean
+        }
+        Update: {
+          cancelled_by?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          reason?: string | null
+          refund_id?: string | null
+          vendor_order_id?: string
+          was_already_shipped?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_cancellations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_refund_id_fkey"
+            columns: ["refund_id"]
+            isOneToOne: false
+            referencedRelation: "refunds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_cancellations_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       order_items: {
         Row: {
@@ -1251,6 +1306,7 @@ export type Database = {
           courier_name: string | null
           created_at: string
           delivered_at: string | null
+          estimated_delivery_date: string | null
           id: string
           invoice_url: string | null
           label_url: string | null
@@ -1274,6 +1330,7 @@ export type Database = {
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
+          estimated_delivery_date?: string | null
           id?: string
           invoice_url?: string | null
           label_url?: string | null
@@ -1297,6 +1354,7 @@ export type Database = {
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
+          estimated_delivery_date?: string | null
           id?: string
           invoice_url?: string | null
           label_url?: string | null
@@ -1828,6 +1886,10 @@ export type Database = {
       }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
+      return_request_contains_vendor_item: {
+        Args: { _return_request_id: string; _user_id: string }
         Returns: boolean
       }
     }

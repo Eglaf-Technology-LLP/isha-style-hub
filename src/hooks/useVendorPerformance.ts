@@ -53,11 +53,11 @@ export function useVendorPerformance(isAdmin: boolean = false) {
           supabase
             .from("vendor_orders")
             .select(
-              "vendor_id, subtotal, shipping_cost, commission_amount, net_payable, created_at, order:orders(payment_status)"
+              "id, vendor_id, status, subtotal, shipping_cost, commission_amount, net_payable, created_at, order:orders(payment_status)"
             ),
           supabase
             .from("order_items")
-            .select("vendor_id, product_id, quantity, price, order:orders(payment_status)")
+            .select("vendor_id, vendor_order_id, product_id, quantity, price, order:orders(payment_status)")
             .not("vendor_id", "is", null),
           supabase.from("products").select("id, vendor_id, category_id, approval_status, is_active"),
           supabase.from("categories").select("id, name"),
@@ -81,12 +81,24 @@ export function useVendorPerformance(isAdmin: boolean = false) {
         return (o as { payment_status?: string } | null)?.payment_status;
       };
 
+      // A cancelled vendor_order's commission_amount/net_payable/subtotal
+      // must not keep counting as revenue - the parent order's own
+      // payment_status alone can't catch this (a partial cancellation on a
+      // multi-vendor order never moves orders.payment_status off "paid").
+      // Order items are matched to their specific vendor_order (not just
+      // vendor_id, since one vendor can have several vendor_orders across
+      // different orders) so the same exclusion applies to the
+      // top-categories revenue breakdown below.
+      const cancelledVendorOrderIds = new Set(
+        (vendorOrdersRes.data || []).filter((vo) => vo.status === "cancelled").map((vo) => vo.id),
+      );
+
       const results: VendorPerformance[] = (vendorsRes.data || []).map((vendor) => {
         const ownVendorOrders = (vendorOrdersRes.data || []).filter(
           (vo) => vo.vendor_id === vendor.id
         );
         const paidVendorOrders = ownVendorOrders.filter(
-          (vo) => orderPaymentStatus(vo.order) === "paid"
+          (vo) => orderPaymentStatus(vo.order) === "paid" && vo.status !== "cancelled"
         );
         const pendingOrderCount = ownVendorOrders.filter(
           (vo) => orderPaymentStatus(vo.order) === "pending"
@@ -122,7 +134,10 @@ export function useVendorPerformance(isAdmin: boolean = false) {
         const categoryTotals = new Map<string, VendorCategoryStat>();
         (orderItemsRes.data || [])
           .filter(
-            (item) => item.vendor_id === vendor.id && orderPaymentStatus(item.order) === "paid"
+            (item) =>
+              item.vendor_id === vendor.id &&
+              orderPaymentStatus(item.order) === "paid" &&
+              !cancelledVendorOrderIds.has(item.vendor_order_id),
           )
           .forEach((item) => {
             const categoryId = categoryIdByProductId.get(item.product_id) || "uncategorized";

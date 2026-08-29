@@ -94,6 +94,7 @@ interface VendorOrder {
   customer_name?: string;
   customer_phone?: string;
   shipping_address?: { city?: string; state?: string; pincode?: string } | null;
+  payment_status?: string;
 }
 
 interface PayoutAccountForm {
@@ -232,7 +233,7 @@ export default function VendorDashboard() {
         const ids = vOrders.map((o) => o.order_id);
         const { data: ords } = await supabase
           .from("orders")
-          .select("id, customer_name, customer_phone, shipping_address")
+          .select("id, customer_name, customer_phone, shipping_address, payment_status")
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
         vOrders.forEach((o) => {
@@ -240,6 +241,7 @@ export default function VendorDashboard() {
           o.customer_name = ord?.customer_name || "Customer";
           o.customer_phone = ord?.customer_phone;
           o.shipping_address = ord?.shipping_address;
+          o.payment_status = ord?.payment_status;
         });
       }
       setOrders(vOrders);
@@ -295,7 +297,12 @@ export default function VendorDashboard() {
     );
   }
 
-  const revenue = orders.reduce((s, o) => s + Number(o.net_payable || 0), 0);
+  // Was summing net_payable across every vendor_order regardless of
+  // status or whether the order was ever actually paid - a cancelled or
+  // still-unpaid order's figures were counting as live revenue.
+  const revenue = orders
+    .filter((o) => o.status !== "cancelled" && o.payment_status === "paid")
+    .reduce((s, o) => s + Number(o.net_payable || 0), 0);
   const pendingOrders = orders.filter((o) => o.status === "pending").length;
 
   return (

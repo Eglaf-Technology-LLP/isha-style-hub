@@ -7,6 +7,11 @@ import { executeRefund, RefundValidationError } from "./refunds.ts";
 // nothing left for a cancellation to do or undo.
 export const BLOCKED_VENDOR_ORDER_STATUSES = ["delivered", "cancelled", "returned"];
 
+// order_items.variant_id is an unconstrained TEXT column - a no-variant line
+// item carries a synthetic id like `${productId}-default`, not a uuid.
+// Same check Checkout.tsx applies before its own adjust_stock call.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface CancelOneVendorOrderParams {
   vendorOrder: { id: string; status: string; subtotal: number; shipping_cost: number };
   order: { id: string; payment_method: string; payment_status: string };
@@ -66,6 +71,35 @@ export async function cancelOneVendorOrder(
     .update({ status: "cancelled" })
     .eq("id", vendorOrder.id);
   if (updateVoErr) throw updateVoErr;
+
+  // Stock only comes back if the vendor never actually sent it out - an
+  // already-shipped item is only restored on a genuine RTO, handled
+  // separately via the courier webhook, not here. Best-effort: a stock-sync
+  // problem must not block the cancellation/refund the customer is owed.
+  if (!wasAlreadyShipped) {
+    const { data: cancelledItems, error: itemsErr } = await supabase
+      .from("order_items")
+      .select("product_id, variant_id, quantity")
+      .eq("vendor_order_id", vendorOrder.id);
+    if (itemsErr) {
+      console.error("cancelOneVendorOrder: failed to fetch order_items for stock restore", errorMessage(itemsErr));
+    } else {
+      for (const item of cancelledItems ?? []) {
+        const variantId = UUID_RE.test(item.variant_id) ? item.variant_id : null;
+        const { error: stockErr } = await supabase.rpc("adjust_stock", {
+          _product_id: item.product_id,
+          _variant_id: variantId,
+          _delta: item.quantity,
+          _movement_type: "return",
+          _reason: `Order cancelled: ${reason}`,
+          _reference_order_id: order.id,
+        });
+        if (stockErr) {
+          console.error("cancelOneVendorOrder: stock restore failed for product", item.product_id, errorMessage(stockErr));
+        }
+      }
+    }
+  }
 
   // subtotal + shipping_cost is what the customer actually paid for this
   // shipment - net_payable is the vendor's post-commission payout figure
