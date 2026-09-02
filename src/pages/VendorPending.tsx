@@ -85,7 +85,7 @@ export default function VendorPending() {
               <Mail className="h-4 w-4 mt-0.5 text-primary" />
               <p>
                 We'll email you at your contact address once a decision is made. For
-                questions, reply to hello@ishafashionhub.com.
+                questions, reply to hello@allboutiqs.com.
               </p>
             </div>
 

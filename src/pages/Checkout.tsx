@@ -599,7 +599,7 @@ export default function Checkout() {
         amount: Math.round(total * 100),
         currency: "INR",
         order_id: razorpayOrderId!,
-        name: "Isha Fashion Hub",
+        name: "AllBoutiqs",
         description: `Order ${newOrderId.slice(0, 8)}`,
         prefill: {
           name: customerInfo.name,

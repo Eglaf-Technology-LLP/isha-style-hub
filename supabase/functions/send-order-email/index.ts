@@ -33,7 +33,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Isha Fashion Hub <onboarding@resend.dev>",
+      from: "AllBoutiqs <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -101,17 +101,17 @@ const handler = async (req: Request): Promise<Response> => {
 
     switch (type) {
       case "confirmation":
-        subject = `Order Confirmed - #${orderNumber} | Isha Fashion Hub`;
+        subject = `Order Confirmed - #${orderNumber} | AllBoutiqs`;
         heading = "Thank you for your order!";
         message = "We've received your order and are preparing it for shipment.";
         break;
       case "shipped":
-        subject = `Order Shipped - #${orderNumber} | Isha Fashion Hub`;
+        subject = `Order Shipped - #${orderNumber} | AllBoutiqs`;
         heading = "Your order is on its way!";
         message = "Great news! Your order has been shipped.";
         break;
       case "delivered":
-        subject = `Order Delivered - #${orderNumber} | Isha Fashion Hub`;
+        subject = `Order Delivered - #${orderNumber} | AllBoutiqs`;
         heading = "Your order has been delivered!";
         message = "We hope you love your purchase!";
         break;
@@ -121,11 +121,11 @@ const handler = async (req: Request): Promise<Response> => {
             ? " If you paid online, your refund will be credited to your original payment method within a few business days."
             : "";
         if (isPartialCancellation) {
-          subject = `Part of Your Order Cancelled - #${orderNumber} | Isha Fashion Hub`;
+          subject = `Part of Your Order Cancelled - #${orderNumber} | AllBoutiqs`;
           heading = "Part of your order has been cancelled";
           message = `The ${cancelledVendorName || "selected"} portion of your order has been cancelled as requested. The rest of your order is still being processed.${refundNote}`;
         } else {
-          subject = `Order Cancelled - #${orderNumber} | Isha Fashion Hub`;
+          subject = `Order Cancelled - #${orderNumber} | AllBoutiqs`;
           heading = "Your order has been cancelled";
           message = `As requested, your order has been cancelled.${refundNote}`;
         }
@@ -154,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
       <html>
       <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-          <h1 style="color: #f5a623; margin: 0;">Isha Fashion Hub</h1>
+          <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
         </div>
         <div style="padding: 30px 0;">
           <h2>${heading}</h2>
@@ -188,7 +188,7 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
         </div>
         <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-          <p>Thank you for shopping with Isha Fashion Hub!</p>
+          <p>Thank you for shopping with AllBoutiqs!</p>
         </div>
       </body>
       </html>

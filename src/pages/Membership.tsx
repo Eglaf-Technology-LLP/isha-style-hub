@@ -26,7 +26,7 @@ export default function Membership() {
             <Sparkles className="h-4 w-4" /> Premium Membership
           </div>
           <Crown className="h-12 w-12 mx-auto mb-4 text-primary" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-3">Isha Insider</h1>
+          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-3">AllBoutiqs Insider</h1>
           <p className="text-muted-foreground max-w-2xl mx-auto text-lg">
             Unlock free shipping, exclusive discounts, double loyalty points, and early access — all year long.
           </p>
@@ -41,7 +41,7 @@ export default function Membership() {
         ) : !user ? (
           <Card>
             <CardContent className="py-10 text-center">
-              <h2 className="text-2xl font-semibold mb-2">Sign in to join Isha Insider</h2>
+              <h2 className="text-2xl font-semibold mb-2">Sign in to join AllBoutiqs Insider</h2>
               <p className="text-muted-foreground mb-4">Create an account to unlock premium benefits.</p>
               <Button asChild>
                 <Link to="/account">Sign In</Link>
@@ -62,7 +62,7 @@ export default function Membership() {
                 <CardTitle className="flex items-center gap-2">
                   <Crown className="h-5 w-5 text-primary" /> Member Benefits
                 </CardTitle>
-                <CardDescription>Everything you get with Isha Insider</CardDescription>
+                <CardDescription>Everything you get with AllBoutiqs Insider</CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="grid sm:grid-cols-2 gap-3">
@@ -164,7 +164,7 @@ function ActiveMembershipCard({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Crown className="h-6 w-6" />
-            <CardTitle className="text-primary-foreground">Isha Insider — Active</CardTitle>
+            <CardTitle className="text-primary-foreground">AllBoutiqs Insider — Active</CardTitle>
           </div>
           <Badge variant="secondary" className="capitalize">{membership.plan}</Badge>
         </div>

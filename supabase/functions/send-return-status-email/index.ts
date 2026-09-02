@@ -28,7 +28,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Isha Fashion Hub <onboarding@resend.dev>",
+      from: "AllBoutiqs <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -168,14 +168,14 @@ const handler = async (req: Request): Promise<Response> => {
            </div>`
         : "";
 
-    const subject = `${returnReq.request_type === "exchange" ? "Exchange" : "Return"} Request ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)} – #${requestId} | Isha Fashion Hub`;
+    const subject = `${returnReq.request_type === "exchange" ? "Exchange" : "Return"} Request ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)} – #${requestId} | AllBoutiqs`;
 
     const emailHtml = `
       <!DOCTYPE html>
       <html>
       <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-          <h1 style="color: #f5a623; margin: 0;">Isha Fashion Hub</h1>
+          <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
         </div>
         <div style="padding: 30px 0;">
           <div style="text-align: center; margin-bottom: 24px;">
@@ -207,7 +207,7 @@ const handler = async (req: Request): Promise<Response> => {
           ${adminNotesHtml}
         </div>
         <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-          <p>Thank you for shopping with Isha Fashion Hub!</p>
+          <p>Thank you for shopping with AllBoutiqs!</p>
           <p style="font-size: 12px;">If you have any questions, please contact our support team.</p>
         </div>
       </body>
@@ -248,7 +248,7 @@ const handler = async (req: Request): Promise<Response> => {
         )
       ).filter((e): e is string => !!e);
 
-      const attentionSubject = `Action needed: courier pickup failed - #${requestId} | Isha Fashion Hub`;
+      const attentionSubject = `Action needed: courier pickup failed - #${requestId} | AllBoutiqs`;
       await Promise.all(
         [...vendorEmails, ...adminEmails].map((email) =>
           sendEmail(email, attentionSubject, emailHtml).catch((e) =>

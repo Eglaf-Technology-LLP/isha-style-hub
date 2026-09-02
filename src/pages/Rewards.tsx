@@ -41,7 +41,7 @@ export default function Rewards() {
       <main className="container mx-auto px-4 py-12 space-y-12">
         <div className="rounded-xl border bg-gradient-to-r from-primary/10 to-accent/30 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-xl font-semibold mb-1">✨ Become an Isha Insider</h3>
+            <h3 className="text-xl font-semibold mb-1">✨ Become an AllBoutiqs Insider</h3>
             <p className="text-muted-foreground text-sm">
               Free shipping, 2x points, extra 10% off, and early access — from ₹199/month.
             </p>

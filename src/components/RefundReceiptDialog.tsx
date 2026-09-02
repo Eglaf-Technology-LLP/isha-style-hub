@@ -58,8 +58,8 @@ export function RefundReceiptDialog({ refund }: { refund: Refund }) {
 
           <div id="refund-receipt-content" className="space-y-4 text-sm">
             <div className="text-center border-b border-border pb-3">
-              <p className="font-serif text-lg font-semibold">Isha Fashion Hub</p>
-              <p className="text-xs text-muted-foreground">hello@ishafashionhub.com</p>
+              <p className="font-serif text-lg font-semibold">AllBoutiqs</p>
+              <p className="text-xs text-muted-foreground">hello@allboutiqs.com</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

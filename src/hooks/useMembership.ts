@@ -87,7 +87,7 @@ export function useMembership() {
       toast.error("Could not start membership: " + error.message);
       return;
     }
-    toast.success("Welcome to Isha Insider! 🎉");
+    toast.success("Welcome to AllBoutiqs Insider! 🎉");
     await fetchMembership();
   };
 

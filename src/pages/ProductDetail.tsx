@@ -301,7 +301,7 @@ export default function ProductDetail() {
                   </Link>
                 ) : (
                   <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                    Isha Fashion Hub
+                    AllBoutiqs
                   </p>
                 )}
                 {vendorInfo?.is_trusted && (
@@ -527,12 +527,12 @@ export default function ProductDetail() {
                           {vendorInfo.name}
                         </Link>
                       ) : (
-                        "Isha Fashion Hub"
+                        "AllBoutiqs"
                       )}
                     </li>
                     <li>
                       <span className="font-medium text-foreground">Marketed By / Manufactured By:</span>{" "}
-                      {vendorInfo?.name || "Isha Fashion Hub"}
+                      {vendorInfo?.name || "AllBoutiqs"}
                       {vendorInfo?.address && (
                         <>
                           , {vendorInfo.address.address_line1}
@@ -560,7 +560,7 @@ export default function ProductDetail() {
                           {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
                         </>
                       ) : (
-                        "customercare@ishafashionhub.com"
+                        "customercare@allboutiqs.com"
                       )}
                     </li>
                     <li>

@@ -34,7 +34,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Isha Fashion Hub <onboarding@resend.dev>",
+      from: "AllBoutiqs <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -82,7 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
       <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f5a623 0%, #f7c774 100%);">
-            <h1 style="color: white; margin: 0; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">Isha Fashion Hub</h1>
+            <h1 style="color: white; margin: 0; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">AllBoutiqs</h1>
           </div>
           
           <div style="padding: 30px;">
@@ -125,7 +125,7 @@ const handler = async (req: Request): Promise<Response> => {
           
           <div style="text-align: center; padding: 20px; background: #f5f5f5; color: #999; font-size: 12px;">
             <p>If you have any questions, reply to this email or contact us!</p>
-            <p>© 2024 Isha Fashion Hub. All rights reserved.</p>
+            <p>© 2024 AllBoutiqs. All rights reserved.</p>
           </div>
         </div>
       </body>

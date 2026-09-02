@@ -108,7 +108,7 @@ export default function SellWithUs() {
               <CardTitle>Sign in to start selling</CardTitle>
               <CardDescription>
                 Create an account or sign in, then submit your store application to
-                join Isha Fashion Hub as a vendor.
+                join AllBoutiqs as a vendor.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -184,7 +184,7 @@ export default function SellWithUs() {
             Sell your brand to all of India
           </h1>
           <p className="text-lg text-muted-foreground mb-8">
-            Open your own storefront on Isha Fashion Hub. Keep full control of your
+            Open your own storefront on AllBoutiqs. Keep full control of your
             products, pricing, shipping and returns — we bring the customers.
           </p>
           <Button size="lg" onClick={() => document.getElementById("apply")?.scrollIntoView({ behavior: "smooth" })}>

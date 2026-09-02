@@ -201,7 +201,7 @@ export async function ensurePickupLocation(
       body: {
         pickup_location: pickupLocationName,
         name: vendor.name,
-        email: vendor.contact_email || "orders@ishafashionhub.com",
+        email: vendor.contact_email || "orders@allboutiqs.com",
         phone: vendor.contact_phone,
         address: address.address_line1,
         address_2: address.address_line2 || "",

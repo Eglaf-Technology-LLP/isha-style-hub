@@ -29,7 +29,7 @@ async function sendEmail(to: string, subject: string, html: string) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Isha Fashion Hub <onboarding@resend.dev>",
+      from: "AllBoutiqs <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -78,7 +78,7 @@ function buildEmailHtml(params: {
     <html>
     <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-        <h1 style="color: #f5a623; margin: 0;">Isha Fashion Hub</h1>
+        <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
       </div>
       <div style="padding: 30px 0;">
         <h2>Order Cancelled by Customer</h2>
@@ -92,7 +92,7 @@ function buildEmailHtml(params: {
         ${refundHtml}
       </div>
       <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-        <p>Isha Fashion Hub - Order Management</p>
+        <p>AllBoutiqs - Order Management</p>
       </div>
     </body>
     </html>

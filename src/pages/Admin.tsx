@@ -139,7 +139,7 @@ export default function Admin() {
               {isSignUp ? 'Create Account' : redirectParam ? 'Sign In' : 'Admin Login'}
             </CardTitle>
             <CardDescription>
-              {redirectParam ? 'Isha Fashion Hub' : 'Isha Fashion Hub Dashboard'}
+              {redirectParam ? 'AllBoutiqs' : 'AllBoutiqs Dashboard'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -240,7 +240,7 @@ export default function Admin() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Link to="/" className="text-xl font-serif font-bold text-primary">
-                Isha Fashion Hub
+                AllBoutiqs
               </Link>
               <Badge variant="secondary">Admin</Badge>
             </div>

@@ -10,7 +10,7 @@ export function HeroSection() {
       <div className="absolute inset-0">
         <img
           src={heroImage}
-          alt="Isha Fashion Hub - Elegant Fashion"
+          alt="AllBoutiqs - Elegant Fashion"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-foreground/60 via-foreground/30 to-transparent" />

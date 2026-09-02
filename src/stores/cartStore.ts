@@ -101,7 +101,7 @@ export const useCartStore = create<CartStore>()(
       }
     }),
     {
-      name: 'isha-fashion-cart',
+      name: 'allboutiqs-cart',
       storage: createJSONStorage(() => localStorage),
     }
   )

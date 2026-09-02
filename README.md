@@ -1,4 +1,4 @@
-# Isha Fashion Hub
+# AllBoutiqs
 
 Indian ethnic and western fashion marketplace, with AI styling and virtual try-on.
 

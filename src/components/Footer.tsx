@@ -9,9 +9,9 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <h3 className="text-2xl font-serif font-bold mb-4">Isha Fashion Hub</h3>
+            <h3 className="text-2xl font-serif font-bold mb-4">AllBoutiqs</h3>
             <p className="text-secondary-foreground/80 mb-4">
-              Your destination for trendy and elegant fashion. Quality meets style at Isha Fashion Hub.
+              Your destination for trendy and elegant fashion. Quality meets style at AllBoutiqs.
             </p>
             <div className="flex gap-4">
               <a href="#" className="hover:text-primary transition-colors">
@@ -95,7 +95,7 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2 text-secondary-foreground/80">
                 <Mail className="h-4 w-4" />
-                <span>hello@ishafashionhub.com</span>
+                <span>hello@allboutiqs.com</span>
               </li>
               <li className="flex items-start gap-2 text-secondary-foreground/80">
                 <MapPin className="h-4 w-4 mt-1" />
@@ -108,7 +108,7 @@ export function Footer() {
         <Separator className="my-8 bg-secondary-foreground/20" />
 
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-secondary-foreground/60">
-          <p>© 2024 Isha Fashion Hub. All rights reserved.</p>
+          <p>© 2024 AllBoutiqs. All rights reserved.</p>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>

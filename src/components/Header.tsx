@@ -69,7 +69,7 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
       {/* Top Bar */}
       <div className="bg-primary text-primary-foreground text-center py-2 text-sm">
-        Free Shipping on Orders Above ₹999 | Use Code: ISHA10 for 10% Off
+        Free Shipping on Orders Above ₹999 | Use Code: ALLBOUTIQS10 for 10% Off
       </div>
 
       {/* Main Header */}
@@ -139,7 +139,7 @@ export function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <span className="text-2xl lg:text-3xl font-serif font-bold text-primary">
-              Isha Fashion Hub
+              AllBoutiqs
             </span>
           </Link>
 
@@ -223,7 +223,7 @@ export function Header() {
                       <Link to="/orders">My Orders</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/membership">Isha Insider</Link>
+                      <Link to="/membership">AllBoutiqs Insider</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/wishlist">My Wishlist</Link>
