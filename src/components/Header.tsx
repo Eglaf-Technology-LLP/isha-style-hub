@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import logo from "@/assets/logo.jpg";
 import { Search, User, Heart, Menu, X, Package, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -138,9 +139,7 @@ export function Header() {
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl lg:text-3xl font-serif font-bold text-primary">
-              AllBoutiqs
-            </span>
+            <img src={logo} alt="AllBoutiqs" className="h-9 lg:h-11 w-auto object-contain" />
           </Link>
 
           {/* Desktop Navigation */}

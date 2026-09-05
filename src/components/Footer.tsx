@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import logoMark from "@/assets/logo-mark.png";
 
 export function Footer() {
   return (
@@ -9,7 +10,10 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <h3 className="text-2xl font-serif font-bold mb-4">AllBoutiqs</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <img src={logoMark} alt="" className="h-8 w-8 rounded-md bg-white p-1 object-contain" />
+              <h3 className="text-2xl font-serif font-bold">AllBoutiqs</h3>
+            </div>
             <p className="text-secondary-foreground/80 mb-4">
               Your destination for trendy and elegant fashion. Quality meets style at AllBoutiqs.
             </p>
