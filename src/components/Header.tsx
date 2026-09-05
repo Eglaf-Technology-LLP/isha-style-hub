@@ -139,7 +139,7 @@ export function Header() {
 
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <img src={logo} alt="AllBoutiqs" className="h-9 lg:h-11 w-auto object-contain" />
+            <img src={logo} alt="AllBoutiqs" className="h-11 lg:h-14 w-auto object-contain" />
           </Link>
 
           {/* Desktop Navigation */}

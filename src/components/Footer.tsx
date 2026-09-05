@@ -10,7 +10,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Brand */}
           <div>
-            <img src={logo} alt="AllBoutiqs" className="h-10 w-auto object-contain mb-4" />
+            <img src={logo} alt="AllBoutiqs" className="h-14 w-auto object-contain mb-4" />
             <p className="text-secondary-foreground/80 mb-4">
               Your destination for trendy and elegant fashion. Quality meets style at AllBoutiqs.
             </p>
@@ -109,7 +109,7 @@ export function Footer() {
         <Separator className="my-8 bg-secondary-foreground/20" />
 
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-secondary-foreground/60">
-          <p>© 2024 AllBoutiqs. All rights reserved.</p>
+          <p>© 2026 AllBoutiqs. All rights reserved.</p>
           <div className="flex gap-4">
             <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
             <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
