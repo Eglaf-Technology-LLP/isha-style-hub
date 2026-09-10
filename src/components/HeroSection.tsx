@@ -19,20 +19,20 @@ export function HeroSection() {
       {/* Content */}
       <div className="relative container mx-auto px-4 h-full flex items-center">
         <div className="max-w-xl text-card">
-          <span className="inline-block px-4 py-2 bg-primary/20 text-primary-foreground rounded-full text-sm font-medium mb-6 backdrop-blur-sm">
-            New Collection 2024
+          <span className="inline-flex items-center gap-2 px-4 py-2 border border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground rounded-full text-xs font-medium uppercase tracking-[0.2em] mb-6 backdrop-blur-sm">
+            New Collection 2026
           </span>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight mb-6">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold leading-tight tracking-tight mb-6">
             Discover Your
-            <span className="block text-primary-foreground">Perfect Style</span>
+            <span className="block italic text-primary-foreground">Perfect Style</span>
           </h1>
           <p className="text-lg text-card/90 mb-8 max-w-md">
-            Explore our curated collection of elegant dresses, trendy shirts, and comfortable pants. 
+            Explore our curated collection of elegant dresses, trendy shirts, and comfortable pants.
             Fashion that speaks to you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link to="/category/all">
-              <Button size="lg" className="group">
+              <Button size="lg" className="group shadow-lg">
                 Shop New Arrivals
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>

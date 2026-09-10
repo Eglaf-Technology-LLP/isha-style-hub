@@ -14,22 +14,31 @@ export function Footer() {
             <p className="text-secondary-foreground/80 mb-4">
               Your destination for trendy and elegant fashion. Quality meets style at AllBoutiqs.
             </p>
-            <div className="flex gap-4">
-              <a href="#" className="hover:text-primary transition-colors">
-                <Facebook className="h-5 w-5" />
+            <div className="flex gap-3">
+              <a
+                href="#"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                <Facebook className="h-4 w-4" />
               </a>
-              <a href="#" className="hover:text-primary transition-colors">
-                <Instagram className="h-5 w-5" />
+              <a
+                href="#"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                <Instagram className="h-4 w-4" />
               </a>
-              <a href="#" className="hover:text-primary transition-colors">
-                <Twitter className="h-5 w-5" />
+              <a
+                href="#"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+              >
+                <Twitter className="h-4 w-4" />
               </a>
             </div>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold mb-4">Quick Links</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Quick Links</h4>
             <ul className="space-y-2">
               <li>
                 <Link to="/category/new" className="text-secondary-foreground/80 hover:text-primary transition-colors">
@@ -56,7 +65,7 @@ export function Footer() {
 
           {/* Customer Service */}
           <div>
-            <h4 className="font-semibold mb-4">Customer Service</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Customer Service</h4>
             <ul className="space-y-2">
               <li>
                 <Link to="/help" className="text-secondary-foreground/80 hover:text-primary transition-colors">
@@ -88,7 +97,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-semibold mb-4">Contact Us</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Contact Us</h4>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-secondary-foreground/80">
                 <Phone className="h-4 w-4" />

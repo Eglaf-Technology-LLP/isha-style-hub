@@ -13,12 +13,12 @@ interface Category {
 }
 
 const gradients = [
-  "from-pink-500 to-rose-500",
-  "from-purple-500 to-indigo-500",
-  "from-blue-500 to-cyan-500",
-  "from-emerald-500 to-teal-500",
-  "from-orange-500 to-amber-500",
-  "from-red-500 to-pink-500",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--secondary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--secondary)),hsl(var(--primary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)/0.9),hsl(var(--foreground)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--secondary)),hsl(var(--muted-foreground)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--foreground)),hsl(var(--primary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--foreground)))]",
 ];
 
 export function CategorySection() {
@@ -87,8 +87,8 @@ export function CategorySection() {
     <section className="py-16 bg-card">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-serif font-bold mb-4">
-            Shop by Category
+          <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-4">
+            Shop by <span className="italic text-primary">Category</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Explore our curated collections designed for every occasion
@@ -106,7 +106,7 @@ export function CategorySection() {
             <Link
               key={category.id}
               to={`/category/${category.slug}`}
-              className="group relative overflow-hidden rounded-2xl aspect-[4/3] shadow-lg hover:shadow-xl transition-shadow"
+              className="group relative overflow-hidden rounded-lg aspect-[4/3] shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
             >
               {category.image_url ? (
                 <>
@@ -121,7 +121,7 @@ export function CategorySection() {
                 </>
               ) : (
                 <div
-                  className={`absolute inset-0 bg-gradient-to-br ${gradients[index % gradients.length]} opacity-90 group-hover:opacity-100 transition-opacity`}
+                  className={`absolute inset-0 ${gradients[index % gradients.length]} opacity-90 group-hover:opacity-100 transition-opacity`}
                 />
               )}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">

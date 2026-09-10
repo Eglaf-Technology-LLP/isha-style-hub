@@ -68,7 +68,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link to={`/product/${product.id}`} className="group">
-      <div className="relative overflow-hidden rounded-2xl bg-muted/30 aspect-[3/4]">
+      <div className="relative overflow-hidden rounded-lg bg-muted/30 aspect-[3/4] shadow-sm transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:shadow-xl">
         {/* Image */}
         {showImage ? (
           <img
@@ -128,7 +128,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {product.name}
         </h3>
         <div className="flex items-center gap-2">
-          <p className="text-lg font-semibold text-primary">
+          <p className="text-lg font-serif font-semibold text-primary">
             ₹{product.price.toFixed(0)}
           </p>
           {hasDiscount && (

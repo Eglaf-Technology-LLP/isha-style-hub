@@ -60,7 +60,7 @@ export function CompareButton({ product, variant = "icon", className }: CompareB
       variant="ghost"
       size="icon"
       className={cn(
-        "rounded-full bg-background/80 hover:bg-background",
+        "rounded-full bg-background/80 shadow-sm backdrop-blur-sm hover:bg-background hover:shadow-md",
         isComparing && "text-primary",
         className
       )}

@@ -72,7 +72,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
       <div className="py-16">
         <div className="container mx-auto px-4">
           {title && (
-            <h2 className="text-3xl md:text-4xl font-serif font-bold text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-center mb-12">
               {title}
             </h2>
           )}
@@ -97,7 +97,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
     <section className="py-16">
       <div className="container mx-auto px-4">
         {title && (
-          <h2 className="text-3xl md:text-4xl font-serif font-bold text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-center mb-12">
             {title}
           </h2>
         )}
