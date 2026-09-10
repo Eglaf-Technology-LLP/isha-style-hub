@@ -177,7 +177,7 @@ export default function Category() {
       {/* Category Hero */}
       <section className="bg-gradient-to-r from-primary/10 to-accent py-12 md:py-16">
         <div className="container mx-auto px-4 text-center">
-          <span className="text-xs uppercase tracking-[0.2em] text-primary font-medium">
+          <span className="text-xs uppercase tracking-[0.2em] text-brand font-medium">
             {isAllProducts ? "Full Collection" : "Curated Collection"}
           </span>
           <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mt-2 mb-4">

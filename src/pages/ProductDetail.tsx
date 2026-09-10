@@ -337,7 +337,7 @@ export default function ProductDetail() {
 
             {/* Price */}
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl font-serif font-bold text-primary">
+              <span className="text-3xl font-serif font-bold text-brand">
                 ₹{currentPrice.toFixed(0)}
               </span>
               {hasDiscount && !selectedVariant && (
@@ -452,8 +452,8 @@ export default function ProductDetail() {
             {/* Delivery Info */}
             <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Truck className="h-5 w-5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <Truck className="h-5 w-5 text-brand" />
                 </div>
                 <div>
                   <p className="font-medium">
@@ -471,8 +471,8 @@ export default function ProductDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <RotateCcw className="h-5 w-5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10">
+                  <RotateCcw className="h-5 w-5 text-brand" />
                 </div>
                 <div>
                   <p className="font-medium">Easy Returns</p>

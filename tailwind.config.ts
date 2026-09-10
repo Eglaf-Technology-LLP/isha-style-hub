@@ -47,6 +47,10 @@ export default {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
   			},
+  			brand: {
+  				DEFAULT: 'hsl(var(--brand-accent))',
+  				foreground: 'hsl(var(--brand-accent-foreground))'
+  			},
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
@@ -96,7 +100,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Jost',
+  				'Inter',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -109,7 +113,7 @@ export default {
   				'sans-serif'
   			],
   			serif: [
-  				'Playfair Display',
+  				'Cormorant Garamond',
   				'ui-serif',
   				'Georgia',
   				'Cambria',

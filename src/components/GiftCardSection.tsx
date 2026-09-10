@@ -59,8 +59,8 @@ export function GiftCardSection() {
       <Card className="bg-gradient-to-br from-primary/10 to-primary/5">
         <CardContent className="py-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="p-4 bg-primary/10 rounded-full self-start sm:self-auto shrink-0">
-              <Gift className="h-8 w-8 text-primary" />
+            <div className="p-4 bg-brand/10 rounded-full self-start sm:self-auto shrink-0">
+              <Gift className="h-8 w-8 text-brand" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-xl font-semibold">Give the Gift of Fashion</h3>

@@ -17,19 +17,19 @@ export function Footer() {
             <div className="flex gap-3">
               <a
                 href="#"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-brand hover:text-primary-foreground"
               >
                 <Facebook className="h-4 w-4" />
               </a>
               <a
                 href="#"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-brand hover:text-primary-foreground"
               >
                 <Instagram className="h-4 w-4" />
               </a>
               <a
                 href="#"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-primary hover:text-primary-foreground"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary-foreground/10 transition-colors hover:bg-brand hover:text-primary-foreground"
               >
                 <Twitter className="h-4 w-4" />
               </a>
@@ -38,25 +38,25 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Quick Links</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-brand mb-5">Quick Links</h4>
             <ul className="space-y-2">
               <li>
-                <Link to="/category/new" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/category/new" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   New Arrivals
                 </Link>
               </li>
               <li>
-                <Link to="/category/dresses" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/category/dresses" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Dresses
                 </Link>
               </li>
               <li>
-                <Link to="/category/shirts" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/category/shirts" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Shirts
                 </Link>
               </li>
               <li>
-                <Link to="/category/pants" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/category/pants" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Pants
                 </Link>
               </li>
@@ -65,30 +65,30 @@ export function Footer() {
 
           {/* Customer Service */}
           <div>
-            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Customer Service</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-brand mb-5">Customer Service</h4>
             <ul className="space-y-2">
               <li>
-                <Link to="/help" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/help" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Help Center
                 </Link>
               </li>
               <li>
-                <Link to="/returns" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/returns" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Returns & Exchanges
                 </Link>
               </li>
               <li>
-                <Link to="/shipping" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/shipping" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Shipping Info
                 </Link>
               </li>
               <li>
-                <Link to="/size-guide" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/size-guide" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Size Guide
                 </Link>
               </li>
               <li>
-                <Link to="/sell-with-us" className="text-secondary-foreground/80 hover:text-primary transition-colors">
+                <Link to="/sell-with-us" className="text-secondary-foreground/80 hover:text-brand transition-colors">
                   Sell with Us
                 </Link>
               </li>
@@ -97,7 +97,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-semibold text-xs uppercase tracking-widest text-secondary-foreground/70 mb-5">Contact Us</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-brand mb-5">Contact Us</h4>
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-secondary-foreground/80">
                 <Phone className="h-4 w-4" />
@@ -120,8 +120,8 @@ export function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-secondary-foreground/60">
           <p>© 2026 AllBoutiqs. All rights reserved.</p>
           <div className="flex gap-4">
-            <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+            <Link to="/privacy" className="hover:text-brand transition-colors">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-brand transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>

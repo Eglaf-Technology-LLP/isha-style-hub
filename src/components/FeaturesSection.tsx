@@ -33,8 +33,8 @@ export function FeaturesSection() {
               key={feature.title}
               className="group flex flex-col items-center text-center p-6"
             >
-              <div className="w-14 h-14 rounded-full bg-primary/10 shadow-sm flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground">
-                <feature.icon className="h-6 w-6 text-primary transition-colors group-hover:text-primary-foreground" />
+              <div className="w-14 h-14 rounded-full bg-brand/10 shadow-sm flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground">
+                <feature.icon className="h-6 w-6 text-brand transition-colors group-hover:text-primary-foreground" />
               </div>
               <h3 className="font-semibold mb-1">{feature.title}</h3>
               <p className="text-sm text-muted-foreground">{feature.description}</p>
