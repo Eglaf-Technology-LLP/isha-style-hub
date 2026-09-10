@@ -43,8 +43,8 @@ export function NewsletterSignup({ variant = "footer" }: NewsletterSignupProps) 
   return (
     <div className="bg-muted/50 rounded-lg p-6 space-y-4">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-brand/10 rounded-full">
-          <Mail className="h-6 w-6 text-brand" />
+        <div className="p-2 bg-primary/10 rounded-full">
+          <Mail className="h-6 w-6 text-primary" />
         </div>
         <div>
           <h3 className="font-semibold">Subscribe to our Newsletter</h3>

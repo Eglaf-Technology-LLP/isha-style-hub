@@ -124,11 +124,11 @@ export function ProductCard({ product }: ProductCardProps) {
         <p className="text-xs text-muted-foreground uppercase tracking-wide">
           {product.vendor?.name || "AllBoutiqs"}
         </p>
-        <h3 className="font-medium text-foreground group-hover:text-brand transition-colors line-clamp-2">
+        <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-2">
           {product.name}
         </h3>
         <div className="flex items-center gap-2">
-          <p className="text-lg font-serif font-semibold text-brand">
+          <p className="text-lg font-serif font-semibold text-primary">
             ₹{product.price.toFixed(0)}
           </p>
           {hasDiscount && (

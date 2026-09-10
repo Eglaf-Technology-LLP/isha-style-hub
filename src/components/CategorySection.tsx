@@ -12,19 +12,13 @@ interface Category {
   image_url: string | null;
 }
 
-// Now that --primary/--secondary/--foreground are all near-black (matching
-// the real brand's true-black buttons), a fallback tile mixing only those
-// would render as a flat, uninteresting near-solid black. Blending in
-// --brand-accent (the confirmed rust accent) keeps these on-brand with the
-// same black+rust language the rest of the palette uses, instead of the
-// old pink/purple/blue rainbow set this replaced.
 const gradients = [
-  "bg-[linear-gradient(135deg,hsl(var(--brand-accent)),hsl(var(--primary)))]",
-  "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--brand-accent)))]",
-  "bg-[linear-gradient(135deg,hsl(var(--brand-accent)/0.85),hsl(var(--foreground)))]",
-  "bg-[linear-gradient(135deg,hsl(var(--foreground)),hsl(var(--brand-accent)))]",
-  "bg-[linear-gradient(150deg,hsl(var(--primary)),hsl(var(--brand-accent)/0.9))]",
-  "bg-[linear-gradient(150deg,hsl(var(--brand-accent)),hsl(var(--foreground)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--secondary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--secondary)),hsl(var(--primary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)/0.9),hsl(var(--foreground)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--secondary)),hsl(var(--muted-foreground)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--foreground)),hsl(var(--primary)))]",
+  "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(var(--foreground)))]",
 ];
 
 export function CategorySection() {
@@ -94,7 +88,7 @@ export function CategorySection() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight mb-4">
-            Shop by <span className="italic text-brand">Category</span>
+            Shop by <span className="italic text-primary">Category</span>
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
             Explore our curated collections designed for every occasion

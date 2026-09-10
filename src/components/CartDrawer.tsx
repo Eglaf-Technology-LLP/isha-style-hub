@@ -90,7 +90,7 @@ export function CartDrawer() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {item.selectedOptions.map(option => option.value).join(' • ')}
                         </p>
-                        <p className="font-serif font-semibold text-brand mt-2">
+                        <p className="font-serif font-semibold text-primary mt-2">
                           ₹{parseFloat(item.price.amount).toFixed(0)}
                         </p>
                       </div>
@@ -134,7 +134,7 @@ export function CartDrawer() {
               <div className="flex-shrink-0 space-y-4 pt-4 border-t border-border bg-card">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-medium">Subtotal</span>
-                  <span className="text-xl font-serif font-bold text-brand">
+                  <span className="text-xl font-serif font-bold text-primary">
                     ₹{totalPrice.toFixed(0)}
                   </span>
                 </div>
