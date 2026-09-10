@@ -58,7 +58,9 @@ export function CartDrawer() {
           {items.length === 0 ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
-                <ShoppingCart className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                  <ShoppingCart className="h-7 w-7 text-muted-foreground" />
+                </div>
                 <p className="text-muted-foreground text-lg">Your cart is empty</p>
                 <p className="text-sm text-muted-foreground mt-2">Add items to get started</p>
               </div>
@@ -69,7 +71,10 @@ export function CartDrawer() {
               <div className="flex-1 overflow-y-auto pr-2 min-h-0">
                 <div className="space-y-4">
                   {items.map((item) => (
-                    <div key={item.variantId} className="flex gap-4 p-3 bg-muted/30 rounded-lg">
+                    <div
+                      key={item.variantId}
+                      className="flex gap-4 p-3 rounded-lg border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+                    >
                       <div className="w-20 h-24 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         {item.productImage && (
                           <img
@@ -85,21 +90,21 @@ export function CartDrawer() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {item.selectedOptions.map(option => option.value).join(' • ')}
                         </p>
-                        <p className="font-semibold text-primary mt-2">
+                        <p className="font-serif font-semibold text-primary mt-2">
                           ₹{parseFloat(item.price.amount).toFixed(0)}
                         </p>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={() => removeItem(item.variantId)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                        
+
                         <div className="flex items-center gap-1 border border-border rounded-lg">
                           <Button
                             variant="ghost"
@@ -124,12 +129,12 @@ export function CartDrawer() {
                   ))}
                 </div>
               </div>
-              
+
               {/* Fixed checkout section */}
               <div className="flex-shrink-0 space-y-4 pt-4 border-t border-border bg-card">
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-medium">Subtotal</span>
-                  <span className="text-xl font-bold text-primary">
+                  <span className="text-xl font-serif font-bold text-primary">
                     ₹{totalPrice.toFixed(0)}
                   </span>
                 </div>

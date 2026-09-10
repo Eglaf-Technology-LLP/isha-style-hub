@@ -5,6 +5,7 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Minus,
@@ -12,7 +13,6 @@ import {
   ShoppingBag,
   Truck,
   RotateCcw,
-  Loader2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
@@ -227,9 +227,28 @@ export default function ProductDetail() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="flex justify-center items-center py-40">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <main className="container mx-auto px-4 py-8">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+            <Skeleton className="rounded-lg aspect-[3/4]" />
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-9 w-4/5" />
+              </div>
+              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-px w-full" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <div className="flex gap-2">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                </div>
+              </div>
+              <Skeleton className="h-12 w-full rounded-md" />
+            </div>
+          </div>
+        </main>
         <Footer />
       </div>
     );
@@ -318,7 +337,7 @@ export default function ProductDetail() {
 
             {/* Price */}
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl font-bold text-primary">
+              <span className="text-3xl font-serif font-bold text-primary">
                 ₹{currentPrice.toFixed(0)}
               </span>
               {hasDiscount && !selectedVariant && (
@@ -431,9 +450,11 @@ export default function ProductDetail() {
             )}
 
             {/* Delivery Info */}
-            <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+            <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
               <div className="flex items-center gap-3">
-                <Truck className="h-5 w-5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Truck className="h-5 w-5 text-primary" />
+                </div>
                 <div>
                   <p className="font-medium">
                     {vendorInfo?.free_shipping_threshold != null
@@ -450,7 +471,9 @@ export default function ProductDetail() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <RotateCcw className="h-5 w-5 text-primary" />
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <RotateCcw className="h-5 w-5 text-primary" />
+                </div>
                 <div>
                   <p className="font-medium">Easy Returns</p>
                   <p className="text-sm text-muted-foreground">

@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ProductCard } from "@/components/ProductCard";
+import { ProductCardSkeleton } from "@/components/ProductCardSkeleton";
 import { FeaturesSection } from "@/components/FeaturesSection";
 import { ProductFilters, FilterState } from "@/components/ProductFilters";
 import { supabase } from "@/integrations/supabase/client";
@@ -176,7 +177,10 @@ export default function Category() {
       {/* Category Hero */}
       <section className="bg-gradient-to-r from-primary/10 to-accent py-12 md:py-16">
         <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">
+          <span className="text-xs uppercase tracking-[0.2em] text-primary font-medium">
+            {isAllProducts ? "Full Collection" : "Curated Collection"}
+          </span>
+          <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mt-2 mb-4">
             {category?.name || "All Products"}
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
@@ -199,8 +203,10 @@ export default function Category() {
         {/* Products Grid */}
         <main className="mt-6">
           {productsLoading ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <ProductCardSkeleton key={i} />
+              ))}
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="text-center py-20">
