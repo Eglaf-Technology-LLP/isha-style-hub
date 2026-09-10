@@ -2,8 +2,13 @@ project_id = "bldkjzitutojvnbbljrf"
 
 # Shiprocket's own servers call this, not our frontend - it can't carry a
 # Supabase user JWT. Authenticity is checked in-function via the x-api-key
-# header instead (see supabase/functions/shiprocket-webhook/index.ts).
-[functions.shiprocket-webhook]
+# header instead (see supabase/functions/courier-tracking-webhook/index.ts).
+# Named "courier-tracking-webhook", not "shiprocket-webhook" - Shiprocket's
+# own dashboard rejects webhook URLs containing "shiprocket"/"kartrocket"/
+# "sr"/"kr" (confirmed 2026-09-11 via their support), so the function name
+# can never contain those substrings even though it's still Shiprocket
+# calling it.
+[functions.courier-tracking-webhook]
 verify_jwt = false
 
 # These all check caller identity themselves (admin/vendor-membership) via
@@ -43,7 +48,7 @@ verify_jwt = true
 verify_jwt = true
 
 # Razorpay's own servers call this, not our frontend - same exception as
-# shiprocket-webhook above. Authenticity is the HMAC signature over the
-# raw body (see supabase/functions/razorpay-webhook/index.ts), not a JWT.
+# courier-tracking-webhook above. Authenticity is the HMAC signature over
+# the raw body (see supabase/functions/razorpay-webhook/index.ts), not a JWT.
 [functions.razorpay-webhook]
 verify_jwt = false

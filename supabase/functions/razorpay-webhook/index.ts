@@ -3,7 +3,7 @@ import { reconcileRefundTotals } from "../_shared/refunds.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
-// shiprocket-webhook). Authenticity is the HMAC-SHA256 signature Razorpay
+// courier-tracking-webhook). Authenticity is the HMAC-SHA256 signature Razorpay
 // computes over the raw request body with a webhook secret only it and
 // this function know - configured in Razorpay's dashboard (Settings ->
 // Webhooks), not something settable via their API.
@@ -279,7 +279,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     console.error("razorpay-webhook error", e);
     // Non-2xx makes Razorpay retry, which is correct for a genuine
-    // processing failure (matches shiprocket-webhook's same convention).
+    // processing failure (matches courier-tracking-webhook's same convention).
     return jsonResponse({ error: errorMessage(e) }, 500);
   }
 });

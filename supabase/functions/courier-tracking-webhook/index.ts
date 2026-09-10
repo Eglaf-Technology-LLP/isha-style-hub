@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   const expectedToken = Deno.env.get("SHIPROCKET_WEBHOOK_TOKEN");
   const providedToken = req.headers.get("x-api-key");
   if (!expectedToken || providedToken !== expectedToken) {
-    console.error("shiprocket-webhook: missing/invalid x-api-key");
+    console.error("courier-tracking-webhook: missing/invalid x-api-key");
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
     });
 
     if (!shipment) {
-      console.error("shiprocket-webhook: no matching shipment for awb", awbCode, "order_id", rawOrderId);
+      console.error("courier-tracking-webhook: no matching shipment for awb", awbCode, "order_id", rawOrderId);
       return jsonResponse({ received: true, matched: false });
     }
 
@@ -157,14 +157,14 @@ Deno.serve(async (req) => {
             .invoke("send-return-status-email", {
               body: { returnRequestId: shipment.return_request_id, newStatus: "pickup_failed" },
             })
-            .catch((e: unknown) => console.error("shiprocket-webhook: pickup_failed notice failed", e));
+            .catch((e: unknown) => console.error("courier-tracking-webhook: pickup_failed notice failed", e));
         }
       }
     }
 
     return jsonResponse({ received: true, matched: true });
   } catch (e) {
-    console.error("shiprocket-webhook error", e);
+    console.error("courier-tracking-webhook error", e);
     // Still 200 here would hide real bugs; Shiprocket retries on non-200,
     // which is the right behavior for a genuine processing failure.
     return jsonResponse({ error: errorMessage(e) }, 500);
