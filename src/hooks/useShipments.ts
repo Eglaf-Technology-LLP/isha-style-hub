@@ -33,7 +33,7 @@ export interface Shipment {
 // Tracks the real courier shipment(s) behind a set of vendor_orders -
 // "Ship Now" books the pickup via shiprocket-create-shipment, everything
 // after that (in transit, delivered, NDR, RTO) updates automatically via
-// the shiprocket-webhook function, this hook just reads the result.
+// the courier-tracking-webhook function, this hook just reads the result.
 export function useShipments(vendorOrderIds: string[]) {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(true);

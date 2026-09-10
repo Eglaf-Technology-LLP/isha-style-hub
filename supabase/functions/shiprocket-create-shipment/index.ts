@@ -27,7 +27,7 @@ function formatShiprocketDate(iso: string): string {
 // creates the real Shiprocket order, assigns a courier, and books the
 // pickup, all in one call via their Forward wrapper API. Everything after
 // this point (in transit, delivered, NDR, RTO) is driven automatically by
-// the shiprocket-webhook function - no further manual status updates.
+// the courier-tracking-webhook function - no further manual status updates.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
