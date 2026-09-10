@@ -96,7 +96,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Poppins',
+  				'Jost',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -109,7 +109,7 @@ export default {
   				'sans-serif'
   			],
   			serif: [
-  				'Merriweather',
+  				'Playfair Display',
   				'ui-serif',
   				'Georgia',
   				'Cambria',
