@@ -120,11 +120,27 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="font-medium text-sm">
                   {group.vendorId ? vendorNames[group.vendorId] || "Vendor" : "Vendor"}
-                  <span className="text-muted-foreground"> · {group.items.length} item(s)</span>
                 </span>
                 <Badge className={`${statusColors[status] || "bg-muted"} capitalize`}>
                   {status.replace(/_/g, " ")}
                 </Badge>
+              </div>
+
+              <div className="text-xs space-y-1">
+                {group.items.map((item) => (
+                  <div key={item.id}>
+                    <span className="font-medium">{item.product_title}</span>
+                    <span className="text-muted-foreground"> × {item.quantity}</span>
+                    {(item.variant_title || item.size || item.color) && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ({[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+                          .filter(Boolean)
+                          .join(" · ")})
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
 
               <InvoiceDownloadButton

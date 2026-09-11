@@ -163,7 +163,23 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>{order.order_items?.length || 0} items</TableCell>
+                    <TableCell>
+                      {order.order_items && order.order_items.length > 0 ? (
+                        <div className="text-xs space-y-0.5">
+                          <div className="font-medium">
+                            {order.order_items[0].product_title}
+                            <span className="text-muted-foreground"> × {order.order_items[0].quantity}</span>
+                          </div>
+                          {order.order_items.length > 1 && (
+                            <div className="text-muted-foreground">
+                              +{order.order_items.length - 1} more item{order.order_items.length > 2 ? "s" : ""}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No items</span>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       ₹{order.total.toFixed(2)}
                     </TableCell>

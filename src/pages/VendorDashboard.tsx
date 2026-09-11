@@ -99,6 +99,15 @@ interface VendorOrder {
   customer_phone?: string;
   shipping_address?: { city?: string; state?: string; pincode?: string } | null;
   payment_status?: string;
+  items?: VendorOrderItem[];
+}
+
+interface VendorOrderItem {
+  product_title: string;
+  variant_title: string | null;
+  size: string | null;
+  color: string | null;
+  quantity: number;
 }
 
 interface PayoutAccountForm {
@@ -246,6 +255,26 @@ export default function VendorDashboard() {
           o.customer_phone = ord?.customer_phone;
           o.shipping_address = ord?.shipping_address;
           o.payment_status = ord?.payment_status;
+        });
+
+        // Scoped to this vendor's own vendor_order_id - a multi-vendor order's
+        // other sellers' items must never show up here. This was the actual
+        // gap behind "vendor always confuse what they have to deliver": the
+        // table showed commission/payout numbers but never the products
+        // themselves, so there was nothing to pack against.
+        const vendorOrderIds = vOrders.map((o) => o.id);
+        const { data: itemRows } = await supabase
+          .from("order_items")
+          .select("vendor_order_id, product_title, variant_title, size, color, quantity")
+          .in("vendor_order_id", vendorOrderIds);
+        const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
+        (itemRows || []).forEach((item: any) => {
+          const list = itemsByVendorOrder.get(item.vendor_order_id) ?? [];
+          list.push(item);
+          itemsByVendorOrder.set(item.vendor_order_id, list);
+        });
+        vOrders.forEach((o) => {
+          o.items = itemsByVendorOrder.get(o.id) ?? [];
         });
       }
       setOrders(vOrders);
@@ -593,6 +622,7 @@ export default function VendorDashboard() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Order</TableHead>
+                          <TableHead>Items to Deliver</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Commission</TableHead>
                           <TableHead>Net Payable</TableHead>
@@ -611,6 +641,27 @@ export default function VendorDashboard() {
                               <div className="text-muted-foreground">
                                 {new Date(o.created_at).toLocaleDateString()}
                               </div>
+                            </TableCell>
+                            <TableCell>
+                              {o.items && o.items.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {o.items.map((item, i) => (
+                                    <div key={i} className="text-xs">
+                                      <span className="font-medium">{item.product_title}</span>
+                                      <span className="text-muted-foreground"> × {item.quantity}</span>
+                                      {(item.variant_title || item.size || item.color) && (
+                                        <div className="text-muted-foreground">
+                                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+                                            .filter(Boolean)
+                                            .join(" · ")}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <div>{o.customer_name || "Customer"}</div>
