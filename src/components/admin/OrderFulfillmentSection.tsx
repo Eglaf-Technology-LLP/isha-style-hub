@@ -139,6 +139,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                           .join(" · ")})
                       </span>
                     )}
+                    <div className="font-mono text-muted-foreground">SKU: {item.sku || "not set"}</div>
                   </div>
                 ))}
               </div>

@@ -170,6 +170,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                             {order.order_items[0].product_title}
                             <span className="text-muted-foreground"> × {order.order_items[0].quantity}</span>
                           </div>
+                          {order.order_items[0].sku && (
+                            <div className="font-mono text-muted-foreground">SKU: {order.order_items[0].sku}</div>
+                          )}
                           {order.order_items.length > 1 && (
                             <div className="text-muted-foreground">
                               +{order.order_items.length - 1} more item{order.order_items.length > 2 ? "s" : ""}
@@ -358,6 +361,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                             {item.size && <span>Size: {item.size}</span>}
                             {item.color && <span>Color: {item.color}</span>}
                           </div>
+                          <p className="text-xs font-mono text-muted-foreground mt-1">
+                            SKU: {item.sku || "not set"}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="font-medium">

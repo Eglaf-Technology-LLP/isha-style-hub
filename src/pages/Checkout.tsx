@@ -525,12 +525,25 @@ export default function Checkout() {
       // instead of read live from products.
       const { data: returnabilityRows, error: returnabilityErr } = await supabase
         .from("products")
-        .select("id, is_returnable")
+        .select("id, is_returnable, sku")
         .in("id", [...new Set(items.map((item) => item.productId))]);
       if (returnabilityErr) throw returnabilityErr;
-      const isReturnableByProductId = new Map(
-        (returnabilityRows || []).map((p) => [p.id, p.is_returnable])
-      );
+      const productMetaById = new Map((returnabilityRows || []).map((p) => [p.id, p]));
+
+      // SKU is what actually disambiguates two listings that otherwise look
+      // identical (same name, size, color, even same photos) - the vendor
+      // asked for this explicitly: with several similar products live, there
+      // was no way to tell which exact one a given order line refers to.
+      // A real variant's own SKU (if the vendor set one) is more specific
+      // than the parent product's, so it wins when both exist; a cart item
+      // with no matched variant (synthetic "<productId>-default" id, not a
+      // real uuid) falls straight back to the product-level SKU.
+      const realVariantIds = items.map((item) => item.variantId).filter((id) => UUID_RE.test(id));
+      const { data: variantSkuRows } =
+        realVariantIds.length > 0
+          ? await supabase.from("product_variants").select("id, sku").in("id", realVariantIds)
+          : { data: [] as { id: string; sku: string | null }[] };
+      const skuByVariantId = new Map((variantSkuRows || []).map((v) => [v.id, v.sku]));
 
       // Create order items, linked to their vendor and vendor order
       const orderItems = items.map((item) => ({
@@ -541,11 +554,15 @@ export default function Checkout() {
         variant_title: item.variantTitle || null,
         size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
         color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
+        sku:
+          (UUID_RE.test(item.variantId) ? skuByVariantId.get(item.variantId) : null) ||
+          productMetaById.get(item.productId)?.sku ||
+          null,
         quantity: item.quantity,
         price: parseFloat(item.price.amount),
         vendor_id: item.vendorId,
         vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
-        is_returnable: isReturnableByProductId.get(item.productId) ?? true,
+        is_returnable: productMetaById.get(item.productId)?.is_returnable ?? true,
       }));
 
       const { error: itemsError } = await supabase

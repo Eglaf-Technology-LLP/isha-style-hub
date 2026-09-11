@@ -107,6 +107,7 @@ interface VendorOrderItem {
   variant_title: string | null;
   size: string | null;
   color: string | null;
+  sku: string | null;
   quantity: number;
 }
 
@@ -265,7 +266,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, quantity")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -655,6 +656,15 @@ export default function VendorDashboard() {
                                             .filter(Boolean)
                                             .join(" · ")}
                                         </div>
+                                      )}
+                                      {/* The one thing that actually tells apart two listings that
+                                          otherwise look identical (same name/size/color) - called out
+                                          in its own monospace line rather than folded into the
+                                          variant text so it reads as an identifier, not a label. */}
+                                      {item.sku ? (
+                                        <div className="font-mono text-muted-foreground">SKU: {item.sku}</div>
+                                      ) : (
+                                        <div className="text-destructive">No SKU set</div>
                                       )}
                                     </div>
                                   ))}

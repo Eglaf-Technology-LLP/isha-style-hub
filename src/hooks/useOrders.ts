@@ -13,6 +13,7 @@ export interface OrderItem {
   variant_title: string | null;
   size: string | null;
   color: string | null;
+  sku: string | null;
   quantity: number;
   price: number;
 }

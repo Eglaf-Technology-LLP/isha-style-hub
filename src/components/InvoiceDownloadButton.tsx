@@ -25,6 +25,7 @@ interface InvoiceItem {
   variant_title: string | null;
   size: string | null;
   color: string | null;
+  sku: string | null;
   quantity: number;
   price: number;
 }
@@ -75,7 +76,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
 
       const { data: itemsData } = await supabase
         .from("order_items")
-        .select("product_title, variant_title, size, color, quantity, price")
+        .select("product_title, variant_title, size, color, sku, quantity, price")
         .eq("vendor_order_id", vendorOrderId);
       setItems(itemsData ?? []);
       setLoading(false);
@@ -147,6 +148,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       {item.product_title}
                       {item.variant_title && ` (${item.variant_title})`}
                       {" "}x{item.quantity}
+                      {item.sku && <span className="text-muted-foreground"> · SKU: {item.sku}</span>}
                     </span>
                     <span>₹{(item.price * item.quantity).toFixed(2)}</span>
                   </div>
