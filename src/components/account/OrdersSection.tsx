@@ -336,7 +336,11 @@ export function OrdersSection() {
                                       shipment: group.vendorOrder.shipment,
                                     })}
                                   />
-                                  <InvoiceDownloadButton vendorOrderId={group.vendorOrderId} />
+                                  <InvoiceDownloadButton
+                                    vendorOrderId={group.vendorOrderId}
+                                    paymentStatus={order.payment_status}
+                                    vendorOrderStatus={group.vendorOrder?.status}
+                                  />
                                 </>
                               )}
                             </div>

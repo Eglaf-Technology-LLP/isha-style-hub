@@ -708,7 +708,11 @@ export default function VendorDashboard() {
                               <RefundSummaryCell orderId={o.order_id} />
                             </TableCell>
                             <TableCell>
-                              <InvoiceDownloadButton vendorOrderId={o.id} />
+                              <InvoiceDownloadButton
+                                vendorOrderId={o.id}
+                                paymentStatus={o.payment_status ?? "pending"}
+                                vendorOrderStatus={o.status}
+                              />
                             </TableCell>
                           </TableRow>
                         ))}

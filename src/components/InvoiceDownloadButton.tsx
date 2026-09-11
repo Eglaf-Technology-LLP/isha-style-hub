@@ -38,7 +38,19 @@ const formatAddress = (a: Invoice["seller_address"] | Invoice["billing_address"]
 // of their own goods) - same browser print-to-PDF pattern already
 // established by RefundReceiptDialog.tsx, no PDF library added. Generated
 // once server-side on first open (generate-invoice), then just displayed.
-export function InvoiceDownloadButton({ vendorOrderId }: { vendorOrderId: string }) {
+interface InvoiceDownloadButtonProps {
+  vendorOrderId: string;
+  // Mirrors generate-invoice's own two preconditions exactly (payment_status
+  // must be "paid", vendor_order.status must not be "cancelled") - passed in
+  // by every caller since they already have this data, so the button can
+  // explain itself instead of rendering a live action that's guaranteed to
+  // 400. A customer clicking a button that visibly does nothing but fail is
+  // a worse experience than not showing it, or showing why it's not ready yet.
+  paymentStatus: string;
+  vendorOrderStatus?: string;
+}
+
+export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrderStatus }: InvoiceDownloadButtonProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -69,6 +81,13 @@ export function InvoiceDownloadButton({ vendorOrderId }: { vendorOrderId: string
       setLoading(false);
     })();
   }, [open, invoice, loading, vendorOrderId]);
+
+  if (vendorOrderStatus === "cancelled") {
+    return <span className="text-xs text-muted-foreground">No invoice — item cancelled</span>;
+  }
+  if (paymentStatus !== "paid") {
+    return <span className="text-xs text-muted-foreground">Invoice available after payment</span>;
+  }
 
   return (
     <>

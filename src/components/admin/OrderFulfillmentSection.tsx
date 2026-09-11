@@ -127,7 +127,11 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 </Badge>
               </div>
 
-              <InvoiceDownloadButton vendorOrderId={vendorOrderId} />
+              <InvoiceDownloadButton
+                vendorOrderId={vendorOrderId}
+                paymentStatus={order.payment_status}
+                vendorOrderStatus={status}
+              />
 
               {!shipment || (!shipment.awb_code && shipment.status === "cancelled") ? (
                 status === "cancelled" ? (

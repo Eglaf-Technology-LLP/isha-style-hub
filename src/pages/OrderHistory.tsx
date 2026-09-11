@@ -467,7 +467,11 @@ export default function OrderHistory() {
                                     )
                                   )}
                                   <div>
-                                    <InvoiceDownloadButton vendorOrderId={group.vendorOrderId} />
+                                    <InvoiceDownloadButton
+                                      vendorOrderId={group.vendorOrderId}
+                                      paymentStatus={order.payment_status}
+                                      vendorOrderStatus={group.vendorOrder?.status}
+                                    />
                                   </div>
                                 </div>
                               )}
