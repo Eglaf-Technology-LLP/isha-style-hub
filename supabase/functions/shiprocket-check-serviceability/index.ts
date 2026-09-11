@@ -58,11 +58,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Order has no delivery pincode" }, 400);
     }
 
+    const isCod = order.payment_method === "cod";
     const weightKg = await computeTotalWeightKg(supabase, items);
     const couriers = await checkCourierServiceability(supabase, {
       pickupPincode,
       deliveryPincode,
-      cod: order.payment_method === "cod",
+      cod: isCod,
       weightKg,
     });
 
@@ -72,7 +73,18 @@ Deno.serve(async (req) => {
       }, 400);
     }
 
-    return jsonResponse({ couriers, weightKg });
+    // isCod tells the UI what these rates actually mean: when true, each
+    // rate already has Shiprocket's real COD handling charge folded in
+    // (confirmed directly against their API - passing cod=1 returns a
+    // higher combined "rate" than cod=0 for the exact same route/weight,
+    // not a separate line item); when false, this is a prepaid shipment
+    // and the rate is freight only. Surfaced explicitly rather than left
+    // for the UI to guess from each courier's own codAvailable flag, which
+    // only means "this courier offers COD as a general capability" - true
+    // for nearly every courier regardless of how this specific order will
+    // actually be paid, and confusingly labeled "COD" next to a prepaid
+    // order's freight-only rate before this fix.
+    return jsonResponse({ couriers, weightKg, isCod });
   } catch (e) {
     console.error("shiprocket-check-serviceability error", e);
     return jsonResponse({ error: errorMessage(e) }, 500);

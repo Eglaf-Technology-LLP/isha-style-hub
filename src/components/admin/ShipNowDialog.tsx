@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -17,7 +16,7 @@ import { CourierOption } from "@/hooks/useShipments";
 interface ShipNowDialogProps {
   vendorOrderId: string;
   actioning: boolean;
-  checkServiceability: (vendorOrderId: string) => Promise<{ couriers: CourierOption[] } | null>;
+  checkServiceability: (vendorOrderId: string) => Promise<{ couriers: CourierOption[]; isCod: boolean } | null>;
   shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null) => Promise<boolean>;
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
@@ -37,6 +36,7 @@ export function ShipNowDialog({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
+  const [isCod, setIsCod] = useState(false);
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
 
@@ -49,6 +49,7 @@ export function ShipNowDialog({
     setLoading(false);
     if (result) {
       setCouriers(result.couriers);
+      setIsCod(result.isCod);
       setSelectedCourierId(result.couriers[0]?.courierId ?? null);
     } else {
       setOpen(false);
@@ -88,35 +89,41 @@ export function ShipNowDialog({
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
           </div>
         ) : couriers && couriers.length > 0 ? (
-          <RadioGroup
-            value={selectedCourierId?.toString() ?? ""}
-            onValueChange={(v) => setSelectedCourierId(Number(v))}
-            className="space-y-2 max-h-[50vh] overflow-y-auto"
-          >
-            {couriers.map((c) => (
-              <Label
-                key={c.courierId}
-                htmlFor={`courier-${c.courierId}`}
-                className="flex items-center justify-between gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-primary [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
-              >
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem value={c.courierId.toString()} id={`courier-${c.courierId}`} />
-                  <div>
-                    <p className="text-sm font-medium">{c.courierName}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+          <>
+            {/* Whether THIS order is COD, not whether a courier merely offers
+                COD as a general capability - the old per-courier "COD" badge
+                (sourced from codAvailable, true for nearly every courier
+                regardless of how this specific order is actually paid) read
+                as "this rate includes COD" even for prepaid orders, which is
+                exactly the confusion that prompted this fix. */}
+            <p className="text-xs text-muted-foreground -mt-2">
+              {isCod
+                ? "This order is Cash on Delivery - rates below include the courier's COD handling charge."
+                : "This order is prepaid - rates below are freight only."}
+            </p>
+            <RadioGroup
+              value={selectedCourierId?.toString() ?? ""}
+              onValueChange={(v) => setSelectedCourierId(Number(v))}
+              className="space-y-2 max-h-[50vh] overflow-y-auto"
+            >
+              {couriers.map((c) => (
+                <Label
+                  key={c.courierId}
+                  htmlFor={`courier-${c.courierId}`}
+                  className="flex items-center justify-between gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-primary [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+                >
+                  <div className="flex items-center gap-3">
+                    <RadioGroupItem value={c.courierId.toString()} id={`courier-${c.courierId}`} />
+                    <div>
+                      <p className="text-sm font-medium">{c.courierName}</p>
                       {c.etd && <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>}
-                      {c.codAvailable && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          COD
-                        </Badge>
-                      )}
                     </div>
                   </div>
-                </div>
-                <span className="font-semibold">₹{c.rate.toFixed(0)}</span>
-              </Label>
-            ))}
-          </RadioGroup>
+                  <span className="font-semibold">₹{c.rate.toFixed(0)}</span>
+                </Label>
+              ))}
+            </RadioGroup>
+          </>
         ) : (
           <p className="text-sm text-muted-foreground text-center py-6">No couriers available.</p>
         )}

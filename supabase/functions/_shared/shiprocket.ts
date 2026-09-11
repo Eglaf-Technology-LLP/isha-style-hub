@@ -276,7 +276,6 @@ export interface CourierOption {
   courierName: string;
   rate: number;
   etd: string | null;
-  codAvailable: boolean;
 }
 
 // Real courier names/rates/ETDs for this pickup->delivery route, straight
@@ -302,7 +301,6 @@ export async function checkCourierServiceability(
       courierName: c.courier_name,
       rate: Number(c.rate ?? c.freight_charge ?? 0),
       etd: c.etd ?? null,
-      codAvailable: c.cod === 1,
     }));
   options.sort((a, b) => a.rate - b.rate);
   return options;

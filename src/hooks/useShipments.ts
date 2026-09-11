@@ -8,7 +8,6 @@ export interface CourierOption {
   courierName: string;
   rate: number;
   etd: string | null;
-  codAvailable: boolean;
 }
 
 export interface Shipment {
@@ -69,8 +68,8 @@ export function useShipments(vendorOrderIds: string[]) {
   // instead of Shiprocket silently auto-assigning. Read-only.
   const checkServiceability = async (
     vendorOrderId: string,
-  ): Promise<{ couriers: CourierOption[] } | null> => {
-    const { data, errorMessage: msg } = await invokeEdgeFunction<{ couriers: CourierOption[] }>(
+  ): Promise<{ couriers: CourierOption[]; isCod: boolean } | null> => {
+    const { data, errorMessage: msg } = await invokeEdgeFunction<{ couriers: CourierOption[]; isCod: boolean }>(
       "shiprocket-check-serviceability",
       { vendor_order_id: vendorOrderId },
     );
