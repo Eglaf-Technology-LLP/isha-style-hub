@@ -99,6 +99,8 @@ interface VendorOrder {
   customer_phone?: string;
   shipping_address?: { city?: string; state?: string; pincode?: string } | null;
   payment_status?: string;
+  discount_code?: string | null;
+  discount_amount?: number;
   items?: VendorOrderItem[];
 }
 
@@ -247,7 +249,7 @@ export default function VendorDashboard() {
         const ids = vOrders.map((o) => o.order_id);
         const { data: ords } = await supabase
           .from("orders")
-          .select("id, customer_name, customer_phone, shipping_address, payment_status")
+          .select("id, customer_name, customer_phone, shipping_address, payment_status, discount_code, discount_amount")
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
         vOrders.forEach((o) => {
@@ -256,6 +258,8 @@ export default function VendorDashboard() {
           o.customer_phone = ord?.customer_phone;
           o.shipping_address = ord?.shipping_address;
           o.payment_status = ord?.payment_status;
+          o.discount_code = ord?.discount_code ?? null;
+          o.discount_amount = ord?.discount_amount ?? 0;
         });
 
         // Scoped to this vendor's own vendor_order_id - a multi-vendor order's
@@ -681,6 +685,11 @@ export default function VendorDashboard() {
                               {o.shipping_address?.city && (
                                 <div className="text-xs text-muted-foreground">
                                   {o.shipping_address.city}, {o.shipping_address.state} {o.shipping_address.pincode}
+                                </div>
+                              )}
+                              {!!o.discount_amount && o.discount_amount > 0 && (
+                                <div className="text-xs text-primary">
+                                  Coupon used{o.discount_code && ` (${o.discount_code})`} - doesn't affect your payout
                                 </div>
                               )}
                             </TableCell>

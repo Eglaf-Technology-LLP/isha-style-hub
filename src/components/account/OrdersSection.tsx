@@ -60,6 +60,8 @@ interface Order {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  discount_code: string | null;
+  discount_amount: number;
   order_items: OrderItem[];
   vendor_orders: VendorOrderInfo[];
 }
@@ -114,7 +116,7 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total")
+        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
@@ -346,6 +348,14 @@ export function OrdersSection() {
                             </div>
                           ))}
                         </div>
+                        {order.discount_amount > 0 && (
+                          <div className="pt-3 border-t mt-2 flex justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Discount applied{order.discount_code && ` (${order.discount_code})`}
+                            </span>
+                            <span className="text-primary">-₹{order.discount_amount.toFixed(2)}</span>
+                          </div>
+                        )}
                         {/* Return/Exchange status */}
                         {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                           <div className="pt-3 border-t space-y-2 mt-2">

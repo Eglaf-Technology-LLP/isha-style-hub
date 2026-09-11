@@ -13,6 +13,8 @@ interface Invoice {
   shipping_cost: number;
   tax_amount: number;
   total: number;
+  discount_code: string | null;
+  discount_amount: number;
   seller_name: string;
   seller_gstin: string | null;
   seller_address: { address_line1?: string; city?: string; state?: string; pincode?: string } | null;
@@ -173,6 +175,14 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                   <span>₹{invoice.total.toFixed(2)}</span>
                 </div>
               </div>
+
+              {invoice.discount_amount > 0 && (
+                <p className="text-[11px] text-muted-foreground border-t border-border pt-3">
+                  A discount{invoice.discount_code && ` (${invoice.discount_code})`} of ₹
+                  {invoice.discount_amount.toFixed(2)} was applied to the overall order at checkout -
+                  it reduced what the customer paid, not this vendor's own total shown above.
+                </p>
+              )}
 
               {invoice.tax_amount === 0 && (
                 <p className="text-[11px] text-muted-foreground border-t border-border pt-3">

@@ -66,6 +66,8 @@ interface Order {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  discount_code: string | null;
+  discount_amount: number;
   customer_name: string;
   shipping_address: {
     address_line1: string;
@@ -487,6 +489,14 @@ export default function OrderHistory() {
                               <span className="text-muted-foreground">Shipping</span>
                               <span>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : "Free"}</span>
                             </div>
+                            {order.discount_amount > 0 && (
+                              <div className="flex justify-between text-primary">
+                                <span>
+                                  Discount{order.discount_code && ` (${order.discount_code})`}
+                                </span>
+                                <span>-₹{order.discount_amount.toFixed(2)}</span>
+                              </div>
+                            )}
                             <div className="flex justify-between font-semibold pt-2 border-t">
                               <span>Total</span>
                               <span>₹{order.total.toFixed(2)}</span>

@@ -480,6 +480,8 @@ export default function Checkout() {
           subtotal: subtotal,
           shipping_cost: shippingCost,
           total: total,
+          discount_code: appliedDiscount?.code ?? null,
+          discount_amount: discountAmount,
           notes: notes || null,
           razorpay_order_id: razorpayOrderId,
         });

@@ -40,6 +40,8 @@ export interface Order {
   subtotal: number;
   shipping_cost: number;
   total: number;
+  discount_code: string | null;
+  discount_amount: number;
   notes: string | null;
   created_at: string;
   updated_at: string;

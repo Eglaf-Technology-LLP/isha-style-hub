@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_status, customer_name, shipping_address")
+      .select("id, user_id, payment_status, customer_name, shipping_address, discount_code, discount_amount")
       .eq("id", vendorOrder.order_id)
       .maybeSingle();
     if (orderErr) throw orderErr;
@@ -111,6 +111,13 @@ Deno.serve(async (req) => {
         seller_address: vendor.address,
         billing_name: order.customer_name,
         billing_address: order.shipping_address,
+        // Order-level, not this vendor's share specifically - one coupon
+        // applies to the whole cart, not per vendor. Snapshotted as-is
+        // rather than prorated into this vendor's own total, which would
+        // assert a vendor-funds-the-discount accounting policy that hasn't
+        // actually been decided (see the migration comment).
+        discount_code: order.discount_code,
+        discount_amount: order.discount_amount,
       })
       .select("*")
       .single();

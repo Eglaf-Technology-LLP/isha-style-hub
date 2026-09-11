@@ -185,6 +185,11 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     </TableCell>
                     <TableCell className="font-medium">
                       ₹{order.total.toFixed(2)}
+                      {order.discount_amount > 0 && (
+                        <div className="text-xs font-normal text-primary">
+                          -₹{order.discount_amount.toFixed(2)}{order.discount_code && ` (${order.discount_code})`}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
@@ -401,6 +406,14 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     <span className="text-muted-foreground">Shipping</span>
                     <span>₹{selectedOrder.shipping_cost.toFixed(2)}</span>
                   </div>
+                  {selectedOrder.discount_amount > 0 && (
+                    <div className="flex justify-between text-primary">
+                      <span>
+                        Discount{selectedOrder.discount_code && ` (${selectedOrder.discount_code})`}
+                      </span>
+                      <span>-₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                    </div>
+                  )}
                   <Separator />
                   <div className="flex justify-between font-medium text-lg">
                     <span>Total</span>
