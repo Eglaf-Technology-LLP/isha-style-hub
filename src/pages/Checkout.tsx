@@ -33,6 +33,14 @@ import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Razorpay rejects any order below ₹1 (their real, documented minimum) -
+// a steep enough discount (e.g. a near-100% coupon) can legitimately bring
+// the payable total below that floor. Without this, "Pay Online" silently
+// fails with an unhelpful generic error since create-razorpay-order's own
+// request to Razorpay gets rejected server-side. COD has no such floor and
+// already handles a sub-₹1 total fine, so steer there instead of failing.
+const MIN_ONLINE_PAYMENT_AMOUNT = 1;
+
 interface Discount {
   id: string;
   code: string;
@@ -267,6 +275,16 @@ export default function Checkout() {
 
   const discountAmount = calculateDiscount();
   const total = subtotal - discountAmount + shippingCost;
+  const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
+
+  // A discount applied after "Pay Online" was already selected can drop the
+  // total below Razorpay's minimum - switch back to COD automatically
+  // rather than letting the customer hit the payment failure at submit time.
+  useEffect(() => {
+    if (belowOnlineMinimum && paymentMethod === "razorpay") {
+      setPaymentMethod("cod");
+    }
+  }, [belowOnlineMinimum, paymentMethod]);
 
   const validateDiscountCode = async () => {
     if (!discountCode.trim()) {
@@ -416,6 +434,11 @@ export default function Checkout() {
       let razorpayOrderId: string | null = null;
       let razorpayKeyId: string | null = null;
       if (paymentMethod === "razorpay") {
+        if (belowOnlineMinimum) {
+          toast.error(`Online payment needs at least ₹${MIN_ONLINE_PAYMENT_AMOUNT} - please choose Cash on Delivery instead`);
+          setIsPlacingOrder(false);
+          return;
+        }
         const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
           body: { receiptId: newOrderId, amount: total },
         });
@@ -969,17 +992,23 @@ export default function Checkout() {
                       </div>
                     </Label>
                   </div>
-                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="razorpay" id="razorpay" />
+                  <div
+                    className={`flex items-center space-x-3 p-4 border border-border rounded-lg ${
+                      belowOnlineMinimum ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"
+                    }`}
+                  >
+                    <RadioGroupItem value="razorpay" id="razorpay" disabled={belowOnlineMinimum} />
                     <Label
                       htmlFor="razorpay"
-                      className="flex items-center gap-3 cursor-pointer flex-1"
+                      className={`flex items-center gap-3 flex-1 ${belowOnlineMinimum ? "" : "cursor-pointer"}`}
                     >
                       <CreditCard className="h-5 w-5 text-primary" />
                       <div>
                         <p className="font-medium">Pay Online</p>
                         <p className="text-sm text-muted-foreground">
-                          Card, UPI or netbanking &mdash; pick your method at checkout
+                          {belowOnlineMinimum
+                            ? `Not available below ₹${MIN_ONLINE_PAYMENT_AMOUNT} - use Cash on Delivery`
+                            : "Card, UPI or netbanking — pick your method at checkout"}
                         </p>
                       </div>
                     </Label>
