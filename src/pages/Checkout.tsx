@@ -33,6 +33,19 @@ import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Every price on this page used .toFixed(0) independently, which is fine
+// for the common whole-rupee case but silently lies once a steep discount
+// (or anything else) leaves a fractional remainder: subtotal ₹999 minus a
+// 99.99% discount is really ₹998.90 off, ₹0.10 still due - rounding each
+// figure to the nearest whole rupee on its own showed "Discount ₹999" and
+// "Total ₹0" side by side, which don't even reconcile with each other and
+// hide that anything is still owed. Whole-rupee amounts still render clean
+// (no forced ".00"); only a genuine fractional amount shows its paise.
+const formatMoney = (n: number): string => {
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(2);
+};
+
 // Razorpay rejects any order below ₹1 (their real, documented minimum) -
 // a steep enough discount (e.g. a near-100% coupon) can legitimately bring
 // the payable total below that floor. Without this, "Pay Online" silently
@@ -1061,7 +1074,7 @@ export default function Checkout() {
                           Qty: {item.quantity}
                         </p>
                         <p className="text-sm font-semibold">
-                          ₹{(parseFloat(item.price.amount) * item.quantity).toFixed(0)}
+                          ₹{formatMoney(parseFloat(item.price.amount) * item.quantity)}
                         </p>
                       </div>
                     </div>
@@ -1103,7 +1116,7 @@ export default function Checkout() {
                         </Button>
                       </div>
                       <p className="text-xs text-primary/70 mt-1">
-                        You're saving ₹{discountAmount.toFixed(0)} on this order!
+                        You're saving ₹{formatMoney(discountAmount)} on this order!
                       </p>
                     </div>
                   ) : (
@@ -1141,12 +1154,12 @@ export default function Checkout() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{subtotal.toFixed(0)}</span>
+                    <span>₹{formatMoney(subtotal)}</span>
                   </div>
                   {appliedDiscount && (
                     <div className="flex justify-between text-primary">
                       <span>Discount</span>
-                      <span>-₹{discountAmount.toFixed(0)}</span>
+                      <span>-₹{formatMoney(discountAmount)}</span>
                     </div>
                   )}
                   {vendorGroups.map((group) => (
@@ -1169,7 +1182,7 @@ export default function Checkout() {
 
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
-                  <span className="text-primary">₹{total.toFixed(0)}</span>
+                  <span className="text-primary">₹{formatMoney(total)}</span>
                 </div>
 
                 <Button
@@ -1184,9 +1197,9 @@ export default function Checkout() {
                       {paymentMethod === "razorpay" ? "Processing payment..." : "Placing Order..."}
                     </>
                   ) : paymentMethod === "razorpay" ? (
-                    `Pay ₹${total.toFixed(0)}`
+                    `Pay ₹${formatMoney(total)}`
                   ) : (
-                    `Place Order • ₹${total.toFixed(0)}`
+                    `Place Order • ₹${formatMoney(total)}`
                   )}
                 </Button>
 
@@ -1196,7 +1209,7 @@ export default function Checkout() {
                   if (threshold === null) return null;
                   return (
                     <p className="text-xs text-center text-muted-foreground">
-                      Add ₹{(threshold - vendorGroups[0].subtotal).toFixed(0)} more for free shipping
+                      Add ₹{formatMoney(threshold - vendorGroups[0].subtotal)} more for free shipping
                     </p>
                   );
                 })()}
