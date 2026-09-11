@@ -10,7 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Truck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
 
 interface ShipNowDialogProps {
@@ -76,11 +77,12 @@ export function ShipNowDialog({
         {actioning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
         {triggerLabel}
       </Button>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Choose a courier</DialogTitle>
           <DialogDescription>
-            Real rates for this pickup and delivery address - pick one to book the pickup.
+            Real rates for this pickup and delivery address, straight from Shiprocket - cross-check
+            any of these against Shiprocket's own rate calculator and the numbers will match exactly.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,16 +112,37 @@ export function ShipNowDialog({
                 <Label
                   key={c.courierId}
                   htmlFor={`courier-${c.courierId}`}
-                  className="flex items-center justify-between gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-primary [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
+                  className="flex items-start justify-between gap-3 p-3 border border-border rounded-lg cursor-pointer hover:border-primary [&:has([data-state=checked])]:border-primary [&:has([data-state=checked])]:bg-primary/5"
                 >
-                  <div className="flex items-center gap-3">
-                    <RadioGroupItem value={c.courierId.toString()} id={`courier-${c.courierId}`} />
+                  <div className="flex items-start gap-3">
+                    <RadioGroupItem value={c.courierId.toString()} id={`courier-${c.courierId}`} className="mt-1" />
                     <div>
-                      <p className="text-sm font-medium">{c.courierName}</p>
-                      {c.etd && <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{c.courierName}</p>
+                        {c.recommended && (
+                          <Badge className="text-[10px] px-1.5 py-0">Recommended</Badge>
+                        )}
+                        {c.rating != null && (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                            <Star className="h-3 w-3 fill-current" /> {c.rating.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      {c.etd && (
+                        <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>
+                      )}
+                      {/* Same line items Shiprocket's own rate calculator shows
+                          (Freight charges / Smart Order / COD) - so a vendor
+                          checking there sees the exact same numbers, not a
+                          single total with no way to verify it. */}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Freight: ₹{c.freightCharge.toFixed(2)}
+                        {c.serviceFee > 0 && <> · Service fee: ₹{c.serviceFee.toFixed(2)}</>}
+                        {c.codCharges > 0 && <> · COD charge: ₹{c.codCharges.toFixed(2)}</>}
+                      </div>
                     </div>
                   </div>
-                  <span className="font-semibold">₹{c.rate.toFixed(0)}</span>
+                  <span className="font-semibold whitespace-nowrap">₹{c.rate.toFixed(2)}</span>
                 </Label>
               ))}
             </RadioGroup>

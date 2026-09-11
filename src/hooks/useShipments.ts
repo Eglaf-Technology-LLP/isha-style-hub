@@ -6,7 +6,12 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 export interface CourierOption {
   courierId: number;
   courierName: string;
+  freightCharge: number;
+  codCharges: number;
+  serviceFee: number;
   rate: number;
+  rating: number | null;
+  recommended: boolean;
   etd: string | null;
 }
 

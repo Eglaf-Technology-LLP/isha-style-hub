@@ -274,14 +274,38 @@ export async function computeTotalWeightKg(
 export interface CourierOption {
   courierId: number;
   courierName: string;
+  // Full breakdown, all straight from Shiprocket's own response - a vendor
+  // pulling up Shiprocket's own rate calculator for the same route should
+  // see these exact same component numbers, not just a single total that
+  // can't be cross-checked. freightCharge + codCharges + serviceFee = rate.
+  freightCharge: number;
+  codCharges: number;
+  // Shiprocket's own dashboard shows this as a separate "Smart Order" line
+  // (their real per-shipment SMS/tracking-update service) on top of
+  // freight - their `/courier/serviceability` response calls the same
+  // number `whatsapp_charges` and it is NOT folded into their own `rate`
+  // field, so it has to be added in here or the total silently understates
+  // what a vendor will see if they check Shiprocket's calculator directly
+  // (confirmed by reconciling a real example: 47.36 freight + 5 service =
+  // 52.36, exactly matching Shiprocket's own displayed total for that route).
+  serviceFee: number;
   rate: number;
+  // Shiprocket's own 0-5 reliability rating for this courier on this route
+  // (their "Radar" system) - null if they didn't return one.
+  rating: number | null;
+  // Shiprocket's own API returns couriers in their own recommended order
+  // (confirmed: their dashboard's "Recommended" badge sits on whichever
+  // courier is first in this same response) - captured before this
+  // function's own price sort reorders the list for display.
+  recommended: boolean;
   etd: string | null;
 }
 
 // Real courier names/rates/ETDs for this pickup->delivery route, straight
 // from Shiprocket's own serviceability check - lets the vendor actually
 // pick a courier and see the fare instead of Shiprocket auto-assigning
-// one silently. Sorted cheapest first.
+// one silently. Sorted cheapest first (their own recommendation is kept
+// as a separate flag rather than dictating the display order).
 export async function checkCourierServiceability(
   supabase: SupabaseClient,
   params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number },
@@ -296,12 +320,22 @@ export async function checkCourierServiceability(
   const companies = result?.data?.available_courier_companies ?? [];
   const options: CourierOption[] = companies
     .filter((c: any) => !c.blocked)
-    .map((c: any) => ({
-      courierId: c.courier_company_id,
-      courierName: c.courier_name,
-      rate: Number(c.rate ?? c.freight_charge ?? 0),
-      etd: c.etd ?? null,
-    }));
+    .map((c: any, index: number) => {
+      const freightCharge = Number(c.freight_charge ?? 0);
+      const codCharges = Number(c.cod_charges ?? 0);
+      const serviceFee = Number(c.whatsapp_charges ?? 0);
+      return {
+        courierId: c.courier_company_id,
+        courierName: c.courier_name,
+        freightCharge,
+        codCharges,
+        serviceFee,
+        rate: freightCharge + codCharges + serviceFee,
+        rating: typeof c.rating === "number" ? c.rating : null,
+        recommended: index === 0,
+        etd: c.etd ?? null,
+      };
+    });
   options.sort((a, b) => a.rate - b.rate);
   return options;
 }
