@@ -122,8 +122,16 @@ export default function Category() {
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) => {
-        if (isAllProducts) return true;
-        return p.category_id === category?.id;
+        // On a specific category page (e.g. /category/lehenga), the
+        // page's own category is always included so the page never
+        // shows an empty grid; checking other categories in the
+        // sidebar broadens the view instead of ANDing to zero results.
+        if (isAllProducts && filters.categories.length === 0) return true;
+        const allowed = new Set(
+          [...(isAllProducts ? [] : [category?.id]), ...filters.categories].filter(Boolean)
+        );
+        if (allowed.size === 0) return true;
+        return !!p.category_id && allowed.has(p.category_id);
       })
       .filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1])
       .filter((p) => {
@@ -135,12 +143,6 @@ export default function Category() {
       .filter((p) => {
         if (filters.inStock) {
           return p.stock_quantity > 0;
-        }
-        return true;
-      })
-      .filter((p) => {
-        if (filters.categories.length > 0) {
-          return p.category_id && filters.categories.includes(p.category_id);
         }
         return true;
       })
@@ -222,7 +224,7 @@ export default function Category() {
         <ProductFilters
           filters={filters}
           onFiltersChange={setFilters}
-          categories={isAllProducts ? categories.map((c) => ({ id: c.id, name: c.name })) : []}
+          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
           availableSizes={availableSizes}
           availableColors={availableColors}
           availableBrands={availableBrands}
