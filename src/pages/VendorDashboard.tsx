@@ -57,6 +57,7 @@ import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
+import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
@@ -100,8 +101,17 @@ interface VendorOrder {
   created_at: string;
   customer_name?: string;
   customer_phone?: string;
-  shipping_address?: { city?: string; state?: string; pincode?: string } | null;
+  customer_email?: string;
+  shipping_address?: {
+    address_line1?: string;
+    address_line2?: string | null;
+    city?: string;
+    state?: string;
+    pincode?: string;
+    country?: string;
+  } | null;
   payment_status?: string;
+  payment_method?: string;
   discount_code?: string | null;
   discount_amount?: number;
   items?: VendorOrderItem[];
@@ -114,6 +124,7 @@ interface VendorOrderItem {
   color: string | null;
   sku: string | null;
   quantity: number;
+  price: number;
 }
 
 interface PayoutAccountForm {
@@ -257,15 +268,19 @@ export default function VendorDashboard() {
         const ids = vOrders.map((o) => o.order_id);
         const { data: ords } = await supabase
           .from("orders")
-          .select("id, customer_name, customer_phone, shipping_address, payment_status, discount_code, discount_amount")
+          .select(
+            "id, customer_name, customer_phone, customer_email, shipping_address, payment_status, payment_method, discount_code, discount_amount"
+          )
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
         vOrders.forEach((o) => {
           const ord = map.get(o.order_id);
           o.customer_name = ord?.customer_name || "Customer";
           o.customer_phone = ord?.customer_phone;
+          o.customer_email = ord?.customer_email;
           o.shipping_address = ord?.shipping_address;
           o.payment_status = ord?.payment_status;
+          o.payment_method = ord?.payment_method;
           o.discount_code = ord?.discount_code ?? null;
           o.discount_amount = ord?.discount_amount ?? 0;
         });
@@ -278,7 +293,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -745,6 +760,28 @@ export default function VendorDashboard() {
                               {o.order_id.slice(0, 8)}
                               <div className="text-muted-foreground">
                                 {new Date(o.created_at).toLocaleDateString()}
+                              </div>
+                              <div className="mt-1">
+                                <VendorOrderDetailsDialog
+                                  data={{
+                                    orderId: o.order_id,
+                                    createdAt: o.created_at,
+                                    vendorName: vendor?.name || "Your store",
+                                    status: o.status,
+                                    paymentMethod: o.payment_method || "",
+                                    paymentStatus: o.payment_status || "pending",
+                                    customerName: o.customer_name || "Customer",
+                                    customerPhone: o.customer_phone,
+                                    customerEmail: o.customer_email,
+                                    shippingAddress: o.shipping_address,
+                                    items: o.items || [],
+                                    subtotal: o.subtotal,
+                                    shippingCost: o.shipping_cost,
+                                    discountCode: o.discount_code,
+                                    discountAmount: o.discount_amount,
+                                    shipment: forwardShipmentFor(o.id) ?? null,
+                                  }}
+                                />
                               </div>
                             </TableCell>
                             <TableCell>

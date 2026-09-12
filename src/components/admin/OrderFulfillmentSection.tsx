@@ -19,6 +19,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
 import { ShipNowDialog } from "./ShipNowDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
@@ -41,6 +42,9 @@ const statusColors: Record<string, string> = {
 export function OrderFulfillmentSection({ order }: { order: Order }) {
   const [vendorNames, setVendorNames] = useState<Record<string, string>>({});
   const [vendorOrderStatuses, setVendorOrderStatuses] = useState<Record<string, string>>({});
+  const [vendorOrderFinancials, setVendorOrderFinancials] = useState<
+    Record<string, { subtotal: number; shipping_cost: number }>
+  >({});
   const [cancellingVendorOrderId, setCancellingVendorOrderId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -59,10 +63,13 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     if (vendorOrderIds.length === 0) return;
     supabase
       .from("vendor_orders")
-      .select("id, status")
+      .select("id, status, subtotal, shipping_cost")
       .in("id", vendorOrderIds)
       .then(({ data }) => {
         setVendorOrderStatuses(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.status])));
+        setVendorOrderFinancials(
+          Object.fromEntries((data ?? []).map((vo) => [vo.id, { subtotal: vo.subtotal, shipping_cost: vo.shipping_cost }]))
+        );
       });
   };
 
@@ -144,11 +151,33 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 ))}
               </div>
 
-              <InvoiceDownloadButton
-                vendorOrderId={vendorOrderId}
-                paymentStatus={order.payment_status}
-                vendorOrderStatus={status}
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <VendorOrderDetailsDialog
+                  data={{
+                    orderId: order.id,
+                    createdAt: order.created_at,
+                    vendorName: group.vendorId ? vendorNames[group.vendorId] || "Vendor" : "Vendor",
+                    status,
+                    paymentMethod: order.payment_method,
+                    paymentStatus: order.payment_status,
+                    customerName: order.customer_name,
+                    customerPhone: order.customer_phone,
+                    customerEmail: order.customer_email,
+                    shippingAddress: order.shipping_address,
+                    items: group.items,
+                    subtotal: vendorOrderFinancials[vendorOrderId]?.subtotal ?? 0,
+                    shippingCost: vendorOrderFinancials[vendorOrderId]?.shipping_cost ?? 0,
+                    discountCode: order.discount_code,
+                    discountAmount: order.discount_amount,
+                    shipment: shipment ?? null,
+                  }}
+                />
+                <InvoiceDownloadButton
+                  vendorOrderId={vendorOrderId}
+                  paymentStatus={order.payment_status}
+                  vendorOrderStatus={status}
+                />
+              </div>
 
               {!shipment || (!shipment.awb_code && shipment.status === "cancelled") ? (
                 status === "cancelled" ? (
