@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { VendorProductDialog, VendorProductRow } from "@/components/vendor/VendorProductDialog";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { mapDbVariant } from "@/hooks/useProducts";
+import { productMatchesQuery } from "@/lib/productSearch";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 
@@ -103,10 +104,7 @@ export function VendorCatalogManagement() {
   const selectedVendor = vendors.find((v) => v.id === vendorId);
 
   const visibleProducts = searchQuery.trim()
-    ? products.filter((p) => {
-        const q = searchQuery.trim().toLowerCase();
-        return p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q);
-      })
+    ? products.filter((p) => productMatchesQuery(p, searchQuery))
     : products;
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
 
@@ -144,7 +142,7 @@ export function VendorCatalogManagement() {
       <CardContent>
         {!loading && products.length > 0 && (
           <Input
-            placeholder="Search by name or SKU..."
+            placeholder="Search by name, SKU or variant..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="max-w-xs mb-4"

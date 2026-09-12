@@ -44,6 +44,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/useProducts";
+import { productMatchesQuery } from "@/lib/productSearch";
 import { Category } from "@/hooks/useCategories";
 import { ProductImportExportDialog } from "./ProductImportExportDialog";
 import { Link } from "react-router-dom";
@@ -221,12 +222,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     if (stockFilter === "out_of_stock" && p.stock_quantity > 0) return false;
     if (stockFilter === "low_stock" && (p.stock_quantity <= 0 || p.stock_quantity > 5)) return false;
     if (stockFilter === "in_stock" && p.stock_quantity <= 5) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const matchesName = p.name.toLowerCase().includes(q);
-      const matchesSku = (p.sku || "").toLowerCase().includes(q);
-      if (!matchesName && !matchesSku) return false;
-    }
+    if (searchQuery.trim() && !productMatchesQuery(p, searchQuery)) return false;
     return true;
   });
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
@@ -605,7 +601,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
       <div className="flex flex-wrap items-center gap-2 px-6 pt-4">
         <Input
-          placeholder="Search by name or SKU..."
+          placeholder="Search by name, SKU or variant..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-xs"

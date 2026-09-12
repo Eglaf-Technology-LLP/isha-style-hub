@@ -58,6 +58,7 @@ import { useShipments } from "@/hooks/useShipments";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
+import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
@@ -341,10 +342,7 @@ export default function VendorDashboard() {
     if (productStockFilter === "out_of_stock" && p.stock_quantity > 0) return false;
     if (productStockFilter === "low_stock" && (p.stock_quantity <= 0 || p.stock_quantity > 5)) return false;
     if (productStockFilter === "in_stock" && p.stock_quantity <= 5) return false;
-    if (productSearch.trim()) {
-      const q = productSearch.trim().toLowerCase();
-      if (!p.name.toLowerCase().includes(q) && !(p.sku || "").toLowerCase().includes(q)) return false;
-    }
+    if (productSearch.trim() && !productMatchesQuery(p, productSearch)) return false;
     return true;
   });
   const {
@@ -556,7 +554,7 @@ export default function VendorDashboard() {
                 {!dataLoading && products.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 mb-4">
                     <Input
-                      placeholder="Search by name or SKU..."
+                      placeholder="Search by name, SKU or variant..."
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
                       className="max-w-xs"
