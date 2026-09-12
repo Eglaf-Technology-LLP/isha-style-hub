@@ -1,7 +1,6 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { LoyaltyDashboard } from "@/components/LoyaltyDashboard";
-import { GiftCardSection } from "@/components/GiftCardSection";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Gift, Loader2 } from "lucide-react";
@@ -30,10 +29,10 @@ export default function Rewards() {
         <div className="container mx-auto px-4 text-center">
           <Gift className="h-12 w-12 mx-auto mb-4 text-primary" />
           <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">
-            Rewards & Gift Cards
+            Rewards
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Earn points, redeem rewards, and share the love with gift cards
+            Earn points and redeem exclusive rewards
           </p>
         </div>
       </section>
@@ -62,8 +61,6 @@ export default function Rewards() {
             <Button>Sign In</Button>
           </div>
         )}
-
-        <GiftCardSection />
       </main>
 
       <Footer />

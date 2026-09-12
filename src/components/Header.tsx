@@ -228,7 +228,7 @@ export function Header() {
                       <Link to="/wishlist">My Wishlist</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link to="/rewards">Rewards & Gift Cards</Link>
+                      <Link to="/rewards">Rewards</Link>
                     </DropdownMenuItem>
                     {vendor && (
                       <DropdownMenuItem asChild>
