@@ -11,6 +11,40 @@ interface ProductGridProps {
   limit?: number;
 }
 
+// Ordering by created_at DESC and truncating to `limit` hands the entire
+// "Featured Products" section to whichever vendor most recently bulk-added
+// or re-saved products - one vendor updating 40 products in a batch used
+// to fill every single featured slot, crowding out every other vendor
+// entirely. Round-robins one product per vendor per pass instead (each
+// vendor's own products stay ordered most-recent-first within their own
+// turn), so every vendor represented in the fetched pool gets a fair turn
+// before any vendor gets a second slot.
+function diversifyByVendor(products: Product[], limit: number): Product[] {
+  const byVendor = new Map<string, Product[]>();
+  for (const p of products) {
+    const key = p.vendor_id ?? "__none__";
+    if (!byVendor.has(key)) byVendor.set(key, []);
+    byVendor.get(key)!.push(p);
+  }
+  const vendorGroups = [...byVendor.values()];
+
+  const result: Product[] = [];
+  let round = 0;
+  while (result.length < limit) {
+    let addedAny = false;
+    for (const group of vendorGroups) {
+      if (round < group.length) {
+        result.push(group[round]);
+        addedAny = true;
+        if (result.length >= limit) break;
+      }
+    }
+    if (!addedAny) break;
+    round++;
+  }
+  return result;
+}
+
 export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: ProductGridProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,8 +75,19 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
           query = query.eq("category_id", categoryId);
         }
 
+        // A modest multiple of `limit` still isn't enough of a pool to
+        // diversify fairly: if one or two vendors have bulk-added dozens of
+        // products more recently than a third vendor's entire catalog, that
+        // third vendor's products can be older than every single row in
+        // even a 6x-limit pool and never appear at all - confirmed exactly
+        // this happening with real data (a 40/40/20-product 3-vendor
+        // catalog, a 48-row pool, and the 20-product vendor entirely
+        // excluded). A flat, generous cap - independent of `limit` - keeps
+        // every vendor's products in play regardless of when any other
+        // vendor happened to add theirs; this app's realistic catalog size
+        // is nowhere near where fetching 500 rows here would matter.
         if (limit) {
-          query = query.limit(limit);
+          query = query.limit(500);
         }
 
         const { data, error } = await query;
@@ -56,7 +101,7 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
           specifications: (p.specifications as unknown as Product["specifications"]) || [],
         }));
 
-        setProducts(typedProducts);
+        setProducts(limit ? diversifyByVendor(typedProducts, limit) : typedProducts);
       } catch (error) {
         console.error("Failed to fetch products:", error);
       } finally {
