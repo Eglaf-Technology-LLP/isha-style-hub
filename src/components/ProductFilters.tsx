@@ -28,6 +28,7 @@ export interface FilterState {
   categories: string[];
   sizes: string[];
   colors: string[];
+  brands: string[];
   inStock: boolean;
   sortBy: string;
 }
@@ -38,6 +39,7 @@ interface ProductFiltersProps {
   categories: { id: string; name: string }[];
   availableSizes: string[];
   availableColors: string[];
+  availableBrands: { id: string; name: string }[];
   maxPrice: number;
 }
 
@@ -47,6 +49,7 @@ export function ProductFilters({
   categories,
   availableSizes,
   availableColors,
+  availableBrands,
   maxPrice,
 }: ProductFiltersProps) {
   const [localPriceRange, setLocalPriceRange] = useState<[number, number]>(filters.priceRange);
@@ -58,6 +61,7 @@ export function ProductFilters({
     if (filters.categories.length > 0) count += filters.categories.length;
     if (filters.sizes.length > 0) count += filters.sizes.length;
     if (filters.colors.length > 0) count += filters.colors.length;
+    if (filters.brands.length > 0) count += filters.brands.length;
     if (filters.inStock) count++;
     return count;
   }, [filters, maxPrice]);
@@ -66,7 +70,7 @@ export function ProductFilters({
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const toggleArrayFilter = (key: 'categories' | 'sizes' | 'colors', value: string) => {
+  const toggleArrayFilter = (key: 'categories' | 'sizes' | 'colors' | 'brands', value: string) => {
     const current = filters[key];
     if (current.includes(value)) {
       updateFilter(key, current.filter(v => v !== value));
@@ -82,6 +86,7 @@ export function ProductFilters({
       categories: [],
       sizes: [],
       colors: [],
+      brands: [],
       inStock: false,
       sortBy: "popular",
     });
@@ -158,6 +163,29 @@ export function ProductFilters({
                         />
                         <Label htmlFor={`cat-${category.id}`} className="cursor-pointer">
                           {category.name}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              {/* Brands */}
+              {availableBrands.length > 0 && (
+                <div>
+                  <h3 className="font-medium mb-3">Brand</h3>
+                  <div className="space-y-2">
+                    {availableBrands.map((brand) => (
+                      <div key={brand.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`brand-${brand.id}`}
+                          checked={filters.brands.includes(brand.id)}
+                          onCheckedChange={() => toggleArrayFilter("brands", brand.id)}
+                        />
+                        <Label htmlFor={`brand-${brand.id}`} className="cursor-pointer">
+                          {brand.name}
                         </Label>
                       </div>
                     ))}
@@ -293,6 +321,18 @@ export function ProductFilters({
               />
             </Badge>
           ))}
+          {filters.brands.map((brandId) => {
+            const brand = availableBrands.find(b => b.id === brandId);
+            return (
+              <Badge key={brandId} variant="secondary" className="gap-1">
+                {brand?.name || brandId}
+                <X
+                  className="h-3 w-3 cursor-pointer"
+                  onClick={() => toggleArrayFilter("brands", brandId)}
+                />
+              </Badge>
+            );
+          })}
           {filters.inStock && (
             <Badge variant="secondary" className="gap-1">
               In Stock

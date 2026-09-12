@@ -33,6 +33,7 @@ export default function Category() {
     categories: [],
     sizes: [],
     colors: [],
+    brands: [],
     inStock: false,
     sortBy: "popular",
   };
@@ -51,14 +52,18 @@ export default function Category() {
     return products.filter((p) => p.category_id === category?.id);
   }, [products, isAllProducts, category]);
 
-  // Extract available sizes and colors from category-scoped products only
-  const { availableSizes, availableColors, maxPrice } = useMemo(() => {
+  // Extract available sizes, colors and brands (vendors) from category-scoped products only
+  const { availableSizes, availableColors, availableBrands, maxPrice } = useMemo(() => {
     const sizes = new Set<string>();
     const colors = new Set<string>();
+    const brands = new Map<string, string>();
     let max = 0;
 
     categoryProducts.forEach((product) => {
       if (product.price > max) max = product.price;
+      if (product.vendor_id && product.vendor?.name) {
+        brands.set(product.vendor_id, product.vendor.name);
+      }
       if (product.variants) {
         if (Array.isArray(product.variants)) {
           product.variants.forEach((variant: ProductVariant) => {
@@ -78,6 +83,9 @@ export default function Category() {
     return {
       availableSizes: Array.from(sizes),
       availableColors: Array.from(colors),
+      availableBrands: Array.from(brands.entries())
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
       maxPrice: Math.ceil(max / 1000) * 1000 || 50000,
     };
   }, [categoryProducts]);
@@ -135,6 +143,26 @@ export default function Category() {
           return p.category_id && filters.categories.includes(p.category_id);
         }
         return true;
+      })
+      .filter((p) => {
+        if (filters.brands.length > 0) {
+          return p.vendor_id ? filters.brands.includes(p.vendor_id) : false;
+        }
+        return true;
+      })
+      .filter((p) => {
+        if (filters.sizes.length === 0) return true;
+        return (p.variants || []).some((v) => {
+          const size = v.options?.size || v.options?.Size;
+          return size && filters.sizes.includes(size);
+        });
+      })
+      .filter((p) => {
+        if (filters.colors.length === 0) return true;
+        return (p.variants || []).some((v) => {
+          const color = v.options?.color || v.options?.Color;
+          return color && filters.colors.includes(color);
+        });
       })
       .sort((a, b) => {
         switch (filters.sortBy) {
@@ -194,9 +222,10 @@ export default function Category() {
         <ProductFilters
           filters={filters}
           onFiltersChange={setFilters}
-          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          categories={isAllProducts ? categories.map((c) => ({ id: c.id, name: c.name })) : []}
           availableSizes={availableSizes}
           availableColors={availableColors}
+          availableBrands={availableBrands}
           maxPrice={maxPrice}
         />
 
