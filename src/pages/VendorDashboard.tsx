@@ -6,6 +6,8 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -129,6 +131,11 @@ export default function VendorDashboard() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string>("all");
+  const [productStockFilter, setProductStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">(
+    "all",
+  );
   const [dataLoading, setDataLoading] = useState(true);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
@@ -323,6 +330,40 @@ export default function VendorDashboard() {
     ndr: "bg-orange-100 text-orange-800",
   };
 
+  // Computed (and paginated) before the loading/approval early-return below,
+  // not after it - usePagination calls hooks internally, which must never
+  // run only on some renders. This exact ordering mistake shipped once
+  // already in ProductManagement.tsx and threw a real "Rendered more hooks
+  // than during the previous render" error the moment `loading` (or here,
+  // vendor approval) flipped between renders.
+  const visibleProducts = products.filter((p) => {
+    if (productCategoryFilter !== "all" && p.category_id !== productCategoryFilter) return false;
+    if (productStockFilter === "out_of_stock" && p.stock_quantity > 0) return false;
+    if (productStockFilter === "low_stock" && (p.stock_quantity <= 0 || p.stock_quantity > 5)) return false;
+    if (productStockFilter === "in_stock" && p.stock_quantity <= 5) return false;
+    if (productSearch.trim()) {
+      const q = productSearch.trim().toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !(p.sku || "").toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  const {
+    page: productPage,
+    setPage: setProductPage,
+    totalPages: productTotalPages,
+    paginatedItems: paginatedProducts,
+    totalItems: totalVisibleProducts,
+    pageSize: productPageSize,
+  } = usePagination(visibleProducts, 10);
+  const {
+    page: orderPage,
+    setPage: setOrderPage,
+    totalPages: orderTotalPages,
+    paginatedItems: paginatedOrders,
+    totalItems: totalOrders,
+    pageSize: orderPageSize,
+  } = usePagination(orders, 10);
+
   if (loading || !vendor || vendor.status !== "approved") {
     return (
       <div className="min-h-screen bg-background">
@@ -512,6 +553,56 @@ export default function VendorDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
+                {!dataLoading && products.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
+                    <Input
+                      placeholder="Search by name or SKU..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      className="max-w-xs"
+                    />
+                    <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All categories</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      value={productStockFilter}
+                      onValueChange={(v) => setProductStockFilter(v as typeof productStockFilter)}
+                    >
+                      <SelectTrigger className="w-36">
+                        <SelectValue placeholder="Stock" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Any stock level</SelectItem>
+                        <SelectItem value="in_stock">In stock</SelectItem>
+                        <SelectItem value="low_stock">Low stock</SelectItem>
+                        <SelectItem value="out_of_stock">Out of stock</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(productSearch || productCategoryFilter !== "all" || productStockFilter !== "all") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setProductSearch("");
+                          setProductCategoryFilter("all");
+                          setProductStockFilter("all");
+                        }}
+                      >
+                        Clear filters
+                      </Button>
+                    )}
+                  </div>
+                )}
                 {dataLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -519,6 +610,10 @@ export default function VendorDashboard() {
                 ) : products.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
                     No products yet. Use “Add product” to create your first listing.
+                  </p>
+                ) : visibleProducts.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No products match these filters.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -534,7 +629,7 @@ export default function VendorDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {products.map((p) => (
+                        {paginatedProducts.map((p) => (
                           <TableRow key={p.id}>
                             <TableCell className="font-medium">{p.name}</TableCell>
                             <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
@@ -600,6 +695,13 @@ export default function VendorDashboard() {
                     </Table>
                   </div>
                 )}
+                <PaginationBar
+                  page={productPage}
+                  totalPages={productTotalPages}
+                  onPageChange={setProductPage}
+                  totalItems={totalVisibleProducts}
+                  pageSize={productPageSize}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -639,7 +741,7 @@ export default function VendorDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orders.map((o) => (
+                        {paginatedOrders.map((o) => (
                           <TableRow key={o.id}>
                             <TableCell className="font-mono text-xs">
                               {o.order_id.slice(0, 8)}
@@ -790,6 +892,13 @@ export default function VendorDashboard() {
                     </Table>
                   </div>
                 )}
+                <PaginationBar
+                  page={orderPage}
+                  totalPages={orderTotalPages}
+                  onPageChange={setOrderPage}
+                  totalItems={totalOrders}
+                  pageSize={orderPageSize}
+                />
               </CardContent>
             </Card>
           </TabsContent>

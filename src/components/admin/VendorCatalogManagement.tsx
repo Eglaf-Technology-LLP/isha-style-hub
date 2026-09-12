@@ -18,11 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Pencil, Trash2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { VendorProductDialog, VendorProductRow } from "@/components/vendor/VendorProductDialog";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { mapDbVariant } from "@/hooks/useProducts";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface VendorOption {
   id: string;
@@ -40,6 +43,7 @@ export function VendorCatalogManagement() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProductRow | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     supabase
@@ -98,6 +102,14 @@ export function VendorCatalogManagement() {
 
   const selectedVendor = vendors.find((v) => v.id === vendorId);
 
+  const visibleProducts = searchQuery.trim()
+    ? products.filter((p) => {
+        const q = searchQuery.trim().toLowerCase();
+        return p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q);
+      })
+    : products;
+  const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 flex-wrap gap-3">
@@ -130,6 +142,14 @@ export function VendorCatalogManagement() {
         </div>
       </CardHeader>
       <CardContent>
+        {!loading && products.length > 0 && (
+          <Input
+            placeholder="Search by name or SKU..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="max-w-xs mb-4"
+          />
+        )}
         {loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -138,6 +158,8 @@ export function VendorCatalogManagement() {
           <p className="text-center text-muted-foreground py-8">
             {selectedVendor ? `${selectedVendor.name} has no products yet.` : "Select a vendor."}
           </p>
+        ) : visibleProducts.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">No products match "{searchQuery}".</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -152,7 +174,7 @@ export function VendorCatalogManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((p) => (
+                {paginatedItems.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
@@ -191,6 +213,7 @@ export function VendorCatalogManagement() {
             </Table>
           </div>
         )}
+        <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
       </CardContent>
 
       {vendorId && (

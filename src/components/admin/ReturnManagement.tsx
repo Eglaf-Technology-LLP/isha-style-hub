@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RefundHistory } from "@/components/RefundHistory";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -69,6 +71,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
   const visibleRequests = vendorFilter
     ? returnRequests.filter((r) => r.vendorIds.includes(vendorFilter))
     : returnRequests;
+  const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleRequests, 10);
 
   const openDetail = async (request: ReturnRequest) => {
     setSelectedRequest(request);
@@ -244,7 +247,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleRequests.map((request) => {
+                {paginatedItems.map((request) => {
                   const config = statusConfig[request.status] || statusConfig.pending;
                   return (
                     <TableRow key={request.id}>
@@ -286,6 +289,9 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
             </Table>
           </div>
         )}
+        <div className="px-6 pb-6">
+          <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        </div>
       </CardContent>
 
       {/* Detail Dialog */}

@@ -13,6 +13,8 @@ import { useLowStockAlerts, StockAlertRow, StockMovementRecord } from "@/hooks/u
 import { AlertTriangle, Package, PackageX, Edit2, RefreshCw, History, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface InventoryAlertsProps {
   vendorId?: string;
@@ -57,6 +59,12 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
 
   const allRows = [...outOfStockProducts, ...lowStockProducts];
   const totalAlerts = allRows.length;
+
+  // Hooks called unconditionally here (renderTable itself is only invoked
+  // when a list is non-empty, so pagination state can't live inside it
+  // without breaking the rules of hooks).
+  const outOfStockPagination = usePagination(outOfStockProducts, 10);
+  const lowStockPagination = usePagination(lowStockProducts, 10);
 
   const openEdit = (row: StockAlertRow) => {
     setEditingRow(row);
@@ -121,7 +129,12 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
     );
   }
 
-  const renderTable = (title: string, rows: StockAlertRow[], destructive: boolean) => (
+  const renderTable = (
+    title: string,
+    rows: StockAlertRow[],
+    destructive: boolean,
+    pagination: ReturnType<typeof usePagination<StockAlertRow>>,
+  ) => (
     <Card className={destructive ? "border-destructive/50" : "border-warning/50"}>
       <CardHeader>
         <CardTitle className={`flex items-center gap-2 ${destructive ? "text-destructive" : "text-warning"}`}>
@@ -145,7 +158,7 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
+            {pagination.paginatedItems.map((row) => (
               <TableRow key={rowKey(row)}>
                 <TableCell>
                   <Checkbox
@@ -229,6 +242,13 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
             ))}
           </TableBody>
         </Table>
+        <PaginationBar
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          onPageChange={pagination.setPage}
+          totalItems={pagination.totalItems}
+          pageSize={pagination.pageSize}
+        />
       </CardContent>
     </Card>
   );
@@ -332,8 +352,8 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
         </Card>
       )}
 
-      {outOfStockProducts.length > 0 && renderTable("Out of Stock", outOfStockProducts, true)}
-      {lowStockProducts.length > 0 && renderTable("Low Stock", lowStockProducts, false)}
+      {outOfStockProducts.length > 0 && renderTable("Out of Stock", outOfStockProducts, true, outOfStockPagination)}
+      {lowStockProducts.length > 0 && renderTable("Low Stock", lowStockProducts, false, lowStockPagination)}
 
       {totalAlerts === 0 && (
         <Card>

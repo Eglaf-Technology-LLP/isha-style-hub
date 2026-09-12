@@ -51,6 +51,8 @@ import { VariantManager } from "./VariantManager";
 import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -69,6 +71,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   } = useProducts();
 
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormData>({
@@ -199,6 +205,31 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     const category = categories.find((c) => c.id === categoryId);
     return category?.name || "Unknown";
   };
+
+  // Several independent dimensions at once (name/SKU text, category, stock
+  // level, active status) - the point is finding one product fast out of a
+  // large catalog, not any single filter doing all the work alone. Computed
+  // (and paginated) before the loading early-return below, not after it -
+  // usePagination calls hooks internally, which must never run only on some
+  // renders (this exact ordering bug shipped once already and threw a real
+  // "Rendered more hooks than during the previous render" error the moment
+  // `loading` flipped from true to false).
+  const visibleProducts = products.filter((p) => {
+    if (vendorFilter && p.vendor_id !== vendorFilter) return false;
+    if (categoryFilter !== "all" && p.category_id !== categoryFilter) return false;
+    if (statusFilter !== "all" && p.is_active !== (statusFilter === "active")) return false;
+    if (stockFilter === "out_of_stock" && p.stock_quantity > 0) return false;
+    if (stockFilter === "low_stock" && (p.stock_quantity <= 0 || p.stock_quantity > 5)) return false;
+    if (stockFilter === "in_stock" && p.stock_quantity <= 5) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesName = p.name.toLowerCase().includes(q);
+      const matchesSku = (p.sku || "").toLowerCase().includes(q);
+      if (!matchesName && !matchesSku) return false;
+    }
+    return true;
+  });
+  const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
 
   if (loading) {
     return (
@@ -540,10 +571,6 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     </div>
   );
 
-  const visibleProducts = vendorFilter
-    ? products.filter((p) => p.vendor_id === vendorFilter)
-    : products;
-
   return (
     <Card>
       <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
@@ -576,17 +603,74 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2 px-6 pt-4">
+        <Input
+          placeholder="Search by name or SKU..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-xs"
+        />
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={stockFilter} onValueChange={(v) => setStockFilter(v as typeof stockFilter)}>
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Stock" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any stock level</SelectItem>
+            <SelectItem value="in_stock">In stock</SelectItem>
+            <SelectItem value="low_stock">Low stock</SelectItem>
+            <SelectItem value="out_of_stock">Out of stock</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+        {(searchQuery || categoryFilter !== "all" || stockFilter !== "all" || statusFilter !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setSearchQuery("");
+              setCategoryFilter("all");
+              setStockFilter("all");
+              setStatusFilter("all");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </div>
+
       <CardContent className="p-6">
         {visibleProducts.length === 0 ? (
           <div className="text-center py-12">
             <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {products.length === 0 ? "No products yet" : "No products for this vendor"}
+              {products.length === 0 ? "No products yet" : "No products match these filters"}
             </h3>
             <p className="text-muted-foreground mb-4">
               {products.length === 0
                 ? "Create your first product to start selling"
-                : "Try selecting a different vendor"}
+                : "Try a different search term or clearing a filter"}
             </p>
             {products.length === 0 && (
               <Button onClick={() => setIsAddingProduct(true)}>
@@ -597,7 +681,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {visibleProducts.map((product) => (
+            {paginatedItems.map((product) => (
               <div
                 key={product.id}
                 className="flex items-center justify-between p-4 border border-border rounded-lg"
@@ -709,6 +793,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             ))}
           </div>
         )}
+        <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
       </CardContent>
     </Card>
   );

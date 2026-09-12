@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -75,6 +77,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
         p.order?.order_items?.some((i) => i.vendor_id === vendorFilter)
       )
     : payments;
+  const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visiblePayments, 10);
 
   const getStatusBadge = (status: Payment["payment_status"]) => {
     switch (status) {
@@ -322,7 +325,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {visiblePayments.map((payment) => (
+                  {paginatedItems.map((payment) => (
                     <TableRow key={payment.id}>
                       <TableCell className="text-sm">
                         {format(new Date(payment.created_at), "MMM d, yyyy")}
@@ -535,6 +538,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               </Table>
             </div>
           )}
+          <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
         </CardContent>
       </Card>
     </div>

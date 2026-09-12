@@ -39,9 +39,12 @@ import {
 } from "lucide-react";
 import { useOrders, Order, OrderItem } from "@/hooks/useOrders";
 import { format } from "date-fns";
+import { Input } from "@/components/ui/input";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { OrderFulfillmentSection } from "./OrderFulfillmentSection";
 import { NdrQueue } from "./NdrQueue";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/PaginationBar";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -52,10 +55,20 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const visibleOrders = vendorFilter
-    ? orders.filter((o) => o.order_items?.some((i) => i.vendor_id === vendorFilter))
-    : orders;
+  const visibleOrders = orders.filter((o) => {
+    if (vendorFilter && !o.order_items?.some((i) => i.vendor_id === vendorFilter)) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      const matchesId = o.id.toLowerCase().includes(q);
+      const matchesCustomer = o.customer_name?.toLowerCase().includes(q);
+      const matchesEmail = o.customer_email?.toLowerCase().includes(q);
+      if (!matchesId && !matchesCustomer && !matchesEmail) return false;
+    }
+    return true;
+  });
+  const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleOrders, 10);
 
   const getOrderStatusColor = (status: string) => {
     switch (status) {
@@ -115,7 +128,15 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
             Manage and track customer orders
           </p>
         </div>
-        <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input
+            placeholder="Search by order ID, customer name or email..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-72"
+          />
+          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
+        </div>
       </div>
 
       <CardContent className="p-0">
@@ -123,12 +144,12 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
           <div className="text-center py-12">
             <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">
-              {orders.length === 0 ? "No orders yet" : "No orders for this vendor"}
+              {orders.length === 0 ? "No orders yet" : "No orders match these filters"}
             </h3>
             <p className="text-muted-foreground">
               {orders.length === 0
                 ? "Orders will appear here when customers make purchases"
-                : "Try selecting a different vendor"}
+                : "Try a different search term or vendor"}
             </p>
           </div>
         ) : (
@@ -147,7 +168,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleOrders.map((order) => (
+                {paginatedItems.map((order) => (
                   <TableRow key={order.id}>
                     <TableCell className="font-mono text-sm">
                       {order.id.slice(0, 8)}...
@@ -249,6 +270,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
             </Table>
           </div>
         )}
+        <div className="px-6 pb-6">
+          <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        </div>
       </CardContent>
 
       {/* Order Details Dialog */}
