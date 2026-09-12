@@ -23,6 +23,10 @@ import {
   Landmark,
   Ban,
   HandCoins,
+  UserCheck,
+  TrendingUp,
+  Layers,
+  ShieldCheck,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -83,6 +87,7 @@ export default function Admin() {
 
   const pendingOrdersCount = orders.filter((o) => o.order_status === "pending").length;
   const pendingReturnsCount = returnRequests.filter((r) => r.status === "pending").length;
+  const pendingModerationCount = products.filter((p) => p.approval_status === "pending_review").length;
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
   const [isSignUp, setIsSignUp] = useState(false);
@@ -475,12 +480,52 @@ export default function Admin() {
             <VendorPayoutManagement isAdmin={isAdmin} />
           </TabsContent>
 
-          {/* Vendors Tab */}
-          <TabsContent value="vendors" className="space-y-6">
-            <VendorPerformanceAnalytics />
-            <VendorManagement />
-            <VendorCatalogManagement />
-            <ProductModeration />
+          {/* Vendors Tab - four genuinely different jobs (approve new
+              vendors, watch how existing ones are doing, manage a specific
+              vendor's catalogue on their behalf, moderate pending product
+              listings) used to be stacked one after another on a single
+              page - everything visible at once, nothing easy to find on
+              its own. Split into its own nested tab strip instead, mirroring
+              the same pattern the top-level admin nav already uses. */}
+          <TabsContent value="vendors">
+            <Tabs defaultValue="applications" className="space-y-6">
+              <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">
+                <TabsTrigger value="applications" className="flex items-center gap-1">
+                  <UserCheck className="h-4 w-4" />
+                  Applications &amp; Stores
+                </TabsTrigger>
+                <TabsTrigger value="performance" className="flex items-center gap-1">
+                  <TrendingUp className="h-4 w-4" />
+                  Performance
+                </TabsTrigger>
+                <TabsTrigger value="catalog" className="flex items-center gap-1">
+                  <Layers className="h-4 w-4" />
+                  Manage Catalogue
+                </TabsTrigger>
+                <TabsTrigger value="moderation" className="flex items-center gap-1 relative">
+                  <ShieldCheck className="h-4 w-4" />
+                  Product Moderation
+                  {pendingModerationCount > 0 && (
+                    <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                      {pendingModerationCount}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="applications">
+                <VendorManagement />
+              </TabsContent>
+              <TabsContent value="performance">
+                <VendorPerformanceAnalytics />
+              </TabsContent>
+              <TabsContent value="catalog">
+                <VendorCatalogManagement />
+              </TabsContent>
+              <TabsContent value="moderation">
+                <ProductModeration />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>
