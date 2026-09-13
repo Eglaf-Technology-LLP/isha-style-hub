@@ -121,6 +121,44 @@ export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsDat
   const itemsTotal = data.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const orderTotal = data.subtotal + data.shippingCost - (data.discountAmount || 0);
 
+  // Our own booking-side milestones - built entirely from timestamps we
+  // already record ourselves (order placed, shipment booked/label
+  // generated, pickup, delivery, RTO), not from anything Shiprocket pushes.
+  // This is what Shiprocket's own "Activity Log" tab shows on their side
+  // (as opposed to their "Tracking Info" tab, which is the courier's scan
+  // trail - that's the `events` section below) - we have the same story
+  // to tell from our own data and don't need to depend on their dashboard
+  // for it. label_url/awb_code/courier_name are all written in the same
+  // insert as the shipment row, so there's no separate real timestamp for
+  // "label generated" - it's folded into the "Shipment Booked" milestone
+  // rather than inventing one.
+  const orderActivity = [
+    { at: data.createdAt, title: "Order Placed", detail: null as string | null },
+    ...(data.shipment
+      ? [
+          {
+            at: data.shipment.created_at,
+            title: "Shipment Booked",
+            detail: [
+              data.shipment.courier_name && `Courier: ${data.shipment.courier_name}`,
+              data.shipment.awb_code && `AWB ${data.shipment.awb_code}`,
+              data.shipment.label_url && "Label generated",
+            ]
+              .filter(Boolean)
+              .join(" · ") || null,
+          },
+          ...(data.shipment.pickup_scheduled_at
+            ? [{ at: data.shipment.pickup_scheduled_at, title: "Pickup Scheduled", detail: null }]
+            : []),
+          ...(data.shipment.picked_up_at ? [{ at: data.shipment.picked_up_at, title: "Picked Up", detail: null }] : []),
+          ...(data.shipment.delivered_at ? [{ at: data.shipment.delivered_at, title: "Delivered", detail: null }] : []),
+          ...(data.shipment.rto_initiated_at
+            ? [{ at: data.shipment.rto_initiated_at, title: "RTO Initiated", detail: null }]
+            : []),
+        ]
+      : []),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setOpen(true)}>
@@ -312,12 +350,30 @@ export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsDat
               </div>
             </section>
 
+            <Separator />
+
+            {/* Order Activity - our own booking-side milestones */}
+            <section>
+              <h4 className="font-medium mb-3">Order Activity</h4>
+              <div className="space-y-3">
+                {orderActivity.map((m, i) => (
+                  <div key={i} className="border-l-2 border-primary/30 pl-3 pb-1">
+                    <p className="text-sm font-medium">{m.title}</p>
+                    {m.detail && <p className="text-xs text-muted-foreground">{m.detail}</p>}
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(new Date(m.at), "MMM d, yyyy h:mm a")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             {data.shipment && (
               <>
                 <Separator />
-                {/* Activity Log */}
+                {/* Tracking Info - the courier's own scan trail, pushed via webhook */}
                 <section>
-                  <h4 className="font-medium mb-3">Activity Log</h4>
+                  <h4 className="font-medium mb-3">Tracking Info</h4>
                   {loadingEvents ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
