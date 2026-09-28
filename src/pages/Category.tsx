@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { useProducts, Product, ProductVariant } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
+import { shuffleArray } from "@/lib/shuffleArray";
 
 interface Category {
   id: string;
@@ -24,7 +25,15 @@ export default function Category() {
   const [loading, setLoading] = useState(true);
   const { products, loading: productsLoading } = useProducts();
   const { categories } = useCategories();
-  
+
+  // Randomized once per fetch (not re-shuffled on every filter/search
+  // tweak - only when the underlying product list itself changes), same
+  // "don't show the same fixed lineup every visit" fix as the homepage's
+  // Featured Products. Only actually visible under the default "Best
+  // Selling" sort - Newest/Price/Name are explicit user choices and stay
+  // exactly as deterministic as picking them implies.
+  const shuffledProducts = useMemo(() => shuffleArray(products), [products]);
+
   const isAllProducts = slug === "all" || !slug;
 
   const defaultFilters: FilterState = {
@@ -120,7 +129,7 @@ export default function Category() {
 
   // Filter products based on category and filters
   const filteredProducts = useMemo(() => {
-    return products
+    return shuffledProducts
       .filter((p) => {
         // On a specific category page (e.g. /category/lehenga), the
         // page's own category is always included so the page never
@@ -168,13 +177,12 @@ export default function Category() {
       })
       .sort((a, b) => {
         switch (filters.sortBy) {
-          case "popular": {
-            // Prioritize high margin (compare_at_price - price) and then by price descending
-            const marginA = (a.compare_at_price || 0) > a.price ? (a.compare_at_price! - a.price) : 0;
-            const marginB = (b.compare_at_price || 0) > b.price ? (b.compare_at_price! - b.price) : 0;
-            if (marginB !== marginA) return marginB - marginA;
-            return b.price - a.price;
-          }
+          case "popular":
+            // No real "best selling" data to sort by - this is the default
+            // view, so it stays in the random order shuffledProducts
+            // already put it in (Array.sort is stable, so a 0 here leaves
+            // that order untouched) rather than a fake heuristic.
+            return 0;
           case "price-low":
             return a.price - b.price;
           case "price-high":
@@ -186,7 +194,7 @@ export default function Category() {
             return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         }
       });
-  }, [products, isAllProducts, category, filters]);
+  }, [shuffledProducts, isAllProducts, category, filters]);
 
   if (loading) {
     return (

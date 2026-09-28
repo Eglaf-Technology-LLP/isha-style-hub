@@ -3,6 +3,7 @@ import { ProductCard } from "./ProductCard";
 import { ProductCardSkeleton } from "./ProductCardSkeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { Product, mapDbVariant } from "@/hooks/useProducts";
+import { shuffleArray } from "@/lib/shuffleArray";
 
 interface ProductGridProps {
   categoryId?: string | null;
@@ -19,18 +20,6 @@ interface ProductGridProps {
 // vendor's own products stay ordered most-recent-first within their own
 // turn), so every vendor represented in the fetched pool gets a fair turn
 // before any vendor gets a second slot.
-// Fisher-Yates - a random-looking .sort(() => Math.random() - 0.5) biases
-// toward certain orderings depending on the sort algorithm's comparison
-// pattern; this is the actually-uniform way to shuffle.
-function shuffleArray<T>(items: T[]): T[] {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
 function diversifyByVendor(products: Product[], limit: number): Product[] {
   const byVendor = new Map<string, Product[]>();
   for (const p of products) {
