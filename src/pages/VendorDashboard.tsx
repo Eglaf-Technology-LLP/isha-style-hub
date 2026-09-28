@@ -55,6 +55,7 @@ import { VendorPayoutHistory } from "@/components/vendor/VendorPayoutHistory";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
+import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
@@ -99,6 +100,7 @@ interface VendorOrder {
   tracking_number: string | null;
   carrier: string | null;
   created_at: string;
+  updated_at: string;
   customer_name?: string;
   customer_phone?: string;
   customer_email?: string;
@@ -151,6 +153,7 @@ export default function VendorDashboard() {
   const [orderStatusTab, setOrderStatusTab] = useState<
     "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
   >("all");
+  const { lastSeenAt: orderListLastSeenAt, markSeen: markOrderListSeen } = useListSeenTracking("orders_vendor");
   const [orderSearch, setOrderSearch] = useState("");
   const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">(
     "all",
@@ -246,7 +249,7 @@ export default function VendorDashboard() {
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -368,11 +371,19 @@ export default function VendorDashboard() {
     { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
     { key: "returned_ndr", label: "Returned / NDR", statuses: ["returned", "ndr"] },
   ];
+  // "All Orders" stays an honest live total. Every other tab's number is
+  // "how many changed into this bucket since I last opened this tab" -
+  // opening it (below) marks it seen, so it only comes back once
+  // something genuinely new lands there.
   const orderStatusCounts = Object.fromEntries(
-    ORDER_STATUS_TABS.map((t) => [
-      t.key,
-      t.statuses ? orders.filter((o) => t.statuses!.includes(o.status)).length : orders.length,
-    ]),
+    ORDER_STATUS_TABS.map((t) => {
+      if (!t.statuses) return [t.key, orders.length];
+      const seenAt = orderListLastSeenAt(t.key);
+      const count = orders.filter(
+        (o) => t.statuses!.includes(o.status) && (!seenAt || new Date(o.updated_at) > new Date(seenAt)),
+      ).length;
+      return [t.key, count];
+    }),
   ) as Record<typeof orderStatusTab, number>;
 
   // Computed (and paginated) before the loading/approval early-return below,
@@ -785,7 +796,10 @@ export default function VendorDashboard() {
                   <>
                     <Tabs
                       value={orderStatusTab}
-                      onValueChange={(v) => setOrderStatusTab(v as typeof orderStatusTab)}
+                      onValueChange={(v) => {
+                        setOrderStatusTab(v as typeof orderStatusTab);
+                        if (v !== "all") markOrderListSeen(v);
+                      }}
                       className="mb-4"
                     >
                       <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1">

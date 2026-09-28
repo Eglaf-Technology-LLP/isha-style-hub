@@ -46,6 +46,7 @@ import { OrderFulfillmentSection } from "./OrderFulfillmentSection";
 import { NdrQueue } from "./NdrQueue";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
+import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -61,6 +62,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
   >("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
+  const { lastSeenAt, markSeen } = useListSeenTracking("orders_admin");
 
   // Same reasoning as the vendor-side Orders tab: with real volume, one
   // flat table with only a name/email search is too slow to actually work
@@ -75,8 +77,20 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     { key: "delivered", label: "Delivered" },
     { key: "cancelled", label: "Cancelled" },
   ];
+  // "All Orders" stays an honest live total - it's the count of everything,
+  // not a notification. Every other tab's number is "how many changed into
+  // this status since I last opened this tab" - opening it (below) marks
+  // it seen, so the count only comes back once something genuinely new
+  // lands there, instead of nagging forever about orders already reviewed.
   const statusCounts = Object.fromEntries(
-    STATUS_TABS.map((t) => [t.key, t.key === "all" ? orders.length : orders.filter((o) => o.order_status === t.key).length]),
+    STATUS_TABS.map((t) => {
+      if (t.key === "all") return [t.key, orders.length];
+      const seenAt = lastSeenAt(t.key);
+      const count = orders.filter(
+        (o) => o.order_status === t.key && (!seenAt || new Date(o.updated_at) > new Date(seenAt)),
+      ).length;
+      return [t.key, count];
+    }),
   ) as Record<typeof statusTab, number>;
 
   const visibleOrders = orders.filter((o) => {
@@ -193,7 +207,13 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
           </div>
         </div>
 
-        <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as typeof statusTab)}>
+        <Tabs
+          value={statusTab}
+          onValueChange={(v) => {
+            setStatusTab(v as typeof statusTab);
+            if (v !== "all") markSeen(v);
+          }}
+        >
           <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1">
             {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
