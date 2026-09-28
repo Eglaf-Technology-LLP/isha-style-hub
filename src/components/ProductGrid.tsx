@@ -19,6 +19,18 @@ interface ProductGridProps {
 // vendor's own products stay ordered most-recent-first within their own
 // turn), so every vendor represented in the fetched pool gets a fair turn
 // before any vendor gets a second slot.
+// Fisher-Yates - a random-looking .sort(() => Math.random() - 0.5) biases
+// toward certain orderings depending on the sort algorithm's comparison
+// pattern; this is the actually-uniform way to shuffle.
+function shuffleArray<T>(items: T[]): T[] {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
 function diversifyByVendor(products: Product[], limit: number): Product[] {
   const byVendor = new Map<string, Product[]>();
   for (const p of products) {
@@ -101,7 +113,15 @@ export function ProductGrid({ categoryId, categorySlug, title, limit = 12 }: Pro
           specifications: (p.specifications as unknown as Product["specifications"]) || [],
         }));
 
-        setProducts(limit ? diversifyByVendor(typedProducts, limit) : typedProducts);
+        // Shuffled fresh on every mount (every page load/refresh/reopened
+        // tab, logged in or not - this is a plain client-side fetch, not
+        // tied to any session) so a returning visitor doesn't see the same
+        // fixed lineup every time. Shuffling before diversifyByVendor, not
+        // instead of it, keeps the fair per-vendor rotation - it's *which*
+        // of each vendor's products lands in this visit's random draw that
+        // changes, not fairness across vendors.
+        const shuffled = shuffleArray(typedProducts);
+        setProducts(limit ? diversifyByVendor(shuffled, limit) : shuffled);
       } catch (error) {
         console.error("Failed to fetch products:", error);
       } finally {
