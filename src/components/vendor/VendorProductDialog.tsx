@@ -30,6 +30,7 @@ import {
 } from "@/hooks/useProducts";
 import { VariantManager } from "@/components/admin/VariantManager";
 import { ProductSpecificationsEditor } from "@/components/admin/ProductSpecificationsEditor";
+import { ImageDropzone } from "@/components/ImageDropzone";
 import { toast } from "sonner";
 
 export interface VendorProductRow {
@@ -72,7 +73,6 @@ const empty = {
   compare_at_price: "",
   sku: "",
   stock_quantity: "100",
-  images: "",
   is_active: true,
   weight_grams: "",
   length_cm: "",
@@ -93,6 +93,7 @@ export function VendorProductDialog({
 }: Props) {
   const { categories } = useCategories();
   const [form, setForm] = useState({ ...empty });
+  const [images, setImages] = useState<string[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [specifications, setSpecifications] = useState<ProductSpecification[]>([]);
   const [saving, setSaving] = useState(false);
@@ -109,7 +110,6 @@ export function VendorProductDialog({
           product.compare_at_price != null ? String(product.compare_at_price) : "",
         sku: product.sku || "",
         stock_quantity: String(product.stock_quantity ?? 0),
-        images: (product.images || []).join("\n"),
         is_active: product.is_active,
         weight_grams: product.weight_grams != null ? String(product.weight_grams) : "",
         length_cm: product.length_cm != null ? String(product.length_cm) : "",
@@ -119,10 +119,12 @@ export function VendorProductDialog({
         net_quantity: product.net_quantity || "1 N",
         is_returnable: product.is_returnable ?? true,
       });
+      setImages(product.images || []);
       setVariants(product.variants || []);
       setSpecifications(product.specifications || []);
     } else {
       setForm({ ...empty });
+      setImages([]);
       setVariants([]);
       setSpecifications([]);
     }
@@ -138,11 +140,6 @@ export function VendorProductDialog({
 
     setSaving(true);
     try {
-      const images = form.images
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
-
       const payload = {
         vendor_id: vendorId,
         name: form.name.trim(),
@@ -359,14 +356,8 @@ export function VendorProductDialog({
           />
 
           <div className="space-y-2">
-            <Label htmlFor="vp-images">Image URLs (one per line)</Label>
-            <Textarea
-              id="vp-images"
-              rows={3}
-              value={form.images}
-              onChange={(e) => set("images", e.target.value)}
-              placeholder="https://..."
-            />
+            <Label>Product Images</Label>
+            <ImageDropzone folder="vendor-uploads" value={images} onChange={setImages} />
           </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">

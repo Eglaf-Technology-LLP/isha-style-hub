@@ -46,12 +46,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
     fileInputRef.current?.click();
   };
 
-  const handleImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const variantId = uploadTargetId.current;
-    e.target.value = "";
-    if (!file || !variantId) return;
-
+  const uploadVariantImage = async (variantId: string, file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
     setUploadingId(variantId);
     const url = await uploadImageFile(file, uploadFolder);
     setUploadingId(null);
@@ -60,6 +56,14 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
       return;
     }
     updateVariant(variantId, "image_url", url);
+  };
+
+  const handleImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const variantId = uploadTargetId.current;
+    e.target.value = "";
+    if (!variantId) return;
+    await uploadVariantImage(variantId, file);
   };
 
   const generateVariantId = () => `variant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -300,8 +304,13 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
                   <button
                     type="button"
                     onClick={() => triggerImageUpload(variant.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      uploadVariantImage(variant.id, e.dataTransfer.files?.[0]);
+                    }}
                     disabled={uploadingId === variant.id}
-                    title={variant.image_url ? "Change photo" : "Upload photo"}
+                    title={variant.image_url ? "Change photo (click or drag and drop)" : "Upload photo (click or drag and drop)"}
                     className="relative h-8 w-8 rounded shrink-0 overflow-hidden border border-dashed border-border hover:border-primary transition-colors flex items-center justify-center bg-muted"
                   >
                     {uploadingId === variant.id ? (

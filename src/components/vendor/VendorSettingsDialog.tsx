@@ -16,6 +16,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Vendor } from "@/hooks/useVendor";
+import { SingleImageDropzone } from "@/components/ImageDropzone";
 
 interface Props {
   open: boolean;
@@ -49,6 +50,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
   });
   const [codEnabled, setCodEnabled] = useState(true);
   const [returnsEnabled, setReturnsEnabled] = useState(true);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -73,6 +76,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     });
     setCodEnabled(vendor.cod_enabled);
     setReturnsEnabled(vendor.returns_enabled);
+    setLogoUrl(vendor.logo_url);
+    setBannerUrl(vendor.banner_url);
   }, [open, vendor]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -122,6 +127,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           return_policy: form.return_policy.trim() || null,
           cod_enabled: codEnabled,
           returns_enabled: returnsEnabled,
+          logo_url: logoUrl,
+          banner_url: bannerUrl,
         })
         .eq("id", vendor.id);
 
@@ -152,6 +159,17 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Store logo</Label>
+              <SingleImageDropzone folder="vendor-uploads" value={logoUrl} onChange={setLogoUrl} />
+            </div>
+            <div className="space-y-2">
+              <Label>Store banner</Label>
+              <SingleImageDropzone folder="vendor-uploads" value={bannerUrl} onChange={setBannerUrl} />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="vs-name">Store name</Label>
             <Input id="vs-name" value={form.name} onChange={(e) => set("name", e.target.value)} />

@@ -62,17 +62,21 @@ export function CategoryManagement() {
     setEditingCategory(null);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCategoryImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
+  const applyImageFile = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    setCategoryImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    applyImageFile(e.target.files?.[0]);
+  };
+
+  const [imageDragActive, setImageDragActive] = useState(false);
 
   const handleAddCategory = async () => {
     if (!categoryForm.name) return;
@@ -191,11 +195,23 @@ export function CategoryManagement() {
         ) : (
           <div
             onClick={() => imageInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setImageDragActive(true);
+            }}
+            onDragLeave={() => setImageDragActive(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setImageDragActive(false);
+              applyImageFile(e.dataTransfer.files?.[0]);
+            }}
+            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              imageDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary"
+            }`}
           >
             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              Click to upload category image
+              Drag and drop an image here, or click to upload
             </p>
           </div>
         )}

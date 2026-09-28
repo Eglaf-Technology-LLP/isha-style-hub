@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
+import { SingleImageDropzone } from "@/components/ImageDropzone";
 import { Loader2, ShieldCheck, Truck, Landmark, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -78,6 +79,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
   });
   const [codEnabled, setCodEnabled] = useState(true);
   const [returnsEnabled, setReturnsEnabled] = useState(true);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccount | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
@@ -106,6 +109,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     });
     setCodEnabled(vendor.cod_enabled);
     setReturnsEnabled(vendor.returns_enabled);
+    setLogoUrl(vendor.logo_url);
+    setBannerUrl(vendor.banner_url);
 
     setLoadingExtra(true);
     Promise.all([
@@ -165,6 +170,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
           return_policy: form.return_policy.trim() || null,
           cod_enabled: codEnabled,
           returns_enabled: returnsEnabled,
+          logo_url: logoUrl,
+          banner_url: bannerUrl,
         })
         .eq("id", vendor.id);
       if (error) throw error;
@@ -250,29 +257,22 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
 
             <Separator />
 
-            {/* Branding - read only preview */}
-            {(vendor.logo_url || vendor.banner_url) && (
-              <>
-                <section>
-                  <h4 className="font-medium mb-3">Branding</h4>
-                  <div className="flex items-center gap-6 flex-wrap">
-                    {vendor.logo_url && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Logo</p>
-                        <img src={vendor.logo_url} alt="Logo" className="h-16 w-16 object-cover rounded-lg border" />
-                      </div>
-                    )}
-                    {vendor.banner_url && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Banner</p>
-                        <img src={vendor.banner_url} alt="Banner" className="h-16 w-32 object-cover rounded-lg border" />
-                      </div>
-                    )}
-                  </div>
-                </section>
-                <Separator />
-              </>
-            )}
+            {/* Branding - editable */}
+            <section>
+              <h4 className="font-medium mb-3">Branding</h4>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Logo</Label>
+                  <SingleImageDropzone folder="vendor-uploads" value={logoUrl} onChange={setLogoUrl} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Banner</Label>
+                  <SingleImageDropzone folder="vendor-uploads" value={bannerUrl} onChange={setBannerUrl} />
+                </div>
+              </div>
+            </section>
+
+            <Separator />
 
             {/* Business Details - editable */}
             <section className="space-y-4">

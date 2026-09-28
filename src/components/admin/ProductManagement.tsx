@@ -127,8 +127,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     setEditingProduct(null);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const addImageFiles = (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
     setProductImages((prev) => [...prev, ...files]);
 
     files.forEach((file) => {
@@ -139,6 +139,12 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       reader.readAsDataURL(file);
     });
   };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addImageFiles(e.target.files || []);
+  };
+
+  const [imagesDragActive, setImagesDragActive] = useState(false);
 
   const removeNewImage = (index: number) => {
     setProductImages((prev) => prev.filter((_, i) => i !== index));
@@ -535,10 +541,22 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         )}
         <div
           onClick={() => imageInputRef.current?.click()}
-          className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setImagesDragActive(true);
+          }}
+          onDragLeave={() => setImagesDragActive(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setImagesDragActive(false);
+            addImageFiles(e.dataTransfer.files);
+          }}
+          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            imagesDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary"
+          }`}
         >
           <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Click to upload images</p>
+          <p className="text-sm text-muted-foreground">Drag and drop images here, or click to upload</p>
         </div>
       </div>
 
