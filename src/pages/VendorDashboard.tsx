@@ -148,6 +148,13 @@ export default function VendorDashboard() {
   const [productStockFilter, setProductStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">(
     "all",
   );
+  const [orderStatusTab, setOrderStatusTab] = useState<
+    "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
+  >("all");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderPaymentFilter, setOrderPaymentFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">(
+    "all",
+  );
   const [dataLoading, setDataLoading] = useState(true);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
@@ -346,6 +353,28 @@ export default function VendorDashboard() {
     ndr: "bg-orange-100 text-orange-800",
   };
 
+  // A vendor with a real volume of orders can't scan one flat table to find
+  // what needs action right now - these tabs split orders into the buckets
+  // that actually drive what a vendor does next (confirm it, ship it, it's
+  // done, it's dead), each with a live count, so "which orders still need
+  // confirming" is a click instead of a scroll-and-squint.
+  const ORDER_STATUS_TABS: { key: typeof orderStatusTab; label: string; statuses: string[] | null }[] = [
+    { key: "all", label: "All Orders", statuses: null },
+    { key: "pending", label: "Need to Confirm", statuses: ["pending"] },
+    { key: "confirmed", label: "Confirmed", statuses: ["confirmed"] },
+    { key: "processing", label: "Processing", statuses: ["processing"] },
+    { key: "shipped", label: "Shipped", statuses: ["shipped", "out_for_delivery"] },
+    { key: "delivered", label: "Delivered", statuses: ["delivered"] },
+    { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
+    { key: "returned_ndr", label: "Returned / NDR", statuses: ["returned", "ndr"] },
+  ];
+  const orderStatusCounts = Object.fromEntries(
+    ORDER_STATUS_TABS.map((t) => [
+      t.key,
+      t.statuses ? orders.filter((o) => t.statuses!.includes(o.status)).length : orders.length,
+    ]),
+  ) as Record<typeof orderStatusTab, number>;
+
   // Computed (and paginated) before the loading/approval early-return below,
   // not after it - usePagination calls hooks internally, which must never
   // run only on some renders. This exact ordering mistake shipped once
@@ -368,6 +397,22 @@ export default function VendorDashboard() {
     totalItems: totalVisibleProducts,
     pageSize: productPageSize,
   } = usePagination(visibleProducts, 10);
+  const visibleOrders = orders.filter((o) => {
+    const tabDef = ORDER_STATUS_TABS.find((t) => t.key === orderStatusTab);
+    if (tabDef?.statuses && !tabDef.statuses.includes(o.status)) return false;
+    if (orderPaymentFilter !== "all" && (o.payment_status || "pending") !== orderPaymentFilter) return false;
+    if (orderSearch.trim()) {
+      const q = orderSearch.trim().toLowerCase();
+      const matchesOrderId = o.order_id.toLowerCase().includes(q);
+      const matchesCustomer = (o.customer_name || "").toLowerCase().includes(q);
+      const matchesPhone = (o.customer_phone || "").toLowerCase().includes(q);
+      const matchesItems = (o.items || []).some(
+        (item) => item.product_title.toLowerCase().includes(q) || (item.sku || "").toLowerCase().includes(q),
+      );
+      if (!matchesOrderId && !matchesCustomer && !matchesPhone && !matchesItems) return false;
+    }
+    return true;
+  });
   const {
     page: orderPage,
     setPage: setOrderPage,
@@ -375,7 +420,7 @@ export default function VendorDashboard() {
     paginatedItems: paginatedOrders,
     totalItems: totalOrders,
     pageSize: orderPageSize,
-  } = usePagination(orders, 10);
+  } = usePagination(visibleOrders, 10);
 
   if (loading || !vendor || vendor.status !== "approved") {
     return (
@@ -735,6 +780,67 @@ export default function VendorDashboard() {
                 ) : orders.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
                     No orders yet. Orders will appear here once customers buy your products.
+                  </p>
+                ) : (
+                  <>
+                    <Tabs
+                      value={orderStatusTab}
+                      onValueChange={(v) => setOrderStatusTab(v as typeof orderStatusTab)}
+                      className="mb-4"
+                    >
+                      <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1">
+                        {ORDER_STATUS_TABS.map((t) => (
+                          <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+                            {t.label}
+                            <Badge variant="secondary" className="h-5 min-w-5 px-1 text-xs">
+                              {orderStatusCounts[t.key]}
+                            </Badge>
+                          </TabsTrigger>
+                        ))}
+                      </TabsList>
+                    </Tabs>
+
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      <Input
+                        placeholder="Search by order ID, customer, phone, product or SKU..."
+                        value={orderSearch}
+                        onChange={(e) => setOrderSearch(e.target.value)}
+                        className="max-w-sm"
+                      />
+                      <Select
+                        value={orderPaymentFilter}
+                        onValueChange={(v) => setOrderPaymentFilter(v as typeof orderPaymentFilter)}
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Payment status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Payments</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="pending">Payment Pending</SelectItem>
+                          <SelectItem value="failed">Failed</SelectItem>
+                          <SelectItem value="refunded">Refunded</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {(orderSearch || orderPaymentFilter !== "all" || orderStatusTab !== "all") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setOrderSearch("");
+                            setOrderPaymentFilter("all");
+                            setOrderStatusTab("all");
+                          }}
+                        >
+                          Clear filters
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+                {dataLoading ? null : orders.length === 0 ? null : visibleOrders.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">
+                    No orders match these filters. Try a different search term or status.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
