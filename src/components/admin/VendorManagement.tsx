@@ -2,18 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -22,41 +12,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Pencil, Truck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { VendorImportExportDialog } from "./VendorImportExportDialog";
-
-interface AdminVendor {
-  id: string;
-  name: string;
-  slug: string;
-  status: string;
-  is_trusted: boolean;
-  commission_rate: number;
-  shipping_flat_rate: number;
-  free_shipping_threshold: number | null;
-  return_window_days: number;
-  rating: number;
-  contact_email: string | null;
-  description: string | null;
-  created_at: string;
-  shiprocket_pickup_location: string | null;
-}
+import { VendorDetailsDialog } from "./VendorDetailsDialog";
+import type { Vendor as AdminVendor } from "@/hooks/useVendor";
 
 export function VendorManagement() {
   const { user } = useAuth();
   const [vendors, setVendors] = useState<AdminVendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
-  const [editVendor, setEditVendor] = useState<AdminVendor | null>(null);
+  const [viewVendor, setViewVendor] = useState<AdminVendor | null>(null);
 
   useEffect(() => {
     fetchVendors();
@@ -67,12 +35,10 @@ export function VendorManagement() {
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select(
-          "id, name, slug, status, is_trusted, commission_rate, shipping_flat_rate, free_shipping_threshold, return_window_days, rating, contact_email, description, created_at, shiprocket_pickup_location"
-        )
+        .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      setVendors((data || []) as AdminVendor[]);
+      setVendors((data || []) as unknown as AdminVendor[]);
     } catch (e: any) {
       toast.error(e.message || "Failed to load vendors");
     } finally {
@@ -113,31 +79,6 @@ export function VendorManagement() {
     }
     toast.success("Pickup location registered with Shiprocket");
     await fetchVendors();
-  };
-
-  const saveEdit = async () => {
-    if (!editVendor) return;
-    setActionId(editVendor.id);
-    try {
-      const { error } = await supabase
-        .from("vendors")
-        .update({
-          commission_rate: editVendor.commission_rate,
-          shipping_flat_rate: editVendor.shipping_flat_rate,
-          free_shipping_threshold: editVendor.free_shipping_threshold,
-          return_window_days: editVendor.return_window_days,
-          description: editVendor.description,
-        })
-        .eq("id", editVendor.id);
-      if (error) throw error;
-      toast.success("Vendor updated");
-      setEditVendor(null);
-      await fetchVendors();
-    } catch (e: any) {
-      toast.error(e.message || "Update failed");
-    } finally {
-      setActionId(null);
-    }
   };
 
   const statusBadge = (s: string) => {
@@ -286,106 +227,9 @@ export function VendorManagement() {
                           <ShieldCheck className="h-4 w-4 mr-1" />
                           {v.is_trusted ? "Trusted" : "Trust"}
                         </Button>
-                        <Dialog
-                          open={editVendor?.id === v.id}
-                          onOpenChange={(o) => setEditVendor(o ? v : null)}
-                        >
-                          <DialogTrigger asChild>
-                            <Button size="sm" variant="ghost">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Edit {v.name}</DialogTitle>
-                            </DialogHeader>
-                            {editVendor && (
-                              <div className="space-y-4">
-                                <div className="space-y-2">
-                                  <Label>Commission rate (%)</Label>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={editVendor.commission_rate}
-                                    onChange={(e) =>
-                                      setEditVendor({
-                                        ...editVendor,
-                                        commission_rate: Number(e.target.value),
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div className="space-y-2">
-                                    <Label>Flat shipping (₹)</Label>
-                                    <Input
-                                      type="number"
-                                      value={editVendor.shipping_flat_rate}
-                                      onChange={(e) =>
-                                        setEditVendor({
-                                          ...editVendor,
-                                          shipping_flat_rate: Number(e.target.value),
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label>Free over (₹)</Label>
-                                    <Input
-                                      type="number"
-                                      value={editVendor.free_shipping_threshold ?? ""}
-                                      onChange={(e) =>
-                                        setEditVendor({
-                                          ...editVendor,
-                                          free_shipping_threshold: e.target.value
-                                            ? Number(e.target.value)
-                                            : null,
-                                        })
-                                      }
-                                    />
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Return window (days)</Label>
-                                  <Input
-                                    type="number"
-                                    value={editVendor.return_window_days}
-                                    onChange={(e) =>
-                                      setEditVendor({
-                                        ...editVendor,
-                                        return_window_days: Number(e.target.value),
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Description</Label>
-                                  <Textarea
-                                    rows={3}
-                                    value={editVendor.description || ""}
-                                    onChange={(e) =>
-                                      setEditVendor({
-                                        ...editVendor,
-                                        description: e.target.value,
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <Button
-                                  className="w-full"
-                                  onClick={saveEdit}
-                                  disabled={actionId === v.id}
-                                >
-                                  {actionId === v.id && (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  )}
-                                  Save changes
-                                </Button>
-                              </div>
-                            )}
-                          </DialogContent>
-                        </Dialog>
+                        <Button size="sm" variant="outline" onClick={() => setViewVendor(v)}>
+                          <Eye className="h-4 w-4 mr-1" /> View
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -395,6 +239,15 @@ export function VendorManagement() {
           </div>
         )}
       </CardContent>
+
+      {viewVendor && (
+        <VendorDetailsDialog
+          vendor={viewVendor}
+          open={!!viewVendor}
+          onOpenChange={(o) => !o && setViewVendor(null)}
+          onSaved={fetchVendors}
+        />
+      )}
     </Card>
   );
 }
