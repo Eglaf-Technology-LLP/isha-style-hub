@@ -22,6 +22,7 @@ import { Eye, Package, MapPin, User, Truck, Loader2, ExternalLink } from "lucide
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Shipment } from "@/hooks/useShipments";
+import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
 
 interface DetailItem {
   product_title: string;
@@ -91,6 +92,18 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+interface Props {
+  // Either hand over already-loaded data (cheap when the parent list
+  // already fetched everything, like the Orders table does), or a
+  // vendorOrderId to fetch lazily the moment the dialog is opened - for
+  // lists that only ever load a handful of summary columns per row (an
+  // order-level select) since fetching full order/shipment details for
+  // every row up front would be wasted work for rows nobody ever opens.
+  data?: VendorOrderDetailsData;
+  vendorOrderId?: string;
+  triggerLabel?: string;
+}
+
 // The previous view crammed courier, AWB, tracking link, label link and
 // history into a single flex-wrapped line - readable for one shipment at a
 // glance, useless for actually verifying an order end to end. This gives
@@ -99,13 +112,30 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 // own clearly labeled section, mirroring how Shiprocket's own order detail
 // page separates Order/Shipping/Customer/Product/Activity into distinct
 // blocks instead of one row.
-export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsData }) {
+export function VendorOrderDetailsDialog({ data: providedData, vendorOrderId, triggerLabel = "View Details" }: Props) {
   const [open, setOpen] = useState(false);
+  const [lazyData, setLazyData] = useState<VendorOrderDetailsData | null>(null);
+  const [loadingData, setLoadingData] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [events, setEvents] = useState<ShipmentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
 
+  const data = providedData ?? lazyData;
+
   useEffect(() => {
-    if (!open || !data.shipment) return;
+    if (!open || providedData || !vendorOrderId) return;
+    setLoadingData(true);
+    setLoadError(false);
+    fetchVendorOrderDetails(vendorOrderId).then((result) => {
+      setLazyData(result);
+      setLoadError(!result);
+      setLoadingData(false);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, vendorOrderId]);
+
+  useEffect(() => {
+    if (!open || !data?.shipment) return;
     setLoadingEvents(true);
     supabase
       .from("shipment_events")
@@ -116,10 +146,10 @@ export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsDat
         setEvents((rows ?? []) as ShipmentEvent[]);
         setLoadingEvents(false);
       });
-  }, [open, data.shipment]);
+  }, [open, data?.shipment]);
 
-  const itemsTotal = data.items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const orderTotal = data.subtotal + data.shippingCost - (data.discountAmount || 0);
+  const itemsTotal = (data?.items ?? []).reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const orderTotal = data ? data.subtotal + data.shippingCost - (data.discountAmount || 0) : 0;
 
   // Our own booking-side milestones - built entirely from timestamps we
   // already record ourselves (order placed, shipment booked/label
@@ -132,39 +162,49 @@ export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsDat
   // insert as the shipment row, so there's no separate real timestamp for
   // "label generated" - it's folded into the "Shipment Booked" milestone
   // rather than inventing one.
-  const orderActivity = [
-    { at: data.createdAt, title: "Order Placed", detail: null as string | null },
-    ...(data.shipment
-      ? [
-          {
-            at: data.shipment.created_at,
-            title: "Shipment Booked",
-            detail: [
-              data.shipment.courier_name && `Courier: ${data.shipment.courier_name}`,
-              data.shipment.awb_code && `AWB ${data.shipment.awb_code}`,
-              data.shipment.label_url && "Label generated",
+  const orderActivity = !data
+    ? []
+    : [
+        { at: data.createdAt, title: "Order Placed", detail: null as string | null },
+        ...(data.shipment
+          ? [
+              {
+                at: data.shipment.created_at,
+                title: "Shipment Booked",
+                detail: [
+                  data.shipment.courier_name && `Courier: ${data.shipment.courier_name}`,
+                  data.shipment.awb_code && `AWB ${data.shipment.awb_code}`,
+                  data.shipment.label_url && "Label generated",
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || null,
+              },
+              ...(data.shipment.pickup_scheduled_at
+                ? [{ at: data.shipment.pickup_scheduled_at, title: "Pickup Scheduled", detail: null }]
+                : []),
+              ...(data.shipment.picked_up_at ? [{ at: data.shipment.picked_up_at, title: "Picked Up", detail: null }] : []),
+              ...(data.shipment.delivered_at ? [{ at: data.shipment.delivered_at, title: "Delivered", detail: null }] : []),
+              ...(data.shipment.rto_initiated_at
+                ? [{ at: data.shipment.rto_initiated_at, title: "RTO Initiated", detail: null }]
+                : []),
             ]
-              .filter(Boolean)
-              .join(" · ") || null,
-          },
-          ...(data.shipment.pickup_scheduled_at
-            ? [{ at: data.shipment.pickup_scheduled_at, title: "Pickup Scheduled", detail: null }]
-            : []),
-          ...(data.shipment.picked_up_at ? [{ at: data.shipment.picked_up_at, title: "Picked Up", detail: null }] : []),
-          ...(data.shipment.delivered_at ? [{ at: data.shipment.delivered_at, title: "Delivered", detail: null }] : []),
-          ...(data.shipment.rto_initiated_at
-            ? [{ at: data.shipment.rto_initiated_at, title: "RTO Initiated", detail: null }]
-            : []),
-        ]
-      : []),
-  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+          : []),
+      ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setOpen(true)}>
-        <Eye className="h-3.5 w-3.5" /> View Details
+        <Eye className="h-3.5 w-3.5" /> {triggerLabel}
       </Button>
       <DialogContent className="max-w-3xl">
+        {loadingData ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : loadError || !data ? (
+          <p className="text-sm text-muted-foreground text-center py-12">Couldn't load order details.</p>
+        ) : (
+          <>
         <DialogHeader>
           <DialogTitle>Order #{data.orderId.slice(0, 8)}</DialogTitle>
           <DialogDescription className="flex items-center gap-2 flex-wrap">
@@ -403,6 +443,8 @@ export function VendorOrderDetailsDialog({ data }: { data: VendorOrderDetailsDat
             )}
           </div>
         </ScrollArea>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

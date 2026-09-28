@@ -23,8 +23,13 @@ export interface Payment {
     customer_email: string;
     total: number;
     order_status: string;
-    order_items?: { vendor_id: string | null }[];
+    order_items?: { vendor_id: string | null; vendor_order_id: string | null }[];
   };
+  // Every distinct vendor_order_id this payment's order touches - almost
+  // always one, but a multi-vendor checkout is one payment covering
+  // several vendor_orders. Used to link to the full order/shipment
+  // breakdown per vendor_order, same as the Cancelled/Returns lists.
+  vendorOrderIds: string[];
 }
 
 export interface PaymentFormData {
@@ -52,18 +57,24 @@ export function usePayments(isAdmin: boolean = false) {
         .from("payments")
         .select(`
           *,
-          order:orders(id, customer_name, customer_email, total, order_status, order_items(vendor_id))
+          order:orders(id, customer_name, customer_email, total, order_status, order_items(vendor_id, vendor_order_id))
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const typedPayments: Payment[] = (data || []).map(p => ({
-        ...p,
-        payment_status: p.payment_status as Payment["payment_status"],
-        metadata: (p.metadata as Record<string, any>) || {},
-        order: Array.isArray(p.order) ? p.order[0] : p.order,
-      }));
+      const typedPayments: Payment[] = (data || []).map(p => {
+        const order = Array.isArray(p.order) ? p.order[0] : p.order;
+        return {
+          ...p,
+          payment_status: p.payment_status as Payment["payment_status"],
+          metadata: (p.metadata as Record<string, any>) || {},
+          order,
+          vendorOrderIds: [
+            ...new Set((order?.order_items ?? []).map((i) => i.vendor_order_id).filter((v): v is string => !!v)),
+          ],
+        };
+      });
 
       setPayments(typedPayments);
     } catch (error: any) {

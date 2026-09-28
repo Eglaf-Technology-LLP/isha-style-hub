@@ -19,6 +19,11 @@ export interface ReturnRequest {
   // Computed client-side from order_items, not a DB column - which
   // vendor(s) this return's items belong to, for the admin vendor filter.
   vendorIds: string[];
+  // Same computation, but the vendor_order_id(s) instead of vendor_id(s) -
+  // what a full VendorOrderDetailsDialog-style view needs to fetch the
+  // rest of the order (almost always exactly one, but a return can in
+  // principle touch items from more than one vendor_order).
+  vendorOrderIds: string[];
 }
 
 export interface ReturnItem {
@@ -72,12 +77,14 @@ export function useReturnRequests(isAdmin: boolean = false) {
       // relevant orders' order_items.
       const orderIds = [...new Set(requests.map((r) => r.order_id))];
       let vendorByOrderItemId = new Map<string, string | null>();
+      let vendorOrderByOrderItemId = new Map<string, string | null>();
       if (orderIds.length > 0) {
         const { data: items } = await supabase
           .from("order_items")
-          .select("id, vendor_id")
+          .select("id, vendor_id, vendor_order_id")
           .in("order_id", orderIds);
         vendorByOrderItemId = new Map((items || []).map((i) => [i.id, i.vendor_id]));
+        vendorOrderByOrderItemId = new Map((items || []).map((i) => [i.id, i.vendor_order_id]));
       }
 
       setReturnRequests(
@@ -87,6 +94,13 @@ export function useReturnRequests(isAdmin: boolean = false) {
             ...new Set(
               (r.items || [])
                 .map((i) => vendorByOrderItemId.get(i.order_item_id))
+                .filter((v): v is string => !!v)
+            ),
+          ],
+          vendorOrderIds: [
+            ...new Set(
+              (r.items || [])
+                .map((i) => vendorOrderByOrderItemId.get(i.order_item_id))
                 .filter((v): v is string => !!v)
             ),
           ],

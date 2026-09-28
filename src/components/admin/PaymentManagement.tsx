@@ -43,6 +43,7 @@ import { useRefunds } from "@/hooks/useRefunds";
 import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { RefundHistory } from "@/components/RefundHistory";
+import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -369,7 +370,10 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                       </TableCell>
                       <TableCell>{getStatusBadge(payment.payment_status)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {payment.vendorOrderIds.map((vendorOrderId) => (
+                            <VendorOrderDetailsDialog key={vendorOrderId} vendorOrderId={vendorOrderId} triggerLabel="View" />
+                          ))}
                           {payment.payment_status === "pending" && (
                             <>
                               <Button

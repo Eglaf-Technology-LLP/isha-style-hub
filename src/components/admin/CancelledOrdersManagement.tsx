@@ -11,6 +11,7 @@ import {
 import { Loader2, Ban } from "lucide-react";
 import { useOrderCancellations } from "@/hooks/useOrderCancellations";
 import { format } from "date-fns";
+import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 
 const refundStatusClass: Record<string, string> = {
   processed: "bg-green-100 text-green-800",
@@ -72,6 +73,7 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                   <TableHead>Reason</TableHead>
                   <TableHead>Shipped?</TableHead>
                   <TableHead>Refund</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -110,6 +112,9 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <VendorOrderDetailsDialog vendorOrderId={c.vendorOrderId} />
                     </TableCell>
                   </TableRow>
                 ))}

@@ -39,6 +39,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RefundHistory } from "@/components/RefundHistory";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
+import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -278,9 +279,14 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="ghost" onClick={() => openDetail(request)}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <Button size="sm" variant="ghost" onClick={() => openDetail(request)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {request.vendorOrderIds.map((vendorOrderId) => (
+                            <VendorOrderDetailsDialog key={vendorOrderId} vendorOrderId={vendorOrderId} triggerLabel="View Order" />
+                          ))}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
