@@ -505,6 +505,42 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          id: string
+          link_url: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category: string
+          created_at?: string
+          id?: string
+          link_url?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          link_url?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       order_cancellations: {
         Row: {
           cancelled_by: string | null
@@ -1691,6 +1727,7 @@ export type Database = {
           net_payable: number
           order_id: string
           payout_id: string | null
+          reminder_sent_at: string | null
           shipping_cost: number
           status: string
           subtotal: number
@@ -1707,6 +1744,7 @@ export type Database = {
           net_payable?: number
           order_id: string
           payout_id?: string | null
+          reminder_sent_at?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1723,6 +1761,7 @@ export type Database = {
           net_payable?: number
           order_id?: string
           payout_id?: string | null
+          reminder_sent_at?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1998,6 +2037,7 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_user_ids: { Args: never; Returns: string[] }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
@@ -2020,6 +2060,7 @@ export type Database = {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
+      remind_unconfirmed_orders: { Args: never; Returns: undefined }
       return_request_contains_vendor_item: {
         Args: { _return_request_id: string; _user_id: string }
         Returns: boolean

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { NewOrdersBanner } from "@/components/NewOrdersBanner";
 import { Badge } from "@/components/ui/badge";
 import { 
   Package, 
@@ -345,7 +346,8 @@ export default function Admin() {
           </TabsList>
 
           {/* Dashboard Tab */}
-          <TabsContent value="dashboard">
+          <TabsContent value="dashboard" className="space-y-6">
+            <NewOrdersBanner />
             <div className="grid md:grid-cols-4 gap-6">
               <Card>
                 <CardHeader>

@@ -442,6 +442,25 @@ export default function Checkout() {
     }
   };
 
+  // Separate from the customer's own confirmation email above - tells the
+  // vendor(s) and admin a new order needs confirming. Same "never block
+  // order placement on this" handling.
+  const sendVendorOrderEmail = async (orderIdToNotify: string) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-vendor-order-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ orderId: orderIdToNotify }),
+      });
+      if (!response.ok) console.error("Failed to send vendor order email");
+    } catch (emailError) {
+      console.error("Vendor order email sending error:", emailError);
+    }
+  };
+
   const placeOrder = async () => {
     if (!user) {
       toast.error("Please sign in to place your order");
@@ -654,6 +673,7 @@ export default function Checkout() {
 
       if (paymentMethod === "cod") {
         await sendConfirmationEmail(newOrderId);
+        await sendVendorOrderEmail(newOrderId);
         clearCart();
         setOrderId(newOrderId);
         setOrderPlaced(true);
@@ -702,6 +722,7 @@ export default function Checkout() {
           }
 
           await sendConfirmationEmail(newOrderId);
+          await sendVendorOrderEmail(newOrderId);
           clearCart();
           setOrderId(newOrderId);
           setOrderPlaced(true);

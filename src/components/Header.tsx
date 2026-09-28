@@ -11,6 +11,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { CartDrawer } from "./CartDrawer";
+import { NotificationBell } from "./NotificationBell";
 import { GlobalSearch } from "./GlobalSearch";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -205,6 +206,8 @@ export function Header() {
                 <Package className="h-5 w-5" />
               </Button>
             </Link>
+
+            {(isAdmin || vendor) && <NotificationBell />}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

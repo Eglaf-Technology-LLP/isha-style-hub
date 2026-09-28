@@ -56,6 +56,7 @@ import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
+import { NewOrdersBanner } from "@/components/NewOrdersBanner";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
 import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
@@ -532,6 +533,7 @@ export default function VendorDashboard() {
 
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-6">
+            <NewOrdersBanner />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card>
                 <CardHeader className="pb-2">
