@@ -54,6 +54,7 @@ export function VendorPerformanceAnalytics() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Products</TableHead>
                   <TableHead>Orders</TableHead>
@@ -65,8 +66,9 @@ export function VendorPerformanceAnalytics() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vendors.map((v) => (
+                {vendors.map((v, idx) => (
                   <TableRow key={v.id}>
+                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell>
                       <div className="font-medium flex items-center gap-1">
                         {v.name}

@@ -468,6 +468,9 @@ export default function VendorDashboard() {
               <h1 className="text-2xl font-serif font-bold">{vendor.name}</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>/store/{vendor.slug}</span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {vendor.boutique_code}
+                </Badge>
                 {vendor.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
                     Trusted partner
@@ -689,6 +692,7 @@ export default function VendorDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-12">#</TableHead>
                           <TableHead>Product</TableHead>
                           <TableHead>Price</TableHead>
                           <TableHead>Stock</TableHead>
@@ -698,8 +702,11 @@ export default function VendorDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paginatedProducts.map((p) => (
+                        {paginatedProducts.map((p, idx) => (
                           <TableRow key={p.id}>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {(productPage - 1) * productPageSize + idx + 1}
+                            </TableCell>
                             <TableCell className="font-medium">{p.name}</TableCell>
                             <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
                             <TableCell>
@@ -861,6 +868,7 @@ export default function VendorDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-12">#</TableHead>
                           <TableHead>Order</TableHead>
                           <TableHead>Items to Deliver</TableHead>
                           <TableHead>Customer</TableHead>
@@ -874,8 +882,11 @@ export default function VendorDashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {paginatedOrders.map((o) => (
+                        {paginatedOrders.map((o, idx) => (
                           <TableRow key={o.id}>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {(orderPage - 1) * orderPageSize + idx + 1}
+                            </TableCell>
                             <TableCell className="font-mono text-xs">
                               {o.order_id.slice(0, 8)}
                               <div className="text-muted-foreground">

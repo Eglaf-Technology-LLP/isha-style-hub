@@ -163,6 +163,7 @@ export function VendorCatalogManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Stock</TableHead>
@@ -172,8 +173,9 @@ export function VendorCatalogManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedItems.map((p) => (
+                {paginatedItems.map((p, idx) => (
                   <TableRow key={p.id}>
+                    <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
                     <TableCell>

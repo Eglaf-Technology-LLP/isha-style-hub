@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, ShieldCheck, Truck, Landmark, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -75,6 +76,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     return_window_days: "7",
     return_policy: "",
   });
+  const [codEnabled, setCodEnabled] = useState(true);
+  const [returnsEnabled, setReturnsEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccount | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
@@ -101,6 +104,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       return_window_days: String(vendor.return_window_days ?? 7),
       return_policy: vendor.return_policy || "",
     });
+    setCodEnabled(vendor.cod_enabled);
+    setReturnsEnabled(vendor.returns_enabled);
 
     setLoadingExtra(true);
     Promise.all([
@@ -158,6 +163,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
           free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
           return_window_days: Number(form.return_window_days) || 7,
           return_policy: form.return_policy.trim() || null,
+          cod_enabled: codEnabled,
+          returns_enabled: returnsEnabled,
         })
         .eq("id", vendor.id);
       if (error) throw error;
@@ -199,6 +206,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
             <section>
               <h4 className="font-medium mb-3">Application &amp; Account</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Field label="Boutique Code" value={<span className="font-mono">{vendor.boutique_code}</span>} />
                 <Field label="Applied On" value={format(new Date(vendor.created_at), "MMM d, yyyy")} />
                 <Field
                   label="Approved On"
@@ -393,6 +401,24 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   value={form.return_policy}
                   onChange={(e) => set("return_policy", e.target.value)}
                 />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label htmlFor="vd-cod">Cash on Delivery</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Off hides COD as a payment option for this vendor's products at checkout.
+                  </p>
+                </div>
+                <Switch id="vd-cod" checked={codEnabled} onCheckedChange={setCodEnabled} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label htmlFor="vd-returns">Returns</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Off hides the return option for this vendor's products, even if a product itself allows returns.
+                  </p>
+                </div>
+                <Switch id="vd-returns" checked={returnsEnabled} onCheckedChange={setReturnsEnabled} />
               </div>
             </section>
 

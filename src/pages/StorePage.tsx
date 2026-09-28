@@ -13,6 +13,7 @@ interface StoreVendor {
   id: string;
   name: string;
   slug: string;
+  boutique_code: string;
   description: string | null;
   logo_url: string | null;
   banner_url: string | null;
@@ -38,7 +39,7 @@ export default function StorePage() {
         const { data: v, error } = await supabase
           .from("vendors")
           .select(
-            "id, name, slug, description, logo_url, banner_url, is_trusted, rating, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy"
+            "id, name, slug, boutique_code, description, logo_url, banner_url, is_trusted, rating, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy"
           )
           .eq("slug", slug)
           .eq("status", "approved")
@@ -152,6 +153,7 @@ export default function StorePage() {
                 </Badge>
               )}
             </div>
+            <p className="text-xs text-muted-foreground font-mono mt-1">Boutique code: {vendor.boutique_code}</p>
             {vendor.description && (
               <p className="text-muted-foreground mt-1 max-w-2xl">
                 {vendor.description}

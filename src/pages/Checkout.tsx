@@ -69,6 +69,8 @@ interface VendorShippingInfo {
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;
   commission_rate: number;
+  cod_enabled: boolean;
+  returns_enabled: boolean;
 }
 
 // Products with no vendor (legacy/platform-owned) fall back to this default
@@ -219,7 +221,7 @@ export default function Checkout() {
     }
     supabase
       .from("vendors")
-      .select("id, name, shipping_flat_rate, free_shipping_threshold, commission_rate")
+      .select("id, name, shipping_flat_rate, free_shipping_threshold, commission_rate, cod_enabled, returns_enabled")
       .in("id", vendorIds)
       .then(({ data, error }) => {
         if (error) {
@@ -290,14 +292,30 @@ export default function Checkout() {
   const total = subtotal - discountAmount + shippingCost;
   const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
 
+  // COD is a single payment method for the whole cart, not per-item - if
+  // any vendor in the cart has turned it off, it can't be offered for this
+  // checkout at all. Missing vendor info (not loaded yet) defaults to
+  // available rather than flashing the option away and back.
+  const codDisabledByVendor = vendorGroups.some(
+    (g) => g.vendorId && vendorInfo[g.vendorId]?.cod_enabled === false
+  );
+
   // A discount applied after "Pay Online" was already selected can drop the
   // total below Razorpay's minimum - switch back to COD automatically
   // rather than letting the customer hit the payment failure at submit time.
   useEffect(() => {
-    if (belowOnlineMinimum && paymentMethod === "razorpay") {
+    if (belowOnlineMinimum && paymentMethod === "razorpay" && !codDisabledByVendor) {
       setPaymentMethod("cod");
     }
-  }, [belowOnlineMinimum, paymentMethod]);
+  }, [belowOnlineMinimum, paymentMethod, codDisabledByVendor]);
+
+  // The inverse case - a vendor with COD off is in the cart, but COD is
+  // still selected (the default). Move to online payment automatically.
+  useEffect(() => {
+    if (codDisabledByVendor && paymentMethod === "cod") {
+      setPaymentMethod("razorpay");
+    }
+  }, [codDisabledByVendor, paymentMethod]);
 
   const validateDiscountCode = async () => {
     if (!discountCode.trim()) {
@@ -1009,21 +1027,29 @@ export default function Checkout() {
                   onValueChange={(value) => setPaymentMethod(value as "cod" | "razorpay")}
                   className="space-y-3"
                 >
-                  <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                    <RadioGroupItem value="cod" id="cod" />
-                    <Label
-                      htmlFor="cod"
-                      className="flex items-center gap-3 cursor-pointer flex-1"
-                    >
-                      <Banknote className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">Cash on Delivery</p>
-                        <p className="text-sm text-muted-foreground">
-                          Pay when your order arrives
-                        </p>
-                      </div>
-                    </Label>
-                  </div>
+                  {!codDisabledByVendor && (
+                    <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                      <RadioGroupItem value="cod" id="cod" />
+                      <Label
+                        htmlFor="cod"
+                        className="flex items-center gap-3 cursor-pointer flex-1"
+                      >
+                        <Banknote className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-medium">Cash on Delivery</p>
+                          <p className="text-sm text-muted-foreground">
+                            Pay when your order arrives
+                          </p>
+                        </div>
+                      </Label>
+                    </div>
+                  )}
+                  {codDisabledByVendor && belowOnlineMinimum && (
+                    <p className="text-sm text-destructive">
+                      One of the boutiques in your cart doesn't offer Cash on Delivery, and this order is below the
+                      ₹{MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.
+                    </p>
+                  )}
                   <div
                     className={`flex items-center space-x-3 p-4 border border-border rounded-lg ${
                       belowOnlineMinimum ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"

@@ -237,6 +237,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Request ID</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
@@ -248,10 +249,11 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedItems.map((request) => {
+                {paginatedItems.map((request, idx) => {
                   const config = statusConfig[request.status] || statusConfig.pending;
                   return (
                     <TableRow key={request.id}>
+                      <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell className="font-mono text-sm">
                         {request.id.slice(0, 8)}
                       </TableCell>

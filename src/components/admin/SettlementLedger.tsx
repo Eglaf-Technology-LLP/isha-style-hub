@@ -69,6 +69,7 @@ export function SettlementLedger({ isAdmin }: SettlementLedgerProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">#</TableHead>
                     <TableHead>Settled On</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Fees</TableHead>
@@ -77,8 +78,9 @@ export function SettlementLedger({ isAdmin }: SettlementLedgerProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {settlements.map((s) => (
+                  {settlements.map((s, idx) => (
                     <TableRow key={s.id}>
+                      <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="text-sm">
                         {format(new Date(s.settled_at), "MMM d, yyyy")}
                       </TableCell>

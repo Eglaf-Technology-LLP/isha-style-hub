@@ -66,6 +66,7 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Order</TableHead>
                   <TableHead>Customer</TableHead>
@@ -77,8 +78,9 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cancellations.map((c) => (
+                {cancellations.map((c, idx) => (
                   <TableRow key={c.id}>
+                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       {format(new Date(c.createdAt), "MMM d, yyyy")}
                     </TableCell>

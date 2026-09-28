@@ -245,6 +245,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Order ID</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
@@ -256,8 +257,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedItems.map((order) => (
+                {paginatedItems.map((order, idx) => (
                   <TableRow key={order.id}>
+                    <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-mono text-sm">
                       {order.id.slice(0, 8)}...
                     </TableCell>

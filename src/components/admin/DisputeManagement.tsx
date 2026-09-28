@@ -67,6 +67,7 @@ export function DisputeManagement({ isAdmin }: DisputeManagementProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Dispute ID</TableHead>
                   <TableHead>Order</TableHead>
                   <TableHead>Amount</TableHead>
@@ -77,12 +78,13 @@ export function DisputeManagement({ isAdmin }: DisputeManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {disputes.map((dispute) => {
+                {disputes.map((dispute, idx) => {
                   const config = statusConfig[dispute.status] || statusConfig.open;
                   const respondByMs = dispute.respond_by ? new Date(dispute.respond_by).getTime() : null;
                   const deadlinePassed = respondByMs !== null && respondByMs < now && dispute.status === "open";
                   return (
                     <TableRow key={dispute.id}>
+                      <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="font-mono text-xs">
                         {dispute.razorpay_dispute_id}
                       </TableCell>

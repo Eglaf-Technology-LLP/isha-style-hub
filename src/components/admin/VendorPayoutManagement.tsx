@@ -95,6 +95,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Period</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>Gross</TableHead>
@@ -106,8 +107,9 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payouts.map((p) => (
+                {payouts.map((p, idx) => (
                   <TableRow key={p.id}>
+                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       {format(new Date(p.periodStart), "MMM d")} - {format(new Date(p.periodEnd), "MMM d, yyyy")}
                     </TableCell>

@@ -316,6 +316,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">#</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Order</TableHead>
                     <TableHead>Customer</TableHead>
@@ -326,8 +327,9 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedItems.map((payment) => (
+                  {paginatedItems.map((payment, idx) => (
                     <TableRow key={payment.id}>
+                      <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell className="text-sm">
                         {format(new Date(payment.created_at), "MMM d, yyyy")}
                         <br />

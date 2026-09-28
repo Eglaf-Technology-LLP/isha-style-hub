@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -46,6 +47,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     return_window_days: "7",
     return_policy: "",
   });
+  const [codEnabled, setCodEnabled] = useState(true);
+  const [returnsEnabled, setReturnsEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -68,6 +71,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       return_window_days: String(vendor.return_window_days ?? 7),
       return_policy: vendor.return_policy || "",
     });
+    setCodEnabled(vendor.cod_enabled);
+    setReturnsEnabled(vendor.returns_enabled);
   }, [open, vendor]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -115,6 +120,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
             : null,
           return_window_days: Number(form.return_window_days) || 7,
           return_policy: form.return_policy.trim() || null,
+          cod_enabled: codEnabled,
+          returns_enabled: returnsEnabled,
         })
         .eq("id", vendor.id);
 
@@ -139,7 +146,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           <DialogTitle>Store settings</DialogTitle>
           <DialogDescription>
             Your commission rate and trusted-partner status are set by the marketplace
-            team, not here.
+            team, not here. Your boutique code (<span className="font-mono">{vendor.boutique_code}</span>) is
+            permanent and can't be changed.
           </DialogDescription>
         </DialogHeader>
 
@@ -278,6 +286,22 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 value={form.return_policy}
                 onChange={(e) => set("return_policy", e.target.value)}
               />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+              <div>
+                <Label htmlFor="vs-cod">Offer Cash on Delivery</Label>
+                <p className="text-xs text-muted-foreground">Off hides COD at checkout for your products.</p>
+              </div>
+              <Switch id="vs-cod" checked={codEnabled} onCheckedChange={setCodEnabled} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+              <div>
+                <Label htmlFor="vs-returns">Accept returns</Label>
+                <p className="text-xs text-muted-foreground">
+                  Off hides the return option for your products, even for items you've marked returnable.
+                </p>
+              </div>
+              <Switch id="vs-returns" checked={returnsEnabled} onCheckedChange={setReturnsEnabled} />
             </div>
           </div>
         </div>

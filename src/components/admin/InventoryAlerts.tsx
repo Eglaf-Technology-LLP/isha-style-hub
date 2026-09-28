@@ -150,6 +150,7 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10" />
+              <TableHead className="w-12">#</TableHead>
               <TableHead>Product</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead className="text-center">Stock</TableHead>
@@ -158,13 +159,16 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pagination.paginatedItems.map((row) => (
+            {pagination.paginatedItems.map((row, idx) => (
               <TableRow key={rowKey(row)}>
                 <TableCell>
                   <Checkbox
                     checked={selected.has(rowKey(row))}
                     onCheckedChange={() => toggleSelected(row)}
                   />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {(pagination.page - 1) * pagination.pageSize + idx + 1}
                 </TableCell>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-3">
@@ -383,6 +387,7 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">#</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead className="text-center">Change</TableHead>
@@ -391,8 +396,9 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {history.map((m) => (
+                  {history.map((m, idx) => (
                     <TableRow key={m.id}>
+                      <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {format(new Date(m.createdAt), "MMM d, yyyy h:mm a")}
                       </TableCell>

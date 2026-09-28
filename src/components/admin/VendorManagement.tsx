@@ -113,6 +113,7 @@ export function VendorManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">#</TableHead>
                   <TableHead>Store</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Trusted</TableHead>
@@ -123,10 +124,16 @@ export function VendorManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {vendors.map((v) => (
+                {vendors.map((v, idx) => (
                   <TableRow key={v.id}>
+                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell>
-                      <div className="font-medium">{v.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{v.name}</span>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {v.boutique_code}
+                        </Badge>
+                      </div>
                       <div className="text-xs text-muted-foreground">/store/{v.slug}</div>
                       <div className="text-xs text-muted-foreground">
                         {v.contact_email || "—"}

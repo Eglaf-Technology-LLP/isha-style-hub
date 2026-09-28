@@ -1857,6 +1857,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           banner_url: string | null
+          boutique_code: string
+          cod_enabled: boolean
           commission_rate: number
           contact_email: string | null
           contact_phone: string | null
@@ -1874,6 +1876,7 @@ export type Database = {
           rating: number | null
           return_policy: string | null
           return_window_days: number
+          returns_enabled: boolean
           shipping_flat_rate: number
           shiprocket_pickup_id: number | null
           shiprocket_pickup_location: string | null
@@ -1887,6 +1890,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           banner_url?: string | null
+          boutique_code?: string
+          cod_enabled?: boolean
           commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
@@ -1904,6 +1909,7 @@ export type Database = {
           rating?: number | null
           return_policy?: string | null
           return_window_days?: number
+          returns_enabled?: boolean
           shipping_flat_rate?: number
           shiprocket_pickup_id?: number | null
           shiprocket_pickup_location?: string | null
@@ -1917,6 +1923,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           banner_url?: string | null
+          boutique_code?: string
+          cod_enabled?: boolean
           commission_rate?: number
           contact_email?: string | null
           contact_phone?: string | null
@@ -1934,6 +1942,7 @@ export type Database = {
           rating?: number | null
           return_policy?: string | null
           return_window_days?: number
+          returns_enabled?: boolean
           shipping_flat_rate?: number
           shiprocket_pickup_id?: number | null
           shiprocket_pickup_location?: string | null

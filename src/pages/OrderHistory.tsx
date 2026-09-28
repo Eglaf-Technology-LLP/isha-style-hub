@@ -225,7 +225,29 @@ export default function OrderHistory() {
         })
       );
 
-      setOrders(ordersWithItems);
+      // A vendor-wide "returns off" switch sits on top of the existing
+      // per-product is_returnable flag - an item is only actually
+      // returnable if both are true. One batched lookup across every
+      // vendor represented in these orders, not a query per item.
+      const vendorIds = [
+        ...new Set(
+          ordersWithItems.flatMap((o) => o.order_items.map((i: any) => i.vendor_id).filter((v: any): v is string => !!v))
+        ),
+      ];
+      const returnsEnabledByVendor = new Map<string, boolean>();
+      if (vendorIds.length > 0) {
+        const { data: vendorRows } = await supabase.from("vendors").select("id, returns_enabled").in("id", vendorIds);
+        (vendorRows || []).forEach((v) => returnsEnabledByVendor.set(v.id, v.returns_enabled));
+      }
+      const ordersWithReturnEligibility = ordersWithItems.map((o) => ({
+        ...o,
+        order_items: o.order_items.map((item: any) => ({
+          ...item,
+          is_returnable: item.is_returnable && (item.vendor_id ? returnsEnabledByVendor.get(item.vendor_id) !== false : true),
+        })),
+      }));
+
+      setOrders(ordersWithReturnEligibility);
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {

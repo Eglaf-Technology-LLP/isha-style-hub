@@ -25,6 +25,9 @@ export interface Vendor {
   free_shipping_threshold: number | null;
   return_window_days: number;
   return_policy: string | null;
+  boutique_code: string;
+  cod_enabled: boolean;
+  returns_enabled: boolean;
   payout_account_status: string;
   rating: number;
   approved_by: string | null;
