@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ShoppingCart,
   Loader2,
@@ -56,15 +57,41 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusTab, setStatusTab] = useState<
+    "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
+  >("all");
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
+
+  // Same reasoning as the vendor-side Orders tab: with real volume, one
+  // flat table with only a name/email search is too slow to actually work
+  // with - a status tab strip with live counts gets straight to "what's
+  // pending" or "what's cancelled" without scrolling past everything else.
+  const STATUS_TABS: { key: typeof statusTab; label: string }[] = [
+    { key: "all", label: "All Orders" },
+    { key: "pending", label: "Pending" },
+    { key: "confirmed", label: "Confirmed" },
+    { key: "processing", label: "Processing" },
+    { key: "shipped", label: "Shipped" },
+    { key: "delivered", label: "Delivered" },
+    { key: "cancelled", label: "Cancelled" },
+  ];
+  const statusCounts = Object.fromEntries(
+    STATUS_TABS.map((t) => [t.key, t.key === "all" ? orders.length : orders.filter((o) => o.order_status === t.key).length]),
+  ) as Record<typeof statusTab, number>;
 
   const visibleOrders = orders.filter((o) => {
+    if (statusTab !== "all" && o.order_status !== statusTab) return false;
+    if (paymentFilter !== "all" && o.payment_status !== paymentFilter) return false;
     if (vendorFilter && !o.order_items?.some((i) => i.vendor_id === vendorFilter)) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const matchesId = o.id.toLowerCase().includes(q);
       const matchesCustomer = o.customer_name?.toLowerCase().includes(q);
       const matchesEmail = o.customer_email?.toLowerCase().includes(q);
-      if (!matchesId && !matchesCustomer && !matchesEmail) return false;
+      const matchesItems = o.order_items?.some(
+        (i) => i.product_title.toLowerCase().includes(q) || (i.sku || "").toLowerCase().includes(q),
+      );
+      if (!matchesId && !matchesCustomer && !matchesEmail && !matchesItems) return false;
     }
     return true;
   });
@@ -121,22 +148,63 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     <div className="space-y-6">
       <NdrQueue />
       <Card>
-      <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">Orders</h3>
-          <p className="text-sm text-muted-foreground">
-            Manage and track customer orders
-          </p>
+      <div className="p-6 border-b border-border space-y-4">
+        <div className="flex flex-row items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">Orders</h3>
+            <p className="text-sm text-muted-foreground">
+              Manage and track customer orders
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input
+              placeholder="Search by order ID, customer, email, product or SKU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-72"
+            />
+            <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
+            <Select value={paymentFilter} onValueChange={(v) => setPaymentFilter(v as typeof paymentFilter)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Payment status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Payments</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="pending">Payment Pending</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="refunded">Refunded</SelectItem>
+              </SelectContent>
+            </Select>
+            {(searchQuery || vendorFilter || paymentFilter !== "all" || statusTab !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setVendorFilter(null);
+                  setPaymentFilter("all");
+                  setStatusTab("all");
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Input
-            placeholder="Search by order ID, customer name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-72"
-          />
-          <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
-        </div>
+
+        <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as typeof statusTab)}>
+          <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1">
+            {STATUS_TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+                {t.label}
+                <Badge variant="secondary" className="h-5 min-w-5 px-1 text-xs">
+                  {statusCounts[t.key]}
+                </Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       <CardContent className="p-0">
@@ -149,7 +217,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
             <p className="text-muted-foreground">
               {orders.length === 0
                 ? "Orders will appear here when customers make purchases"
-                : "Try a different search term or vendor"}
+                : "Try a different search term, status, or vendor"}
             </p>
           </div>
         ) : (
