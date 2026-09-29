@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, Zap } from "lucide-react";
 import { Product } from "@/hooks/useProducts";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
+  const navigate = useNavigate();
   const [imageError, setImageError] = useState(false);
 
   const mainImage = product.images[0];
@@ -25,15 +26,7 @@ export function ProductCard({ product }: ProductCardProps) {
     product.compare_at_price && product.compare_at_price > product.price;
   const hasVariants = product.variants.length > 0;
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    // Products with real variants need a size/color picked and their own
-    // stock checked - both only happen on the product page - so this quick
-    // button becomes a plain link there instead of guessing a variant.
-    if (hasVariants) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
+  const addDefaultToCart = () => {
     addItem({
       productId: product.id,
       productName: product.name,
@@ -48,11 +41,33 @@ export function ProductCard({ product }: ProductCardProps) {
       quantity: 1,
       selectedOptions: [],
     });
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    // Products with real variants need a size/color picked and their own
+    // stock checked - both only happen on the product page - so this quick
+    // button becomes a plain link there instead of guessing a variant.
+    if (hasVariants) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    addDefaultToCart();
 
     toast.success("Added to cart!", {
       description: product.name,
       position: "top-center",
     });
+  };
+
+  const handleBuyNow = (e: React.MouseEvent) => {
+    // Variant products still need the picker on the detail page, so this
+    // button only exists for non-variant cards (see the guard below).
+    e.preventDefault();
+    e.stopPropagation();
+
+    addDefaultToCart();
+    navigate("/checkout");
   };
 
   const compareProduct = {
@@ -94,11 +109,12 @@ export function ProductCard({ product }: ProductCardProps) {
           <CompareButton product={compareProduct} />
         </div>
 
-        {/* Quick Add Button */}
-        <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        {/* Quick Add Buttons */}
+        <div className="absolute bottom-4 left-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
           <Button
             onClick={handleAddToCart}
-            className="w-full"
+            className="flex-1"
+            variant={hasVariants ? "default" : "outline"}
             size="sm"
             disabled={product.stock_quantity <= 0}
           >
@@ -109,6 +125,17 @@ export function ProductCard({ product }: ProductCardProps) {
                 ? "Select Options"
                 : "Add to Cart"}
           </Button>
+          {!hasVariants && (
+            <Button
+              onClick={handleBuyNow}
+              className="flex-1"
+              size="sm"
+              disabled={product.stock_quantity <= 0}
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Shop Now
+            </Button>
+          )}
         </div>
 
         {/* Tags */}

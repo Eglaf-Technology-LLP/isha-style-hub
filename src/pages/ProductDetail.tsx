@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import {
   Minus,
   Plus,
   ShoppingBag,
+  Zap,
   Truck,
   RotateCcw,
 } from "lucide-react";
@@ -35,6 +36,7 @@ import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [category, setCategory] = useState<{ name: string; slug: string } | null>(null);
   const [vendorInfo, setVendorInfo] = useState<{
@@ -175,20 +177,22 @@ export default function ProductDetail() {
     ? [selectedVariant.image_url]
     : product?.images || [];
 
-  const handleAddToCart = () => {
+  // Shared by both "Add to Cart" and "Shop Now" - the validation and the
+  // item that ends up in the cart must be identical either way, since Shop
+  // Now still goes through the same cart/checkout flow (add, then jump
+  // straight to /checkout) rather than a separate order path.
+  const addSelectedToCart = (): boolean => {
     if (!product) {
       toast.error("Product not available");
-      return;
+      return false;
     }
-
-    // Validate size/color selection if variants exist
     if (availableSizes.length > 0 && !selectedSize) {
       toast.error("Please select a size");
-      return;
+      return false;
     }
     if (availableColors.length > 0 && !selectedColor) {
       toast.error("Please select a color");
-      return;
+      return false;
     }
 
     const variantId = selectedVariant?.id || `${product.id}-${selectedSize || 'default'}-${selectedColor || 'default'}`;
@@ -212,6 +216,12 @@ export default function ProductDetail() {
       selectedOptions,
     });
 
+    return true;
+  };
+
+  const handleAddToCart = () => {
+    if (!product || !addSelectedToCart()) return;
+
     const details = [product.name];
     if (selectedSize) details.push(`Size: ${selectedSize}`);
     if (selectedColor) details.push(`Color: ${selectedColor}`);
@@ -221,6 +231,14 @@ export default function ProductDetail() {
       description: details.join(" • "),
       position: "top-center",
     });
+  };
+
+  // Straight to checkout, no stop at the cart page/drawer - same item the
+  // regular Add to Cart would add, just skips the "review your cart" step
+  // for a customer who already knows they want it now.
+  const handleBuyNow = () => {
+    if (!addSelectedToCart()) return;
+    navigate("/checkout");
   };
 
   if (loading) {
@@ -419,22 +437,36 @@ export default function ProductDetail() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
-              <Button
-                size="lg"
-                className="flex-1"
-                onClick={handleAddToCart}
-                disabled={currentStock <= 0}
-              >
-                <ShoppingBag className="h-5 w-5 mr-2" />
-                {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
-              </Button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={handleAddToCart}
+                  disabled={currentStock <= 0}
+                >
+                  <ShoppingBag className="h-5 w-5 mr-2" />
+                  {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
+                </Button>
+                <Button
+                  size="lg"
+                  className="flex-1"
+                  onClick={handleBuyNow}
+                  disabled={currentStock <= 0}
+                >
+                  <Zap className="h-5 w-5 mr-2" />
+                  Shop Now
+                </Button>
+              </div>
+              <div className="flex gap-3">
               <WishlistButton productId={product.id} />
-              <SocialShareButtons 
+              <SocialShareButtons
                 url={`${window.location.origin}${location.pathname}`}
                 title={product.name}
                 description={product.description || undefined}
               />
+              </div>
             </div>
 
             {/* Virtual Try-On */}
