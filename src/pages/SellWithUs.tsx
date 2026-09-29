@@ -177,7 +177,7 @@ export default function SellWithUs() {
             <Store className="h-4 w-4" /> Marketplace Vendor Program
           </span>
           <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">
-            Sell your brand to all of India
+            Sell your brand Across India
           </h1>
           <p className="text-lg text-muted-foreground mb-8">
             Open your own storefront on AllBoutiqs. Keep full control of your
