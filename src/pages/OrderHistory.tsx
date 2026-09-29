@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/accordion";
 import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ban, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
@@ -292,13 +293,11 @@ export default function OrderHistory() {
               <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <CardTitle>Sign in to view your orders</CardTitle>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-muted-foreground">
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground text-center">
                 Please sign in to access your order history and track your purchases.
               </p>
-              <Button onClick={() => navigate("/admin")} className="w-full">
-                Sign In
-              </Button>
+              <InlineSignInForm />
               <Button variant="outline" onClick={() => navigate("/")} className="w-full">
                 Continue Shopping
               </Button>

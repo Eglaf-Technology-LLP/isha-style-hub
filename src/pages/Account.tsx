@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, User, MapPin, Package, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { AddressSection } from "@/components/account/AddressSection";
 import { OrdersSection } from "@/components/account/OrdersSection";
@@ -38,13 +39,11 @@ export default function Account() {
               <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <CardTitle>Sign in to access your account</CardTitle>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
-              <p className="text-muted-foreground">
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground text-center">
                 Please sign in to manage your profile, addresses, and view your orders.
               </p>
-              <Button onClick={() => navigate("/admin")} className="w-full">
-                Sign In
-              </Button>
+              <InlineSignInForm />
               <Button variant="outline" onClick={() => navigate("/")} className="w-full">
                 Continue Shopping
               </Button>

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
+import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -786,27 +787,26 @@ export default function Checkout() {
       <div className="min-h-screen bg-background">
         <Header />
         <main className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto text-center">
+          <Card className="max-w-md mx-auto">
             <CardContent className="pt-8 pb-8">
-              <LogIn className="h-16 w-16 text-primary mx-auto mb-6" />
-              <h1 className="text-2xl font-serif font-bold mb-3">
-                Sign in to complete your order
-              </h1>
-              <p className="text-muted-foreground mb-8">
-                Create an account or sign in to check out - we'll save your
-                details so you don't have to re-enter them next time.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Button
-                  className="w-full"
-                  onClick={() => navigate("/admin?redirect=/checkout")}
-                >
-                  Sign In
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
-                  Continue Shopping
-                </Button>
+              <div className="text-center mb-6">
+                <LogIn className="h-16 w-16 text-primary mx-auto mb-6" />
+                <h1 className="text-2xl font-serif font-bold mb-3">
+                  Sign in to complete your order
+                </h1>
+                <p className="text-muted-foreground">
+                  Create an account or sign in to check out - we'll save your
+                  details so you don't have to re-enter them next time.
+                </p>
               </div>
+              <InlineSignInForm />
+              <Button
+                variant="outline"
+                className="w-full mt-3"
+                onClick={() => navigate("/")}
+              >
+                Continue Shopping
+              </Button>
             </CardContent>
           </Card>
         </main>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useVendor } from "@/hooks/useVendor";
+import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -111,13 +112,8 @@ export default function SellWithUs() {
                 join AllBoutiqs as a vendor.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                className="w-full"
-                onClick={() => navigate("/admin?redirect=/sell-with-us")}
-              >
-                Sign In / Create Account
-              </Button>
+            <CardContent className="space-y-4">
+              <InlineSignInForm />
               <Button
                 variant="outline"
                 className="w-full"
