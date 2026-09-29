@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,35 +13,6 @@ interface ReturnEmailRequest {
   newStatus: string;
   adminNotes?: string;
   refundAmount?: number;
-}
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  if (!RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not configured, skipping email send");
-    return { success: true, skipped: true };
-  }
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "AllBoutiqs <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
-  }
-
-  return await response.json();
 }
 
 function getStatusContent(status: string, requestType: string) {
@@ -170,49 +142,39 @@ const handler = async (req: Request): Promise<Response> => {
 
     const subject = `${returnReq.request_type === "exchange" ? "Exchange" : "Return"} Request ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)} – #${requestId} | AllBoutiqs`;
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-          <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
-        </div>
-        <div style="padding: 30px 0;">
-          <div style="text-align: center; margin-bottom: 24px;">
-            <div style="display: inline-block; background: ${color}; color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 14px;">
-              ${newStatus.replace("_", " ").toUpperCase()}
-            </div>
-          </div>
-          <h2 style="text-align: center;">${heading}</h2>
-          <p style="color: #666; text-align: center;">${message}</p>
-          
-          <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 4px 0;"><strong>Request ID:</strong> #${requestId}</p>
-            <p style="margin: 4px 0;"><strong>Order:</strong> #${orderNumber}</p>
-            <p style="margin: 4px 0;"><strong>Type:</strong> ${returnReq.request_type === "exchange" ? "Exchange" : "Return"}</p>
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-            <thead>
-              <tr style="background: #f5f5f5;">
-                <th style="padding: 10px; text-align: left;">Item</th>
-                <th style="padding: 10px; text-align: center;">Variant</th>
-                <th style="padding: 10px; text-align: center;">Qty</th>
-              </tr>
-            </thead>
-            <tbody>${itemsHtml}</tbody>
-          </table>
-
-          ${refundHtml}
-          ${adminNotesHtml}
-        </div>
-        <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-          <p>Thank you for shopping with AllBoutiqs!</p>
-          <p style="font-size: 12px;">If you have any questions, please contact our support team.</p>
-        </div>
-      </body>
-      </html>
+    const bodyHtml = `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="display: inline-block; background: ${color}; color: white; padding: 6px 18px; border-radius: 20px; font-weight: 700; font-size: 13px; letter-spacing:0.03em;">
+          ${newStatus.replace("_", " ").toUpperCase()}
+        </span>
+      </div>
+      <p style="color: #5a5a5a; text-align: center;">${message}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin:20px 0; font-size:14px;">
+        <tr><td style="padding:2px 0;"><strong>Request ID:</strong> #${requestId}</td></tr>
+        <tr><td style="padding:2px 0;"><strong>Order:</strong> #${orderNumber}</td></tr>
+        <tr><td style="padding:2px 0;"><strong>Type:</strong> ${returnReq.request_type === "exchange" ? "Exchange" : "Return"}</td></tr>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin: 16px 0; font-size:14px;">
+        <thead>
+          <tr>
+            <th style="padding: 8px 0; text-align: left; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Item</th>
+            <th style="padding: 8px 0; text-align: center; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Variant</th>
+            <th style="padding: 8px 0; text-align: center; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Qty</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+      </table>
+      ${refundHtml}
+      ${adminNotesHtml}
     `;
+
+    const emailHtml = emailTemplate({
+      heading,
+      preheader: message,
+      bodyHtml,
+      ctaLabel: "View Order",
+      ctaUrl: "https://allboutiqs.com/orders",
+    });
 
     const emailResult = await sendEmail(order.customer_email, subject, emailHtml);
 

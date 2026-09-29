@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,35 +14,6 @@ interface CancellationNoticeRequest {
   // - not persisted (order_cancellations has no such column), just surfaced
   // to a human immediately when the automatic refund itself failed.
   refund_error?: string | null;
-}
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  if (!RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not configured, skipping email send");
-    return { success: true, skipped: true };
-  }
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "AllBoutiqs <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
-  }
-
-  return await response.json();
 }
 
 function buildEmailHtml(params: {
@@ -73,30 +45,24 @@ function buildEmailHtml(params: {
          </div>`
       : "";
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-        <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
-      </div>
-      <div style="padding: 30px 0;">
-        <h2>Order Cancelled by Customer</h2>
-        <p style="color: #666;">${recipientLabel}, a customer has cancelled the ${vendorName} portion of an order.</p>
-        <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 4px 0;"><strong>Order:</strong> #${orderNumber}</p>
-          <p style="margin: 4px 0;"><strong>Vendor:</strong> ${vendorName}</p>
-          <p style="margin: 4px 0;"><strong>Reason given:</strong> ${reason}</p>
-        </div>
-        ${shippedNoticeHtml}
-        ${refundHtml}
-      </div>
-      <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-        <p>AllBoutiqs - Order Management</p>
-      </div>
-    </body>
-    </html>
+  const bodyHtml = `
+    <p style="color:#5a5a5a;">${recipientLabel}, a customer has cancelled the ${vendorName} portion of an order.</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin:20px 0; font-size:14px;">
+      <tr><td style="padding:2px 0;"><strong>Order:</strong> #${orderNumber}</td></tr>
+      <tr><td style="padding:2px 0;"><strong>Vendor:</strong> ${vendorName}</td></tr>
+      <tr><td style="padding:2px 0;"><strong>Reason given:</strong> ${reason}</td></tr>
+    </table>
+    ${shippedNoticeHtml}
+    ${refundHtml}
   `;
+
+  return emailTemplate({
+    heading: "Order Cancelled by Customer",
+    preheader: `${vendorName} - order #${orderNumber} cancelled`,
+    bodyHtml,
+    ctaLabel: "View in Dashboard",
+    ctaUrl: "https://allboutiqs.com",
+  });
 }
 
 const handler = async (req: Request): Promise<Response> => {

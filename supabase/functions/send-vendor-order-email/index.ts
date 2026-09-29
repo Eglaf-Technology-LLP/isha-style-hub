@@ -1,32 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  if (!RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not configured, skipping email send");
-    return { success: true, skipped: true };
-  }
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: "AllBoutiqs <onboarding@resend.dev>", to: [to], subject, html }),
-  });
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
-  }
-  return await response.json();
-}
 
 // The customer's own order-confirmation email (send-order-email) never
 // told the vendor or admin a new order existed at all - the in-app
@@ -71,7 +51,9 @@ const handler = async (req: Request): Promise<Response> => {
       : { data: [] as { id: string; name: string; contact_email: string | null }[] };
 
     const itemsHtml = (list: { product_title: string; quantity: number; price: number }[]) =>
-      list.map((i) => `<li>${i.product_title} x ${i.quantity} - ₹${(i.price * i.quantity).toFixed(2)}</li>`).join("");
+      `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${list
+        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ₹${(i.price * i.quantity).toFixed(2)}</li>`)
+        .join("")}</ul>`;
 
     const vendorSends = (vendors ?? [])
       .filter((v) => v.contact_email)
@@ -79,10 +61,17 @@ const handler = async (req: Request): Promise<Response> => {
         sendEmail(
           v.contact_email!,
           `New order received - #${orderId.slice(0, 8)} | AllBoutiqs`,
-          `<h2>New order for ${v.name}</h2>
-           <p>A new order from ${order.customer_name} is waiting to be confirmed.</p>
-           <ul>${itemsHtml(byVendor.get(v.id) ?? [])}</ul>
-           <p>Log in to your vendor dashboard to confirm and ship it.</p>`
+          emailTemplate({
+            heading: "You've got a new order!",
+            preheader: `A new order from ${order.customer_name} is waiting to be confirmed.`,
+            bodyHtml: `
+              <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
+              ${itemsHtml(byVendor.get(v.id) ?? [])}
+              <p style="color:#5a5a5a; margin-top:20px;">Log in to your vendor dashboard to confirm and ship it.</p>
+            `,
+            ctaLabel: "Confirm Order",
+            ctaUrl: "https://allboutiqs.com/vendor",
+          })
         ).catch((e) => console.error("send-vendor-order-email: vendor email failed", v.contact_email, e))
       );
 
@@ -104,9 +93,13 @@ const handler = async (req: Request): Promise<Response> => {
       sendEmail(
         email,
         `New order placed - #${orderId.slice(0, 8)} | AllBoutiqs`,
-        `<h2>New order</h2>
-         <p>Order #${orderId.slice(0, 8)} from ${order.customer_name} - ₹${Number(order.total).toFixed(2)}
-         (${order.payment_method.toUpperCase()}).</p>`
+        emailTemplate({
+          heading: "New order placed",
+          preheader: `Order #${orderId.slice(0, 8)} from ${order.customer_name}`,
+          bodyHtml: `<p style="color:#5a5a5a;">Order #${orderId.slice(0, 8)} from <strong>${order.customer_name}</strong> — ₹${Number(order.total).toFixed(2)} (${order.payment_method.toUpperCase()}).</p>`,
+          ctaLabel: "View in Admin",
+          ctaUrl: "https://allboutiqs.com/admin",
+        })
       ).catch((e) => console.error("send-vendor-order-email: admin email failed", email, e))
     );
 

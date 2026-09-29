@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,36 +18,6 @@ interface AbandonedCartRequest {
   }>;
   cartTotal: number;
   checkoutUrl: string;
-}
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  
-  if (!RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not configured, skipping email send");
-    return { success: true, skipped: true };
-  }
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "AllBoutiqs <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
-  }
-
-  return await response.json();
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -76,65 +47,48 @@ const handler = async (req: Request): Promise<Response> => {
       </tr>
     `).join("");
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-          <div style="text-align: center; padding: 30px 20px; background: linear-gradient(135deg, #f5a623 0%, #f7c774 100%);">
-            <h1 style="color: white; margin: 0; text-shadow: 0 1px 2px rgba(0,0,0,0.2);">AllBoutiqs</h1>
-          </div>
-          
-          <div style="padding: 30px;">
-            <h2 style="color: #333; margin-top: 0;">You left something behind! 👜</h2>
-            <p style="color: #666; line-height: 1.6;">
-              We noticed you didn't complete your purchase. No worries – your items are still waiting for you!
-            </p>
-            
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-              <thead>
-                <tr style="background: #f5f5f5;">
-                  <th style="padding: 12px; text-align: left;">Your Cart</th>
-                  <th style="padding: 12px; text-align: right;">Price</th>
-                </tr>
-              </thead>
-              <tbody>${itemsHtml}</tbody>
-              <tfoot>
-                <tr style="font-weight: bold; background: #fef3e2;">
-                  <td style="padding: 15px;">Cart Total:</td>
-                  <td style="padding: 15px; text-align: right; color: #f5a623; font-size: 18px;">₹${cartTotal.toFixed(2)}</td>
-                </tr>
-              </tfoot>
-            </table>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${checkoutUrl}" style="display: inline-block; background: #f5a623; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                Complete Your Purchase →
-              </a>
-            </div>
-            
-            <div style="background: #f0f7ff; padding: 20px; border-radius: 8px; margin-top: 20px;">
-              <h3 style="color: #333; margin-top: 0; font-size: 14px;">✨ Why shop with us?</h3>
-              <ul style="color: #666; margin: 0; padding-left: 20px; font-size: 13px;">
-                <li>Free shipping on orders above ₹999</li>
-                <li>Easy 7-day returns</li>
-                <li>100% authentic products</li>
-              </ul>
-            </div>
-          </div>
-          
-          <div style="text-align: center; padding: 20px; background: #f5f5f5; color: #999; font-size: 12px;">
-            <p>If you have any questions, reply to this email or contact us!</p>
-            <p>© 2026 AllBoutiqs. All rights reserved.</p>
-          </div>
-        </div>
-      </body>
-      </html>
+    const bodyHtml = `
+      <p style="color: #5a5a5a; line-height: 1.6;">
+        We noticed you didn't complete your purchase. No worries — your items are still waiting for you!
+      </p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin: 20px 0; font-size:14px;">
+        <thead>
+          <tr>
+            <th style="padding: 8px 0; text-align: left; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Your Cart</th>
+            <th style="padding: 8px 0; text-align: right; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+        <tfoot>
+          <tr style="font-weight: 700;">
+            <td style="padding: 12px 0; border-top: 2px solid #1a1a1a;">Cart Total</td>
+            <td style="padding: 12px 0; border-top: 2px solid #1a1a1a; text-align: right; color: #7a2e22; font-size: 16px;">₹${cartTotal.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin-top:20px;">
+        <tr><td>
+          <p style="margin:0 0 8px; font-weight:700; font-size:13px; color:#1a1a1a;">Why shop with us?</p>
+          <ul style="color: #5a5a5a; margin: 0; padding-left: 18px; font-size: 13px; line-height:1.7;">
+            <li>Free shipping on orders above ₹999</li>
+            <li>Easy 7-day returns</li>
+            <li>100% authentic products</li>
+          </ul>
+        </td></tr>
+      </table>
     `;
+
+    const emailHtml = emailTemplate({
+      heading: "You left something behind!",
+      preheader: "Your cart is still waiting for you",
+      bodyHtml,
+      ctaLabel: "Complete Your Purchase",
+      ctaUrl: checkoutUrl,
+    });
 
     const emailResult = await sendEmail(
       email,
-      "You left items in your cart! Complete your purchase 🛒",
+      "You left items in your cart! Complete your purchase",
       emailHtml
     );
 

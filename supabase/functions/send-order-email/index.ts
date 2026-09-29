@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,36 +17,6 @@ interface OrderEmailRequest {
   // a partial cancellation correctly instead of implying the whole order
   // was cancelled.
   vendorOrderId?: string;
-}
-
-async function sendEmail(to: string, subject: string, html: string) {
-  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-  
-  if (!RESEND_API_KEY) {
-    console.log("RESEND_API_KEY not configured, skipping email send");
-    return { success: true, skipped: true };
-  }
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: "AllBoutiqs <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Resend API error: ${error}`);
-  }
-
-  return await response.json();
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -137,62 +108,58 @@ const handler = async (req: Request): Promise<Response> => {
 
     const itemsHtml = items?.map(item => `
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #eee;">
-          <strong>${item.product_title}</strong>
-          ${item.size ? `<br><span style="color: #666;">Size: ${item.size}</span>` : ""}
-          ${item.color ? `<span style="color: #666;"> | Color: ${item.color}</span>` : ""}
+        <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0;">
+          <strong style="color:#1a1a1a;">${item.product_title}</strong>
+          ${item.size ? `<br><span style="color: #8a8a8a; font-size:13px;">Size: ${item.size}</span>` : ""}
+          ${item.color ? `<span style="color: #8a8a8a; font-size:13px;"> · Color: ${item.color}</span>` : ""}
         </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
       </tr>
     `).join("") || "";
 
     const shippingAddress = order.shipping_address as any;
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-        <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f5a623;">
-          <h1 style="color: #f5a623; margin: 0;">AllBoutiqs</h1>
-        </div>
-        <div style="padding: 30px 0;">
-          <h2>${heading}</h2>
-          <p style="color: #666;">${message}</p>
-          <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <p><strong>Order:</strong> #${orderNumber}</p>
-            <p><strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString('en-IN')}</p>
-          </div>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: #f5f5f5;">
-                <th style="padding: 12px; text-align: left;">Item</th>
-                <th style="padding: 12px; text-align: center;">Qty</th>
-                <th style="padding: 12px; text-align: right;">Price</th>
-              </tr>
-            </thead>
-            <tbody>${itemsHtml}</tbody>
-            <tfoot>
-              <tr style="font-weight: bold;">
-                <td colspan="2" style="padding: 12px; text-align: right; border-top: 2px solid #333;">Total:</td>
-                <td style="padding: 12px; text-align: right; border-top: 2px solid #333;">₹${order.total.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
-          <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-top: 20px;">
-            <h3>Shipping Address</h3>
-            <p>${order.customer_name}<br>
-            ${shippingAddress.address_line1}<br>
-            ${shippingAddress.city}, ${shippingAddress.state} - ${shippingAddress.pincode}<br>
-            ${order.customer_phone}</p>
-          </div>
-        </div>
-        <div style="text-align: center; padding: 20px; border-top: 1px solid #eee; color: #999;">
-          <p>Thank you for shopping with AllBoutiqs!</p>
-        </div>
-      </body>
-      </html>
+    const bodyHtml = `
+      <p style="color:#5a5a5a;">${message}</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin:20px 0; font-size:14px;">
+        <tr><td style="padding:2px 0;"><strong>Order:</strong> #${orderNumber}</td></tr>
+        <tr><td style="padding:2px 0;"><strong>Date:</strong> ${new Date(order.created_at).toLocaleDateString('en-IN')}</td></tr>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr>
+            <th style="padding: 8px 0; text-align: left; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Item</th>
+            <th style="padding: 8px 0; text-align: center; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Qty</th>
+            <th style="padding: 8px 0; text-align: right; border-bottom:2px solid #1a1a1a; font-size:12px; text-transform:uppercase; letter-spacing:0.04em; color:#8a8a8a;">Price</th>
+          </tr>
+        </thead>
+        <tbody>${itemsHtml}</tbody>
+        <tfoot>
+          <tr style="font-weight: 700;">
+            <td colspan="2" style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">Total</td>
+            <td style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">₹${order.total.toFixed(2)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin-top:20px; font-size:14px;">
+        <tr><td>
+          <p style="margin:0 0 6px; font-weight:700; color:#1a1a1a;">Shipping Address</p>
+          <p style="margin:0; color:#5a5a5a; line-height:1.6;">${order.customer_name}<br>
+          ${shippingAddress.address_line1}<br>
+          ${shippingAddress.city}, ${shippingAddress.state} - ${shippingAddress.pincode}<br>
+          ${order.customer_phone}</p>
+        </td></tr>
+      </table>
     `;
+
+    const emailHtml = emailTemplate({
+      heading,
+      preheader: message,
+      bodyHtml,
+      ctaLabel: "View Order",
+      ctaUrl: "https://allboutiqs.com/orders",
+    });
 
     const emailResult = await sendEmail(order.customer_email, subject, emailHtml);
 
