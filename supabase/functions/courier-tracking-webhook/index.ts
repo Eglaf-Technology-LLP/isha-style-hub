@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
 
     let { data: shipment } = await supabase
       .from("shipments")
-      .select("id, shipment_type, vendor_order_id, return_request_id, status")
+      .select("id, shipment_type, vendor_order_id, return_request_id, status, awb_code")
       .eq("awb_code", awbCode)
       .maybeSingle();
 
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       // match on the exact value we recorded when creating the shipment.
       const byChannelId = await supabase
         .from("shipments")
-        .select("id, shipment_type, vendor_order_id, return_request_id, status")
+        .select("id, shipment_type, vendor_order_id, return_request_id, status, awb_code")
         .eq("shiprocket_channel_order_id", rawOrderId)
         .maybeSingle();
       shipment = byChannelId.data;
@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       const fallback = uuidRe.test(rawOrderId)
         ? await supabase
             .from("shipments")
-            .select("id, shipment_type, vendor_order_id, return_request_id, status")
+            .select("id, shipment_type, vendor_order_id, return_request_id, status, awb_code")
             .eq("vendor_order_id", rawOrderId)
             .maybeSingle()
         : { data: null };
@@ -101,7 +101,20 @@ Deno.serve(async (req) => {
       return jsonResponse({ received: true, matched: false });
     }
 
-    const mapped = mapShiprocketStatus(rawStatus);
+    // Shiprocket's auto-cancel after failed pickup attempts never sends a
+    // "cancelled" status - it releases the AWB and puts the order back to
+    // NEW (confirmed from a real payload: current_status "NEW",
+    // awb_assigned_date null, pickup_attempt_count 3, pickup_exception_reason
+    // "No Pickup / Shipment Not Ready"). A NEW event for a booking that
+    // already had an AWB therefore means the courier dropped the pickup.
+    const courierDroppedPickup =
+      rawStatus.trim().toUpperCase() === "NEW" && !payload.awb_assigned_date && !!shipment.awb_code;
+    const mapped = courierDroppedPickup
+      ? { shipmentStatus: "cancelled", vendorOrderStatus: null }
+      : mapShiprocketStatus(rawStatus);
+    const statusRaw = courierDroppedPickup
+      ? `Pickup cancelled by courier${payload.pickup_exception_reason ? ` - ${payload.pickup_exception_reason}` : ""}`
+      : rawStatus;
     const now = new Date().toISOString();
     const timestampColumn: Record<string, string> = {
       pickup_scheduled: "pickup_scheduled_at",
@@ -115,11 +128,42 @@ Deno.serve(async (req) => {
 
     await supabase
       .from("shipments")
-      .update({ status: mapped.shipmentStatus, status_raw: rawStatus, ...extraTimestamp })
+      .update({ status: mapped.shipmentStatus, status_raw: statusRaw, ...extraTimestamp })
       .eq("id", shipment.id);
 
     const isForwardLeg = shipment.shipment_type === "forward" || shipment.shipment_type === "exchange_forward";
     const isReturnLeg = shipment.shipment_type === "return" || shipment.shipment_type === "exchange_return";
+
+    if (isForwardLeg && mapped.shipmentStatus === "cancelled" && shipment.status !== "cancelled") {
+      // The vendor has to act (be ready, then book again) - a status change
+      // alone is easy to miss, so it also goes to the notification bell.
+      const { data: vo } = await supabase
+        .from("vendor_orders")
+        .select("vendor_id")
+        .eq("id", shipment.vendor_order_id)
+        .maybeSingle();
+      const [{ data: members }, { data: admins }] = await Promise.all([
+        vo
+          ? supabase.from("vendor_members").select("user_id").eq("vendor_id", vo.vendor_id)
+          : Promise.resolve({ data: [] as { user_id: string }[] }),
+        supabase.from("user_roles").select("user_id").eq("role", "admin"),
+      ]);
+      const orderRef = `#${String(shipment.vendor_order_id).slice(0, 8).toUpperCase()}`;
+      const notifications = [
+        ...(members ?? []).map((m) => ({ user_id: m.user_id, link_url: "/vendor" })),
+        ...(admins ?? []).map((a) => ({ user_id: a.user_id, link_url: "/admin" })),
+      ].map((n) => ({
+        ...n,
+        category: "order",
+        type: "pickup_cancelled",
+        title: "Courier pickup cancelled",
+        body: `${statusRaw} (AWB ${awbCode}) for order ${orderRef}. Please book the shipment again.`,
+      }));
+      if (notifications.length) {
+        const { error: notifyErr } = await supabase.from("notifications").insert(notifications);
+        if (notifyErr) console.error("courier-tracking-webhook: pickup-cancel notification failed", notifyErr);
+      }
+    }
 
     if (isForwardLeg && mapped.vendorOrderStatus) {
       await supabase

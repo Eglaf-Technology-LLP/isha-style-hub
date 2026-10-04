@@ -186,7 +186,10 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                   <div className="flex items-center gap-3 flex-wrap">
                     {shipment?.awb_code && (
                       <span className="text-xs text-destructive">
-                        Pickup cancelled by courier (AWB {shipment.awb_code}) - book again
+                        {shipment.status_raw?.startsWith("Pickup cancelled")
+                          ? shipment.status_raw
+                          : "Pickup cancelled by courier"}{" "}
+                        (AWB {shipment.awb_code}) - book again
                       </span>
                     )}
                     <ShipNowDialog

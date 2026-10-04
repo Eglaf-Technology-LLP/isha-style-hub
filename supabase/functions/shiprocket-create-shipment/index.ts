@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
 
     const { data: existingShipment } = await supabase
       .from("shipments")
-      .select("id, awb_code, courier_name, label_url, manifest_url, status")
+      .select("id, awb_code, courier_name, label_url, manifest_url, status, shiprocket_order_id")
       .eq("vendor_order_id", vendor_order_id)
       .eq("shipment_type", "forward")
       .maybeSingle();
@@ -77,6 +77,19 @@ Deno.serve(async (req) => {
       // auto-cancelling after failed pickups) - the old booking is dead, so
       // clear it the same way a manual cancel does (deleteOnCancel) instead
       // of treating its leftover AWB as "already shipped" and blocking rebook.
+      // Shiprocket's auto-cancel leaves its order sitting in NEW, so cancel
+      // that too or the panel ends up with a stale duplicate next to the
+      // fresh booking below. Best-effort: it may already be cancelled there.
+      if (existingShipment.shiprocket_order_id) {
+        try {
+          await shiprocketRequest(supabase, "/orders/cancel", {
+            method: "POST",
+            body: { ids: [existingShipment.shiprocket_order_id] },
+          });
+        } catch (e) {
+          console.error("shiprocket-create-shipment: could not cancel stale Shiprocket order", e);
+        }
+      }
       await supabase.from("shipments").delete().eq("id", existingShipment.id);
     } else if (existingShipment?.awb_code) {
       return jsonResponse({ shipment: existingShipment, already_shipped: true });

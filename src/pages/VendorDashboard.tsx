@@ -982,8 +982,11 @@ export default function VendorDashboard() {
                                   return (
                                     <div className="space-y-1">
                                       {shipment?.awb_code && (
-                                        <div className="text-xs text-destructive">
-                                          Pickup cancelled by courier (AWB {shipment.awb_code}) - book again
+                                        <div className="text-xs text-destructive max-w-[220px]">
+                                          {shipment.status_raw?.startsWith("Pickup cancelled")
+                                            ? shipment.status_raw
+                                            : "Pickup cancelled by courier"}{" "}
+                                          (AWB {shipment.awb_code}) - book again
                                         </div>
                                       )}
                                       <ShipNowDialog
