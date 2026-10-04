@@ -54,6 +54,9 @@ import { VariantStockDialog } from "./VariantStockDialog";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
+import { AiDeclarationField } from "@/components/AiDeclarationField";
+import { toast } from "sonner";
+import type { AiContentStatus } from "@/lib/aiContent";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -95,6 +98,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     country_of_origin: "India",
     net_quantity: "1 N",
     is_returnable: true,
+    ai_content_status: null,
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -120,6 +124,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       country_of_origin: "India",
       net_quantity: "1 N",
       is_returnable: true,
+      ai_content_status: null,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -153,6 +158,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   const handleAddProduct = async () => {
     if (!productForm.name) return;
+    if (!productForm.ai_content_status) {
+      toast.error("Please complete the AI content declaration");
+      return;
+    }
 
     setIsSubmitting(true);
     const result = await addProduct(productForm, productImages, productVariants);
@@ -166,6 +175,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   const handleEditProduct = async () => {
     if (!editingProduct || !productForm.name) return;
+    if (!productForm.ai_content_status) {
+      toast.error("Please complete the AI content declaration");
+      return;
+    }
 
     setIsSubmitting(true);
     const result = await updateProduct(
@@ -201,6 +214,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       country_of_origin: product.country_of_origin || "India",
       net_quantity: product.net_quantity || "1 N",
       is_returnable: product.is_returnable ?? true,
+      ai_content_status: (product.ai_content_status as AiContentStatus | null) ?? null,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -470,6 +484,12 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           }
         />
       </div>
+
+      <AiDeclarationField
+        idPrefix={isEdit ? "edit" : "add"}
+        value={productForm.ai_content_status}
+        onChange={(ai_content_status) => setProductForm((prev) => ({ ...prev, ai_content_status }))}
+      />
 
       <ProductSpecificationsEditor
         specifications={productForm.specifications ?? []}

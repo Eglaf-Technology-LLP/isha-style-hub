@@ -986,6 +986,7 @@ export type Database = {
       }
       products: {
         Row: {
+          ai_content_status: string | null
           approval_status: string
           breadth_cm: number | null
           category_id: string | null
@@ -1014,6 +1015,7 @@ export type Database = {
           weight_grams: number | null
         }
         Insert: {
+          ai_content_status?: string | null
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null
@@ -1042,6 +1044,7 @@ export type Database = {
           weight_grams?: number | null
         }
         Update: {
+          ai_content_status?: string | null
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null

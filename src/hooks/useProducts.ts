@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
+import type { AiContentStatus } from "@/lib/aiContent";
 
 export interface ProductVariant {
   id: string;
@@ -68,6 +69,7 @@ export interface Product {
   // Snapshotted onto order_items at checkout so a later policy change here
   // never retroactively affects an order already placed.
   is_returnable: boolean;
+  ai_content_status: string | null;
   created_at: string;
   updated_at: string;
   // Optional/nullable - only populated by queries that join it in
@@ -121,6 +123,7 @@ export interface ProductFormData {
   country_of_origin?: string;
   net_quantity?: string;
   is_returnable?: boolean;
+  ai_content_status?: AiContentStatus | null;
   // Only vendor-facing callers (VendorProductDialog) set these; omitting
   // them leaves vendor_id/approval_status untouched, matching this hook's
   // long-standing admin-only behavior.
@@ -209,6 +212,7 @@ export async function insertProductRecord(
       height_cm: productData.height_cm || null,
       specifications: (productData.specifications ?? []) as unknown as Json,
       is_returnable: productData.is_returnable ?? true,
+      ai_content_status: productData.ai_content_status ?? null,
       ...(productData.country_of_origin ? { country_of_origin: productData.country_of_origin } : {}),
       ...(productData.net_quantity ? { net_quantity: productData.net_quantity } : {}),
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
@@ -291,6 +295,7 @@ export async function applyProductUpdate(
   if (productData.country_of_origin !== undefined) updateData.country_of_origin = productData.country_of_origin;
   if (productData.net_quantity !== undefined) updateData.net_quantity = productData.net_quantity;
   if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
+  if (productData.ai_content_status !== undefined) updateData.ai_content_status = productData.ai_content_status;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;

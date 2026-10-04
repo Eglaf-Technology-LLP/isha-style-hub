@@ -32,6 +32,8 @@ import { VariantManager } from "@/components/admin/VariantManager";
 import { ProductSpecificationsEditor } from "@/components/admin/ProductSpecificationsEditor";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import { toast } from "sonner";
+import { AiDeclarationField } from "@/components/AiDeclarationField";
+import type { AiContentStatus } from "@/lib/aiContent";
 
 export interface VendorProductRow {
   id: string;
@@ -54,6 +56,7 @@ export interface VendorProductRow {
   country_of_origin?: string;
   net_quantity?: string;
   is_returnable?: boolean;
+  ai_content_status?: AiContentStatus | null;
 }
 
 interface Props {
@@ -96,6 +99,7 @@ export function VendorProductDialog({
   const [images, setImages] = useState<string[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [specifications, setSpecifications] = useState<ProductSpecification[]>([]);
+  const [aiContentStatus, setAiContentStatus] = useState<AiContentStatus | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -122,11 +126,13 @@ export function VendorProductDialog({
       setImages(product.images || []);
       setVariants(product.variants || []);
       setSpecifications(product.specifications || []);
+      setAiContentStatus(product.ai_content_status ?? null);
     } else {
       setForm({ ...empty });
       setImages([]);
       setVariants([]);
       setSpecifications([]);
+      setAiContentStatus(null);
     }
   }, [open, product]);
 
@@ -137,6 +143,7 @@ export function VendorProductDialog({
     if (!form.name.trim()) return toast.error("Product name is required");
     const price = Number(form.price);
     if (!price || price <= 0) return toast.error("Enter a valid price");
+    if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
 
     setSaving(true);
     try {
@@ -159,6 +166,7 @@ export function VendorProductDialog({
         country_of_origin: form.country_of_origin.trim() || "India",
         net_quantity: form.net_quantity.trim() || "1 N",
         is_returnable: form.is_returnable,
+        ai_content_status: aiContentStatus,
         // Trusted partners publish instantly, others go to the moderation
         // queue. "pending_review" (not "pending") is the real constraint
         // value - the insert-only normalization trigger masked this being
@@ -359,6 +367,8 @@ export function VendorProductDialog({
             <Label>Product Images</Label>
             <ImageDropzone folder="vendor-uploads" value={images} onChange={setImages} />
           </div>
+
+          <AiDeclarationField idPrefix="vp" value={aiContentStatus} onChange={setAiContentStatus} />
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>

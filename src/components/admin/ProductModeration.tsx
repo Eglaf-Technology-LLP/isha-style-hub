@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, CheckCircle2, XCircle, ImageOff } from "lucide-react";
 import { toast } from "sonner";
+import { aiContentLabel } from "@/lib/aiContent";
 
 interface ModeratedProduct {
   id: string;
@@ -30,6 +31,7 @@ interface ModeratedProduct {
   approval_status: string;
   rejection_reason: string | null;
   created_at: string;
+  ai_content_status: string | null;
   vendors: { name: string } | null;
 }
 
@@ -53,7 +55,7 @@ export function ProductModeration() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, vendors(name)"
+          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, vendors(name)"
         )
         .eq("approval_status", filter)
         .order("created_at", { ascending: false });
@@ -150,6 +152,20 @@ export function ProductModeration() {
                   <div className="font-medium truncate">{p.name}</div>
                   <div className="text-xs text-muted-foreground">
                     {p.vendors?.name || "No vendor"} &middot; ₹{Number(p.price).toFixed(0)}
+                  </div>
+                  <div className="mt-1">
+                    <Badge
+                      variant="outline"
+                      className={
+                        !p.ai_content_status
+                          ? "text-[10px] text-muted-foreground"
+                          : p.ai_content_status === "none"
+                            ? "text-[10px]"
+                            : "text-[10px] border-amber-300 bg-amber-50 text-amber-800"
+                      }
+                    >
+                      AI: {aiContentLabel(p.ai_content_status)}
+                    </Badge>
                   </div>
                   {p.approval_status === "rejected" && p.rejection_reason && (
                     <div className="text-xs text-destructive mt-1">

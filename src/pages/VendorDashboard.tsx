@@ -67,6 +67,7 @@ import { ProductImportExportDialog } from "@/components/admin/ProductImportExpor
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import type { AiContentStatus } from "@/lib/aiContent";
 
 interface VendorProduct {
   id: string;
@@ -89,6 +90,7 @@ interface VendorProduct {
   country_of_origin: string;
   net_quantity: string;
   is_returnable: boolean;
+  ai_content_status: AiContentStatus | null;
 }
 
 interface VendorOrder {
@@ -244,7 +246,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, ai_content_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
