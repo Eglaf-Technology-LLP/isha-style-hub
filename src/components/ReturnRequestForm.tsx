@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,12 +11,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, RotateCcw, ArrowLeftRight, Upload, AlertTriangle } from "lucide-react";
+import { Loader2, RotateCcw, ArrowLeftRight, AlertTriangle, Video, X } from "lucide-react";
 import { toast } from "sonner";
 import { useReturnRequests, ReturnItem } from "@/hooks/useReturnRequests";
 import { VariantSelector } from "@/components/VariantSelector";
 import { fetchExchangeableVariants, ExchangeVariantOption } from "@/lib/exchangeVariants";
 import { supabase } from "@/integrations/supabase/client";
+import { ImageDropzone } from "@/components/ImageDropzone";
+import { uploadUserFile } from "@/lib/userPhotoUpload";
+
+const MAX_PHOTOS_PER_ITEM = 5;
+const MAX_VIDEO_MB = 50;
 
 interface OrderItem {
   id: string;
@@ -70,8 +75,21 @@ export function ReturnRequestForm({
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string>>({});
-  const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
+  const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string[]>>({});
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  // Admin setting; assume required until loaded (the DB enforces it anyway).
+  const [evidenceRequired, setEvidenceRequired] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("return_evidence_required")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setEvidenceRequired(data.return_evidence_required);
+      });
+  }, []);
 
   const [exchangeTargets, setExchangeTargets] = useState<Record<string, ExchangeTarget>>({});
   const [variantsByProductId, setVariantsByProductId] = useState<Record<string, ExchangeVariantOption[]>>({});
@@ -118,25 +136,24 @@ export function ReturnRequestForm({
     }
   };
 
-  const handlePhotoSelect = async (itemId: string, file: File | undefined) => {
+  const handleVideoSelect = async (file: File | undefined) => {
     if (!file) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      toast.error("Please sign in to upload a photo");
+    if (!file.type.startsWith("video/")) {
+      toast.error("Please choose a video file");
       return;
     }
-    setUploadingItemId(itemId);
-    try {
-      const path = `${session.user.id}/returns/${itemId}-${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage.from("category-images").upload(path, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from("category-images").getPublicUrl(path);
-      setItemPhotoUrls((prev) => ({ ...prev, [itemId]: urlData.publicUrl }));
-    } catch {
-      toast.error("Photo upload failed - please try again");
-    } finally {
-      setUploadingItemId(null);
+    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
+      toast.error(`Video is over ${MAX_VIDEO_MB}MB - please trim it or record a shorter clip`);
+      return;
     }
+    setUploadingVideo(true);
+    const url = await uploadUserFile(file, "returns");
+    setUploadingVideo(false);
+    if (!url) {
+      toast.error("Video upload failed - please try again");
+      return;
+    }
+    setVideoUrl(url);
   };
 
   const setExchangeTarget = (itemId: string, patch: Partial<ExchangeTarget>) => {
@@ -150,8 +167,8 @@ export function ReturnRequestForm({
     const chosen = orderItems.filter((item) => selectedItems[item.id]);
     if (chosen.length === 0 || !reason) return;
 
-    if (chosen.some((item) => !itemPhotoUrls[item.id])) {
-      toast.error("Please upload a photo (with the tag attached) for every selected item");
+    if (evidenceRequired && chosen.some((item) => !(itemPhotoUrls[item.id]?.length))) {
+      toast.error("Please add at least one photo (with the tag attached) for every selected item");
       return;
     }
 
@@ -185,7 +202,8 @@ export function ReturnRequestForm({
       size: item.size,
       color: item.color,
       price: item.price,
-      photo_url: itemPhotoUrls[item.id],
+      photo_urls: itemPhotoUrls[item.id] ?? [],
+      photo_url: itemPhotoUrls[item.id]?.[0],
       exchange_to: requestType === "exchange" ? (exchangeTargets[item.id] ?? { size: null, color: null }) : undefined,
     }));
 
@@ -195,6 +213,7 @@ export function ReturnRequestForm({
       reason,
       additional_notes: additionalNotes || undefined,
       items,
+      evidence_video_url: videoUrl,
     });
 
     setSubmitting(false);
@@ -353,38 +372,15 @@ export function ReturnRequestForm({
 
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1 block">
-                            Photo with tag attached (required)
+                            Photos with tag attached ({evidenceRequired ? "at least 1 required" : "optional"}, up to {MAX_PHOTOS_PER_ITEM})
                           </Label>
-                          <div className="flex items-center gap-3">
-                            {itemPhotoUrls[item.id] ? (
-                              <img
-                                src={itemPhotoUrls[item.id]}
-                                alt=""
-                                className="h-14 w-14 rounded-md object-cover border border-border"
-                              />
-                            ) : (
-                              <div className="h-14 w-14 rounded-md bg-muted flex items-center justify-center">
-                                <Upload className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            <label className="cursor-pointer">
-                              <span className="inline-flex items-center gap-1.5 text-xs font-medium border border-border rounded-md px-3 py-1.5 hover:bg-muted">
-                                {uploadingItemId === item.id ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : (
-                                  <Upload className="h-3 w-3" />
-                                )}
-                                {itemPhotoUrls[item.id] ? "Replace photo" : "Upload photo"}
-                              </span>
-                              <input
-                                type="file"
-                                accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-                                className="hidden"
-                                disabled={uploadingItemId === item.id}
-                                onChange={(e) => handlePhotoSelect(item.id, e.target.files?.[0])}
-                              />
-                            </label>
-                          </div>
+                          <ImageDropzone
+                            folder="vendor-uploads"
+                            value={itemPhotoUrls[item.id] ?? []}
+                            onChange={(urls) => setItemPhotoUrls((prev) => ({ ...prev, [item.id]: urls }))}
+                            maxFiles={MAX_PHOTOS_PER_ITEM}
+                            uploadFile={(file) => uploadUserFile(file, "returns")}
+                          />
                         </div>
                       </div>
                     )}
@@ -392,6 +388,45 @@ export function ReturnRequestForm({
                 );
               })}
             </div>
+          </div>
+
+          {/* Optional video - one per request */}
+          <div>
+            <Label className="text-sm font-medium mb-1 block">Video (optional)</Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              A short clip showing the issue helps us resolve it faster. One video, up to {MAX_VIDEO_MB}MB.
+            </p>
+            {videoUrl ? (
+              <div className="relative">
+                <video src={videoUrl} controls className="w-full max-h-56 rounded-md border border-border bg-black" />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="absolute top-2 right-2 h-7 gap-1"
+                  onClick={() => setVideoUrl(null)}
+                >
+                  <X className="h-3.5 w-3.5" /> Remove
+                </Button>
+              </div>
+            ) : (
+              <label className="cursor-pointer inline-flex">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium border border-border rounded-md px-3 py-1.5 hover:bg-muted">
+                  {uploadingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
+                  {uploadingVideo ? "Uploading video..." : "Add a video"}
+                </span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  disabled={uploadingVideo}
+                  onChange={(e) => {
+                    handleVideoSelect(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
           </div>
 
           {/* Reason */}
@@ -423,7 +458,7 @@ export function ReturnRequestForm({
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={submitting || !hasSelection || !reason || uploadingItemId !== null}
+            disabled={submitting || !hasSelection || !reason || uploadingVideo}
           >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Submit {requestType === "return" ? "Return" : "Exchange"} Request

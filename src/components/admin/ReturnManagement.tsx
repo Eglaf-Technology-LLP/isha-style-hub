@@ -30,7 +30,7 @@ import {
   XCircle,
   Truck,
 } from "lucide-react";
-import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
+import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -369,20 +369,8 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                             }
                           : null);
                       return (
-                        <div key={idx} className="flex gap-3 p-3 border border-border rounded-lg text-sm">
-                          {item.photo_url ? (
-                            <img
-                              src={item.photo_url}
-                              alt=""
-                              className="h-14 w-14 rounded-md object-cover border border-border shrink-0 cursor-pointer"
-                              onClick={() => window.open(item.photo_url, "_blank")}
-                            />
-                          ) : (
-                            <div className="h-14 w-14 rounded-md bg-muted shrink-0 flex items-center justify-center text-[10px] text-muted-foreground text-center">
-                              No photo
-                            </div>
-                          )}
-                          <div className="flex-1 flex justify-between">
+                        <div key={idx} className="p-3 border border-border rounded-lg text-sm space-y-2">
+                          <div className="flex justify-between">
                             <div>
                               <p className="font-medium">{item.product_title}</p>
                               <p className="text-xs text-muted-foreground">
@@ -399,11 +387,37 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                             </div>
                             {item.price && <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>}
                           </div>
+                          {returnItemPhotos(item).length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                              {returnItemPhotos(item).map((url) => (
+                                <a key={url} href={url} target="_blank" rel="noreferrer">
+                                  <img
+                                    src={url}
+                                    alt="Return evidence"
+                                    className="h-16 w-16 rounded-md object-cover border border-border"
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">No photos</p>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
+
+                {selectedRequest.evidence_video_url && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Customer video</p>
+                    <video
+                      src={selectedRequest.evidence_video_url}
+                      controls
+                      className="w-full max-h-72 rounded-md border border-border bg-black"
+                    />
+                  </div>
+                )}
 
                 <Separator />
 

@@ -860,18 +860,21 @@ export type Database = {
       platform_settings: {
         Row: {
           id: boolean
+          return_evidence_required: boolean
           review_images_require_approval: boolean
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           id?: boolean
+          return_evidence_required?: boolean
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           id?: boolean
+          return_evidence_required?: boolean
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -1295,6 +1298,7 @@ export type Database = {
           additional_notes: string | null
           admin_notes: string | null
           created_at: string
+          evidence_video_url: string | null
           exchange_details: Json | null
           id: string
           items: Json
@@ -1310,6 +1314,7 @@ export type Database = {
           additional_notes?: string | null
           admin_notes?: string | null
           created_at?: string
+          evidence_video_url?: string | null
           exchange_details?: Json | null
           id?: string
           items?: Json
@@ -1325,6 +1330,7 @@ export type Database = {
           additional_notes?: string | null
           admin_notes?: string | null
           created_at?: string
+          evidence_video_url?: string | null
           exchange_details?: Json | null
           id?: string
           items?: Json

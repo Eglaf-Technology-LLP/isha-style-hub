@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ImageDropzone } from "@/components/ImageDropzone";
-import { uploadUserPhoto } from "@/lib/userPhotoUpload";
+import { uploadUserFile } from "@/lib/userPhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
 
 const MAX_REVIEW_PHOTOS = 5;
@@ -181,7 +181,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                   value={photoUrls}
                   onChange={setPhotoUrls}
                   maxFiles={MAX_REVIEW_PHOTOS}
-                  uploadFile={(file) => uploadUserPhoto(file, "reviews")}
+                  uploadFile={(file) => uploadUserFile(file, "reviews")}
                 />
               </div>
 

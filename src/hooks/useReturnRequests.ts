@@ -14,6 +14,7 @@ export interface ReturnRequest {
   exchange_details: ExchangeDetails | null;
   admin_notes: string | null;
   refund_amount: number;
+  evidence_video_url: string | null;
   created_at: string;
   updated_at: string;
   // Computed client-side from order_items, not a DB column - which
@@ -37,6 +38,9 @@ export interface ReturnItem {
   // tag is still attached. Optional in the type only so old rows
   // (submitted before this existed) don't fail to render.
   photo_url?: string;
+  // All evidence photos for the item (photo_url mirrors the first, for
+  // rows/readers from before multiple photos existed).
+  photo_urls?: string[];
   // Per-item exchange target, replacing the old request-level
   // exchange_details.new_size/new_color - a request can hold items from
   // different products, which couldn't share one target meaningfully.
@@ -120,6 +124,7 @@ export function useReturnRequests(isAdmin: boolean = false) {
     additional_notes?: string;
     items: ReturnItem[];
     exchange_details?: ExchangeDetails;
+    evidence_video_url?: string | null;
   }) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -137,7 +142,13 @@ export function useReturnRequests(isAdmin: boolean = false) {
           exchange_details: request.exchange_details as unknown as any,
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("Photo evidence is required")) {
+          toast.error("Please add at least one photo for every selected item");
+          return false;
+        }
+        throw error;
+      }
       toast.success("Return request submitted successfully!");
       await fetchReturnRequests();
       return true;
@@ -207,4 +218,9 @@ export function useReturnRequests(isAdmin: boolean = false) {
     cancelReturnRequest,
     refetch: fetchReturnRequests,
   };
+}
+
+export function returnItemPhotos(item: ReturnItem): string[] {
+  if (item.photo_urls?.length) return item.photo_urls;
+  return item.photo_url ? [item.photo_url] : [];
 }

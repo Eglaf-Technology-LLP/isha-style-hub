@@ -60,6 +60,7 @@ import { SettlementLedger } from "@/components/admin/SettlementLedger";
 import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
 import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagement";
 import { ReviewModeration } from "@/components/admin/ReviewModeration";
+import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -457,7 +458,8 @@ export default function Admin() {
           </TabsContent>
 
           {/* Returns Tab */}
-          <TabsContent value="returns">
+          <TabsContent value="returns" className="space-y-6">
+            <ReturnSettingsCard />
             <ReturnManagement />
           </TabsContent>
 

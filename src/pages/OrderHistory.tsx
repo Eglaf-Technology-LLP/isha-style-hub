@@ -16,7 +16,7 @@ import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ba
 import { format } from "date-fns";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
-import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
+import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
 import { ReorderDialog } from "@/components/ReorderDialog";
@@ -586,9 +586,9 @@ export default function OrderHistory() {
                                             : null);
                                         return (
                                           <div key={idx} className="flex items-center gap-2 text-xs">
-                                            {item.photo_url ? (
+                                            {returnItemPhotos(item)[0] ? (
                                               <img
-                                                src={item.photo_url}
+                                                src={returnItemPhotos(item)[0]}
                                                 alt=""
                                                 className="h-8 w-8 rounded object-cover border border-border shrink-0"
                                               />
@@ -596,6 +596,9 @@ export default function OrderHistory() {
                                               <div className="h-8 w-8 rounded bg-background shrink-0" />
                                             )}
                                             <span className="font-medium">{item.product_title}</span>
+                                            {returnItemPhotos(item).length > 1 && (
+                                              <span className="text-muted-foreground">+{returnItemPhotos(item).length - 1} photos</span>
+                                            )}
                                             {rr.request_type === "exchange" && exchangeTo && (exchangeTo.size || exchangeTo.color) && (
                                               <span className="text-muted-foreground">
                                                 → Exchange for: {[exchangeTo.size, exchangeTo.color].filter(Boolean).join(" / ")}
@@ -604,6 +607,9 @@ export default function OrderHistory() {
                                           </div>
                                         );
                                       })}
+                                      {rr.evidence_video_url && (
+                                        <p className="text-xs text-muted-foreground">Video attached</p>
+                                      )}
                                     </div>
                                   </div>
                                 );
