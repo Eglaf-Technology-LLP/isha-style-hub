@@ -104,8 +104,13 @@ const STATUS_MAP: Record<string, CoarseStatus> = {
   "OUT FOR DELIVERY": { shipmentStatus: "out_for_delivery", vendorOrderStatus: "out_for_delivery" },
   "DELIVERED": { shipmentStatus: "delivered", vendorOrderStatus: "delivered" },
   "UNDELIVERED": { shipmentStatus: "ndr", vendorOrderStatus: "ndr" },
-  "CANCELED": { shipmentStatus: "cancelled", vendorOrderStatus: "cancelled" },
-  "CANCELLED": { shipmentStatus: "cancelled", vendorOrderStatus: "cancelled" },
+  // A courier-side cancellation (e.g. Shiprocket auto-cancelling after
+  // repeated failed pickups) kills the booking, not the customer's order -
+  // same rule as shiprocket-cancel-shipment. The order stays shippable so
+  // the vendor can book again; a real order cancellation only ever comes
+  // from cancel-order-items, with its own refund handling.
+  "CANCELED": { shipmentStatus: "cancelled", vendorOrderStatus: null },
+  "CANCELLED": { shipmentStatus: "cancelled", vendorOrderStatus: null },
   "RETURN PENDING": { shipmentStatus: "pending", vendorOrderStatus: null },
   "LOST": { shipmentStatus: "lost", vendorOrderStatus: null },
 };
@@ -117,6 +122,16 @@ export function mapShiprocketStatus(rawStatus: string): CoarseStatus {
   if (STATUS_MAP[normalized]) return STATUS_MAP[normalized];
   if (normalized.includes("RTO")) return { shipmentStatus: "rto", vendorOrderStatus: "returned" };
   if (normalized.includes("NDR")) return { shipmentStatus: "ndr", vendorOrderStatus: "ndr" };
+  // Shiprocket's activity labels are free text ("Shipment Cancelled - User
+  // Reason : Auto Cancelled By Sr"), not the bare CANCELED key above, so a
+  // cancellation has to be matched by substring or it silently falls through
+  // to in_transit and the vendor still sees the last pickup-stage status.
+  if (normalized.includes("CANCEL")) return { shipmentStatus: "cancelled", vendorOrderStatus: null };
+  // "Pickup Scheduled", "Manifest Generated And Pickup Scheduled", "Pickup
+  // Exception", "Pickup Rescheduled"... - nothing has left the vendor yet,
+  // so these must not fall through to the in_transit default. ("PICKED UP"
+  // is matched exactly above and doesn't contain "PICKUP".)
+  if (normalized.includes("PICKUP")) return { shipmentStatus: "pickup_scheduled", vendorOrderStatus: null };
   return DEFAULT_STATUS;
 }
 

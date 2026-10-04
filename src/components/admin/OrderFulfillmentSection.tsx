@@ -179,17 +179,24 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 />
               </div>
 
-              {!shipment || (!shipment.awb_code && shipment.status === "cancelled") ? (
+              {!shipment || shipment.status === "cancelled" ? (
                 status === "cancelled" ? (
                   <span className="text-xs text-muted-foreground">Cancelled</span>
                 ) : (
-                  <ShipNowDialog
-                    vendorOrderId={vendorOrderId}
-                    actioning={actioningId === vendorOrderId}
-                    checkServiceability={checkServiceability}
-                    shipNow={shipNow}
-                    triggerSize="sm"
-                  />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {shipment?.awb_code && (
+                      <span className="text-xs text-destructive">
+                        Pickup cancelled by courier (AWB {shipment.awb_code}) - book again
+                      </span>
+                    )}
+                    <ShipNowDialog
+                      vendorOrderId={vendorOrderId}
+                      actioning={actioningId === vendorOrderId}
+                      checkServiceability={checkServiceability}
+                      shipNow={shipNow}
+                      triggerSize="sm"
+                    />
+                  </div>
                 )
               ) : (
                 <div className="flex items-center gap-3 text-xs flex-wrap">

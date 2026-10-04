@@ -72,7 +72,13 @@ Deno.serve(async (req) => {
       .eq("vendor_order_id", vendor_order_id)
       .eq("shipment_type", "forward")
       .maybeSingle();
-    if (existingShipment?.awb_code) {
+    if (existingShipment?.status === "cancelled") {
+      // Courier-side cancellation (the webhook marks it, e.g. Shiprocket
+      // auto-cancelling after failed pickups) - the old booking is dead, so
+      // clear it the same way a manual cancel does (deleteOnCancel) instead
+      // of treating its leftover AWB as "already shipped" and blocking rebook.
+      await supabase.from("shipments").delete().eq("id", existingShipment.id);
+    } else if (existingShipment?.awb_code) {
       return jsonResponse({ shipment: existingShipment, already_shipped: true });
     }
 

@@ -975,17 +975,24 @@ export default function VendorDashboard() {
                             <TableCell>
                               {(() => {
                                 const shipment = forwardShipmentFor(o.id);
-                                if (!shipment || (!shipment.awb_code && shipment.status === "cancelled")) {
+                                if (!shipment || shipment.status === "cancelled") {
                                   if (o.status === "cancelled") {
                                     return <span className="text-xs text-muted-foreground">Cancelled</span>;
                                   }
                                   return (
-                                    <ShipNowDialog
-                                      vendorOrderId={o.id}
-                                      actioning={actioningId === o.id}
-                                      checkServiceability={checkServiceability}
-                                      shipNow={shipNow}
-                                    />
+                                    <div className="space-y-1">
+                                      {shipment?.awb_code && (
+                                        <div className="text-xs text-destructive">
+                                          Pickup cancelled by courier (AWB {shipment.awb_code}) - book again
+                                        </div>
+                                      )}
+                                      <ShipNowDialog
+                                        vendorOrderId={o.id}
+                                        actioning={actioningId === o.id}
+                                        checkServiceability={checkServiceability}
+                                        shipNow={shipNow}
+                                      />
+                                    </div>
                                   );
                                 }
                                 return (
