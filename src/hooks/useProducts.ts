@@ -71,6 +71,9 @@ export interface Product {
   is_returnable: boolean;
   ai_content_status: string | null;
   ai_original_photo_paths: string[];
+  video_url: string | null;
+  video_is_primary: boolean;
+  video_status: string | null;
   created_at: string;
   updated_at: string;
   // Optional/nullable - only populated by queries that join it in
@@ -126,6 +129,8 @@ export interface ProductFormData {
   is_returnable?: boolean;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
+  video_url?: string | null;
+  video_is_primary?: boolean;
   // Only vendor-facing callers (VendorProductDialog) set these; omitting
   // them leaves vendor_id/approval_status untouched, matching this hook's
   // long-standing admin-only behavior.
@@ -216,6 +221,8 @@ export async function insertProductRecord(
       is_returnable: productData.is_returnable ?? true,
       ai_content_status: productData.ai_content_status ?? null,
       ai_original_photo_paths: productData.ai_original_photo_paths ?? [],
+      video_url: productData.video_url ?? null,
+      video_is_primary: productData.video_is_primary ?? false,
       ...(productData.country_of_origin ? { country_of_origin: productData.country_of_origin } : {}),
       ...(productData.net_quantity ? { net_quantity: productData.net_quantity } : {}),
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
@@ -300,6 +307,8 @@ export async function applyProductUpdate(
   if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
   if (productData.ai_content_status !== undefined) updateData.ai_content_status = productData.ai_content_status;
   if (productData.ai_original_photo_paths !== undefined) updateData.ai_original_photo_paths = productData.ai_original_photo_paths;
+  if (productData.video_url !== undefined) updateData.video_url = productData.video_url;
+  if (productData.video_is_primary !== undefined) updateData.video_is_primary = productData.video_is_primary;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;

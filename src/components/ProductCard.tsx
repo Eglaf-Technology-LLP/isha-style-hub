@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Zap } from "lucide-react";
+import { ShoppingBag, Zap, Play } from "lucide-react";
 import { Product } from "@/hooks/useProducts";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
@@ -137,6 +137,12 @@ export function ProductCard({ product }: ProductCardProps) {
             </Button>
           )}
         </div>
+
+        {product.video_url && product.video_status === "approved" && (
+          <span className="absolute bottom-4 left-4 inline-flex items-center gap-1 rounded-full bg-card/85 px-2 py-0.5 text-[11px] font-medium backdrop-blur-sm transition-opacity duration-300 group-hover:opacity-0">
+            <Play className="h-3 w-3 fill-current" /> Video
+          </span>
+        )}
 
         {/* Tags */}
         {hasDiscount && (

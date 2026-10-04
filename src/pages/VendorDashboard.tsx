@@ -92,6 +92,9 @@ interface VendorProduct {
   is_returnable: boolean;
   ai_content_status: AiContentStatus | null;
   ai_original_photo_paths: string[];
+  video_url: string | null;
+  video_is_primary: boolean;
+  video_status: string | null;
 }
 
 interface VendorOrder {
@@ -247,7 +250,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, ai_content_status, ai_original_photo_paths, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),

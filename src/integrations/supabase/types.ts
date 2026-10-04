@@ -1040,6 +1040,9 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           vendor_id: string | null
+          video_is_primary: boolean
+          video_status: string | null
+          video_url: string | null
           weight_grams: number | null
         }
         Insert: {
@@ -1070,6 +1073,9 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           vendor_id?: string | null
+          video_is_primary?: boolean
+          video_status?: string | null
+          video_url?: string | null
           weight_grams?: number | null
         }
         Update: {
@@ -1100,6 +1106,9 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           vendor_id?: string | null
+          video_is_primary?: boolean
+          video_status?: string | null
+          video_url?: string | null
           weight_grams?: number | null
         }
         Relationships: [

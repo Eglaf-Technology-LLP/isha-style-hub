@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
 import { Product, ProductVariant, mapDbVariant } from "@/hooks/useProducts";
-import { ImageGalleryWithZoom } from "@/components/ImageGalleryWithZoom";
+import { ProductMediaGallery } from "@/components/ProductMediaGallery";
 import { VariantSelector } from "@/components/VariantSelector";
 import { WishlistButton } from "@/components/WishlistButton";
 import { ProductReviews } from "@/components/ProductReviews";
@@ -324,10 +324,15 @@ export default function ProductDetail() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Image Gallery with Zoom */}
-          <ImageGalleryWithZoom
+          {/* Product media: optional approved video + image album */}
+          <ProductMediaGallery
             images={galleryImages}
             productName={product.name}
+            video={
+              product.video_url && product.video_status === "approved"
+                ? { url: product.video_url, isPrimary: product.video_is_primary }
+                : null
+            }
           />
 
           {/* Product Info */}

@@ -34,6 +34,9 @@ interface ModeratedProduct {
   created_at: string;
   ai_content_status: string | null;
   ai_original_photo_paths: string[];
+  video_url: string | null;
+  video_status: string | null;
+  video_is_primary: boolean;
   vendors: { name: string } | null;
 }
 
@@ -75,7 +78,7 @@ export function ProductModeration() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, vendors(name)"
+          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, video_url, video_status, video_is_primary, vendors(name)"
         )
         .eq("approval_status", filter)
         .order("created_at", { ascending: false });
@@ -93,7 +96,13 @@ export function ProductModeration() {
     try {
       const { error } = await supabase
         .from("products")
-        .update({ approval_status: "approved", rejection_reason: null })
+        // The admin reviewed the whole card, video included, so a pending
+        // video is approved along with the listing ("Reject video" drops it).
+        .update({
+          approval_status: "approved",
+          rejection_reason: null,
+          ...(p.video_status === "pending" ? { video_status: "approved" } : {}),
+        })
         .eq("id", p.id);
       if (error) throw error;
       toast.success(`${p.name} approved`);
@@ -103,6 +112,15 @@ export function ProductModeration() {
     } finally {
       setActionId(null);
     }
+  };
+
+  const rejectVideo = async (p: ModeratedProduct) => {
+    setActionId(p.id);
+    const { error } = await supabase.from("products").update({ video_status: "rejected" }).eq("id", p.id);
+    setActionId(null);
+    if (error) return toast.error(error.message || "Couldn't reject video");
+    setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, video_status: "rejected" } : x)));
+    toast.success("Video rejected - it won't be shown to shoppers");
   };
 
   const reject = async () => {
@@ -188,6 +206,37 @@ export function ProductModeration() {
                     </Badge>
                   </div>
                   {p.ai_original_photo_paths?.length > 0 && <OriginalPhotoThumbs paths={p.ai_original_photo_paths} />}
+                  {p.video_url && (
+                    <div className="mt-2 flex items-start gap-3">
+                      <video src={p.video_url} controls muted playsInline className="h-28 w-20 rounded-md bg-black object-cover" />
+                      <div className="space-y-1 text-xs">
+                        <Badge
+                          variant="outline"
+                          className={
+                            p.video_status === "approved"
+                              ? "text-[10px] border-emerald-300 text-emerald-700"
+                              : p.video_status === "rejected"
+                                ? "text-[10px] border-destructive/40 text-destructive"
+                                : "text-[10px] border-amber-300 bg-amber-50 text-amber-800"
+                          }
+                        >
+                          Video {p.video_status ?? "pending"}
+                        </Badge>
+                        <p className="text-muted-foreground">{p.video_is_primary ? "Shown first" : "Highlight frame over main image"}</p>
+                        {(p.video_status === "pending" || p.video_status === "approved") && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-destructive hover:text-destructive"
+                            disabled={actionId === p.id}
+                            onClick={() => rejectVideo(p)}
+                          >
+                            Reject video
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {p.approval_status === "rejected" && p.rejection_reason && (
                     <div className="text-xs text-destructive mt-1">
                       Reason: {p.rejection_reason}

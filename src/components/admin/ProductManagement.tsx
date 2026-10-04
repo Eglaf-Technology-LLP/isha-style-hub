@@ -58,6 +58,7 @@ import { AiDeclarationField } from "@/components/AiDeclarationField";
 import { toast } from "sonner";
 import type { AiContentStatus } from "@/lib/aiContent";
 import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
+import { ProductVideoField } from "@/components/ProductVideoField";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -101,6 +102,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     is_returnable: true,
     ai_content_status: null,
     ai_original_photo_paths: [],
+    video_url: null,
+    video_is_primary: false,
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -128,6 +131,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       is_returnable: true,
       ai_content_status: null,
       ai_original_photo_paths: [],
+      video_url: null,
+      video_is_primary: false,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -230,6 +235,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       is_returnable: product.is_returnable ?? true,
       ai_content_status: (product.ai_content_status as AiContentStatus | null) ?? null,
       ai_original_photo_paths: product.ai_original_photo_paths ?? [],
+      video_url: product.video_url ?? null,
+      video_is_primary: product.video_is_primary ?? false,
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -499,6 +506,16 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           }
         />
       </div>
+
+      <ProductVideoField
+        folder="products"
+        idPrefix={isEdit ? "edit" : "add"}
+        videoUrl={productForm.video_url ?? null}
+        isPrimary={productForm.video_is_primary ?? false}
+        onChange={({ videoUrl, isPrimary }) =>
+          setProductForm((prev) => ({ ...prev, video_url: videoUrl, video_is_primary: isPrimary }))
+        }
+      />
 
       <AiDeclarationField
         idPrefix={isEdit ? "edit" : "add"}

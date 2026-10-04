@@ -34,6 +34,7 @@ import { ImageDropzone } from "@/components/ImageDropzone";
 import { toast } from "sonner";
 import { AiDeclarationField } from "@/components/AiDeclarationField";
 import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
+import { ProductVideoField } from "@/components/ProductVideoField";
 import type { AiContentStatus } from "@/lib/aiContent";
 
 export interface VendorProductRow {
@@ -59,6 +60,9 @@ export interface VendorProductRow {
   is_returnable?: boolean;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
+  video_url?: string | null;
+  video_is_primary?: boolean;
+  video_status?: string | null;
 }
 
 interface Props {
@@ -103,6 +107,7 @@ export function VendorProductDialog({
   const [specifications, setSpecifications] = useState<ProductSpecification[]>([]);
   const [aiContentStatus, setAiContentStatus] = useState<AiContentStatus | null>(null);
   const [originalPhotos, setOriginalPhotos] = useState<string[]>([]);
+  const [video, setVideo] = useState<{ videoUrl: string | null; isPrimary: boolean }>({ videoUrl: null, isPrimary: false });
   const needsOriginals = !!aiContentStatus && aiContentStatus !== "none";
   const [saving, setSaving] = useState(false);
 
@@ -132,6 +137,7 @@ export function VendorProductDialog({
       setSpecifications(product.specifications || []);
       setAiContentStatus(product.ai_content_status ?? null);
       setOriginalPhotos(product.ai_original_photo_paths || []);
+      setVideo({ videoUrl: product.video_url ?? null, isPrimary: product.video_is_primary ?? false });
     } else {
       setForm({ ...empty });
       setImages([]);
@@ -139,6 +145,7 @@ export function VendorProductDialog({
       setSpecifications([]);
       setAiContentStatus(null);
       setOriginalPhotos([]);
+      setVideo({ videoUrl: null, isPrimary: false });
     }
   }, [open, product]);
 
@@ -177,6 +184,8 @@ export function VendorProductDialog({
         ai_content_status: aiContentStatus,
         // Cleared on "No AI" - originals only belong with an AI declaration.
         ai_original_photo_paths: needsOriginals ? originalPhotos : [],
+        video_url: video.videoUrl,
+        video_is_primary: video.isPrimary,
         // Trusted partners publish instantly, others go to the moderation
         // queue. "pending_review" (not "pending") is the real constraint
         // value - the insert-only normalization trigger masked this being
@@ -377,6 +386,21 @@ export function VendorProductDialog({
             <Label>Product Images</Label>
             <ImageDropzone folder="vendor-uploads" value={images} onChange={setImages} />
           </div>
+
+          <ProductVideoField
+            folder="vendor-uploads"
+            idPrefix="vp"
+            videoUrl={video.videoUrl}
+            isPrimary={video.isPrimary}
+            onChange={setVideo}
+            note={
+              isTrusted
+                ? "As a trusted partner it goes live with the listing."
+                : product?.video_status === "rejected" && product.video_url === video.videoUrl
+                  ? "This video was not approved - upload a different one."
+                  : "Shown to shoppers once the AllBoutiqs team approves it."
+            }
+          />
 
           <AiDeclarationField idPrefix="vp" value={aiContentStatus} onChange={setAiContentStatus} />
           {needsOriginals && (
