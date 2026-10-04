@@ -3,7 +3,7 @@ import {
   jsonResponse,
   serviceClient,
   getCallerUserId,
-  isAdmin,
+  canBookReturnPickup,
   ensurePickupLocation,
   shiprocketRequest,
   errorMessage,
@@ -36,7 +36,9 @@ Deno.serve(async (req) => {
     if (!userId) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const supabase = serviceClient();
-    if (!(await isAdmin(supabase, userId))) return jsonResponse({ error: "Forbidden" }, 403);
+    if (!(await canBookReturnPickup(supabase, userId, return_request_id))) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
 
     const { data: returnRequest, error: rrErr } = await supabase
       .from("return_requests")

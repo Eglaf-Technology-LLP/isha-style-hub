@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,8 @@ import {
   CheckCircle,
   XCircle,
   Truck,
+  Store,
+  ShieldAlert,
 } from "lucide-react";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,13 +55,53 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 
 interface ReturnManagementProps {
   // Vendor's own Returns tab: RLS already scopes visibility to their own
-  // items, this just hides the admin-only actions (approve/reject/status
-  // changes/refund/retry) - approval stays admin-only, unchanged.
-  readOnly?: boolean;
+  // items. Hides the admin-only actions (status changes/refund/retry) and
+  // instead lets the boutique accept or reject requests still with it.
+  vendorView?: boolean;
 }
 
-export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
-  const { returnRequests, loading, updateReturnStatus } = useReturnRequests(true);
+const hoursLeft = (request: ReturnRequest, slaHours: number) =>
+  (new Date(request.created_at).getTime() + slaHours * 3600_000 - Date.now()) / 3600_000;
+
+export function ReturnManagement({ vendorView = false }: ReturnManagementProps) {
+  const readOnly = vendorView;
+  const { returnRequests, loading, updateReturnStatus, vendorRespond } = useReturnRequests(true);
+  const [slaHours, setSlaHours] = useState(48);
+  const [vendorNote, setVendorNote] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("return_vendor_sla_hours")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setSlaHours(data.return_vendor_sla_hours);
+      });
+  }, []);
+
+  const handlerBadge = (request: ReturnRequest) => {
+    if (request.status !== "pending") {
+      return request.vendor_decision_at ? (
+        <span className="text-xs text-muted-foreground">Decided by boutique</span>
+      ) : null;
+    }
+    if (request.handled_by === "vendor") {
+      const left = hoursLeft(request, slaHours);
+      return (
+        <Badge variant="outline" className="gap-1 whitespace-nowrap">
+          <Store className="h-3 w-3" />
+          With boutique · {left > 0 ? `${Math.ceil(left)}h left` : "escalating"}
+        </Badge>
+      );
+    }
+    return request.escalated_at ? (
+      <Badge variant="destructive" className="gap-1 whitespace-nowrap">
+        <ShieldAlert className="h-3 w-3" /> Escalated to admin
+      </Badge>
+    ) : (
+      <Badge variant="secondary" className="whitespace-nowrap">Admin review</Badge>
+    );
+  };
   const [selectedRequest, setSelectedRequest] = useState<ReturnRequest | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
@@ -94,6 +136,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
           : "0"
     );
     setHasShipment(null);
+    setVendorNote("");
     setIsDetailOpen(true);
 
     if (!readOnly && request.status === "approved") {
@@ -123,6 +166,33 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
       toast.success("Reverse pickup scheduled with the courier");
       setHasShipment(true);
     }
+  };
+
+  const handleVendorDecision = async (decision: "approved" | "rejected") => {
+    if (!selectedRequest) return;
+    setUpdating(true);
+    const updated = await vendorRespond(selectedRequest.id, decision, vendorNote);
+    if (updated) {
+      setSelectedRequest((prev) => (prev ? { ...prev, ...updated } : null));
+      if (decision === "approved") {
+        const fnName =
+          selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
+        const { errorMessage } = await invokeEdgeFunction(fnName, { return_request_id: selectedRequest.id });
+        if (errorMessage) {
+          toast.error(`Accepted, but scheduling the courier pickup failed: ${errorMessage}`);
+        } else {
+          toast.success("Reverse pickup scheduled with the courier");
+        }
+      }
+      try {
+        await supabase.functions.invoke("send-return-status-email", {
+          body: { returnRequestId: selectedRequest.id, newStatus: decision, adminNotes: vendorNote || undefined },
+        });
+      } catch (e) {
+        console.error("Failed to send return status email:", e);
+      }
+    }
+    setUpdating(false);
   };
 
   const handleStatusUpdate = async (status: ReturnRequest["status"]) => {
@@ -245,6 +315,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                   <TableHead>Items</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>With</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -280,6 +351,7 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                       <TableCell>
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </TableCell>
+                      <TableCell>{handlerBadge(request)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 flex-wrap">
                           <Button size="sm" variant="ghost" onClick={() => openDetail(request)}>
@@ -420,6 +492,66 @@ export function ReturnManagement({ readOnly = false }: ReturnManagementProps) {
                 )}
 
                 <Separator />
+
+                {selectedRequest.vendor_notes && (
+                  <div>
+                    <p className="text-sm font-medium mb-1">Boutique's note</p>
+                    <p className="text-sm bg-muted p-3 rounded-lg">{selectedRequest.vendor_notes}</p>
+                  </div>
+                )}
+
+                {selectedRequest.status === "pending" && selectedRequest.handled_by === "vendor" && !readOnly && (
+                  <p className="text-xs bg-muted p-3 rounded-lg">
+                    With the boutique until{" "}
+                    {format(new Date(new Date(selectedRequest.created_at).getTime() + slaHours * 3600_000), "MMM d, p")}
+                    {" "}- it escalates to you automatically if they don't respond. You can still decide now.
+                  </p>
+                )}
+
+                {readOnly && selectedRequest.status === "pending" && selectedRequest.handled_by === "vendor" && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Your response</p>
+                      <p className="text-xs text-muted-foreground">
+                        Respond within {Math.max(0, Math.ceil(hoursLeft(selectedRequest, slaHours)))} hours - after that the
+                        AllBoutiqs team decides. Accepting books the courier pickup.
+                      </p>
+                    </div>
+                    <Textarea
+                      value={vendorNote}
+                      onChange={(e) => setVendorNote(e.target.value)}
+                      placeholder="Note for the customer (required context if rejecting)"
+                      rows={3}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => handleVendorDecision("approved")} disabled={updating} className="gap-1">
+                        {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          if (!vendorNote.trim()) return toast.error("Please add a note explaining why you're rejecting");
+                          handleVendorDecision("rejected");
+                        }}
+                        disabled={updating}
+                        className="gap-1"
+                      >
+                        {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {readOnly && selectedRequest.status === "pending" && selectedRequest.handled_by === "admin" && (
+                  <p className="text-sm bg-muted p-3 rounded-lg">
+                    {selectedRequest.escalated_at
+                      ? "This request wasn't answered in time, so the AllBoutiqs team is now deciding it."
+                      : "The AllBoutiqs team is handling this request."}
+                  </p>
+                )}
 
                 {!readOnly ? (
                   <div className="space-y-3">

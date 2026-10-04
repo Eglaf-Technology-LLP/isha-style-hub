@@ -1088,7 +1088,7 @@ export default function VendorDashboard() {
 
           {/* Returns Tab - read-only, RLS scopes visibility to this vendor's own items; approval stays admin-only */}
           <TabsContent value="returns">
-            <ReturnManagement readOnly />
+            <ReturnManagement vendorView />
           </TabsContent>
 
           {/* Payouts Tab */}

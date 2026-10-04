@@ -861,6 +861,7 @@ export type Database = {
         Row: {
           id: boolean
           return_evidence_required: boolean
+          return_vendor_sla_hours: number
           review_images_require_approval: boolean
           updated_at: string
           updated_by: string | null
@@ -868,6 +869,7 @@ export type Database = {
         Insert: {
           id?: boolean
           return_evidence_required?: boolean
+          return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -875,6 +877,7 @@ export type Database = {
         Update: {
           id?: boolean
           return_evidence_required?: boolean
+          return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -1298,8 +1301,10 @@ export type Database = {
           additional_notes: string | null
           admin_notes: string | null
           created_at: string
+          escalated_at: string | null
           evidence_video_url: string | null
           exchange_details: Json | null
+          handled_by: string
           id: string
           items: Json
           order_id: string
@@ -1309,13 +1314,17 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
+          vendor_decision_at: string | null
+          vendor_notes: string | null
         }
         Insert: {
           additional_notes?: string | null
           admin_notes?: string | null
           created_at?: string
+          escalated_at?: string | null
           evidence_video_url?: string | null
           exchange_details?: Json | null
+          handled_by?: string
           id?: string
           items?: Json
           order_id: string
@@ -1325,13 +1334,17 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id: string
+          vendor_decision_at?: string | null
+          vendor_notes?: string | null
         }
         Update: {
           additional_notes?: string | null
           admin_notes?: string | null
           created_at?: string
+          escalated_at?: string | null
           evidence_video_url?: string | null
           exchange_details?: Json | null
+          handled_by?: string
           id?: string
           items?: Json
           order_id?: string
@@ -1341,6 +1354,8 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
+          vendor_decision_at?: string | null
+          vendor_notes?: string | null
         }
         Relationships: [
           {
@@ -2146,6 +2161,7 @@ export type Database = {
         Returns: boolean
       }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
+      escalate_overdue_return_requests: { Args: never; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -2171,6 +2187,43 @@ export type Database = {
       return_request_contains_vendor_item: {
         Args: { _return_request_id: string; _user_id: string }
         Returns: boolean
+      }
+      return_request_items_sole_vendor: {
+        Args: { _items: Json }
+        Returns: string
+      }
+      return_request_sole_vendor: {
+        Args: { _request_id: string }
+        Returns: string
+      }
+      vendor_respond_to_return: {
+        Args: { _decision: string; _note?: string; _request_id: string }
+        Returns: {
+          additional_notes: string | null
+          admin_notes: string | null
+          created_at: string
+          escalated_at: string | null
+          evidence_video_url: string | null
+          exchange_details: Json | null
+          handled_by: string
+          id: string
+          items: Json
+          order_id: string
+          reason: string
+          refund_amount: number | null
+          request_type: string
+          status: string
+          updated_at: string
+          user_id: string
+          vendor_decision_at: string | null
+          vendor_notes: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "return_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

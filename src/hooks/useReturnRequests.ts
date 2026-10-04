@@ -15,6 +15,12 @@ export interface ReturnRequest {
   admin_notes: string | null;
   refund_amount: number;
   evidence_video_url: string | null;
+  // Boutique-first workflow: "vendor" until the boutique decides or the
+  // SLA passes (then escalated_at is set and it becomes "admin").
+  handled_by: "vendor" | "admin";
+  escalated_at: string | null;
+  vendor_decision_at: string | null;
+  vendor_notes: string | null;
   created_at: string;
   updated_at: string;
   // Computed client-side from order_items, not a DB column - which
@@ -189,6 +195,22 @@ export function useReturnRequests(isAdmin: boolean = false) {
     }
   };
 
+  const vendorRespond = async (id: string, decision: "approved" | "rejected", note: string) => {
+    const { data, error } = await supabase.rpc("vendor_respond_to_return", {
+      _request_id: id,
+      _decision: decision,
+      _note: note,
+    });
+    if (error) {
+      toast.error(error.message || "Couldn't save your response");
+      return null;
+    }
+    const updated = data as unknown as Partial<ReturnRequest>;
+    setReturnRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
+    toast.success(decision === "approved" ? "Request accepted" : "Request rejected");
+    return updated;
+  };
+
   const cancelReturnRequest = async (id: string) => {
     try {
       const { error } = await supabase
@@ -215,6 +237,7 @@ export function useReturnRequests(isAdmin: boolean = false) {
     loading,
     createReturnRequest,
     updateReturnStatus,
+    vendorRespond,
     cancelReturnRequest,
     refetch: fetchReturnRequests,
   };

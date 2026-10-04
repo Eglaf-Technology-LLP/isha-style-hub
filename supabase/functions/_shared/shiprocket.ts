@@ -435,3 +435,22 @@ export async function cancelShiprocketShipment(
   }
   return { attempted: true, alreadyPickedUp: false, shipmentCancelled: true };
 }
+
+// Who may book the reverse pickup for a return/exchange: admins always; the
+// owning boutique's members once the request is approved (they decide
+// requests first under the boutique-first return workflow).
+export async function canBookReturnPickup(
+  supabase: SupabaseClient,
+  userId: string,
+  returnRequestId: string,
+): Promise<boolean> {
+  if (await isAdmin(supabase, userId)) return true;
+  const { data: rr } = await supabase
+    .from("return_requests")
+    .select("status")
+    .eq("id", returnRequestId)
+    .maybeSingle();
+  if (rr?.status !== "approved") return false;
+  const { data: vendorId } = await supabase.rpc("return_request_sole_vendor", { _request_id: returnRequestId });
+  return !!vendorId && (await isVendorMember(supabase, userId, vendorId as string));
+}
