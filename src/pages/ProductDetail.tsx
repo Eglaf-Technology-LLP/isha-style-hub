@@ -44,6 +44,7 @@ export default function ProductDetail() {
     slug: string;
     is_trusted: boolean;
     return_window_days: number;
+    returns_enabled: boolean;
     address: Record<string, string> | null;
     contact_email: string | null;
     contact_phone: string | null;
@@ -105,7 +106,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, return_window_days, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
+              "name, slug, is_trusted, return_window_days, returns_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -170,6 +171,9 @@ export default function ProductDetail() {
   // Get current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product?.price || 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
+  // Same rule OrderHistory applies after purchase: the product's own flag
+  // AND the vendor's store-wide returns switch must both allow it.
+  const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
   // A variant with its own photo (e.g. a color swatch) replaces the shared
   // gallery entirely while selected; falls back to the product's own
   // images otherwise.
@@ -507,10 +511,21 @@ export default function ProductDetail() {
                   <RotateCcw className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium">Easy Returns</p>
-                  <p className="text-sm text-muted-foreground">
-                    {vendorInfo?.return_window_days ?? 7}-day return policy
-                  </p>
+                  {isRefundable ? (
+                    <>
+                      <p className="font-medium">Easy Returns</p>
+                      <p className="text-sm text-muted-foreground">
+                        {vendorInfo?.return_window_days ?? 7}-day return policy
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium">Non-refundable</p>
+                      <p className="text-sm text-muted-foreground">
+                        Not eligible for return & refund - exchange only
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
               {product.vendor_id && (
@@ -537,7 +552,7 @@ export default function ProductDetail() {
                   {vendorInfo && (
                     <li>
                       <span className="font-medium text-foreground">Returns:</span>{" "}
-                      {vendorInfo.return_window_days}-day window
+                      {isRefundable ? `${vendorInfo.return_window_days}-day window` : "Non-refundable (exchange only)"}
                     </li>
                   )}
                   <li>

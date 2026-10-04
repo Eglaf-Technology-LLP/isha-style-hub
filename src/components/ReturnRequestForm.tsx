@@ -63,7 +63,8 @@ export function ReturnRequestForm({
   onSuccess,
 }: ReturnRequestFormProps) {
   const { createReturnRequest } = useReturnRequests();
-  const [requestType, setRequestType] = useState<"return" | "exchange">("return");
+  const anyRefundable = orderItems.some((item) => item.is_returnable);
+  const [requestType, setRequestType] = useState<"return" | "exchange">(anyRefundable ? "return" : "exchange");
   const [reason, setReason] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
@@ -209,14 +210,18 @@ export function ReturnRequestForm({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Request Return / Exchange</DialogTitle>
+          <DialogTitle>{anyRefundable ? "Request Return / Exchange" : "Request Exchange"}</DialogTitle>
           <DialogDescription>
-            Select items and provide a reason for your request.
+            {anyRefundable
+              ? "Select items and provide a reason for your request."
+              : "These items are non-refundable, so they can be exchanged but not returned for a refund."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
-          {/* Request Type */}
+          {/* Request Type - Return & Refund doesn't exist as a choice when
+              nothing in the order is refundable */}
+          {anyRefundable && (
           <div>
             <Label className="text-sm font-medium mb-2 block">Request Type</Label>
             <RadioGroup
@@ -240,6 +245,7 @@ export function ReturnRequestForm({
               </div>
             </RadioGroup>
           </div>
+          )}
 
           {/* Tag instruction - required for either request type */}
           <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">

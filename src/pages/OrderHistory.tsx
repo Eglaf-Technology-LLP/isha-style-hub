@@ -454,6 +454,11 @@ export default function OrderHistory() {
                                       <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
                                         Qty {item.quantity}
                                       </Badge>
+                                      {!item.is_returnable && (
+                                        <Badge variant="outline" className="text-xs px-2 py-0.5 font-normal text-muted-foreground">
+                                          Non-refundable
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                   <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
@@ -629,8 +634,17 @@ export default function OrderHistory() {
                                   setReturnOrderItems(order.order_items);
                                 }}
                               >
-                                <RotateCcw className="h-4 w-4" />
-                                Return / Exchange
+                                {order.order_items.some((i) => i.is_returnable) ? (
+                                  <>
+                                    <RotateCcw className="h-4 w-4" />
+                                    Return / Exchange
+                                  </>
+                                ) : (
+                                  <>
+                                    <ArrowLeftRight className="h-4 w-4" />
+                                    Exchange
+                                  </>
+                                )}
                               </Button>
                             </div>
                           )}
