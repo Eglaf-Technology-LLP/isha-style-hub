@@ -20,6 +20,7 @@ export interface Vendor {
   shiprocket_pickup_registered_at: string | null;
   status: string;
   is_trusted: boolean;
+  is_verified: boolean;
   commission_rate: number;
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;

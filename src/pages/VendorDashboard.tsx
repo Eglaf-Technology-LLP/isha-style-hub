@@ -66,6 +66,7 @@ import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
+import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 
 interface VendorProduct {
   id: string;
@@ -472,6 +473,7 @@ export default function VendorDashboard() {
                 <Badge variant="outline" className="font-mono text-xs">
                   {vendor.boutique_code}
                 </Badge>
+                {vendor.is_verified && <VerifiedBoutiqueBadge size="sm" />}
                 {vendor.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
                     Trusted partner

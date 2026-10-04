@@ -1907,6 +1907,7 @@ export type Database = {
           gst_number: string | null
           id: string
           is_trusted: boolean
+          is_verified: boolean
           logo_url: string | null
           name: string
           owner_user_id: string | null
@@ -1940,6 +1941,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           is_trusted?: boolean
+          is_verified?: boolean
           logo_url?: string | null
           name: string
           owner_user_id?: string | null
@@ -1973,6 +1975,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           is_trusted?: boolean
+          is_verified?: boolean
           logo_url?: string | null
           name?: string
           owner_user_id?: string | null

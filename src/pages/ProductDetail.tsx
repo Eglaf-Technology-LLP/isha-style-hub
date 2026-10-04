@@ -32,6 +32,7 @@ import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
+import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -43,6 +44,7 @@ export default function ProductDetail() {
     name: string;
     slug: string;
     is_trusted: boolean;
+    is_verified: boolean;
     return_window_days: number;
     returns_enabled: boolean;
     address: Record<string, string> | null;
@@ -106,7 +108,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, return_window_days, returns_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
+              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -345,6 +347,7 @@ export default function ProductDetail() {
                     AllBoutiqs
                   </p>
                 )}
+                {vendorInfo?.is_verified && <VerifiedBoutiqueBadge size="sm" />}
                 {vendorInfo?.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
                     Trusted partner

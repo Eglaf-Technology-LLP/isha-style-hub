@@ -12,7 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck, BadgeCheck } from "lucide-react";
+import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { VendorImportExportDialog } from "./VendorImportExportDialog";
@@ -133,6 +134,7 @@ export function VendorManagement() {
                         <Badge variant="outline" className="font-mono text-[10px]">
                           {v.boutique_code}
                         </Badge>
+                        {v.is_verified && <VerifiedBoutiqueBadge size="sm" />}
                       </div>
                       <div className="text-xs text-muted-foreground">/store/{v.slug}</div>
                       <div className="text-xs text-muted-foreground">
@@ -233,6 +235,22 @@ export function VendorManagement() {
                         >
                           <ShieldCheck className="h-4 w-4 mr-1" />
                           {v.is_trusted ? "Trusted" : "Trust"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={v.is_verified ? "default" : "outline"}
+                          onClick={() =>
+                            act(
+                              v,
+                              { is_verified: !v.is_verified },
+                              v.is_verified ? "Verified badge removed" : "Verified badge enabled"
+                            )
+                          }
+                          disabled={actionId === v.id || (!v.is_verified && v.status !== "approved")}
+                          title="Shows a 'Verified Boutique' badge to customers"
+                        >
+                          <BadgeCheck className="h-4 w-4 mr-1" />
+                          {v.is_verified ? "Verified" : "Verify"}
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => setViewVendor(v)}>
                           <Eye className="h-4 w-4 mr-1" /> View

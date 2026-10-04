@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Vendor } from "@/hooks/useVendor";
+import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -204,6 +205,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                 <ShieldCheck className="h-3 w-3" /> Trusted
               </Badge>
             )}
+            {vendor.is_verified && <VerifiedBoutiqueBadge size="sm" />}
           </DialogDescription>
         </DialogHeader>
 
