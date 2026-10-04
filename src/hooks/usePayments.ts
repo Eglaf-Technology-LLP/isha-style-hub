@@ -71,7 +71,11 @@ export function usePayments(isAdmin: boolean = false) {
           metadata: (p.metadata as Record<string, any>) || {},
           order,
           vendorOrderIds: [
-            ...new Set((order?.order_items ?? []).map((i) => i.vendor_order_id).filter((v): v is string => !!v)),
+            ...new Set(
+              ((order?.order_items ?? []) as { vendor_order_id: string | null }[])
+                .map((i) => i.vendor_order_id)
+                .filter((v): v is string => !!v),
+            ),
           ],
         };
       });
@@ -109,6 +113,7 @@ export function usePayments(isAdmin: boolean = false) {
         payment_status: data.payment_status as Payment["payment_status"],
         metadata: (data.metadata as Record<string, any>) || {},
         order: Array.isArray(data.order) ? data.order[0] : data.order,
+        vendorOrderIds: [],
       };
 
       setPayments((prev) => [newPayment, ...prev]);

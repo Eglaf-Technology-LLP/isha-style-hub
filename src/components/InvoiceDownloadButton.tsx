@@ -17,7 +17,7 @@ interface Invoice {
   discount_amount: number;
   seller_name: string;
   seller_gstin: string | null;
-  seller_address: { address_line1?: string; city?: string; state?: string; pincode?: string } | null;
+  seller_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
   billing_name: string;
   billing_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string };
 }
