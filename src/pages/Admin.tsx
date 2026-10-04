@@ -28,6 +28,7 @@ import {
   TrendingUp,
   Layers,
   ShieldCheck,
+  Star,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ import { DisputeManagement } from "@/components/admin/DisputeManagement";
 import { SettlementLedger } from "@/components/admin/SettlementLedger";
 import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
 import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagement";
+import { ReviewModeration } from "@/components/admin/ReviewModeration";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -343,6 +345,10 @@ export default function Admin() {
               <Store className="h-4 w-4" />
               <span className="hidden sm:inline">Vendors</span>
             </TabsTrigger>
+            <TabsTrigger value="reviews" className="flex items-center gap-1">
+              <Star className="h-4 w-4" />
+              <span className="hidden sm:inline">Reviews</span>
+            </TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -489,6 +495,10 @@ export default function Admin() {
               page - everything visible at once, nothing easy to find on
               its own. Split into its own nested tab strip instead, mirroring
               the same pattern the top-level admin nav already uses. */}
+          <TabsContent value="reviews">
+            <ReviewModeration />
+          </TabsContent>
+
           <TabsContent value="vendors">
             <Tabs defaultValue="applications" className="space-y-6">
               <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">

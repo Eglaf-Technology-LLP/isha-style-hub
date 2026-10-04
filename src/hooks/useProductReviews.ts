@@ -15,12 +15,22 @@ export interface ProductReview {
   helpful_count: number;
   created_at: string;
   updated_at: string;
+  review_images: ReviewImage[];
+}
+
+export interface ReviewImage {
+  id: string;
+  url: string;
+  status: "pending" | "approved";
+  user_id: string;
 }
 
 export interface ReviewFormData {
   rating: number;
   title?: string;
   review_text?: string;
+  // Public URLs of photos already uploaded to the reviewer's own folder.
+  image_urls?: string[];
 }
 
 export function useProductReviews(productId?: string) {
@@ -41,16 +51,19 @@ export function useProductReviews(productId?: string) {
     try {
       const { data, error } = await supabase
         .from('product_reviews')
-        .select('*')
+        // RLS returns approved photos to everyone, plus the reviewer's own
+        // still-pending ones - no client-side filtering needed.
+        .select('*, review_images(id, url, status, user_id)')
         .eq('product_id', productId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      setReviews(data || []);
-      
+      const loaded = (data || []) as ProductReview[];
+      setReviews(loaded);
+
       if (user) {
-        const myReview = data?.find(r => r.user_id === user.id);
+        const myReview = loaded.find(r => r.user_id === user.id);
         setUserReview(myReview || null);
       }
     } catch (error) {
@@ -87,8 +100,18 @@ export function useProductReviews(productId?: string) {
         throw error;
       }
 
-      setReviews(prev => [data, ...prev]);
-      setUserReview(data);
+      const imageUrls = reviewData.image_urls ?? [];
+      if (imageUrls.length > 0) {
+        const { error: imagesError } = await supabase
+          .from('review_images')
+          .insert(imageUrls.map((url) => ({ review_id: data.id, user_id: user.id, url })));
+        if (imagesError) {
+          console.error('Error attaching review images:', imagesError);
+          toast.error('Review saved, but the photos could not be attached');
+        }
+      }
+
+      await fetchReviews();
       toast.success('Review submitted!');
       return data;
     } catch (error) {
@@ -105,7 +128,9 @@ export function useProductReviews(productId?: string) {
       const { error } = await supabase
         .from('product_reviews')
         .update({
-          ...reviewData,
+          rating: reviewData.rating,
+          title: reviewData.title,
+          review_text: reviewData.review_text,
           updated_at: new Date().toISOString(),
         })
         .eq('id', reviewId)

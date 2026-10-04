@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Star, ThumbsUp, Trash2, Edit2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Star, ThumbsUp, Trash2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,11 @@ import { useProductReviews, ReviewFormData } from "@/hooks/useProductReviews";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { ImageDropzone } from "@/components/ImageDropzone";
+import { uploadUserPhoto } from "@/lib/userPhotoUpload";
+import { supabase } from "@/integrations/supabase/client";
+
+const MAX_REVIEW_PHOTOS = 5;
 
 interface ProductReviewsProps {
   productId: string;
@@ -58,7 +63,19 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<ReviewFormData>({ rating: 5, title: "", review_text: "" });
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [photosNeedApproval, setPhotosNeedApproval] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("review_images_require_approval")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setPhotosNeedApproval(data.review_images_require_approval);
+      });
+  }, []);
 
   const averageRating = getAverageRating();
   const distribution = getRatingDistribution();
@@ -68,10 +85,11 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
     if (!formData.rating) return;
 
     setSubmitting(true);
-    const result = await addReview(formData);
+    const result = await addReview({ ...formData, image_urls: photoUrls });
     if (result) {
       setShowForm(false);
       setFormData({ rating: 5, title: "", review_text: "" });
+      setPhotoUrls([]);
     }
     setSubmitting(false);
   };
@@ -152,6 +170,21 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                 />
               </div>
 
+              <div>
+                <label className="text-sm font-medium">Photos (optional)</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Share how it looks after it arrived or when you wore it - up to {MAX_REVIEW_PHOTOS} photos.
+                  {photosNeedApproval && " Photos appear once our team approves them."}
+                </p>
+                <ImageDropzone
+                  folder="vendor-uploads"
+                  value={photoUrls}
+                  onChange={setPhotoUrls}
+                  maxFiles={MAX_REVIEW_PHOTOS}
+                  uploadFile={(file) => uploadUserPhoto(file, "reviews")}
+                />
+              </div>
+
               <div className="flex gap-2">
                 <Button type="submit" disabled={submitting}>
                   {submitting ? "Submitting..." : "Submit Review"}
@@ -210,6 +243,27 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
 
               {review.review_text && (
                 <p className="text-muted-foreground">{review.review_text}</p>
+              )}
+
+              {review.review_images?.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {review.review_images.map((img) => (
+                    <a
+                      key={img.id}
+                      href={img.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="relative block h-20 w-20 overflow-hidden rounded-md border border-border"
+                    >
+                      <img src={img.url} alt="Customer photo" loading="lazy" className="h-full w-full object-cover" />
+                      {img.status === "pending" && (
+                        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-foreground/70 py-0.5 text-[10px] text-background">
+                          <Clock className="h-3 w-3" /> Awaiting approval
+                        </span>
+                      )}
+                    </a>
+                  ))}
+                </div>
               )}
 
               <div className="flex items-center gap-2">
