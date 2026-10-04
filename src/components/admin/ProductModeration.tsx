@@ -21,6 +21,7 @@ import {
 import { Loader2, CheckCircle2, XCircle, ImageOff } from "lucide-react";
 import { toast } from "sonner";
 import { aiContentLabel } from "@/lib/aiContent";
+import { useSignedOriginalUrls } from "@/lib/productOriginals";
 
 interface ModeratedProduct {
   id: string;
@@ -32,7 +33,26 @@ interface ModeratedProduct {
   rejection_reason: string | null;
   created_at: string;
   ai_content_status: string | null;
+  ai_original_photo_paths: string[];
   vendors: { name: string } | null;
+}
+
+function OriginalPhotoThumbs({ paths }: { paths: string[] }) {
+  const urls = useSignedOriginalUrls(paths);
+  return (
+    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Originals (private):</span>
+      {paths.map((path) =>
+        urls[path] ? (
+          <a key={path} href={urls[path]} target="_blank" rel="noreferrer" title="Open original">
+            <img src={urls[path]} alt="Original product photo" className="h-12 w-12 rounded object-cover border-2 border-amber-300" />
+          </a>
+        ) : (
+          <div key={path} className="h-12 w-12 rounded bg-muted animate-pulse" />
+        ),
+      )}
+    </div>
+  );
 }
 
 const FILTERS = ["pending_review", "approved", "rejected", "draft"] as const;
@@ -55,7 +75,7 @@ export function ProductModeration() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, vendors(name)"
+          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, vendors(name)"
         )
         .eq("approval_status", filter)
         .order("created_at", { ascending: false });
@@ -167,6 +187,7 @@ export function ProductModeration() {
                       AI: {aiContentLabel(p.ai_content_status)}
                     </Badge>
                   </div>
+                  {p.ai_original_photo_paths?.length > 0 && <OriginalPhotoThumbs paths={p.ai_original_photo_paths} />}
                   {p.approval_status === "rejected" && p.rejection_reason && (
                     <div className="text-xs text-destructive mt-1">
                       Reason: {p.rejection_reason}

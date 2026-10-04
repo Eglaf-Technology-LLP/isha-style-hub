@@ -57,6 +57,7 @@ import { PaginationBar } from "@/components/PaginationBar";
 import { AiDeclarationField } from "@/components/AiDeclarationField";
 import { toast } from "sonner";
 import type { AiContentStatus } from "@/lib/aiContent";
+import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -99,6 +100,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     net_quantity: "1 N",
     is_returnable: true,
     ai_content_status: null,
+    ai_original_photo_paths: [],
   });
   const [productImages, setProductImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -125,6 +127,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       net_quantity: "1 N",
       is_returnable: true,
       ai_content_status: null,
+      ai_original_photo_paths: [],
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -156,15 +159,28 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddProduct = async () => {
-    if (!productForm.name) return;
+  const needsOriginals = !!productForm.ai_content_status && productForm.ai_content_status !== "none";
+
+  // Same AI-declaration rules as the vendor form; originals are cleared on "No AI".
+  const checkedAiForm = (): ProductFormData | null => {
     if (!productForm.ai_content_status) {
       toast.error("Please complete the AI content declaration");
-      return;
+      return null;
     }
+    if (needsOriginals && (productForm.ai_original_photo_paths ?? []).length === 0) {
+      toast.error("AI imagery needs at least one original product photo for verification");
+      return null;
+    }
+    return { ...productForm, ai_original_photo_paths: needsOriginals ? productForm.ai_original_photo_paths : [] };
+  };
+
+  const handleAddProduct = async () => {
+    if (!productForm.name) return;
+    const form = checkedAiForm();
+    if (!form) return;
 
     setIsSubmitting(true);
-    const result = await addProduct(productForm, productImages, productVariants);
+    const result = await addProduct(form, productImages, productVariants);
     setIsSubmitting(false);
 
     if (result) {
@@ -175,15 +191,13 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   const handleEditProduct = async () => {
     if (!editingProduct || !productForm.name) return;
-    if (!productForm.ai_content_status) {
-      toast.error("Please complete the AI content declaration");
-      return;
-    }
+    const form = checkedAiForm();
+    if (!form) return;
 
     setIsSubmitting(true);
     const result = await updateProduct(
       editingProduct.id,
-      productForm,
+      form,
       productImages.length > 0 ? productImages : undefined,
       productVariants
     );
@@ -215,6 +229,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       net_quantity: product.net_quantity || "1 N",
       is_returnable: product.is_returnable ?? true,
       ai_content_status: (product.ai_content_status as AiContentStatus | null) ?? null,
+      ai_original_photo_paths: product.ai_original_photo_paths ?? [],
     });
     setProductImages([]);
     setImagePreviews([]);
@@ -490,6 +505,13 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         value={productForm.ai_content_status}
         onChange={(ai_content_status) => setProductForm((prev) => ({ ...prev, ai_content_status }))}
       />
+      {needsOriginals && (
+        <AiOriginalPhotosField
+          ownerFolder={(isEdit && editingProduct?.vendor_id) || "platform"}
+          value={productForm.ai_original_photo_paths ?? []}
+          onChange={(ai_original_photo_paths) => setProductForm((prev) => ({ ...prev, ai_original_photo_paths }))}
+        />
+      )}
 
       <ProductSpecificationsEditor
         specifications={productForm.specifications ?? []}

@@ -987,6 +987,7 @@ export type Database = {
       products: {
         Row: {
           ai_content_status: string | null
+          ai_original_photo_paths: string[]
           approval_status: string
           breadth_cm: number | null
           category_id: string | null
@@ -1016,6 +1017,7 @@ export type Database = {
         }
         Insert: {
           ai_content_status?: string | null
+          ai_original_photo_paths?: string[]
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null
@@ -1045,6 +1047,7 @@ export type Database = {
         }
         Update: {
           ai_content_status?: string | null
+          ai_original_photo_paths?: string[]
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null
@@ -2076,6 +2079,10 @@ export type Database = {
         Returns: Json
       }
       admin_user_ids: { Args: never; Returns: string[] }
+      can_access_product_original: {
+        Args: { _object_name: string; _user_id: string }
+        Returns: boolean
+      }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {

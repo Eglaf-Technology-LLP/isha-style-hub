@@ -13,6 +13,11 @@ interface ImageDropzoneProps {
   multiple?: boolean;
   maxFiles?: number;
   className?: string;
+  // For private storage, where `value` holds storage paths rather than
+  // public URLs: a custom uploader returning the stored path, and a lookup
+  // from that path to a displayable (signed) URL.
+  uploadFile?: (file: File) => Promise<string | null>;
+  previewUrl?: (value: string) => string | undefined;
 }
 
 const MAX_FILE_SIZE_MB = 5;
@@ -22,7 +27,16 @@ const MAX_FILE_SIZE_MB = 5;
 // "dropzone" in this codebase actually was) plus click-to-browse, used for
 // both single-image fields (wrapped by SingleImageDropzone below) and
 // multi-image fields (product galleries) via the same component.
-export function ImageDropzone({ folder, value, onChange, multiple = true, maxFiles, className = "" }: ImageDropzoneProps) {
+export function ImageDropzone({
+  folder,
+  value,
+  onChange,
+  multiple = true,
+  maxFiles,
+  className = "",
+  uploadFile,
+  previewUrl,
+}: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -47,7 +61,7 @@ export function ImageDropzone({ folder, value, onChange, multiple = true, maxFil
     try {
       const uploaded: string[] = [];
       for (const file of files) {
-        const url = await uploadImageFile(file, folder);
+        const url = uploadFile ? await uploadFile(file) : await uploadImageFile(file, folder);
         if (url) uploaded.push(url);
       }
       if (uploaded.length === 0) {
@@ -114,7 +128,13 @@ export function ImageDropzone({ folder, value, onChange, multiple = true, maxFil
         <div className="flex flex-wrap gap-2 mt-3">
           {value.map((url, idx) => (
             <div key={url + idx} className="relative h-20 w-20 rounded-md overflow-hidden border border-border group">
-              <img src={url} alt="" className="h-full w-full object-cover" />
+              {(previewUrl ? previewUrl(url) : url) ? (
+                <img src={previewUrl ? previewUrl(url) : url} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-muted">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
