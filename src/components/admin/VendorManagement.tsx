@@ -19,6 +19,11 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { VendorImportExportDialog } from "./VendorImportExportDialog";
 import { VendorDetailsDialog } from "./VendorDetailsDialog";
 import type { Vendor as AdminVendor } from "@/hooks/useVendor";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Internal only - never shown to customers or the boutique itself.
+const QUALITY_GRADES = ["A++", "A+", "A", "B+", "B", "C"];
+const NO_GRADE = "none";
 
 export function VendorManagement() {
   const { user } = useAuth();
@@ -26,6 +31,7 @@ export function VendorManagement() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [viewVendor, setViewVendor] = useState<AdminVendor | null>(null);
+  const [gradeByVendor, setGradeByVendor] = useState<Record<string, string>>({});
 
   useEffect(() => {
     fetchVendors();
@@ -34,12 +40,14 @@ export function VendorManagement() {
   const fetchVendors = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("vendors")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [{ data, error }, { data: grades, error: gradesError }] = await Promise.all([
+        supabase.from("vendors").select("*").order("created_at", { ascending: false }),
+        supabase.from("vendor_quality_tags").select("vendor_id, tag"),
+      ]);
       if (error) throw error;
+      if (gradesError) throw gradesError;
       setVendors((data || []) as unknown as AdminVendor[]);
+      setGradeByVendor(Object.fromEntries((grades || []).map((g) => [g.vendor_id, g.tag])));
     } catch (e: any) {
       toast.error(e.message || "Failed to load vendors");
     } finally {
@@ -68,6 +76,28 @@ export function VendorManagement() {
     } finally {
       setActionId(null);
     }
+  };
+
+  const setGrade = async (v: AdminVendor, grade: string) => {
+    setActionId(v.id);
+    const { error } =
+      grade === NO_GRADE
+        ? await supabase.from("vendor_quality_tags").delete().eq("vendor_id", v.id)
+        : await supabase
+            .from("vendor_quality_tags")
+            .upsert({ vendor_id: v.id, tag: grade, updated_by: user?.id ?? null });
+    setActionId(null);
+    if (error) {
+      toast.error(error.message || "Couldn't update grade");
+      return;
+    }
+    setGradeByVendor((prev) => {
+      const next = { ...prev };
+      if (grade === NO_GRADE) delete next[v.id];
+      else next[v.id] = grade;
+      return next;
+    });
+    toast.success(grade === NO_GRADE ? `Grade removed for ${v.name}` : `${v.name} graded ${grade}`);
   };
 
   const registerShiprocket = async (v: AdminVendor) => {
@@ -117,6 +147,9 @@ export function VendorManagement() {
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>Store</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead title="Internal admin grade - not visible to customers or boutiques">
+                    Grade
+                  </TableHead>
                   <TableHead>Trusted</TableHead>
                   <TableHead>Commission</TableHead>
                   <TableHead>Shipping</TableHead>
@@ -142,6 +175,27 @@ export function VendorManagement() {
                       </div>
                     </TableCell>
                     <TableCell>{statusBadge(v.status)}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={gradeByVendor[v.id] ?? NO_GRADE}
+                        onValueChange={(g) => setGrade(v, g)}
+                        disabled={actionId === v.id}
+                      >
+                        <SelectTrigger className="h-8 w-[84px] text-xs" aria-label={`Grade for ${v.name}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NO_GRADE} className="text-xs text-muted-foreground">
+                            —
+                          </SelectItem>
+                          {QUALITY_GRADES.map((g) => (
+                            <SelectItem key={g} value={g} className="text-xs font-semibold">
+                              {g}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell>
                       {v.is_trusted ? (
                         <ShieldCheck className="h-4 w-4 text-primary" />
