@@ -860,6 +860,7 @@ export type Database = {
       platform_settings: {
         Row: {
           id: boolean
+          payout_settlement_days: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
           review_images_require_approval: boolean
@@ -868,6 +869,7 @@ export type Database = {
         }
         Insert: {
           id?: boolean
+          payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -876,6 +878,7 @@ export type Database = {
         }
         Update: {
           id?: boolean
+          payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -1815,10 +1818,13 @@ export type Database = {
           commission_amount: number
           commission_rate: number
           created_at: string
+          delivered_at: string | null
           id: string
           net_payable: number
           order_id: string
+          payout_eligible_on: string | null
           payout_id: string | null
+          payout_notified_at: string | null
           reminder_sent_at: string | null
           shipping_cost: number
           status: string
@@ -1832,10 +1838,13 @@ export type Database = {
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          delivered_at?: string | null
           id?: string
           net_payable?: number
           order_id: string
+          payout_eligible_on?: string | null
           payout_id?: string | null
+          payout_notified_at?: string | null
           reminder_sent_at?: string | null
           shipping_cost?: number
           status?: string
@@ -1849,10 +1858,13 @@ export type Database = {
           commission_amount?: number
           commission_rate?: number
           created_at?: string
+          delivered_at?: string | null
           id?: string
           net_payable?: number
           order_id?: string
+          payout_eligible_on?: string | null
           payout_id?: string | null
+          payout_notified_at?: string | null
           reminder_sent_at?: string | null
           shipping_cost?: number
           status?: string
@@ -2153,6 +2165,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_business_days: { Args: { _d: string; _n: number }; Returns: string }
       adjust_stock: {
         Args: {
           _delta: number
@@ -2183,6 +2196,11 @@ export type Database = {
         Args: { _discount_id: string }
         Returns: undefined
       }
+      invoke_edge_function: {
+        Args: { _body: Json; _name: string }
+        Returns: undefined
+      }
+      is_privileged_writer: { Args: never; Returns: boolean }
       is_vendor_member: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
@@ -2204,6 +2222,14 @@ export type Database = {
       return_request_sole_vendor: {
         Args: { _request_id: string }
         Returns: string
+      }
+      vendor_order_payout_date: {
+        Args: { _delivered_at: string; _vendor_order_id: string }
+        Returns: string
+      }
+      vendor_order_payout_hold_days: {
+        Args: { _vendor_order_id: string }
+        Returns: number
       }
       vendor_respond_to_return: {
         Args: { _decision: string; _note?: string; _request_id: string }

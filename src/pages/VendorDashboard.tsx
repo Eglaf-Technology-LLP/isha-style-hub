@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { Header } from "@/components/Header";
@@ -68,6 +68,8 @@ import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import type { AiContentStatus } from "@/lib/aiContent";
+import { UpcomingPayoutsCard } from "@/components/vendor/UpcomingPayoutsCard";
+import { formatPayoutDate } from "@/lib/payoutDates";
 
 interface VendorProduct {
   id: string;
@@ -104,6 +106,11 @@ interface VendorOrder {
   shipping_cost: number;
   commission_amount: number;
   net_payable: number;
+  // Set when delivered: the earliest day this can be paid out (return
+  // window / Razorpay settlement); payout_id once a payout run includes it.
+  delivered_at: string | null;
+  payout_eligible_on: string | null;
+  payout_id: string | null;
   status: string;
   tracking_number: string | null;
   carrier: string | null;
@@ -151,6 +158,8 @@ export default function VendorDashboard() {
   const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id);
   const { categories } = useCategories();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [productSearch, setProductSearch] = useState("");
@@ -209,6 +218,7 @@ export default function VendorDashboard() {
         .update({ payout_account_status: "pending" })
         .eq("id", vendor.id);
 
+      setHasPayoutAccount(true);
       toast.success("Payout details saved");
     } catch (e: any) {
       toast.error(e.message || "Failed to save payout details");
@@ -257,7 +267,7 @@ export default function VendorDashboard() {
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -279,6 +289,7 @@ export default function VendorDashboard() {
       if (payoutRes.data) {
         setPayoutAccount(payoutRes.data as PayoutAccountForm);
       }
+      setHasPayoutAccount(!!payoutRes.data);
 
       const vOrders = (voRes.data || []) as VendorOrder[];
       // fetch customer names for these orders
@@ -502,7 +513,7 @@ export default function VendorDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs defaultValue={searchParams.get("tab") || "dashboard"} className="space-y-6">
           <TabsList className="grid w-full max-w-4xl grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -974,7 +985,18 @@ export default function VendorDashboard() {
                             <TableCell className="text-muted-foreground">
                               -₹{Number(o.commission_amount || 0).toFixed(0)}
                             </TableCell>
-                            <TableCell className="font-medium">₹{Number(o.net_payable).toFixed(0)}</TableCell>
+                            <TableCell className="font-medium">
+                              ₹{Number(o.net_payable).toFixed(0)}
+                              {o.status === "delivered" && (
+                                <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">
+                                  {o.payout_id
+                                    ? "In payout run"
+                                    : o.payout_eligible_on
+                                      ? `Payout ${formatPayoutDate(o.payout_eligible_on)}`
+                                      : null}
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge className={`${statusColors[o.status] || "bg-muted"} capitalize`}>
                                 {o.status.replace(/_/g, " ")}
@@ -1095,7 +1117,8 @@ export default function VendorDashboard() {
           </TabsContent>
 
           {/* Payouts Tab */}
-          <TabsContent value="payouts">
+          <TabsContent value="payouts" className="space-y-6">
+            <UpcomingPayoutsCard orders={orders} hasPayoutAccount={hasPayoutAccount} />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

@@ -85,10 +85,17 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
     }
 
     const createdCount = data?.created.length ?? 0;
+    const held = (data?.skipped ?? []).filter((s) => s.reason.includes("on hold"));
     if (createdCount === 0) {
       toast.info("Nothing new to pay out for this period.");
     } else {
       toast.success(`Generated ${createdCount} vendor payout${createdCount > 1 ? "s" : ""}.`);
+    }
+    if (held.length > 0) {
+      toast.info("Not yet payable (return window or open return):", {
+        description: held.map((s) => `${s.vendor_name}: ${s.reason}`).join(" • "),
+        duration: 10000,
+      });
     }
     await fetchPayouts();
   };

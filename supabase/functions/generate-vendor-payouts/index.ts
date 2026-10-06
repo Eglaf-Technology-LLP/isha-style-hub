@@ -5,9 +5,11 @@ import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, err
 // and does the actual bank transfer themselves outside the app. This just
 // computes what's owed and records it, once per run.
 //
-// Eligibility: delivered, paid, and not already claimed by an earlier run
-// (payout_id IS NULL) - that last check is the real safeguard against
-// double-counting, not the date range, which is only a descriptive label.
+// Eligibility: delivered, paid, not already claimed by an earlier run
+// (payout_id IS NULL - the real safeguard against double-counting, not the
+// date range, which is only a descriptive label), its scheduled payout date
+// (payout_eligible_on: return window / Razorpay settlement, set on
+// delivery) has arrived, and no return request on it is still open.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -43,6 +45,22 @@ Deno.serve(async (req) => {
 
     const periodStartStr = periodStart.toISOString().slice(0, 10);
     const periodEndStr = periodEnd.toISOString().slice(0, 10);
+    // Payout dates are Indian calendar days.
+    const todayIst = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+
+    // Vendor orders with a return still in progress wait until it's resolved.
+    const { data: openReturns, error: openReturnsErr } = await supabase
+      .from("return_requests")
+      .select("items")
+      .in("status", ["pending", "approved", "picked_up", "pickup_failed"]);
+    if (openReturnsErr) throw openReturnsErr;
+    const openReturnItemIds = (openReturns ?? []).flatMap((r) =>
+      ((r.items as { order_item_id?: string }[]) ?? []).map((i) => i.order_item_id).filter(Boolean),
+    ) as string[];
+    const { data: openReturnItems } = openReturnItemIds.length
+      ? await supabase.from("order_items").select("vendor_order_id").in("id", openReturnItemIds)
+      : { data: [] as { vendor_order_id: string | null }[] };
+    const vendorOrdersWithOpenReturns = new Set((openReturnItems ?? []).map((i) => i.vendor_order_id).filter(Boolean));
 
     const { data: vendors, error: vendorsErr } = await supabase.from("vendors").select("id, name");
     if (vendorsErr) throw vendorsErr;
@@ -65,19 +83,30 @@ Deno.serve(async (req) => {
 
       const { data: vendorOrders, error: voErr } = await supabase
         .from("vendor_orders")
-        .select("id, subtotal, shipping_cost, commission_amount, net_payable, order:orders(payment_status)")
+        .select("id, subtotal, shipping_cost, commission_amount, net_payable, payout_eligible_on, order:orders(payment_status)")
         .eq("vendor_id", vendor.id)
         .eq("status", "delivered")
         .is("payout_id", null);
       if (voErr) throw voErr;
 
-      const eligible = (vendorOrders ?? []).filter((vo) => {
+      const paid = (vendorOrders ?? []).filter((vo) => {
         const order = Array.isArray(vo.order) ? vo.order[0] : vo.order;
         return (order as { payment_status?: string } | null)?.payment_status === "paid";
       });
+      const onHold = paid.filter(
+        (vo) => (vo.payout_eligible_on && vo.payout_eligible_on > todayIst) || vendorOrdersWithOpenReturns.has(vo.id),
+      );
+      const eligible = paid.filter((vo) => !onHold.includes(vo));
 
       if (eligible.length === 0) {
-        skipped.push({ vendor_id: vendor.id, vendor_name: vendor.name, reason: "nothing eligible" });
+        const nextDate = onHold.map((vo) => vo.payout_eligible_on).filter(Boolean).sort()[0];
+        skipped.push({
+          vendor_id: vendor.id,
+          vendor_name: vendor.name,
+          reason: onHold.length
+            ? `${onHold.length} delivered order(s) on hold (return window/open return)${nextDate ? ` - next due ${nextDate}` : ""}`
+            : "nothing eligible",
+        });
         continue;
       }
 

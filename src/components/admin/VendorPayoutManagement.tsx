@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +45,29 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
   const [markingPayout, setMarkingPayout] = useState<AdminVendorPayout | null>(null);
   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [settleDays, setSettleDays] = useState<string>("");
+  const [savedSettleDays, setSavedSettleDays] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("payout_settlement_days")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        setSavedSettleDays(data.payout_settlement_days);
+        setSettleDays(String(data.payout_settlement_days));
+      });
+  }, []);
+
+  const saveSettleDays = async () => {
+    const days = Math.round(Number(settleDays));
+    if (!Number.isFinite(days) || days < 0 || days > 30) return toast.error("Enter 0 to 30 working days");
+    const { error } = await supabase.from("platform_settings").update({ payout_settlement_days: days }).eq("id", true);
+    if (error) return toast.error(error.message || "Couldn't save setting");
+    setSavedSettleDays(days);
+    toast.success(`Online payments now count as settled ${days} working day${days === 1 ? "" : "s"} after payment`);
+  };
 
   if (loading) {
     return (
@@ -73,6 +98,35 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
           <p className="text-sm text-muted-foreground">
             Weekly, admin-operated - generate a run, transfer the money yourself, then record it here
           </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Orders become payable after the boutique's return window (same day if nothing is returnable) and after
+            Razorpay settles online payments.
+          </p>
+          <div className="flex items-center gap-2 mt-2 text-sm">
+            <Label htmlFor="settle-days" className="text-xs text-muted-foreground font-normal">
+              Razorpay settlement time
+            </Label>
+            <Input
+              id="settle-days"
+              type="number"
+              min={0}
+              max={30}
+              value={settleDays}
+              onChange={(e) => setSettleDays(e.target.value)}
+              className="h-8 w-16"
+              disabled={savedSettleDays === null}
+            />
+            <span className="text-xs text-muted-foreground">working days</span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={saveSettleDays}
+              disabled={savedSettleDays === null || Number(settleDays) === savedSettleDays}
+            >
+              Save
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && <Badge variant="destructive">{pendingCount} Pending</Badge>}
