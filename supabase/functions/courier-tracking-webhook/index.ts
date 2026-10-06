@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
       // alone is easy to miss, so it also goes to the notification bell.
       const { data: vo } = await supabase
         .from("vendor_orders")
-        .select("vendor_id")
+        .select("vendor_id, order_id")
         .eq("id", shipment.vendor_order_id)
         .maybeSingle();
       const [{ data: members }, { data: admins }] = await Promise.all([
@@ -148,7 +148,8 @@ Deno.serve(async (req) => {
           : Promise.resolve({ data: [] as { user_id: string }[] }),
         supabase.from("user_roles").select("user_id").eq("role", "admin"),
       ]);
-      const orderRef = `#${String(shipment.vendor_order_id).slice(0, 8).toUpperCase()}`;
+      // Same order number the boutique sees in its Orders list.
+      const orderRef = `#${String(vo?.order_id ?? shipment.vendor_order_id).slice(0, 8)}`;
       const notifications = [
         ...(members ?? []).map((m) => ({ user_id: m.user_id, link_url: "/vendor" })),
         ...(admins ?? []).map((a) => ({ user_id: a.user_id, link_url: "/admin" })),
