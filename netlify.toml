@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Both values are public by design: the URL and publishable key ship inside
+# the built JS that every visitor downloads, and data access is enforced by
+# Supabase row-level security, not by keeping these secret. They live here
+# because .env is (correctly) not committed, and without them the build
+# produces a blank page ("supabaseUrl is required").
+[build.environment]
+  VITE_SUPABASE_URL = "https://bldkjzitutojvnbbljrf.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-OZbCTgdCKkLWRxa_S4BUw_Ro6FVIAr"
+
+# Single-page app: send every path to index.html so links like
+# /product/<id> work when opened directly or refreshed.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
