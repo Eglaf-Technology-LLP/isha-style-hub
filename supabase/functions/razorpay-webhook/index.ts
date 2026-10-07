@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse, serviceClient, errorMessage } from "../_shared/auth.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
+import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
@@ -131,9 +132,80 @@ Deno.serve(async (req) => {
               .eq("order_id", order.id)
               .eq("payment_status", "pending");
             resolvedOrderId = order.id;
+            if (newStatus === "paid") {
+              await createHeldTransfers(supabase, order.id, paymentEntity.id).catch((e) =>
+                console.error("createHeldTransfers (webhook) error", e),
+              );
+            }
           }
         }
         await logEvent(paymentEntity?.id);
+        break;
+      }
+
+      case "transfer.processed":
+      case "transfer.failed": {
+        const transferEntity = payload.payload?.transfer?.entity;
+        if (event === "transfer.failed" && transferEntity?.id) {
+          const reason = transferEntity.error?.description ?? transferEntity.error?.reason ?? "Transfer failed at Razorpay";
+          const { data: vo } = await supabase
+            .from("vendor_orders")
+            .update({ rzp_transfer_status: "failed", rzp_transfer_error: reason })
+            .eq("rzp_transfer_id", transferEntity.id)
+            .select("id, order_id, vendor_id, net_payable")
+            .maybeSingle();
+          if (vo) {
+            const ref = `#${String(vo.order_id).slice(0, 8)}`;
+            await notifyAdmins(supabase, "payout_transfer_failed", "Razorpay payout failed", `Order ${ref}: ${reason}. It will be retried in the next daily payout run.`);
+            await notifyVendor(
+              supabase,
+              vo.vendor_id,
+              "payout_failed",
+              "Payout delayed",
+              `Razorpay couldn't complete the payout of ₹${Math.round(Number(vo.net_payable))} for order ${ref} (${reason}). We'll retry automatically.`,
+              { event: "transfer_failed", vendor_order_ids: [vo.id], reason },
+            );
+          }
+        }
+        await logEvent(transferEntity?.id);
+        break;
+      }
+
+      case "product.route.activated":
+      case "product.route.under_review":
+      case "product.route.needs_clarification": {
+        // account_id is the boutique's linked account; this is Razorpay's
+        // verdict on its bank account / KYC.
+        const linkedAccountId: string | undefined = payload.account_id;
+        const status = event.replace("product.route.", "");
+        const requirements =
+          payload.payload?.merchant_product?.data?.requirements ??
+          payload.payload?.merchant_product?.entity?.requirements ??
+          null;
+        if (linkedAccountId) {
+          const { data: acct } = await supabase
+            .from("vendor_payout_accounts")
+            .update({ razorpay_status: status, razorpay_requirements: requirements, razorpay_synced_at: new Date().toISOString() })
+            .eq("razorpay_account_id", linkedAccountId)
+            .select("vendor_id")
+            .maybeSingle();
+          if (acct) {
+            await supabase.from("vendors").update({ payout_account_status: VENDOR_STATUS_FOR[status] ?? "pending" }).eq("id", acct.vendor_id);
+            if (status === "activated") {
+              await notifyVendor(supabase, acct.vendor_id, "payout_account_verified", "Bank account verified",
+                "Razorpay verified your bank account - your payouts will now be sent automatically.",
+                { event: "account_activated" });
+            } else if (status === "needs_clarification") {
+              const why = Array.isArray(requirements)
+                ? requirements.map((r: any) => r.description ?? r.reason_code).filter(Boolean).join("; ")
+                : "";
+              await notifyVendor(supabase, acct.vendor_id, "payout_account_rejected", "Bank details need attention",
+                `Razorpay couldn't verify your payout details${why ? `: ${why}` : ""}. Please correct them in your Payouts tab.`,
+                { event: "account_needs_clarification", reason: why });
+            }
+          }
+        }
+        await logEvent(linkedAccountId);
         break;
       }
 
@@ -244,10 +316,23 @@ Deno.serve(async (req) => {
       }
 
       case "settlement.processed": {
-        // Platform-wide by nature - a single settlement batches many
-        // orders together, so there is deliberately no payment/order link
-        // here (Route, the per-order marketplace split, isn't enabled on
-        // this account - see 20260820110000_razorpay_payment_fields.sql).
+        // A boutique's linked account settling to its bank: mark those
+        // payouts credited (with the UTR) and tell the boutique.
+        const settlementAccountId: string | undefined = payload.account_id;
+        if (settlementAccountId && settlementEntity?.id) {
+          const { data: linked } = await supabase
+            .from("vendor_payout_accounts")
+            .select("vendor_id")
+            .eq("razorpay_account_id", settlementAccountId)
+            .maybeSingle();
+          if (linked) {
+            await reconcileSettlements(supabase, settlementEntity.id, settlementEntity.utr ?? null, settlementAccountId);
+            await logEvent(settlementEntity.id);
+            break;
+          }
+        }
+        // Platform's own settlement - batches many orders, so no
+        // payment/order link here.
         if (settlementEntity?.id) {
           const { error: settlementErr } = await supabase.from("settlements").upsert(
             {

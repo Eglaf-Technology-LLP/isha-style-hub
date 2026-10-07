@@ -118,6 +118,7 @@ export async function cancelOneVendorOrder(
         amount: refundAmount,
         reason: `Order cancelled by customer: ${reason}`,
         initiatedBy: cancelledBy,
+        vendorOrderId: vendorOrder.id,
       });
       refundId = result.refundId;
     } catch (e) {

@@ -221,6 +221,83 @@ serve(async (req) => {
           ctaLabel: "Update bank details",
         };
       }
+    } else if (event === "released" || event === "route_credited" || event === "transfer_failed") {
+      const { vendor } = await loadVendor(supabase, body.vendor_id);
+      if (!vendor) return json({ error: "Vendor not found" }, 404);
+      const { data: orders } = await supabase
+        .from("vendor_orders")
+        .select("order_id, net_payable, rzp_transfer_amount, rzp_settlement_utr, rzp_settled_at")
+        .in("id", body.vendor_order_ids ?? []);
+      const rows = orders ?? [];
+      const amountOf = (o: any) => Number(o.rzp_transfer_amount ?? o.net_payable);
+      const total = rows.reduce((s, o) => s + amountOf(o), 0);
+      const list = `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${rows
+        .map((o) => `<li>Order #${String(o.order_id).slice(0, 8)} - ${inr(amountOf(o))}</li>`)
+        .join("")}</ul>`;
+      if (event === "released") {
+        built = {
+          subject: `${inr(total)} is on its way to your bank | AllBoutiqs`,
+          heading: "Your payout has been sent",
+          preheader: `${inr(total)} released through Razorpay`,
+          bodyHtml:
+            p(`Hi ${vendor.name}, the return window is over, so we've released your payout through Razorpay:`) +
+            list +
+            p("Razorpay usually credits your bank within 2 working days. We'll email you again with the bank reference (UTR) once it's credited."),
+          ctaLabel: "View payouts",
+        };
+      } else if (event === "route_credited") {
+        const utr = rows.find((o) => o.rzp_settlement_utr)?.rzp_settlement_utr;
+        built = {
+          subject: `${inr(total)} credited to your bank account | AllBoutiqs`,
+          heading: "Payout credited",
+          preheader: `${inr(total)} credited${utr ? ` - UTR ${utr}` : ""}`,
+          bodyHtml:
+            p(`Hi ${vendor.name}, Razorpay has credited your payout to your bank account:`) +
+            list +
+            factsBox([
+              ["Total", inr(total)],
+              ["Bank reference (UTR)", utr ?? "Shown in your Razorpay settlement"],
+            ]) +
+            p("Match the UTR with the credit on your bank statement."),
+          ctaLabel: "View payout history",
+        };
+      } else {
+        built = {
+          subject: `Payout delayed for ${inr(total)} | AllBoutiqs`,
+          heading: "Your payout was delayed",
+          preheader: "Razorpay couldn't complete a payout - we'll retry",
+          bodyHtml:
+            p(`Hi ${vendor.name}, Razorpay couldn't complete this payout:`) +
+            list +
+            factsBox([["Reason", String(body.reason ?? "Not given")]]) +
+            p("Your money is safe. We retry automatically every day; if the reason is about your bank details, please update them in your Payouts tab."),
+          ctaLabel: "View payouts",
+        };
+      }
+    } else if (event === "account_activated" || event === "account_needs_clarification") {
+      const { vendor } = await loadVendor(supabase, body.vendor_id);
+      if (!vendor) return json({ error: "Vendor not found" }, 404);
+      built =
+        event === "account_activated"
+          ? {
+              subject: "Your bank account is verified - payouts are automatic | AllBoutiqs",
+              heading: "Bank account verified",
+              preheader: "Razorpay verified your payout bank account",
+              bodyHtml:
+                p(`Hi ${vendor.name}, Razorpay has verified your bank account.`) +
+                p("From now on, each order's payout is sent to your bank automatically once its return window ends. You'll get an email at every step."),
+              ctaLabel: "View payouts",
+            }
+          : {
+              subject: "Action needed: Razorpay couldn't verify your bank details | AllBoutiqs",
+              heading: "Your bank details need attention",
+              preheader: "Update your payout details to receive payouts",
+              bodyHtml:
+                p(`Hi ${vendor.name}, Razorpay couldn't verify your payout details, so payouts are paused.`) +
+                factsBox([["Reason", String(body.reason || "Verification failed")]]) +
+                p("Please correct your bank account / PAN details in your Payouts tab. Your money stays safe until then."),
+              ctaLabel: "Update payout details",
+            };
     } else if (event === "account_updated") {
       const { vendor, account } = await loadVendor(supabase, body.vendor_id);
       if (!vendor || !account) return json({ error: "Vendor/account not found" }, 404);

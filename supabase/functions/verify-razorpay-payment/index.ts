@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { createHeldTransfers } from "../_shared/razorpayRoute.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -132,6 +133,14 @@ Deno.serve(async (req) => {
       .eq("order_id", orderId);
 
     if (paymentErr) throw paymentErr;
+
+    // Set each boutique's share aside in its Razorpay linked account (held
+    // until delivery + return window). Never fails the payment itself.
+    try {
+      await createHeldTransfers(supabase, orderId, razorpay_payment_id);
+    } catch (routeErr) {
+      console.error("createHeldTransfers error", routeErr);
+    }
 
     return new Response(JSON.stringify({ verified: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

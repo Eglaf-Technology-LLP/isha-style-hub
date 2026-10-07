@@ -55,3 +55,9 @@ verify_jwt = false
 
 [functions.send-vendor-payout-email]
 verify_jwt = true
+
+[functions.razorpay-route-onboard]
+verify_jwt = true
+
+[functions.razorpay-route-release]
+verify_jwt = true

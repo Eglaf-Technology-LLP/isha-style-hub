@@ -145,9 +145,9 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
     <Card>
       <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
         <div>
-          <h3 className="text-lg font-semibold">Vendor Payouts</h3>
+          <h3 className="text-lg font-semibold">Manual payouts (fallback)</h3>
           <p className="text-sm text-muted-foreground">
-            Weekly, admin-operated - generate a run, transfer the money yourself, then record it here
+            Only for exceptions Razorpay can't pay automatically - generate a run, transfer the money yourself, then record the UTR
           </p>
           <p className="text-xs text-muted-foreground mt-1">
             Orders become payable after the boutique's return window (same day if nothing is returnable) and after

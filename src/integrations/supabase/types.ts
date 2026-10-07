@@ -1827,6 +1827,16 @@ export type Database = {
           payout_id: string | null
           payout_notified_at: string | null
           reminder_sent_at: string | null
+          rzp_released_at: string | null
+          rzp_reversed_amount: number
+          rzp_settled_at: string | null
+          rzp_settlement_id: string | null
+          rzp_settlement_utr: string | null
+          rzp_transfer_amount: number | null
+          rzp_transfer_error: string | null
+          rzp_transfer_id: string | null
+          rzp_transfer_kind: string | null
+          rzp_transfer_status: string | null
           shipping_cost: number
           status: string
           subtotal: number
@@ -1848,6 +1858,16 @@ export type Database = {
           payout_id?: string | null
           payout_notified_at?: string | null
           reminder_sent_at?: string | null
+          rzp_released_at?: string | null
+          rzp_reversed_amount?: number
+          rzp_settled_at?: string | null
+          rzp_settlement_id?: string | null
+          rzp_settlement_utr?: string | null
+          rzp_transfer_amount?: number | null
+          rzp_transfer_error?: string | null
+          rzp_transfer_id?: string | null
+          rzp_transfer_kind?: string | null
+          rzp_transfer_status?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1869,6 +1889,16 @@ export type Database = {
           payout_id?: string | null
           payout_notified_at?: string | null
           reminder_sent_at?: string | null
+          rzp_released_at?: string | null
+          rzp_reversed_amount?: number
+          rzp_settled_at?: string | null
+          rzp_settlement_id?: string | null
+          rzp_settlement_utr?: string | null
+          rzp_transfer_amount?: number | null
+          rzp_transfer_error?: string | null
+          rzp_transfer_id?: string | null
+          rzp_transfer_kind?: string | null
+          rzp_transfer_status?: string | null
           shipping_cost?: number
           status?: string
           subtotal?: number
@@ -1908,7 +1938,14 @@ export type Database = {
           business_type: string
           created_at: string
           id: string
+          legal_business_name: string | null
+          pan: string | null
           razorpay_account_id: string | null
+          razorpay_error: string | null
+          razorpay_product_id: string | null
+          razorpay_requirements: Json | null
+          razorpay_status: string
+          razorpay_synced_at: string | null
           updated_at: string
           vendor_id: string
         }
@@ -1919,7 +1956,14 @@ export type Database = {
           business_type?: string
           created_at?: string
           id?: string
+          legal_business_name?: string | null
+          pan?: string | null
           razorpay_account_id?: string | null
+          razorpay_error?: string | null
+          razorpay_product_id?: string | null
+          razorpay_requirements?: Json | null
+          razorpay_status?: string
+          razorpay_synced_at?: string | null
           updated_at?: string
           vendor_id: string
         }
@@ -1930,7 +1974,14 @@ export type Database = {
           business_type?: string
           created_at?: string
           id?: string
+          legal_business_name?: string | null
+          pan?: string | null
           razorpay_account_id?: string | null
+          razorpay_error?: string | null
+          razorpay_product_id?: string | null
+          razorpay_requirements?: Json | null
+          razorpay_status?: string
+          razorpay_synced_at?: string | null
           updated_at?: string
           vendor_id?: string
         }

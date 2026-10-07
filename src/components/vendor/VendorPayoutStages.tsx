@@ -15,6 +15,12 @@ interface PayoutOrder {
   delivered_at: string | null;
   payout_eligible_on: string | null;
   payout_id: string | null;
+  rzp_transfer_status: string | null;
+  rzp_transfer_amount: number | null;
+  rzp_transfer_error: string | null;
+  rzp_released_at: string | null;
+  rzp_settled_at: string | null;
+  rzp_settlement_utr: string | null;
 }
 
 interface VendorPayoutStagesProps {
@@ -97,7 +103,16 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
   const { payouts, loading } = useVendorPayoutHistory(vendorId);
   const today = todayIst();
 
-  const unpaid = orders.filter((o) => o.status === "delivered" && !o.payout_id && o.payout_eligible_on);
+  const routeSent = (o: PayoutOrder) => o.rzp_transfer_status === "released";
+  const unpaid = orders.filter(
+    (o) => o.status === "delivered" && !o.payout_id && o.payout_eligible_on && !routeSent(o) && o.rzp_transfer_status !== "reversed",
+  );
+  const sentViaRazorpay = orders
+    .filter(routeSent)
+    .sort((a, b) => ((a.rzp_released_at ?? "") < (b.rzp_released_at ?? "") ? 1 : -1));
+  const routeAmount = (o: PayoutOrder) => Number(o.rzp_transfer_amount ?? o.net_payable);
+  const routeProcessing = sentViaRazorpay.filter((o) => !o.rzp_settled_at);
+  const routeCredited = sentViaRazorpay.filter((o) => o.rzp_settled_at);
   const inWindow = unpaid
     .filter((o) => o.payout_eligible_on! > today)
     .sort((a, b) => (a.payout_eligible_on! < b.payout_eligible_on! ? -1 : 1));
@@ -133,16 +148,21 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
             <Stage
               icon={Loader2}
               tone="blue"
-              label="Processing"
-              amount={processing.reduce((s, p) => s + Number(p.net_payable), 0)}
-              hint={`${processing.length} transfer(s) in progress`}
+              label="Sent - reaching your bank"
+              amount={
+                processing.reduce((s, p) => s + Number(p.net_payable), 0) +
+                routeProcessing.reduce((s, o) => s + routeAmount(o), 0)
+              }
+              hint={`${processing.length + routeProcessing.length} payout(s) on the way`}
             />
             <Stage
               icon={CheckCircle2}
               tone="green"
               label="Credited to your bank"
-              amount={credited.reduce((s, p) => s + Number(p.net_payable), 0)}
-              hint={`${credited.length} transfer(s) so far`}
+              amount={
+                credited.reduce((s, p) => s + Number(p.net_payable), 0) + routeCredited.reduce((s, o) => s + routeAmount(o), 0)
+              }
+              hint={`${credited.length + routeCredited.length} payout(s) so far`}
             />
           </div>
 
@@ -239,8 +259,13 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                       <TableCell>
                         {blocked ? (
                           <Badge variant="destructive">Waiting for bank details</Badge>
+                        ) : o.rzp_transfer_error ? (
+                          <div>
+                            <Badge variant="destructive">Retrying</Badge>
+                            <div className="text-xs text-destructive mt-1 max-w-[240px]">{o.rzp_transfer_error}</div>
+                          </div>
                         ) : (
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Next bank transfer</Badge>
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Sent in the next daily payout</Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -255,7 +280,63 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Landmark className="h-4 w-4" /> Bank transfers
+            <CheckCircle2 className="h-4 w-4" /> Sent to your bank (Razorpay)
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Razorpay usually credits your bank within 2 working days of sending. "Credited" shows the bank reference (UTR).
+          </p>
+        </CardHeader>
+        <CardContent>
+          {sentViaRazorpay.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No payouts sent yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Sent</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sentViaRazorpay.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
+                      <TableCell className="text-sm">{o.rzp_released_at ? format(new Date(o.rzp_released_at), "d MMM") : "—"}</TableCell>
+                      <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
+                      <TableCell>
+                        {o.rzp_settled_at ? (
+                          <div>
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {format(new Date(o.rzp_settled_at), "d MMM yyyy")}
+                              {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
+                            </div>
+                          </div>
+                        ) : (
+                          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                            <Loader2 className="h-3 w-3 mr-1" /> On its way to your bank
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {payouts.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Landmark className="h-4 w-4" /> Manual bank transfers
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             "Credited" shows the bank reference (UTR) - match it with the credit on your bank statement.
@@ -304,6 +385,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

@@ -92,7 +92,9 @@ Deno.serve(async (req) => {
         .select("id, subtotal, shipping_cost, commission_amount, net_payable, payout_eligible_on, order:orders(payment_status)")
         .eq("vendor_id", vendor.id)
         .eq("status", "delivered")
-        .is("payout_id", null);
+        .is("payout_id", null)
+        // Handled automatically by Razorpay Route - never pay these twice.
+        .or("rzp_transfer_status.is.null,rzp_transfer_status.eq.failed");
       if (voErr) throw voErr;
 
       const paid = (vendorOrders ?? []).filter((vo) => {

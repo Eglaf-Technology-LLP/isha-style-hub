@@ -60,6 +60,7 @@ import { SettlementLedger } from "@/components/admin/SettlementLedger";
 import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
 import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagement";
 import { ReviewModeration } from "@/components/admin/ReviewModeration";
+import { RazorpayPayoutsPanel } from "@/components/admin/RazorpayPayoutsPanel";
 import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
 
 export default function Admin() {
@@ -487,7 +488,10 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="vendor-payouts">
-            <VendorPayoutManagement isAdmin={isAdmin} />
+            <div className="space-y-6">
+              <RazorpayPayoutsPanel />
+              <VendorPayoutManagement isAdmin={isAdmin} />
+            </div>
           </TabsContent>
 
           {/* Vendors Tab - four genuinely different jobs (approve new

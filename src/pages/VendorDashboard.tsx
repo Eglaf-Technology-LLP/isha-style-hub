@@ -70,6 +70,8 @@ import type { AiContentStatus } from "@/lib/aiContent";
 import { VendorPayoutStages } from "@/components/vendor/VendorPayoutStages";
 import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatusBadge";
 import { formatPayoutDate } from "@/lib/payoutDates";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
 
 interface VendorProduct {
   id: string;
@@ -111,6 +113,12 @@ interface VendorOrder {
   delivered_at: string | null;
   payout_eligible_on: string | null;
   payout_id: string | null;
+  rzp_transfer_status: string | null;
+  rzp_transfer_amount: number | null;
+  rzp_transfer_error: string | null;
+  rzp_released_at: string | null;
+  rzp_settled_at: string | null;
+  rzp_settlement_utr: string | null;
   status: string;
   tracking_number: string | null;
   carrier: string | null;
@@ -149,6 +157,15 @@ interface PayoutAccountForm {
   bank_account_number: string;
   bank_ifsc: string;
   business_type: string;
+  pan: string;
+  legal_business_name: string;
+}
+
+// Server-managed Razorpay linked-account state (read-only for boutiques).
+interface RazorpayPayoutState {
+  razorpay_status: string;
+  razorpay_error: string | null;
+  razorpay_requirements: { description?: string; reason_code?: string }[] | null;
 }
 
 const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp"];
@@ -183,7 +200,10 @@ export default function VendorDashboard() {
     bank_account_number: "",
     bank_ifsc: "",
     business_type: "individual",
+    pan: "",
+    legal_business_name: "",
   });
+  const [razorpayState, setRazorpayState] = useState<RazorpayPayoutState | null>(null);
   const [payoutSaving, setPayoutSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -197,6 +217,10 @@ export default function VendorDashboard() {
       toast.error("Please fill in account holder name, account number and IFSC");
       return;
     }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(payoutAccount.pan.trim().toUpperCase())) {
+      toast.error("Enter a valid PAN (e.g. ABCDE1234F) - Razorpay needs it to pay you");
+      return;
+    }
     setPayoutSaving(true);
     try {
       const { error } = await supabase.from("vendor_payout_accounts").upsert(
@@ -206,14 +230,34 @@ export default function VendorDashboard() {
           bank_account_number: payoutAccount.bank_account_number.trim(),
           bank_ifsc: payoutAccount.bank_ifsc.trim().toUpperCase(),
           business_type: payoutAccount.business_type,
+          pan: payoutAccount.pan.trim().toUpperCase(),
+          legal_business_name: payoutAccount.legal_business_name.trim() || null,
         },
         { onConflict: "vendor_id" }
       );
       if (error) throw error;
-
       setHasPayoutAccount(true);
+
+      // Create/update the Razorpay account that payouts are sent through.
+      const { data: rzp, errorMessage } = await invokeEdgeFunction<RazorpayPayoutState>("razorpay-route-onboard", {
+        vendor_id: vendor.id,
+      });
       await refreshVendor();
-      toast.success("Payout details saved");
+      if (errorMessage || rzp?.razorpay_error) {
+        setRazorpayState((prev) => ({
+          razorpay_status: rzp?.razorpay_status ?? prev?.razorpay_status ?? "failed",
+          razorpay_error: rzp?.razorpay_error ?? errorMessage ?? null,
+          razorpay_requirements: prev?.razorpay_requirements ?? null,
+        }));
+        toast.error(`Saved, but Razorpay couldn't set up payouts: ${rzp?.razorpay_error ?? errorMessage}`);
+      } else {
+        setRazorpayState({
+          razorpay_status: rzp?.razorpay_status ?? "created",
+          razorpay_error: null,
+          razorpay_requirements: (rzp as any)?.requirements ?? null,
+        });
+        toast.success("Payout details saved - Razorpay is verifying your bank account");
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to save payout details");
     } finally {
@@ -261,13 +305,13 @@ export default function VendorDashboard() {
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id, rzp_transfer_status, rzp_transfer_amount, rzp_transfer_error, rzp_released_at, rzp_settled_at, rzp_settlement_utr"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("vendor_payout_accounts")
-          .select("account_holder_name, bank_account_number, bank_ifsc, business_type")
+          .select("account_holder_name, bank_account_number, bank_ifsc, business_type, pan, legal_business_name, razorpay_status, razorpay_error, razorpay_requirements")
           .eq("vendor_id", vendor.id)
           .maybeSingle(),
       ]);
@@ -281,7 +325,20 @@ export default function VendorDashboard() {
       );
 
       if (payoutRes.data) {
-        setPayoutAccount(payoutRes.data as PayoutAccountForm);
+        const pa = payoutRes.data as any;
+        setPayoutAccount({
+          account_holder_name: pa.account_holder_name ?? "",
+          bank_account_number: pa.bank_account_number ?? "",
+          bank_ifsc: pa.bank_ifsc ?? "",
+          business_type: pa.business_type ?? "individual",
+          pan: pa.pan ?? "",
+          legal_business_name: pa.legal_business_name ?? "",
+        });
+        setRazorpayState({
+          razorpay_status: pa.razorpay_status,
+          razorpay_error: pa.razorpay_error,
+          razorpay_requirements: pa.razorpay_requirements,
+        });
       }
       setHasPayoutAccount(!!payoutRes.data);
 
@@ -1161,6 +1218,27 @@ export default function VendorDashboard() {
                     />
                   </div>
                 </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="po-pan">PAN</Label>
+                    <Input
+                      id="po-pan"
+                      value={payoutAccount.pan}
+                      maxLength={10}
+                      placeholder="ABCDE1234F"
+                      onChange={(e) => setPayoutAccount((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="po-legal">Legal business name (if different)</Label>
+                    <Input
+                      id="po-legal"
+                      value={payoutAccount.legal_business_name}
+                      placeholder="As on PAN / GST"
+                      onChange={(e) => setPayoutAccount((f) => ({ ...f, legal_business_name: e.target.value }))}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label>Business type</Label>
                   <Select
@@ -1179,6 +1257,11 @@ export default function VendorDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
+                <RazorpayPayoutStatus state={razorpayState} />
+                <p className="text-xs text-muted-foreground">
+                  Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
+                  only to verify your account and pay you.
+                </p>
                 <Button onClick={savePayoutAccount} disabled={payoutSaving}>
                   {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save payout details

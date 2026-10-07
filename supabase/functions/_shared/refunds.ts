@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
+import { reverseVendorShare } from "./razorpayRoute.ts";
 
 // Thrown for anything wrong with the request itself (no payment, wrong
 // status, amount exceeds what's left) - before executeRefund ever touches
@@ -62,6 +63,9 @@ export interface ExecuteRefundParams {
   initiatedBy: string | null;
   speed?: "instant" | "normal";
   returnRequestId?: string | null;
+  // Which boutique order this refund is for, so its Razorpay payout share
+  // can be reversed first. Derived from returnRequestId when not given.
+  vendorOrderId?: string | null;
 }
 
 export interface ExecuteRefundResult {
@@ -138,6 +142,17 @@ export async function executeRefund(
     .select("id")
     .single();
   if (insertErr) throw insertErr;
+
+  let vendorOrderId = params.vendorOrderId ?? null;
+  if (!vendorOrderId && returnRequestId) {
+    const { data: rr } = await supabase.from("return_requests").select("items").eq("id", returnRequestId).maybeSingle();
+    const firstItemId = ((rr?.items as { order_item_id?: string }[]) ?? [])[0]?.order_item_id;
+    if (firstItemId) {
+      const { data: oi } = await supabase.from("order_items").select("vendor_order_id").eq("id", firstItemId).maybeSingle();
+      vendorOrderId = oi?.vendor_order_id ?? null;
+    }
+  }
+  if (vendorOrderId) await reverseVendorShare(supabase, vendorOrderId, amount);
 
   const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID");
   const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET");
