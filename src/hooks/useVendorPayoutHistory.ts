@@ -12,6 +12,9 @@ export interface VendorPayout {
   paid_at: string | null;
   payment_reference: string | null;
   created_at: string;
+  order_count: number;
+  bank_account_last4: string | null;
+  failure_reason: string | null;
 }
 
 // A vendor's own read of vendor_payouts (RLS already scopes this to their
@@ -29,7 +32,7 @@ export function useVendorPayoutHistory(vendorId: string | undefined) {
       .from("vendor_payouts")
       .select("*")
       .eq("vendor_id", vendorId)
-      .order("period_start", { ascending: false })
+      .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
           console.error("Error fetching vendor payout history:", error);

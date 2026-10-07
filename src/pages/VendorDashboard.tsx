@@ -51,7 +51,6 @@ import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { VendorEarningsBreakdown } from "@/components/vendor/VendorEarningsBreakdown";
-import { VendorPayoutHistory } from "@/components/vendor/VendorPayoutHistory";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
@@ -68,7 +67,8 @@ import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import type { AiContentStatus } from "@/lib/aiContent";
-import { UpcomingPayoutsCard } from "@/components/vendor/UpcomingPayoutsCard";
+import { VendorPayoutStages } from "@/components/vendor/VendorPayoutStages";
+import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatusBadge";
 import { formatPayoutDate } from "@/lib/payoutDates";
 
 interface VendorProduct {
@@ -211,14 +211,8 @@ export default function VendorDashboard() {
       );
       if (error) throw error;
 
-      // Payout account is now submitted; marketplace-side verification with
-      // the payment gateway happens separately and flips this to "active".
-      await supabase
-        .from("vendors")
-        .update({ payout_account_status: "pending" })
-        .eq("id", vendor.id);
-
       setHasPayoutAccount(true);
+      await refreshVendor();
       toast.success("Payout details saved");
     } catch (e: any) {
       toast.error(e.message || "Failed to save payout details");
@@ -1118,15 +1112,21 @@ export default function VendorDashboard() {
 
           {/* Payouts Tab */}
           <TabsContent value="payouts" className="space-y-6">
-            <UpcomingPayoutsCard orders={orders} hasPayoutAccount={hasPayoutAccount} />
+            <VendorPayoutStages
+              vendorId={vendor.id}
+              orders={orders}
+              hasPayoutAccount={hasPayoutAccount}
+              accountStatus={vendor.payout_account_status}
+            />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Landmark className="h-5 w-5" /> Payout details
                 </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Where we send your earnings. Status: {vendor.payout_account_status.replace("_", " ")}.
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm text-muted-foreground">Where we send your earnings.</p>
+                  <PayoutAccountStatusBadge status={hasPayoutAccount ? vendor.payout_account_status : "not_setup"} />
+                </div>
               </CardHeader>
               <CardContent className="space-y-4 max-w-xl">
                 <div className="space-y-2">
@@ -1185,9 +1185,6 @@ export default function VendorDashboard() {
                 </Button>
               </CardContent>
             </Card>
-            <div className="mt-6">
-              <VendorPayoutHistory vendorId={vendor.id} />
-            </div>
           </TabsContent>
         </Tabs>
       </div>

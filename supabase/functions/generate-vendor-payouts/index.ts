@@ -62,8 +62,11 @@ Deno.serve(async (req) => {
       : { data: [] as { vendor_order_id: string | null }[] };
     const vendorOrdersWithOpenReturns = new Set((openReturnItems ?? []).map((i) => i.vendor_order_id).filter(Boolean));
 
-    const { data: vendors, error: vendorsErr } = await supabase.from("vendors").select("id, name");
+    const { data: vendors, error: vendorsErr } = await supabase.from("vendors").select("id, name, payout_account_status");
     if (vendorsErr) throw vendorsErr;
+    const { data: accounts, error: accountsErr } = await supabase.from("vendor_payout_accounts").select("vendor_id");
+    if (accountsErr) throw accountsErr;
+    const vendorsWithAccount = new Set((accounts ?? []).map((a) => a.vendor_id));
 
     const created: { vendor_id: string; vendor_name: string; payout_id: string; order_count: number; net_payable: number }[] = [];
     const skipped: { vendor_id: string; vendor_name: string; reason: string }[] = [];
@@ -74,6 +77,9 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("vendor_id", vendor.id)
         .eq("period_start", periodStartStr)
+        // A declined payout's orders went back to the queue - don't let it
+        // block paying them again in the same period.
+        .neq("status", "failed")
         .maybeSingle();
       if (existingErr) throw existingErr;
       if (existing) {
@@ -97,6 +103,25 @@ Deno.serve(async (req) => {
         (vo) => (vo.payout_eligible_on && vo.payout_eligible_on > todayIst) || vendorOrdersWithOpenReturns.has(vo.id),
       );
       const eligible = paid.filter((vo) => !onHold.includes(vo));
+
+      // Ready money that can't be sent stays queued (the daily job keeps
+      // reminding the boutique) rather than going into a run nobody can pay.
+      const blocked = !vendorsWithAccount.has(vendor.id) || vendor.payout_account_status === "not_setup"
+        ? "no payout bank account"
+        : vendor.payout_account_status === "needs_update"
+          ? "bank declined last transfer - waiting for updated bank details"
+          : vendor.payout_account_status === "disabled"
+            ? "payouts disabled"
+            : null;
+      if (blocked && eligible.length > 0) {
+        const waiting = eligible.reduce((sum, vo) => sum + Number(vo.net_payable), 0);
+        skipped.push({
+          vendor_id: vendor.id,
+          vendor_name: vendor.name,
+          reason: `${blocked} - ₹${Math.round(waiting)} from ${eligible.length} order(s) kept in queue`,
+        });
+        continue;
+      }
 
       if (eligible.length === 0) {
         const nextDate = onHold.map((vo) => vo.payout_eligible_on).filter(Boolean).sort()[0];
@@ -124,6 +149,8 @@ Deno.serve(async (req) => {
           commission_amount: commissionAmount,
           net_payable: netPayable,
           status: "pending",
+          order_count: eligible.length,
+          vendor_order_ids: eligible.map((vo) => vo.id),
         })
         .select("id")
         .single();

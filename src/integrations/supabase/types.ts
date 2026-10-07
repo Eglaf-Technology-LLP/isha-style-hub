@@ -1819,6 +1819,7 @@ export type Database = {
           commission_rate: number
           created_at: string
           delivered_at: string | null
+          due_notified_at: string | null
           id: string
           net_payable: number
           order_id: string
@@ -1839,6 +1840,7 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           delivered_at?: string | null
+          due_notified_at?: string | null
           id?: string
           net_payable?: number
           order_id: string
@@ -1859,6 +1861,7 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           delivered_at?: string | null
+          due_notified_at?: string | null
           id?: string
           net_payable?: number
           order_id?: string
@@ -1943,11 +1946,15 @@ export type Database = {
       }
       vendor_payouts: {
         Row: {
+          bank_account_last4: string | null
           commission_amount: number
           created_at: string
+          failed_at: string | null
+          failure_reason: string | null
           gross_sales: number
           id: string
           net_payable: number
+          order_count: number
           paid_at: string | null
           payment_reference: string | null
           period_end: string
@@ -1955,13 +1962,18 @@ export type Database = {
           status: string
           updated_at: string
           vendor_id: string
+          vendor_order_ids: string[]
         }
         Insert: {
+          bank_account_last4?: string | null
           commission_amount?: number
           created_at?: string
+          failed_at?: string | null
+          failure_reason?: string | null
           gross_sales?: number
           id?: string
           net_payable?: number
+          order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
           period_end: string
@@ -1969,13 +1981,18 @@ export type Database = {
           status?: string
           updated_at?: string
           vendor_id: string
+          vendor_order_ids?: string[]
         }
         Update: {
+          bank_account_last4?: string | null
           commission_amount?: number
           created_at?: string
+          failed_at?: string | null
+          failure_reason?: string | null
           gross_sales?: number
           id?: string
           net_payable?: number
+          order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
           period_end?: string
@@ -1983,6 +2000,7 @@ export type Database = {
           status?: string
           updated_at?: string
           vendor_id?: string
+          vendor_order_ids?: string[]
         }
         Relationships: [
           {
@@ -2049,6 +2067,7 @@ export type Database = {
           owner_user_id: string | null
           pan_number: string | null
           payout_account_status: string
+          payout_reminder_sent_at: string | null
           rating: number | null
           return_policy: string | null
           return_window_days: number
@@ -2083,6 +2102,7 @@ export type Database = {
           owner_user_id?: string | null
           pan_number?: string | null
           payout_account_status?: string
+          payout_reminder_sent_at?: string | null
           rating?: number | null
           return_policy?: string | null
           return_window_days?: number
@@ -2117,6 +2137,7 @@ export type Database = {
           owner_user_id?: string | null
           pan_number?: string | null
           payout_account_status?: string
+          payout_reminder_sent_at?: string | null
           rating?: number | null
           return_policy?: string | null
           return_window_days?: number
@@ -2196,6 +2217,7 @@ export type Database = {
         Args: { _discount_id: string }
         Returns: undefined
       }
+      inr: { Args: { _amount: number }; Returns: string }
       invoke_edge_function: {
         Args: { _body: Json; _name: string }
         Returns: undefined
@@ -2206,10 +2228,20 @@ export type Database = {
         Returns: boolean
       }
       next_invoice_seq: { Args: never; Returns: number }
+      notify_vendor_members: {
+        Args: {
+          _body: string
+          _title: string
+          _type: string
+          _vendor_id: string
+        }
+        Returns: undefined
+      }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
+      process_vendor_payout_queue: { Args: never; Returns: undefined }
       remind_unconfirmed_orders: { Args: never; Returns: undefined }
       return_request_contains_vendor_item: {
         Args: { _return_request_id: string; _user_id: string }
@@ -2223,6 +2255,7 @@ export type Database = {
         Args: { _request_id: string }
         Returns: string
       }
+      vendor_bank_last4: { Args: { _vendor_id: string }; Returns: string }
       vendor_order_payout_date: {
         Args: { _delivered_at: string; _vendor_order_id: string }
         Returns: string

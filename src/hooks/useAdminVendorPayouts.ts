@@ -16,6 +16,9 @@ export interface AdminVendorPayout {
   paidAt: string | null;
   paymentReference: string | null;
   createdAt: string;
+  orderCount: number;
+  bankLast4: string | null;
+  failureReason: string | null;
 }
 
 const unwrapOne = <T,>(value: T | T[] | null | undefined): T | null =>
@@ -61,6 +64,9 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
           paidAt: p.paid_at,
           paymentReference: p.payment_reference,
           createdAt: p.created_at,
+          orderCount: p.order_count,
+          bankLast4: p.bank_account_last4,
+          failureReason: p.failure_reason,
         })),
       );
     } catch (error) {
@@ -85,14 +91,14 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
     }
 
     const createdCount = data?.created.length ?? 0;
-    const held = (data?.skipped ?? []).filter((s) => s.reason.includes("on hold"));
+    const held = (data?.skipped ?? []).filter((s) => s.reason.includes("on hold") || s.reason.includes("kept in queue"));
     if (createdCount === 0) {
       toast.info("Nothing new to pay out for this period.");
     } else {
       toast.success(`Generated ${createdCount} vendor payout${createdCount > 1 ? "s" : ""}.`);
     }
     if (held.length > 0) {
-      toast.info("Not yet payable (return window or open return):", {
+      toast.info("Not included in this run:", {
         description: held.map((s) => `${s.vendor_name}: ${s.reason}`).join(" • "),
         duration: 10000,
       });
@@ -100,20 +106,38 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
     await fetchPayouts();
   };
 
+  // The DB requires the UTR (proof of transfer) and notifies the boutique.
   const markPaid = async (payoutId: string, paymentReference: string) => {
     const { error } = await supabase
       .from("vendor_payouts")
-      .update({ status: "paid", paid_at: new Date().toISOString(), payment_reference: paymentReference || null })
+      .update({ status: "paid", paid_at: new Date().toISOString(), payment_reference: paymentReference.trim() })
       .eq("id", payoutId);
 
     if (error) {
-      toast.error("Failed to mark payout as paid");
+      toast.error(error.message || "Failed to mark payout as credited");
       return false;
     }
-    toast.success("Payout marked as paid");
+    toast.success("Payout marked credited - the boutique has been emailed");
     await fetchPayouts();
     return true;
   };
 
-  return { payouts, loading, generating, generatePayouts, markPaid, refetch: fetchPayouts };
+  // Bank declined: the DB puts the orders back in the boutique's queue,
+  // flags its bank details for update and notifies it.
+  const markFailed = async (payoutId: string, reason: string) => {
+    const { error } = await supabase
+      .from("vendor_payouts")
+      .update({ status: "failed", failure_reason: reason.trim() })
+      .eq("id", payoutId);
+
+    if (error) {
+      toast.error(error.message || "Failed to mark payout as declined");
+      return false;
+    }
+    toast.success("Payout marked declined - orders are back in the boutique's queue");
+    await fetchPayouts();
+    return true;
+  };
+
+  return { payouts, loading, generating, generatePayouts, markPaid, markFailed, refetch: fetchPayouts };
 }
