@@ -411,11 +411,37 @@ export async function cancelShiprocketShipment(
     return { attempted: false, alreadyPickedUp: false, shipmentCancelled: false };
   }
 
+  const realCancellation = !options.deleteOnCancel;
+
+  // Booking already dead (courier auto-cancelled it) - Shiprocket leaves
+  // that order sitting open as NEW, so a real cancellation closes it too.
+  if (shipment.status === "cancelled") {
+    if (realCancellation && shipment.shiprocket_order_id) {
+      await shiprocketRequest(supabase, "/orders/cancel", {
+        method: "POST",
+        body: { ids: [shipment.shiprocket_order_id] },
+      });
+    } else if (options.deleteOnCancel) {
+      await supabase.from("shipments").delete().eq("id", shipment.id);
+    }
+    return { attempted: true, alreadyPickedUp: false, shipmentCancelled: true };
+  }
+
   if (!NOT_YET_PICKED_UP_STATUSES.includes(shipment.status)) {
     return { attempted: true, alreadyPickedUp: true, shipmentCancelled: false };
   }
 
-  if (shipment.awb_code) {
+  // A real cancellation cancels the whole Shiprocket order (which also
+  // cancels its AWB and refunds the freight to the wallet). Cancelling only
+  // the AWB is for re-booking: it leaves the order open as NEW in the
+  // Shiprocket panel - and was refused outright for a "pickup exception"
+  // shipment, which is how a customer-cancelled order stayed live.
+  if (realCancellation && shipment.shiprocket_order_id) {
+    await shiprocketRequest(supabase, "/orders/cancel", {
+      method: "POST",
+      body: { ids: [shipment.shiprocket_order_id] },
+    });
+  } else if (shipment.awb_code) {
     await shiprocketRequest(supabase, "/orders/cancel/shipment/awbs", {
       method: "POST",
       body: { awbs: [shipment.awb_code] },

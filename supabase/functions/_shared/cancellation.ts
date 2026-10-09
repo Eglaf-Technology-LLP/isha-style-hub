@@ -2,6 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { errorMessage } from "./auth.ts";
 import { cancelShiprocketShipment } from "./shiprocket.ts";
 import { executeRefund, RefundValidationError } from "./refunds.ts";
+import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 
 // A vendor_order past this point already finished its own lifecycle -
 // nothing left for a cancellation to do or undo.
@@ -63,7 +64,25 @@ export async function cancelOneVendorOrder(
     const shipResult = await cancelShiprocketShipment(supabase, vendorOrder.id);
     wasAlreadyShipped = shipResult.alreadyPickedUp;
   } catch (e) {
-    console.error("cancelOneVendorOrder: Shiprocket cancel failed, proceeding anyway", errorMessage(e));
+    // The customer's cancellation still goes through, but a live courier
+    // booking must not be left behind silently - tell the people who can
+    // cancel it in Shiprocket by hand, and record why on the shipment.
+    const msg = errorMessage(e);
+    console.error("cancelOneVendorOrder: Shiprocket cancel failed, proceeding anyway", msg);
+    const { data: vo } = await supabase.from("vendor_orders").select("vendor_id, order_id").eq("id", vendorOrder.id).maybeSingle();
+    await supabase
+      .from("shipments")
+      .update({ status_raw: `Order cancelled but Shiprocket cancellation failed: ${msg}` })
+      .eq("vendor_order_id", vendorOrder.id)
+      .eq("shipment_type", "forward");
+    const ref = `#${String(vo?.order_id ?? order.id).slice(0, 8)}`;
+    const n = {
+      type: "shipment_cancel_failed",
+      title: "Cancel this shipment in Shiprocket",
+      body: `Order ${ref} was cancelled, but Shiprocket refused to cancel its courier booking (${msg}). Please cancel it in the Shiprocket panel so the courier doesn't pick it up.`,
+    };
+    if (vo?.vendor_id) await notifyVendorMembers(supabase, vo.vendor_id, { ...n, link: links.vendorOrder(vendorOrder.id) });
+    await notifyAllAdmins(supabase, { ...n, link: links.adminOrder(vendorOrder.id) });
   }
 
   const { error: updateVoErr } = await supabase

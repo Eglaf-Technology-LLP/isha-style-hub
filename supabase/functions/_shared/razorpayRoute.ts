@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
+import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 
 // Automatic boutique payouts through Razorpay Route. See migration
 // 20261007100000_razorpay_route_payouts.sql for the overall flow.
@@ -57,26 +58,18 @@ export async function notifyVendor(
   title: string,
   body: string,
   email?: Record<string, unknown>,
+  link?: string,
 ) {
-  const { data: members } = await supabase.from("vendor_members").select("user_id").eq("vendor_id", vendorId);
-  if (members?.length) {
-    await supabase.from("notifications").insert(
-      members.map((m) => ({ user_id: m.user_id, category: "order", type, title, body, link_url: "/vendor?tab=payouts" })),
-    );
-  }
+  const focus = Array.isArray(email?.vendor_order_ids) ? (email!.vendor_order_ids as string[])[0] : undefined;
+  await notifyVendorMembers(supabase, vendorId, { type, title, body, link: link ?? links.vendorPayout(focus) });
   if (email) {
     const { error } = await supabase.functions.invoke("send-vendor-payout-email", { body: { vendor_id: vendorId, ...email } });
     if (error) console.error("payout email failed", type, error);
   }
 }
 
-export async function notifyAdmins(supabase: SupabaseClient, type: string, title: string, body: string) {
-  const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
-  if (admins?.length) {
-    await supabase.from("notifications").insert(
-      admins.map((a) => ({ user_id: a.user_id, category: "other", type, title, body, link_url: "/admin" })),
-    );
-  }
+export async function notifyAdmins(supabase: SupabaseClient, type: string, title: string, body: string, link?: string) {
+  await notifyAllAdmins(supabase, { type, title, body, link: link ?? links.adminPayouts() });
 }
 
 // ---------- onboarding ----------
