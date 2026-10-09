@@ -61,3 +61,8 @@ verify_jwt = true
 
 [functions.razorpay-route-release]
 verify_jwt = true
+
+# Email-code sign-in: the caller isn't signed in yet, so there's no user JWT.
+# Abuse limits (per email / per IP, attempts per code) are in the function.
+[functions.auth-email-otp]
+verify_jwt = false

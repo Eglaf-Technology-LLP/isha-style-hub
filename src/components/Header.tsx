@@ -250,7 +250,7 @@ export function Header() {
                   </>
                 ) : (
                   <DropdownMenuItem asChild>
-                    <Link to="/admin">Sign In</Link>
+                    <Link to="/account">Sign In / Sign Up</Link>
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>

@@ -24,6 +24,8 @@ export function ProfileSection() {
     phone: "",
     avatar_url: null,
   });
+  // Sign-up only asks for an email, so a new account's name is taken here.
+  const [nameMissing, setNameMissing] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -43,6 +45,7 @@ export function ProfileSection() {
 
       if (error && error.code !== "PGRST116") throw error;
 
+      setNameMissing(!data?.full_name?.trim());
       if (data) {
         setProfile({
           full_name: data.full_name || "",
@@ -74,6 +77,7 @@ export function ProfileSection() {
 
       if (error) throw error;
 
+      setNameMissing(!profile.full_name?.trim());
       toast.success("Profile updated successfully!");
     } catch (error: any) {
       console.error("Error updating profile:", error);
@@ -161,6 +165,13 @@ export function ProfileSection() {
           </div>
         </div>
 
+        {nameMissing && (
+          <p className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+            Add your full name to finish setting up your account. Boutiques and couriers use it for your orders, and it
+            appears on your invoices.
+          </p>
+        )}
+
         {/* Form */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -170,6 +181,7 @@ export function ProfileSection() {
               value={profile.full_name || ""}
               onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
               placeholder="Enter your full name"
+              autoFocus={nameMissing}
             />
           </div>
 

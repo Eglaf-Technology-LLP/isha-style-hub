@@ -1,7 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { NewOrdersBanner } from "@/components/NewOrdersBanner";
@@ -64,13 +62,14 @@ import { RazorpayPayoutsPanel } from "@/components/admin/RazorpayPayoutsPanel";
 import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
 import { useUrlTab } from "@/hooks/useDeepLink";
 import { NotificationBell } from "@/components/NotificationBell";
+import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 
 export default function Admin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useUrlTab("dashboard");
   const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
-  const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const { vendor } = useVendor();
   const redirectParam = searchParams.get("redirect");
@@ -98,34 +97,7 @@ export default function Admin() {
   const pendingReturnsCount = returnRequests.filter((r) => r.status === "pending").length;
   const pendingModerationCount = products.filter((p) => p.approval_status === "pending_review").length;
   
-  const [loginForm, setLoginForm] = useState({ email: '', password: '', fullName: '' });
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-
   const paymentStats = getPaymentStats();
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (isSignUp) {
-        const { error } = await signUp(loginForm.email, loginForm.password, loginForm.fullName);
-        if (error) throw error;
-        toast.success('Account created! You can now sign in.');
-        setIsSignUp(false);
-      } else {
-        const { error } = await signIn(loginForm.email, loginForm.password);
-        if (error) throw error;
-        toast.success('Welcome back!');
-      }
-    } catch (error: any) {
-      toast.error(error.message || 'Authentication failed');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -150,62 +122,14 @@ export default function Admin() {
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-serif">
-              {isSignUp ? 'Create Account' : redirectParam ? 'Sign In' : 'Admin Login'}
+              {redirectParam ? 'Sign In' : 'Admin Login'}
             </CardTitle>
             <CardDescription>
               {redirectParam ? 'AllBoutiqs' : 'AllBoutiqs Dashboard'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleAuth} className="space-y-4">
-              {isSignUp && (
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input
-                    id="fullName"
-                    placeholder="Your name"
-                    value={loginForm.fullName}
-                    onChange={(e) => setLoginForm({ ...loginForm, fullName: e.target.value })}
-                  />
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={loginForm.email}
-                  onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {isSignUp ? 'Create Account' : 'Sign In'}
-              </Button>
-              <div className="text-center">
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={() => setIsSignUp(!isSignUp)}
-                >
-                  {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-                </Button>
-              </div>
-            </form>
+            <InlineSignInForm />
           </CardContent>
         </Card>
       </div>

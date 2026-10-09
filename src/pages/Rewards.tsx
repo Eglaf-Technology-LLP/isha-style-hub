@@ -58,7 +58,9 @@ export default function Rewards() {
             <p className="text-muted-foreground mb-4">
               Track your loyalty points, referrals, and exclusive perks
             </p>
-            <Button>Sign In</Button>
+            <Button asChild>
+              <Link to="/account">Sign In</Link>
+            </Button>
           </div>
         )}
       </main>

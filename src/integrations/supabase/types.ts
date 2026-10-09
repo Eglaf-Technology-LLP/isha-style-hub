@@ -39,6 +39,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      auth_email_otps: {
+        Row: {
+          attempts: number
+          code_hash: string
+          consumed_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          ip: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          ip?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          ip?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -2250,11 +2283,16 @@ export type Database = {
         Returns: Json
       }
       admin_user_ids: { Args: never; Returns: string[] }
+      auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
         Args: { _object_name: string; _user_id: string }
         Returns: boolean
       }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
+      claim_email_otp_attempt: {
+        Args: { _id: string; _max_attempts: number }
+        Returns: number
+      }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
