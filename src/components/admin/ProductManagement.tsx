@@ -72,6 +72,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     updateProduct,
     deleteProduct,
     toggleProductStatus,
+    toggleProductCod,
     removeProductImage,
     refetch,
   } = useProducts();
@@ -100,6 +101,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     country_of_origin: "India",
     net_quantity: "1 N",
     is_returnable: true,
+    cod_available: true,
     ai_content_status: null,
     ai_original_photo_paths: [],
     video_url: null,
@@ -129,6 +131,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       country_of_origin: "India",
       net_quantity: "1 N",
       is_returnable: true,
+      cod_available: true,
       ai_content_status: null,
       ai_original_photo_paths: [],
       video_url: null,
@@ -233,6 +236,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       country_of_origin: product.country_of_origin || "India",
       net_quantity: product.net_quantity || "1 N",
       is_returnable: product.is_returnable ?? true,
+      cod_available: product.cod_available ?? true,
       ai_content_status: (product.ai_content_status as AiContentStatus | null) ?? null,
       ai_original_photo_paths: product.ai_original_photo_paths ?? [],
       video_url: product.video_url ?? null,
@@ -504,6 +508,21 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           onCheckedChange={(checked) =>
             setProductForm((prev) => ({ ...prev, is_returnable: checked }))
           }
+        />
+      </div>
+
+      <div className="flex items-center justify-between border border-border rounded-lg p-3">
+        <div>
+          <Label htmlFor={isEdit ? "edit-cod" : "add-cod"}>Cash on Delivery</Label>
+          <p className="text-xs text-muted-foreground">
+            Off means any order including this product must be paid online. The boutique sets this when listing;
+            changing it here overrides their choice.
+          </p>
+        </div>
+        <Switch
+          id={isEdit ? "edit-cod" : "add-cod"}
+          checked={productForm.cod_available ?? true}
+          onCheckedChange={(checked) => setProductForm((prev) => ({ ...prev, cod_available: checked }))}
         />
       </div>
 
@@ -791,6 +810,17 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2 cursor-pointer"
+                    title="Allow Cash on Delivery for this product"
+                  >
+                    COD
+                    <Switch
+                      checked={product.cod_available ?? true}
+                      onCheckedChange={(checked) => toggleProductCod(product.id, checked)}
+                      aria-label={`Cash on Delivery for ${product.name}`}
+                    />
+                  </label>
                   <Badge variant={product.is_active ? "default" : "secondary"}>
                     {product.is_active ? "Active" : "Inactive"}
                   </Badge>

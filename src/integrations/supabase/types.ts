@@ -1054,6 +1054,7 @@ export type Database = {
           approval_status: string
           breadth_cm: number | null
           category_id: string | null
+          cod_available: boolean
           compare_at_price: number | null
           country_of_origin: string
           created_at: string
@@ -1087,6 +1088,7 @@ export type Database = {
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null
+          cod_available?: boolean
           compare_at_price?: number | null
           country_of_origin?: string
           created_at?: string
@@ -1120,6 +1122,7 @@ export type Database = {
           approval_status?: string
           breadth_cm?: number | null
           category_id?: string | null
+          cod_available?: boolean
           compare_at_price?: number | null
           country_of_origin?: string
           created_at?: string

@@ -17,6 +17,14 @@ interface RazorpayCheckoutOptions {
     razorpay_signature: string;
   }) => void;
   modal?: { ondismiss?: () => void };
+  // Checkout display config - used to open straight to EMI plans.
+  config?: {
+    display: {
+      blocks?: Record<string, { name: string; instruments: { method: string }[] }>;
+      sequence?: string[];
+      preferences?: { show_default_blocks?: boolean };
+    };
+  };
 }
 
 interface RazorpayInstance {

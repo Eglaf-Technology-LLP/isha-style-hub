@@ -95,6 +95,7 @@ interface VendorProduct {
   country_of_origin: string;
   net_quantity: string;
   is_returnable: boolean;
+  cod_available: boolean;
   ai_content_status: AiContentStatus | null;
   ai_original_photo_paths: string[];
   video_url: string | null;
@@ -299,7 +300,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -801,7 +802,14 @@ export default function VendorDashboard() {
                             <TableCell className="text-sm text-muted-foreground">
                               {(productPage - 1) * productPageSize + idx + 1}
                             </TableCell>
-                            <TableCell className="font-medium">{p.name}</TableCell>
+                            <TableCell className="font-medium">
+                              {p.name}
+                              {!p.cod_available && (
+                                <Badge variant="outline" className="ml-2 text-[10px] font-normal" title="Cash on Delivery is off for this product">
+                                  No COD
+                                </Badge>
+                              )}
+                            </TableCell>
                             <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

@@ -66,3 +66,6 @@ verify_jwt = true
 # Abuse limits (per email / per IP, attempts per code) are in the function.
 [functions.auth-email-otp]
 verify_jwt = false
+
+[functions.razorpay-payment-methods]
+verify_jwt = true

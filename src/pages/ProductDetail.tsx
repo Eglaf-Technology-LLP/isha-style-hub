@@ -14,6 +14,7 @@ import {
   Zap,
   Truck,
   RotateCcw,
+  Banknote,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
@@ -47,6 +48,7 @@ export default function ProductDetail() {
     is_verified: boolean;
     return_window_days: number;
     returns_enabled: boolean;
+    cod_enabled: boolean;
     address: Record<string, string> | null;
     contact_email: string | null;
     contact_phone: string | null;
@@ -108,7 +110,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
+              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -176,6 +178,8 @@ export default function ProductDetail() {
   // Same rule OrderHistory applies after purchase: the product's own flag
   // AND the vendor's store-wide returns switch must both allow it.
   const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
+  // Same rule checkout applies: the product and its boutique must both allow COD.
+  const codAvailable = (product?.cod_available ?? true) && vendorInfo?.cod_enabled !== false;
   // A variant with its own photo (e.g. a color swatch) replaces the shared
   // gallery entirely while selected; falls back to the product's own
   // images otherwise.
@@ -534,6 +538,19 @@ export default function ProductDetail() {
                       </p>
                     </>
                   )}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Banknote className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">{codAvailable ? "Cash on Delivery available" : "Prepaid only"}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {codAvailable
+                      ? "Pay in cash when it arrives, or pay online"
+                      : "Cash on Delivery isn't available for this product - pay online at checkout"}
+                  </p>
                 </div>
               </div>
               {product.vendor_id && (

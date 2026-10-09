@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   LogIn,
   MapPin,
+  CalendarClock,
 } from "lucide-react";
 import { useCartStore, CartItem } from "@/stores/cartStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
@@ -119,7 +120,17 @@ export default function Checkout() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("new");
   const [addressPrefilled, setAddressPrefilled] = useState(false);
 
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "razorpay">("cod");
+  // "emi" is a Razorpay payment that opens straight to EMI plans; orders
+  // and payments still record it as "razorpay".
+  const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("cod");
+  const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";
+  const [codOffProducts, setCodOffProducts] = useState<string[]>([]);
+  const [emiMethods, setEmiMethods] = useState<{
+    card: boolean;
+    cardless: boolean;
+    paylater: boolean;
+    min_amount: number | null;
+  } | null>(null);
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
@@ -212,6 +223,34 @@ export default function Checkout() {
   // vendor (legacy/platform-owned products) fall back to a flat default.
   const [vendorInfo, setVendorInfo] = useState<Record<string, VendorShippingInfo>>({});
 
+  // Products whose listing has Cash on Delivery switched off.
+  useEffect(() => {
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    if (productIds.length === 0) {
+      setCodOffProducts([]);
+      return;
+    }
+    supabase
+      .from("products")
+      .select("id, name, cod_available")
+      .in("id", productIds)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error fetching Cash on Delivery availability:", error);
+          return;
+        }
+        setCodOffProducts((data || []).filter((p) => p.cod_available === false).map((p) => p.name));
+      });
+  }, [items]);
+
+  // EMI is offered only once it's switched on for our Razorpay account.
+  useEffect(() => {
+    if (!user) return;
+    supabase.functions.invoke("razorpay-payment-methods").then(({ data }) => {
+      if (data?.emi) setEmiMethods(data.emi);
+    });
+  }, [user]);
+
   useEffect(() => {
     const vendorIds = Array.from(
       new Set(items.map((i) => i.vendorId).filter((v): v is string => !!v))
@@ -294,27 +333,53 @@ export default function Checkout() {
   const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
 
   // COD is a single payment method for the whole cart, not per-item - if
-  // any vendor in the cart has turned it off, it can't be offered for this
-  // checkout at all. Missing vendor info (not loaded yet) defaults to
-  // available rather than flashing the option away and back.
-  const codDisabledByVendor = vendorGroups.some(
-    (g) => g.vendorId && vendorInfo[g.vendorId]?.cod_enabled === false
-  );
+  // any boutique in the cart has turned it off, or any product's listing
+  // doesn't allow it, it can't be offered for this checkout at all. Missing
+  // info (not loaded yet) defaults to available rather than flashing the
+  // option away and back. The database enforces the same rule on order lines.
+  const codOffVendors = vendorGroups
+    .filter((g) => g.vendorId && vendorInfo[g.vendorId]?.cod_enabled === false)
+    .map((g) => g.vendorName ?? "A boutique");
+  const codDisabledByVendor = codOffVendors.length > 0 || codOffProducts.length > 0;
+  const codUnavailableReason = codDisabledByVendor
+    ? [
+        codOffProducts.length > 0 &&
+          `Cash on Delivery isn't available for ${codOffProducts.map((n) => `"${n}"`).join(", ")}`,
+        codOffVendors.length > 0 && `${codOffVendors.join(", ")} ${codOffVendors.length > 1 ? "don't" : "doesn't"} offer Cash on Delivery`,
+      ]
+        .filter(Boolean)
+        .join(". ") + "."
+    : null;
+
+  // Card EMI has a minimum order value per bank plan; cardless EMI and Pay
+  // Later are checked by Razorpay itself on the next step.
+  const emiAvailable =
+    !!emiMethods &&
+    !belowOnlineMinimum &&
+    (emiMethods.cardless ||
+      emiMethods.paylater ||
+      (emiMethods.card && (emiMethods.min_amount == null || total >= emiMethods.min_amount)));
 
   // A discount applied after "Pay Online" was already selected can drop the
   // total below Razorpay's minimum - switch back to COD automatically
   // rather than letting the customer hit the payment failure at submit time.
   useEffect(() => {
     if (belowOnlineMinimum && paymentMethod === "razorpay" && !codDisabledByVendor) {
-      setPaymentMethod("cod");
+      setPaymentChoice("cod");
     }
   }, [belowOnlineMinimum, paymentMethod, codDisabledByVendor]);
+
+  // EMI no longer offered (e.g. a discount took the total below the EMI
+  // minimum) - fall back to the regular online payment.
+  useEffect(() => {
+    if (paymentChoice === "emi" && !emiAvailable) setPaymentChoice("razorpay");
+  }, [paymentChoice, emiAvailable]);
 
   // The inverse case - a vendor with COD off is in the cart, but COD is
   // still selected (the default). Move to online payment automatically.
   useEffect(() => {
     if (codDisabledByVendor && paymentMethod === "cod") {
-      setPaymentMethod("razorpay");
+      setPaymentChoice("razorpay");
     }
   }, [codDisabledByVendor, paymentMethod]);
 
@@ -609,7 +674,10 @@ export default function Checkout() {
         .from("order_items")
         .insert(orderItems);
 
-      if (itemsError) throw itemsError;
+      if (itemsError) {
+        await supabase.rpc("cancel_pending_order", { _order_id: newOrderId });
+        throw itemsError;
+      }
 
       // Decrement real inventory per line item. Unlike increment_discount_usage
       // below, a failure here must stop the order rather than being logged and
@@ -701,6 +769,26 @@ export default function Checkout() {
           contact: customerInfo.phone,
         },
         theme: { color: "#ec1f63" },
+        ...(paymentChoice === "emi" && emiMethods
+          ? {
+              config: {
+                display: {
+                  blocks: {
+                    emi: {
+                      name: "Pay in EMI",
+                      instruments: [
+                        ...(emiMethods.card ? [{ method: "emi" }] : []),
+                        ...(emiMethods.cardless ? [{ method: "cardless_emi" }] : []),
+                        ...(emiMethods.paylater ? [{ method: "paylater" }] : []),
+                      ],
+                    },
+                  },
+                  sequence: ["block.emi"],
+                  preferences: { show_default_blocks: false },
+                },
+              },
+            }
+          : {}),
         handler: async (response) => {
           const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
             "verify-razorpay-payment",
@@ -1044,8 +1132,8 @@ export default function Checkout() {
               </CardHeader>
               <CardContent>
                 <RadioGroup
-                  value={paymentMethod}
-                  onValueChange={(value) => setPaymentMethod(value as "cod" | "razorpay")}
+                  value={paymentChoice}
+                  onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
                   className="space-y-3"
                 >
                   {!codDisabledByVendor && (
@@ -1065,10 +1153,12 @@ export default function Checkout() {
                       </Label>
                     </div>
                   )}
-                  {codDisabledByVendor && belowOnlineMinimum && (
-                    <p className="text-sm text-destructive">
-                      One of the boutiques in your cart doesn't offer Cash on Delivery, and this order is below the
-                      ₹{MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.
+                  {codUnavailableReason && (
+                    <p className={`text-sm ${belowOnlineMinimum ? "text-destructive" : "text-muted-foreground"}`}>
+                      {codUnavailableReason}{" "}
+                      {belowOnlineMinimum
+                        ? `This order is also below the ₹${MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.`
+                        : "Please pay online."}
                     </p>
                   )}
                   <div
@@ -1092,6 +1182,27 @@ export default function Checkout() {
                       </div>
                     </Label>
                   </div>
+                  {emiAvailable && (
+                    <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
+                      <RadioGroupItem value="emi" id="emi" />
+                      <Label htmlFor="emi" className="flex items-center gap-3 cursor-pointer flex-1">
+                        <CalendarClock className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-medium">Pay in EMI</p>
+                          <p className="text-sm text-muted-foreground">
+                            {[
+                              emiMethods?.card && "Credit/debit card EMI",
+                              emiMethods?.cardless && "cardless EMI",
+                              emiMethods?.paylater && "Pay Later",
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}{" "}
+                            - choose your plan and tenure on the next step
+                          </p>
+                        </div>
+                      </Label>
+                    </div>
+                  )}
                 </RadioGroup>
               </CardContent>
             </Card>

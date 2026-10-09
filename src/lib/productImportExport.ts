@@ -29,6 +29,7 @@ export interface ImportExportProduct {
   country_of_origin: string;
   net_quantity: string;
   is_returnable: boolean;
+  cod_available?: boolean;
 }
 
 // One row per variant/SKU (the Shopify/WooCommerce convention) - rows
@@ -46,6 +47,7 @@ export const PRODUCT_COLUMNS = {
   countryOfOrigin: "Country of Origin",
   netQuantity: "Net Quantity",
   returnable: "Returnable (TRUE/FALSE)",
+  codAvailable: "Cash on Delivery (TRUE/FALSE)",
   weightG: "Weight (g)",
   lengthCm: "Length (cm)",
   breadthCm: "Breadth (cm)",
@@ -216,6 +218,11 @@ export function parseImportRows(
       country_of_origin: first[PRODUCT_COLUMNS.countryOfOrigin]?.trim() || "India",
       net_quantity: first[PRODUCT_COLUMNS.netQuantity]?.trim() || "1 N",
       is_returnable: parseBoolean(first[PRODUCT_COLUMNS.returnable], true),
+      // Only when the file has the column - an older export without it must
+      // not switch COD back on for a product an admin turned it off for.
+      ...(first[PRODUCT_COLUMNS.codAvailable]?.trim()
+        ? { cod_available: parseBoolean(first[PRODUCT_COLUMNS.codAvailable], true) }
+        : {}),
       vendor_id: vendorId,
       ...(ctx.forcedVendorId !== undefined
         ? { approval_status: ctx.forcedVendorTrusted ? "approved" : "pending_review" }
@@ -268,6 +275,7 @@ export function productsToRows(
       [PRODUCT_COLUMNS.countryOfOrigin]: product.country_of_origin,
       [PRODUCT_COLUMNS.netQuantity]: product.net_quantity,
       [PRODUCT_COLUMNS.returnable]: product.is_returnable ? "TRUE" : "FALSE",
+      [PRODUCT_COLUMNS.codAvailable]: product.cod_available === false ? "FALSE" : "TRUE",
       [PRODUCT_COLUMNS.weightG]: product.weight_grams != null ? String(product.weight_grams) : "",
       [PRODUCT_COLUMNS.lengthCm]: product.length_cm != null ? String(product.length_cm) : "",
       [PRODUCT_COLUMNS.breadthCm]: product.breadth_cm != null ? String(product.breadth_cm) : "",
@@ -311,6 +319,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
     [PRODUCT_COLUMNS.countryOfOrigin]: "India",
     [PRODUCT_COLUMNS.netQuantity]: "1 N",
     [PRODUCT_COLUMNS.returnable]: "TRUE",
+    [PRODUCT_COLUMNS.codAvailable]: "TRUE",
     [PRODUCT_COLUMNS.weightG]: "300",
     [PRODUCT_COLUMNS.lengthCm]: "25",
     [PRODUCT_COLUMNS.breadthCm]: "20",
@@ -351,6 +360,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.countryOfOrigin]: "India",
       [PRODUCT_COLUMNS.netQuantity]: "1 N",
       [PRODUCT_COLUMNS.returnable]: "FALSE",
+      [PRODUCT_COLUMNS.codAvailable]: "FALSE",
       [PRODUCT_COLUMNS.weightG]: "150",
       [PRODUCT_COLUMNS.lengthCm]: "20",
       [PRODUCT_COLUMNS.breadthCm]: "15",

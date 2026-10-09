@@ -58,6 +58,7 @@ export interface VendorProductRow {
   country_of_origin?: string;
   net_quantity?: string;
   is_returnable?: boolean;
+  cod_available?: boolean;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
   video_url?: string | null;
@@ -90,6 +91,7 @@ const empty = {
   country_of_origin: "India",
   net_quantity: "1 N",
   is_returnable: true,
+  cod_available: true,
 };
 
 export function VendorProductDialog({
@@ -131,6 +133,7 @@ export function VendorProductDialog({
         country_of_origin: product.country_of_origin || "India",
         net_quantity: product.net_quantity || "1 N",
         is_returnable: product.is_returnable ?? true,
+        cod_available: product.cod_available ?? true,
       });
       setImages(product.images || []);
       setVariants(product.variants || []);
@@ -181,6 +184,7 @@ export function VendorProductDialog({
         country_of_origin: form.country_of_origin.trim() || "India",
         net_quantity: form.net_quantity.trim() || "1 N",
         is_returnable: form.is_returnable,
+        cod_available: form.cod_available,
         ai_content_status: aiContentStatus,
         // Cleared on "No AI" - originals only belong with an AI declaration.
         ai_original_photo_paths: needsOriginals ? originalPhotos : [],
@@ -432,6 +436,19 @@ export function VendorProductDialog({
               checked={form.is_returnable}
               onCheckedChange={(v) => set("is_returnable", v)}
             />
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <Label htmlFor="vp-cod" className="text-sm font-medium">
+                Cash on Delivery
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Off for high-value or custom-made pieces - customers then pay online for any order that includes
+                this product. AllBoutiqs may also change this.
+              </p>
+            </div>
+            <Switch id="vp-cod" checked={form.cod_available} onCheckedChange={(v) => set("cod_available", v)} />
           </div>
         </div>
 

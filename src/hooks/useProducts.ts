@@ -69,6 +69,9 @@ export interface Product {
   // Snapshotted onto order_items at checkout so a later policy change here
   // never retroactively affects an order already placed.
   is_returnable: boolean;
+  // Cash on Delivery allowed for this product (set by the boutique,
+  // changeable by admins). Checkout offers COD only if every item allows it.
+  cod_available: boolean;
   ai_content_status: string | null;
   ai_original_photo_paths: string[];
   video_url: string | null;
@@ -127,6 +130,7 @@ export interface ProductFormData {
   country_of_origin?: string;
   net_quantity?: string;
   is_returnable?: boolean;
+  cod_available?: boolean;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
   video_url?: string | null;
@@ -219,6 +223,7 @@ export async function insertProductRecord(
       height_cm: productData.height_cm || null,
       specifications: (productData.specifications ?? []) as unknown as Json,
       is_returnable: productData.is_returnable ?? true,
+      cod_available: productData.cod_available ?? true,
       ai_content_status: productData.ai_content_status ?? null,
       ai_original_photo_paths: productData.ai_original_photo_paths ?? [],
       video_url: productData.video_url ?? null,
@@ -305,6 +310,7 @@ export async function applyProductUpdate(
   if (productData.country_of_origin !== undefined) updateData.country_of_origin = productData.country_of_origin;
   if (productData.net_quantity !== undefined) updateData.net_quantity = productData.net_quantity;
   if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
+  if (productData.cod_available !== undefined) updateData.cod_available = productData.cod_available;
   if (productData.ai_content_status !== undefined) updateData.ai_content_status = productData.ai_content_status;
   if (productData.ai_original_photo_paths !== undefined) updateData.ai_original_photo_paths = productData.ai_original_photo_paths;
   if (productData.video_url !== undefined) updateData.video_url = productData.video_url;
@@ -522,6 +528,18 @@ export function useProducts() {
     }
   };
 
+  const toggleProductCod = async (id: string, codAvailable: boolean): Promise<boolean> => {
+    const { error } = await supabase.from("products").update({ cod_available: codAvailable }).eq("id", id);
+    if (error) {
+      console.error("Error updating Cash on Delivery:", error);
+      toast.error(error.message || "Failed to update Cash on Delivery");
+      return false;
+    }
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, cod_available: codAvailable } : p)));
+    toast.success(`Cash on Delivery ${codAvailable ? "allowed" : "turned off"} for this product`);
+    return true;
+  };
+
   const toggleProductStatus = async (id: string, isActive: boolean): Promise<boolean> => {
     try {
       const { error } = await supabase
@@ -576,6 +594,7 @@ export function useProducts() {
     updateProduct,
     deleteProduct,
     toggleProductStatus,
+    toggleProductCod,
     removeProductImage,
     refetch: fetchProducts,
   };
