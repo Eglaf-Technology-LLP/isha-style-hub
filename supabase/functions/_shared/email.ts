@@ -43,12 +43,18 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   return { success: true };
 }
 
+// The official white AllBoutiqs logo (src/assets/logo-white.png, only
+// scaled down - see supabase/email-assets/), hosted in the public
+// email-assets bucket so it doesn't depend on a site deploy.
+const LOGO_URL =
+  "https://bldkjzitutojvnbbljrf.supabase.co/storage/v1/object/public/email-assets/allboutiqs-logo-white.png";
+
 // Shared visual wrapper so every email in the app looks like it came from
-// the same place - the site's own maroon accent (hsl(11 54% 32%), the
-// --primary token in src/index.css), a serif heading echoing the
-// Playfair Display wordmark, safe email-client font fallbacks throughout
-// (no web fonts - most mail clients strip them). `preheader` is the
-// hidden inbox-preview snippet; `ctaLabel`/`ctaUrl` render an optional
+// the same place - the AllBoutiqs logo on the site's own maroon accent
+// (hsl(11 54% 32%), the --primary token in src/index.css), a serif heading
+// echoing the Playfair Display wordmark, safe email-client font fallbacks
+// throughout (no web fonts - most mail clients strip them). `preheader` is
+// the hidden inbox-preview snippet; `ctaLabel`/`ctaUrl` render an optional
 // button.
 export function emailTemplate({
   preheader,
@@ -77,8 +83,10 @@ ${preheader ? `<div style="display:none; max-height:0; overflow:hidden; opacity:
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
 <tr>
-<td style="background-color:#7a2e22; padding:28px 32px; text-align:center;">
-<span style="font-family:Georgia,'Times New Roman',serif; font-size:24px; font-weight:700; color:#ffffff; letter-spacing:0.02em;">AllBoutiqs</span>
+<td style="background-color:#7a2e22; padding:14px 32px; text-align:center;">
+<a href="${siteUrl}" style="text-decoration:none; display:inline-block;">
+<img src="${LOGO_URL}" width="220" height="124" alt="AllBoutiqs" style="display:block; margin:0 auto; width:220px; max-width:100%; height:auto; border:0; outline:none; text-decoration:none; color:#ffffff; font-family:Georgia,'Times New Roman',serif; font-size:26px; font-weight:700; letter-spacing:0.02em;" />
+</a>
 </td>
 </tr>
 <tr>

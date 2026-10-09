@@ -63,6 +63,7 @@ import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
 import { useUrlTab } from "@/hooks/useDeepLink";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
+import logo from "@/assets/logo.png";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -177,8 +178,8 @@ export default function Admin() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link to="/" className="text-xl font-serif font-bold text-primary">
-                AllBoutiqs
+              <Link to="/" aria-label="AllBoutiqs home">
+                <img src={logo} alt="AllBoutiqs" className="h-12 lg:h-14 w-auto object-contain" />
               </Link>
               <Badge variant="secondary">Admin</Badge>
             </div>
