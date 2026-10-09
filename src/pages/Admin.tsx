@@ -62,10 +62,14 @@ import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagemen
 import { ReviewModeration } from "@/components/admin/ReviewModeration";
 import { RazorpayPayoutsPanel } from "@/components/admin/RazorpayPayoutsPanel";
 import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
+import { useUrlTab } from "@/hooks/useDeepLink";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export default function Admin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [tab, setTab] = useUrlTab("dashboard");
+  const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
   const { user, signIn, signUp, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const { vendor } = useVendor();
@@ -258,6 +262,7 @@ export default function Admin() {
               <span className="text-sm text-muted-foreground hidden md:inline">
                 {user.email}
               </span>
+              <NotificationBell />
               <Link to="/">
                 <Button variant="ghost" size="sm">
                   <Eye className="h-4 w-4 mr-2" />
@@ -274,7 +279,7 @@ export default function Admin() {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="dashboard" className="space-y-6">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
           <TabsList className="flex flex-wrap h-auto w-full max-w-5xl justify-start">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -506,7 +511,7 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="vendors">
-            <Tabs defaultValue="applications" className="space-y-6">
+            <Tabs value={vendorsTab} onValueChange={setVendorsTab} className="space-y-6">
               <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">
                 <TabsTrigger value="applications" className="flex items-center gap-1">
                   <UserCheck className="h-4 w-4" />

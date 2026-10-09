@@ -12,6 +12,7 @@ import { Loader2, Ban } from "lucide-react";
 import { useOrderCancellations } from "@/hooks/useOrderCancellations";
 import { format } from "date-fns";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
+import { useFlashFocus } from "@/hooks/useDeepLink";
 
 const refundStatusClass: Record<string, string> = {
   processed: "bg-green-100 text-green-800",
@@ -29,6 +30,7 @@ interface CancelledOrdersManagementProps {
 // parent orders.order_status, so it would never show up there at all.
 export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagementProps) {
   const { cancellations, loading } = useOrderCancellations(isAdmin);
+  useFlashFocus(!loading);
 
   if (loading) {
     return (
@@ -79,7 +81,7 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
               </TableHeader>
               <TableBody>
                 {cancellations.map((c, idx) => (
-                  <TableRow key={c.id}>
+                  <TableRow key={c.id} data-focus-id={`${c.vendorOrderId ?? ""} ${c.orderId}`.trim()}>
                     <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       {format(new Date(c.createdAt), "MMM d, yyyy")}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { Header } from "@/components/Header";
@@ -72,6 +72,7 @@ import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatu
 import { formatPayoutDate } from "@/lib/payoutDates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
+import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 
 interface VendorProduct {
   id: string;
@@ -175,7 +176,7 @@ export default function VendorDashboard() {
   const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id);
   const { categories } = useCategories();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useUrlTab("dashboard");
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -503,6 +504,27 @@ export default function VendorDashboard() {
     pageSize: orderPageSize,
   } = usePagination(visibleOrders, 10);
 
+  // A notification about an order opens its status tab and page and
+  // highlights the row, where the actions (confirm, ship) are.
+  useFocusTarget({
+    items: orders,
+    ready: !dataLoading && tab === "orders",
+    getId: (o) => o.id,
+    matches: (o, id) => o.id === id || o.order_id === id,
+    reveal: (o) => {
+      const statusTab = ORDER_STATUS_TABS.find((t) => t.statuses?.includes(o.status))?.key ?? "all";
+      setOrderSearch("");
+      setOrderPaymentFilter("all");
+      setOrderStatusTab(statusTab);
+      if (statusTab !== "all") markOrderListSeen(statusTab);
+    },
+    visibleItems: visibleOrders,
+    pageSize: orderPageSize,
+    setPage: setOrderPage,
+    onMissing: () => toast.error("That order is no longer in your orders list."),
+  });
+  useFlashFocus(!dataLoading && tab === "payouts");
+
   if (loading || !vendor || vendor.status !== "approved") {
     return (
       <div className="min-h-screen bg-background">
@@ -564,7 +586,7 @@ export default function VendorDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue={searchParams.get("tab") || "dashboard"} className="space-y-6">
+        <Tabs value={tab} onValueChange={setTab} className="space-y-6">
           <TabsList className="grid w-full max-w-4xl grid-cols-7">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
@@ -955,7 +977,7 @@ export default function VendorDashboard() {
                       </TableHeader>
                       <TableBody>
                         {paginatedOrders.map((o, idx) => (
-                          <TableRow key={o.id}>
+                          <TableRow key={o.id} data-focus-id={o.id}>
                             <TableCell className="text-sm text-muted-foreground">
                               {(orderPage - 1) * orderPageSize + idx + 1}
                             </TableCell>
@@ -1175,7 +1197,7 @@ export default function VendorDashboard() {
               hasPayoutAccount={hasPayoutAccount}
               accountStatus={vendor.payout_account_status}
             />
-            <Card>
+            <Card data-focus-id="account">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Landmark className="h-5 w-5" /> Payout details

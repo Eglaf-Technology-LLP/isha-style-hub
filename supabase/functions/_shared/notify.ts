@@ -2,12 +2,13 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 // Deep links for notifications: clicking one opens the exact page, tab and
 // item it's about. The frontend reads ?tab= (and &sub= for nested tabs) and
-// ?focus= (the item to open/highlight). Keep in sync with
-// notification_link_* SQL helpers in the deep-links migration.
+// ?focus= (the item to open/highlight). Keep in sync with nlink() and
+// vendor_payout_account_link() in the notification_deep_links migration.
 export const links = {
   vendorOrder: (vendorOrderId: string) => `/vendor?tab=orders&focus=${vendorOrderId}`,
   vendorReturn: (returnRequestId: string) => `/vendor?tab=returns&focus=${returnRequestId}`,
   vendorPayout: (vendorOrderId?: string) => `/vendor?tab=payouts${vendorOrderId ? `&focus=${vendorOrderId}` : ""}`,
+  vendorPayoutAccount: () => `/vendor?tab=payouts&focus=account`,
   adminOrder: (vendorOrderId: string) => `/admin?tab=orders&focus=${vendorOrderId}`,
   adminReturn: (returnRequestId: string) => `/admin?tab=returns&focus=${returnRequestId}`,
   adminPayouts: () => `/admin?tab=vendor-payouts`,

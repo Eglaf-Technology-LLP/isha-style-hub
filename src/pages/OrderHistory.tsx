@@ -24,6 +24,7 @@ import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
+import { useFocusTarget } from "@/hooks/useDeepLink";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -146,6 +147,8 @@ export default function OrderHistory() {
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
+  // Which orders have their items/tracking section open, by order id.
+  const [openOrders, setOpenOrders] = useState<Record<string, string>>({});
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
@@ -271,6 +274,15 @@ export default function OrderHistory() {
     return () => subscription.unsubscribe();
   }, [checkAuthAndFetchOrders]);
 
+  // A notification about an order opens it with its tracking expanded.
+  useFocusTarget({
+    items: orders,
+    ready: !loading,
+    getId: (o) => o.id,
+    matches: (o, id) => o.id === id || o.vendor_orders.some((vo) => vo.id === id),
+    onFocus: (o) => setOpenOrders((prev) => ({ ...prev, [o.id]: "items" })),
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -362,7 +374,7 @@ export default function OrderHistory() {
               const paymentDisplay = paymentStatusDisplay(order);
 
               return (
-              <Card key={order.id}>
+              <Card key={order.id} data-focus-id={order.id}>
                 <CardHeader className="pb-2">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div>
@@ -407,7 +419,13 @@ export default function OrderHistory() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <Accordion type="single" collapsible className="w-full">
+                  <Accordion
+                    type="single"
+                    collapsible
+                    className="w-full"
+                    value={openOrders[order.id] ?? ""}
+                    onValueChange={(v) => setOpenOrders((prev) => ({ ...prev, [order.id]: v }))}
+                  >
                     <AccordionItem value="items" className="border-b-0">
                       <AccordionTrigger className="hover:no-underline py-2">
                         <span className="text-sm">

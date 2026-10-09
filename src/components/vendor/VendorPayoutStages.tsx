@@ -210,7 +210,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                 </TableHeader>
                 <TableBody>
                   {inWindow.map((o) => (
-                    <TableRow key={o.id}>
+                    <TableRow key={o.id} data-focus-id={o.id}>
                       <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-sm">
                         {o.delivered_at ? format(new Date(o.delivered_at), "d MMM") : "—"}
@@ -252,7 +252,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                 </TableHeader>
                 <TableBody>
                   {queued.map((o) => (
-                    <TableRow key={o.id}>
+                    <TableRow key={o.id} data-focus-id={o.id}>
                       <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-sm">{formatPayoutDate(o.payout_eligible_on!)}</TableCell>
                       <TableCell className="font-medium tabular-nums">{rupees(Number(o.net_payable))}</TableCell>
@@ -302,7 +302,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                 </TableHeader>
                 <TableBody>
                   {sentViaRazorpay.map((o) => (
-                    <TableRow key={o.id}>
+                    <TableRow key={o.id} data-focus-id={o.id}>
                       <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-sm">{o.rzp_released_at ? format(new Date(o.rzp_released_at), "d MMM") : "—"}</TableCell>
                       <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
@@ -365,7 +365,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                 </TableHeader>
                 <TableBody>
                   {payouts.map((p) => (
-                    <TableRow key={p.id}>
+                    <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
                       <TableCell className="text-sm whitespace-nowrap">{format(new Date(p.created_at), "d MMM yyyy")}</TableCell>
                       <TableCell className="text-sm">{p.order_count}</TableCell>
                       <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>

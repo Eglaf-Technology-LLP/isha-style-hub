@@ -2279,19 +2279,54 @@ export type Database = {
         Returns: boolean
       }
       next_invoice_seq: { Args: never; Returns: number }
-      notify_vendor_members: {
+      nlink: {
+        Args: { _focus?: string; _path: string; _tab: string }
+        Returns: string
+      }
+      notify_admins: {
         Args: {
           _body: string
+          _category: string
+          _link: string
           _title: string
           _type: string
-          _vendor_id: string
         }
         Returns: undefined
       }
+      notify_customer: {
+        Args: {
+          _body: string
+          _order_id: string
+          _title: string
+          _type: string
+        }
+        Returns: undefined
+      }
+      notify_vendor_members:
+        | {
+            Args: {
+              _body: string
+              _title: string
+              _type: string
+              _vendor_id: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _body: string
+              _link: string
+              _title: string
+              _type: string
+              _vendor_id: string
+            }
+            Returns: undefined
+          }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
       }
+      order_ref: { Args: { _order_id: string }; Returns: string }
       process_vendor_payout_queue: { Args: never; Returns: undefined }
       remind_unconfirmed_orders: { Args: never; Returns: undefined }
       return_request_contains_vendor_item: {
@@ -2315,6 +2350,7 @@ export type Database = {
         Args: { _vendor_order_id: string }
         Returns: number
       }
+      vendor_payout_account_link: { Args: never; Returns: string }
       vendor_respond_to_return: {
         Args: { _decision: string; _note?: string; _request_id: string }
         Returns: {

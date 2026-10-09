@@ -45,6 +45,8 @@ import { VendorFilterSelect } from "./VendorFilterSelect";
 import { OrderFulfillmentSection } from "./OrderFulfillmentSection";
 import { NdrQueue } from "./NdrQueue";
 import { usePagination } from "@/hooks/usePagination";
+import { useFocusTarget } from "@/hooks/useDeepLink";
+import { toast } from "sonner";
 import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 
@@ -110,6 +112,27 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     return true;
   });
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleOrders, 10);
+
+  // Notifications point at a boutique's part of an order (vendor_order id);
+  // this list shows whole orders, so either id finds the row.
+  useFocusTarget({
+    items: orders,
+    ready: !loading,
+    getId: (o) => o.id,
+    matches: (o, id) => o.id === id || !!o.order_items?.some((i) => i.vendor_order_id === id),
+    reveal: (o) => {
+      const tab = STATUS_TABS.some((t) => t.key === o.order_status) ? (o.order_status as typeof statusTab) : "all";
+      setSearchQuery("");
+      setVendorFilter(null);
+      setPaymentFilter("all");
+      setStatusTab(tab);
+      if (tab !== "all") markSeen(tab);
+    },
+    visibleItems: visibleOrders,
+    pageSize,
+    setPage,
+    onMissing: () => toast.error("That order is no longer in the orders list."),
+  });
 
   const getOrderStatusColor = (status: string) => {
     switch (status) {
@@ -258,7 +281,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
               </TableHeader>
               <TableBody>
                 {paginatedItems.map((order, idx) => (
-                  <TableRow key={order.id}>
+                  <TableRow key={order.id} data-focus-id={order.id}>
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-mono text-sm">
                       {order.id.slice(0, 8)}...

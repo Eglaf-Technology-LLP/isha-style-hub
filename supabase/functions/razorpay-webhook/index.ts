@@ -1,6 +1,7 @@
 import { corsHeaders, jsonResponse, serviceClient, errorMessage } from "../_shared/auth.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
+import { links } from "../_shared/notify.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
@@ -194,14 +195,14 @@ Deno.serve(async (req) => {
             if (status === "activated") {
               await notifyVendor(supabase, acct.vendor_id, "payout_account_verified", "Bank account verified",
                 "Razorpay verified your bank account - your payouts will now be sent automatically.",
-                { event: "account_activated" });
+                { event: "account_activated" }, links.vendorPayoutAccount());
             } else if (status === "needs_clarification") {
               const why = Array.isArray(requirements)
                 ? requirements.map((r: any) => r.description ?? r.reason_code).filter(Boolean).join("; ")
                 : "";
               await notifyVendor(supabase, acct.vendor_id, "payout_account_rejected", "Bank details need attention",
                 `Razorpay couldn't verify your payout details${why ? `: ${why}` : ""}. Please correct them in your Payouts tab.`,
-                { event: "account_needs_clarification", reason: why });
+                { event: "account_needs_clarification", reason: why }, links.vendorPayoutAccount());
             }
           }
         }

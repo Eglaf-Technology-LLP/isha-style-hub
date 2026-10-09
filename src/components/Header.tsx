@@ -207,7 +207,7 @@ export function Header() {
               </Button>
             </Link>
 
-            {(isAdmin || vendor) && <NotificationBell />}
+            {user && <NotificationBell />}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

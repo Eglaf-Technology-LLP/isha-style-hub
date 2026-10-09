@@ -42,6 +42,7 @@ import { RefundHistory } from "@/components/RefundHistory";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
+import { useFocusTarget } from "@/hooks/useDeepLink";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -115,6 +116,19 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
     ? returnRequests.filter((r) => r.vendorIds.includes(vendorFilter))
     : returnRequests;
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleRequests, 10);
+
+  // A return notification opens that request, where it's accepted/rejected.
+  useFocusTarget({
+    items: returnRequests,
+    ready: !loading,
+    getId: (r) => r.id,
+    reveal: () => setVendorFilter(null),
+    visibleItems: visibleRequests,
+    pageSize,
+    setPage,
+    onFocus: (r) => openDetail(r),
+    onMissing: () => toast.error("That return request is no longer in this list."),
+  });
 
   const openDetail = async (request: ReturnRequest) => {
     setSelectedRequest(request);
@@ -323,7 +337,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                 {paginatedItems.map((request, idx) => {
                   const config = statusConfig[request.status] || statusConfig.pending;
                   return (
-                    <TableRow key={request.id}>
+                    <TableRow key={request.id} data-focus-id={request.id}>
                       <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell className="font-mono text-sm">
                         {request.id.slice(0, 8)}

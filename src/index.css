@@ -167,3 +167,29 @@ All colors MUST be HSL.
     color: hsl(var(--foreground));
   }
 }
+/* Notification deep links: the row a notification points at flashes when
+   it scrolls into view (see src/hooks/useDeepLink.ts). */
+@keyframes focus-flash {
+  0%,
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  25%,
+  60% {
+    background-color: hsl(var(--primary) / 0.12);
+    box-shadow: inset 3px 0 0 0 hsl(var(--primary));
+  }
+}
+
+.focus-flash {
+  animation: focus-flash 2.4s ease-in-out;
+  scroll-margin-top: 8.5rem; /* clears the sticky site header */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-flash {
+    animation: none;
+    background-color: hsl(var(--primary) / 0.12);
+  }
+}

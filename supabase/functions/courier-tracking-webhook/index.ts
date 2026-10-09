@@ -7,6 +7,7 @@ import {
   errorMessage,
   toIntOrNull,
 } from "../_shared/shiprocket.ts";
+import { links } from "../_shared/notify.ts";
 
 // Public endpoint - Shiprocket's own servers call this, not our frontend,
 // so it can't rely on a Supabase user JWT (this function has
@@ -151,8 +152,8 @@ Deno.serve(async (req) => {
       // Same order number the boutique sees in its Orders list.
       const orderRef = `#${String(vo?.order_id ?? shipment.vendor_order_id).slice(0, 8)}`;
       const notifications = [
-        ...(members ?? []).map((m) => ({ user_id: m.user_id, link_url: "/vendor" })),
-        ...(admins ?? []).map((a) => ({ user_id: a.user_id, link_url: "/admin" })),
+        ...(members ?? []).map((m) => ({ user_id: m.user_id, link_url: links.vendorOrder(shipment.vendor_order_id) })),
+        ...(admins ?? []).map((a) => ({ user_id: a.user_id, link_url: links.adminOrder(shipment.vendor_order_id) })),
       ].map((n) => ({
         ...n,
         category: "order",

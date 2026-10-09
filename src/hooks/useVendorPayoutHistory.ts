@@ -13,6 +13,7 @@ export interface VendorPayout {
   payment_reference: string | null;
   created_at: string;
   order_count: number;
+  vendor_order_ids: string[] | null;
   bank_account_last4: string | null;
   failure_reason: string | null;
 }
