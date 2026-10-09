@@ -70,6 +70,24 @@ export function VendorManagement() {
       const { error } = await supabase.from("vendors").update(payload).eq("id", v.id);
       if (error) throw error;
       toast.success(msg);
+      // Bank details come with the application now, so set up the
+      // boutique's Razorpay payout account as soon as it's approved.
+      if (patch.status === "approved") {
+        const { data: account } = await supabase
+          .from("vendor_payout_accounts")
+          .select("razorpay_account_id")
+          .eq("vendor_id", v.id)
+          .maybeSingle();
+        if (account && !account.razorpay_account_id) {
+          const { data: rzp, errorMessage } = await invokeEdgeFunction<{ razorpay_error: string | null }>(
+            "razorpay-route-onboard",
+            { vendor_id: v.id },
+          );
+          const problem = errorMessage ?? rzp?.razorpay_error;
+          if (problem) toast.info(`Razorpay payout setup didn't finish: ${problem}`);
+          else toast.success("Razorpay payout account created for this boutique");
+        }
+      }
       await fetchVendors();
     } catch (e: any) {
       toast.error(e.message || "Action failed");

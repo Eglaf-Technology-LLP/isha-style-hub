@@ -158,6 +158,7 @@ interface PayoutAccountForm {
   account_holder_name: string;
   bank_account_number: string;
   bank_ifsc: string;
+  bank_name: string;
   business_type: string;
   pan: string;
   legal_business_name: string;
@@ -201,6 +202,7 @@ export default function VendorDashboard() {
     account_holder_name: "",
     bank_account_number: "",
     bank_ifsc: "",
+    bank_name: "",
     business_type: "individual",
     pan: "",
     legal_business_name: "",
@@ -231,6 +233,7 @@ export default function VendorDashboard() {
           account_holder_name: payoutAccount.account_holder_name.trim(),
           bank_account_number: payoutAccount.bank_account_number.trim(),
           bank_ifsc: payoutAccount.bank_ifsc.trim().toUpperCase(),
+          bank_name: payoutAccount.bank_name.trim() || null,
           business_type: payoutAccount.business_type,
           pan: payoutAccount.pan.trim().toUpperCase(),
           legal_business_name: payoutAccount.legal_business_name.trim() || null,
@@ -313,7 +316,7 @@ export default function VendorDashboard() {
           .order("created_at", { ascending: false }),
         supabase
           .from("vendor_payout_accounts")
-          .select("account_holder_name, bank_account_number, bank_ifsc, business_type, pan, legal_business_name, razorpay_status, razorpay_error, razorpay_requirements")
+          .select("account_holder_name, bank_account_number, bank_ifsc, bank_name, business_type, pan, legal_business_name, razorpay_status, razorpay_error, razorpay_requirements")
           .eq("vendor_id", vendor.id)
           .maybeSingle(),
       ]);
@@ -332,6 +335,7 @@ export default function VendorDashboard() {
           account_holder_name: pa.account_holder_name ?? "",
           bank_account_number: pa.bank_account_number ?? "",
           bank_ifsc: pa.bank_ifsc ?? "",
+          bank_name: pa.bank_name ?? "",
           business_type: pa.business_type ?? "individual",
           pan: pa.pan ?? "",
           legal_business_name: pa.legal_business_name ?? "",
@@ -1247,6 +1251,14 @@ export default function VendorDashboard() {
                       }
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="po-bank">Bank name</Label>
+                  <Input
+                    id="po-bank"
+                    value={payoutAccount.bank_name}
+                    onChange={(e) => setPayoutAccount((f) => ({ ...f, bank_name: e.target.value }))}
+                  />
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div className="space-y-2">

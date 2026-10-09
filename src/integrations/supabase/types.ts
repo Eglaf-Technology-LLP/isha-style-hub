@@ -1816,6 +1816,124 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_documents: {
+        Row: {
+          created_at: string
+          doc_type: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          uploaded_by: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          doc_type: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          uploaded_by?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          doc_type?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          uploaded_by?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_kyc: {
+        Row: {
+          alternate_mobile: string
+          authorized_designation: string
+          authorized_email: string
+          authorized_mobile: string
+          authorized_name: string
+          bank_proof_type: string
+          business_constitution: string
+          business_email: string
+          contact_designation: string | null
+          contact_email: string | null
+          contact_mobile: string | null
+          contact_name: string | null
+          contact_same_as_authorized: boolean
+          gstin: string | null
+          legal_business_name: string
+          pan: string
+          primary_mobile: string
+          submitted_at: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          alternate_mobile: string
+          authorized_designation: string
+          authorized_email: string
+          authorized_mobile: string
+          authorized_name: string
+          bank_proof_type: string
+          business_constitution: string
+          business_email: string
+          contact_designation?: string | null
+          contact_email?: string | null
+          contact_mobile?: string | null
+          contact_name?: string | null
+          contact_same_as_authorized?: boolean
+          gstin?: string | null
+          legal_business_name: string
+          pan: string
+          primary_mobile: string
+          submitted_at?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          alternate_mobile?: string
+          authorized_designation?: string
+          authorized_email?: string
+          authorized_mobile?: string
+          authorized_name?: string
+          bank_proof_type?: string
+          business_constitution?: string
+          business_email?: string
+          contact_designation?: string | null
+          contact_email?: string | null
+          contact_mobile?: string | null
+          contact_name?: string | null
+          contact_same_as_authorized?: boolean
+          gstin?: string | null
+          legal_business_name?: string
+          pan?: string
+          primary_mobile?: string
+          submitted_at?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_kyc_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_members: {
         Row: {
           created_at: string
@@ -1971,6 +2089,7 @@ export type Database = {
           account_holder_name: string
           bank_account_number: string
           bank_ifsc: string
+          bank_name: string | null
           business_type: string
           created_at: string
           id: string
@@ -1989,6 +2108,7 @@ export type Database = {
           account_holder_name: string
           bank_account_number: string
           bank_ifsc: string
+          bank_name?: string | null
           business_type?: string
           created_at?: string
           id?: string
@@ -2007,6 +2127,7 @@ export type Database = {
           account_holder_name?: string
           bank_account_number?: string
           bank_ifsc?: string
+          bank_name?: string | null
           business_type?: string
           created_at?: string
           id?: string
@@ -2324,6 +2445,7 @@ export type Database = {
         Args: { _focus?: string; _path: string; _tab: string }
         Returns: string
       }
+      normalize_indian_mobile: { Args: { _raw: string }; Returns: string }
       notify_admins: {
         Args: {
           _body: string
@@ -2382,7 +2504,13 @@ export type Database = {
         Args: { _request_id: string }
         Returns: string
       }
+      submit_vendor_application: { Args: { _app: Json }; Returns: string }
       vendor_bank_last4: { Args: { _vendor_id: string }; Returns: string }
+      vendor_document_label: { Args: { _doc_type: string }; Returns: string }
+      vendor_optional_documents: {
+        Args: { _constitution: string }
+        Returns: string[]
+      }
       vendor_order_payout_date: {
         Args: { _delivered_at: string; _vendor_order_id: string }
         Returns: string
@@ -2392,6 +2520,10 @@ export type Database = {
         Returns: number
       }
       vendor_payout_account_link: { Args: never; Returns: string }
+      vendor_required_documents: {
+        Args: { _constitution: string }
+        Returns: string[]
+      }
       vendor_respond_to_return: {
         Args: { _decision: string; _note?: string; _request_id: string }
         Returns: {

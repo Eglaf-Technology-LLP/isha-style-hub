@@ -15,17 +15,19 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { SingleImageDropzone } from "@/components/ImageDropzone";
-import { Loader2, ShieldCheck, Truck, Landmark, ExternalLink } from "lucide-react";
+import { Loader2, ShieldCheck, Truck, Landmark, ExternalLink, FileCheck2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Vendor } from "@/hooks/useVendor";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { VendorKycSection } from "./VendorKycSection";
 
 interface PayoutAccount {
   account_holder_name: string;
   bank_account_number: string;
   bank_ifsc: string;
+  bank_name: string | null;
   business_type: string;
   razorpay_account_id: string | null;
 }
@@ -117,7 +119,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     Promise.all([
       supabase
         .from("vendor_payout_accounts")
-        .select("account_holder_name, bank_account_number, bank_ifsc, business_type, razorpay_account_id")
+        .select("account_holder_name, bank_account_number, bank_ifsc, bank_name, business_type, razorpay_account_id")
         .eq("vendor_id", vendor.id)
         .maybeSingle(),
       vendor.owner_user_id
@@ -426,6 +428,16 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
 
             <Separator />
 
+            {/* Seller registration: constitution, people, document checklist */}
+            <section>
+              <h4 className="font-medium mb-3 flex items-center gap-2">
+                <FileCheck2 className="h-4 w-4" /> Registration &amp; KYC
+              </h4>
+              <VendorKycSection vendorId={vendor.id} />
+            </section>
+
+            <Separator />
+
             {/* Payout Account - read only, admin needs this to actually pay the vendor */}
             <section>
               <h4 className="font-medium mb-3 flex items-center gap-2">
@@ -440,6 +452,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   <Field label="Account Holder" value={payoutAccount.account_holder_name} />
                   <Field label="Account Number" value={<span className="font-mono">{payoutAccount.bank_account_number}</span>} />
                   <Field label="IFSC" value={<span className="font-mono">{payoutAccount.bank_ifsc}</span>} />
+                  <Field label="Bank" value={payoutAccount.bank_name} />
                   <Field label="Business Type" value={<span className="capitalize">{payoutAccount.business_type.replace(/_/g, " ")}</span>} />
                   {payoutAccount.razorpay_account_id && (
                     <Field label="Razorpay Account" value={payoutAccount.razorpay_account_id} />
