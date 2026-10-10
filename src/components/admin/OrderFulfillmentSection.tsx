@@ -20,10 +20,15 @@ import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
 import { ShipNowDialog } from "./ShipNowDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
+import { Link } from "react-router-dom";
+import { vendorOrderStatusLabel } from "@/lib/warehouse";
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 const statusColors: Record<string, string> = {
+  in_transit_to_warehouse: "bg-purple-100 text-purple-800",
+  at_warehouse: "bg-teal-100 text-teal-800",
+  qc_failed: "bg-red-100 text-red-800",
   pending: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-blue-100 text-blue-800",
   processing: "bg-purple-100 text-purple-800",
@@ -114,9 +119,19 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
   };
 
   if (vendorOrderIds.length === 0) return null;
+  const viaWarehouse = order.fulfilment_route === "warehouse";
 
   return (
     <div className="space-y-3">
+      {viaWarehouse && (
+        <div className="text-xs rounded-md bg-primary/5 border border-primary/20 p-2">
+          Ships through the AllBoutiqs warehouse: each boutique sends its part there, and the warehouse packs one parcel
+          for the customer.{" "}
+          <Link to={`/warehouse?tab=pack&focus=${order.id}`} className="text-primary hover:underline">
+            Open in Warehouse
+          </Link>
+        </div>
+      )}
       {[...groups.entries()]
         .filter(([key]) => !key.startsWith("no-vendor-"))
         .map(([vendorOrderId, group]) => {
@@ -128,8 +143,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 <span className="font-medium text-sm">
                   {group.vendorId ? vendorNames[group.vendorId] || "Vendor" : "Vendor"}
                 </span>
-                <Badge className={`${statusColors[status] || "bg-muted"} capitalize`}>
-                  {status.replace(/_/g, " ")}
+                <Badge className={statusColors[status] || "bg-muted"}>
+                  {vendorOrderStatusLabel(status, viaWarehouse)}
                 </Badge>
               </div>
 
@@ -192,13 +207,18 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                         (AWB {shipment.awb_code}) - book again
                       </span>
                     )}
-                    <ShipNowDialog
-                      vendorOrderId={vendorOrderId}
-                      actioning={actioningId === vendorOrderId}
-                      checkServiceability={checkServiceability}
-                      shipNow={shipNow}
-                      triggerSize="sm"
-                    />
+                    {viaWarehouse && !["pending", "confirmed", "processing"].includes(status) ? (
+                      <span className="text-xs text-muted-foreground">With the warehouse</span>
+                    ) : (
+                      <ShipNowDialog
+                        vendorOrderId={vendorOrderId}
+                        actioning={actioningId === vendorOrderId}
+                        checkServiceability={checkServiceability}
+                        shipNow={shipNow}
+                        triggerSize="sm"
+                        triggerLabel={viaWarehouse ? "Ship to warehouse" : "Ship Now"}
+                      />
+                    )}
                   </div>
                 )
               ) : (

@@ -7,7 +7,21 @@ export interface ReturnRequest {
   order_id: string;
   user_id: string;
   request_type: "return" | "exchange";
-  status: "pending" | "approved" | "rejected" | "picked_up" | "completed" | "cancelled" | "pickup_failed";
+  status:
+    | "pending"
+    | "approved"
+    | "rejected"
+    | "pickup_scheduled"
+    | "picked_up"
+    | "completed"
+    | "cancelled"
+    | "pickup_failed"
+    // Warehouse route:
+    | "at_warehouse"
+    | "qc_passed"
+    | "qc_failed"
+    | "replacement_shipped"
+    | "returned_to_customer";
   reason: string;
   additional_notes: string | null;
   items: ReturnItem[];
@@ -21,6 +35,15 @@ export interface ReturnRequest {
   escalated_at: string | null;
   vendor_decision_at: string | null;
   vendor_notes: string | null;
+  // Where the customer's items go: the AllBoutiqs warehouse (inspected there,
+  // refunded on passing) or straight to the boutique (admin's choice).
+  return_destination: "warehouse" | "boutique" | null;
+  received_at_warehouse_at: string | null;
+  warehouse_qc_status: "passed" | "failed" | null;
+  warehouse_qc_notes: string | null;
+  replacement_received_at: string | null;
+  replacement_qc_status: "passed" | "failed" | null;
+  replacement_qc_notes: string | null;
   created_at: string;
   updated_at: string;
   // Computed client-side from order_items, not a DB column - which

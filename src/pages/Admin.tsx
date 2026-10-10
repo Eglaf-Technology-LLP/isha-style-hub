@@ -27,11 +27,13 @@ import {
   Layers,
   ShieldCheck,
   Star,
+  Warehouse as WarehouseIcon,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useWarehouseAccess } from "@/hooks/useWarehouseAccess";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { useOrders } from "@/hooks/useOrders";
@@ -72,6 +74,7 @@ export default function Admin() {
   const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
   const { user, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
+  const { canOperate: canOperateWarehouse } = useWarehouseAccess();
   const { vendor } = useVendor();
   const redirectParam = searchParams.get("redirect");
 
@@ -157,6 +160,11 @@ export default function Admin() {
                 Go to Vendor Dashboard
               </Button>
             )}
+            {canOperateWarehouse && (
+              <Button className="w-full" onClick={() => navigate('/warehouse')}>
+                Go to Warehouse
+              </Button>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => navigate('/')}>
                 Go to Store
@@ -188,6 +196,12 @@ export default function Admin() {
                 {user.email}
               </span>
               <NotificationBell />
+              <Link to="/warehouse">
+                <Button variant="ghost" size="sm">
+                  <WarehouseIcon className="h-4 w-4 mr-2" />
+                  Warehouse
+                </Button>
+              </Link>
               <Link to="/">
                 <Button variant="ghost" size="sm">
                   <Eye className="h-4 w-4 mr-2" />

@@ -17,6 +17,7 @@ import SellWithUs from "./pages/SellWithUs";
 import VendorPending from "./pages/VendorPending";
 import VendorDashboard from "./pages/VendorDashboard";
 import StorePage from "./pages/StorePage";
+import Warehouse from "./pages/Warehouse";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/vendor/pending" element={<VendorPending />} />
           <Route path="/vendor" element={<VendorDashboard />} />
           <Route path="/store/:slug" element={<StorePage />} />
+          <Route path="/warehouse" element={<Warehouse />} />
 
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

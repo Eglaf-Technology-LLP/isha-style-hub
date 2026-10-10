@@ -43,6 +43,9 @@ export interface Order {
   discount_code: string | null;
   discount_amount: number;
   notes: string | null;
+  // 'warehouse': boutique -> AllBoutiqs warehouse -> customer.
+  fulfilment_route?: 'direct' | 'warehouse';
+  estimated_delivery_date?: string | null;
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];

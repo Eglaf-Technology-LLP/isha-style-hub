@@ -30,7 +30,11 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
       .from("shipments")
       .select("*")
       .eq("vendor_order_id", vendorOrderId)
-      .eq("shipment_type", "forward")
+      // The boutique's own parcel: to the customer, or to the warehouse.
+      .in("shipment_type", ["forward", "to_warehouse"])
+      .is("return_request_id", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 

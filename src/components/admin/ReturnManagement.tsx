@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Loader2,
@@ -43,6 +44,8 @@ import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFocusTarget } from "@/hooks/useDeepLink";
+import { useShipments } from "@/hooks/useShipments";
+import { ShipNowDialog } from "./ShipNowDialog";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -52,7 +55,15 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   completed: { label: "Completed", variant: "default" },
   cancelled: { label: "Cancelled", variant: "destructive" },
   pickup_failed: { label: "Pickup Failed - Needs Attention", variant: "destructive" },
+  pickup_scheduled: { label: "Pickup Scheduled", variant: "outline" },
+  at_warehouse: { label: "At Warehouse - Inspecting", variant: "outline" },
+  qc_passed: { label: "Passed Inspection", variant: "default" },
+  qc_failed: { label: "Failed Inspection - Sent Back", variant: "destructive" },
+  replacement_shipped: { label: "Replacement Shipped", variant: "outline" },
+  returned_to_customer: { label: "Sent Back to Customer", variant: "secondary" },
 };
+
+const REPLACEMENT_DUE_STATUSES = ["approved", "pickup_scheduled", "picked_up", "pickup_failed", "at_warehouse", "qc_passed"];
 
 interface ReturnManagementProps {
   // Vendor's own Returns tab: RLS already scopes visibility to their own
@@ -66,7 +77,11 @@ const hoursLeft = (request: ReturnRequest, slaHours: number) =>
 
 export function ReturnManagement({ vendorView = false }: ReturnManagementProps) {
   const readOnly = vendorView;
-  const { returnRequests, loading, updateReturnStatus, vendorRespond } = useReturnRequests(true);
+  const { returnRequests, loading, updateReturnStatus, vendorRespond, refetch } = useReturnRequests(true);
+  // Boutique: books an exchange's replacement to the warehouse.
+  const { checkServiceability, shipNow, actioningId } = useShipments([]);
+  const [orderRoute, setOrderRoute] = useState<string | null>(null);
+  const [savingDestination, setSavingDestination] = useState(false);
   const [slaHours, setSlaHours] = useState(48);
   const [vendorNote, setVendorNote] = useState("");
 
@@ -153,14 +168,43 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
     setVendorNote("");
     setIsDetailOpen(true);
 
-    if (!readOnly && request.status === "approved") {
+    setOrderRoute(null);
+    supabase
+      .from("orders")
+      .select("fulfilment_route")
+      .eq("id", request.order_id)
+      .maybeSingle()
+      .then(({ data }) => setOrderRoute(data?.fulfilment_route ?? null));
+
+    if (!readOnly && ["pending", "approved"].includes(request.status)) {
+      // The customer's pickup only - an exchange replacement's own parcel
+      // carries the same return_request_id.
       const { data } = await supabase
         .from("shipments")
         .select("id")
         .eq("return_request_id", request.id)
+        .in("shipment_type", ["return", "return_to_warehouse", "exchange_return"])
+        .limit(1)
         .maybeSingle();
       setHasShipment(!!data);
     }
+  };
+
+  const changeDestination = async (destination: "warehouse" | "boutique") => {
+    if (!selectedRequest) return;
+    setSavingDestination(true);
+    const { error } = await supabase
+      .from("return_requests")
+      .update({ return_destination: destination })
+      .eq("id", selectedRequest.id);
+    setSavingDestination(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSelectedRequest((prev) => (prev ? { ...prev, return_destination: destination } : prev));
+    toast.success(destination === "warehouse" ? "This return goes to the warehouse" : "This return goes straight to the boutique");
+    refetch();
   };
 
   // approve already fires this once; this just re-invokes the same
@@ -507,6 +551,71 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
 
                 <Separator />
 
+                {selectedRequest.return_destination && (
+                  <div className="rounded-lg border border-border p-3 space-y-2 text-sm">
+                    <p className="font-medium">Where the items go</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedRequest.return_destination === "warehouse"
+                        ? selectedRequest.request_type === "return"
+                          ? "To the AllBoutiqs warehouse, where they're inspected. Passing refunds the customer automatically and the items go on to the boutique; failing sends them back to the customer."
+                          : "The old item goes to the AllBoutiqs warehouse for inspection; the boutique sends the replacement there, and the warehouse ships it on."
+                        : "Straight to the boutique."}
+                    </p>
+                    {!readOnly &&
+                      orderRoute === "warehouse" &&
+                      ["pending", "approved"].includes(selectedRequest.status) &&
+                      hasShipment !== true && (
+                        <Select
+                          value={selectedRequest.return_destination}
+                          onValueChange={(v) => changeDestination(v as "warehouse" | "boutique")}
+                          disabled={savingDestination}
+                        >
+                          <SelectTrigger className="w-full sm:w-72">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="warehouse">AllBoutiqs warehouse (default)</SelectItem>
+                            <SelectItem value="boutique">Straight to the boutique</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    {selectedRequest.warehouse_qc_status && (
+                      <p className={`text-xs ${selectedRequest.warehouse_qc_status === "passed" ? "text-green-700" : "text-destructive"}`}>
+                        Warehouse inspection: {selectedRequest.warehouse_qc_status}
+                        {selectedRequest.warehouse_qc_notes ? ` - ${selectedRequest.warehouse_qc_notes}` : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {readOnly &&
+                  selectedRequest.request_type === "exchange" &&
+                  selectedRequest.return_destination === "warehouse" &&
+                  REPLACEMENT_DUE_STATUSES.includes(selectedRequest.status) &&
+                  !selectedRequest.replacement_received_at &&
+                  selectedRequest.vendorOrderIds[0] && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+                      <p className="text-sm font-medium">Send the replacement to the warehouse</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pack the size/colour the customer asked for and book it to the AllBoutiqs warehouse. We send it
+                        on once their old item has passed inspection.
+                      </p>
+                      {selectedRequest.replacement_qc_notes && (
+                        <p className="text-xs text-destructive">
+                          Your last replacement failed inspection: {selectedRequest.replacement_qc_notes}
+                        </p>
+                      )}
+                      <ShipNowDialog
+                        vendorOrderId={selectedRequest.vendorOrderIds[0]}
+                        returnRequestId={selectedRequest.id}
+                        actioning={actioningId === selectedRequest.vendorOrderIds[0]}
+                        checkServiceability={checkServiceability}
+                        shipNow={shipNow}
+                        triggerLabel="Ship replacement to warehouse"
+                      />
+                    </div>
+                  )}
+
                 {selectedRequest.vendor_notes && (
                   <div>
                     <p className="text-sm font-medium mb-1">Boutique's note</p>
@@ -589,8 +698,9 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                           placeholder="0"
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          Submitted to Razorpay as a real refund only once this request is marked
-                          Completed.
+                          {selectedRequest.return_destination === "warehouse"
+                            ? "Refunded automatically when the warehouse passes the items. If that refund fails (or it was Cash on Delivery), mark it Completed here once refunded."
+                            : "Submitted to Razorpay as a real refund only once this request is marked Completed."}
                         </p>
                       </div>
                     )}
@@ -633,7 +743,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                           </Button>
                         </>
                       )}
-                      {selectedRequest.status === "approved" && (
+                      {selectedRequest.status === "approved" && selectedRequest.return_destination !== "warehouse" && (
                         <Button
                           size="sm"
                           onClick={() => handleStatusUpdate("picked_up")}
@@ -644,7 +754,9 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                           Mark Picked Up
                         </Button>
                       )}
-                      {(selectedRequest.status === "picked_up" || selectedRequest.status === "approved") && (
+                      {((["picked_up", "approved"].includes(selectedRequest.status) &&
+                        selectedRequest.return_destination !== "warehouse") ||
+                        (selectedRequest.status === "qc_passed" && selectedRequest.request_type === "return")) && (
                         <Button
                           size="sm"
                           onClick={() => handleStatusUpdate("completed")}

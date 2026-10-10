@@ -78,3 +78,56 @@ export function formatShortDate(iso: string | null | undefined): string | null {
   if (isNaN(d.getTime())) return null;
   return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 }
+
+// ---------- warehouse working days (same rules as the database) ----------
+// Sundays and listed holidays don't count; a parcel received after the
+// cut-off hour counts from the next day.
+
+export interface WarehouseTiming {
+  handlingDays: number;
+  cutoffHour: number;
+  maxWaitDays: number;
+  holidays: Set<string>;
+}
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function istParts(iso: string): { date: string; hour: number } {
+  const shifted = new Date(new Date(iso).getTime() + IST_OFFSET_MS);
+  return { date: shifted.toISOString().slice(0, 10), hour: shifted.getUTCHours() };
+}
+
+export function istToday(): string {
+  return istParts(new Date().toISOString()).date;
+}
+
+export function addCalendarDays(isoDate: string, n: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+export function addWarehouseWorkingDays(isoDate: string, n: number, holidays: Set<string>): string {
+  let d = isoDate;
+  let added = 0;
+  while (added < n) {
+    d = addCalendarDays(d, 1);
+    if (new Date(`${d}T00:00:00Z`).getUTCDay() !== 0 && !holidays.has(d)) added++;
+  }
+  return d;
+}
+
+// When a parcel received at this moment must leave the warehouse.
+export function dispatchByDate(receivedAtIso: string, timing: WarehouseTiming): string {
+  const { date, hour } = istParts(receivedAtIso);
+  const start = hour >= timing.cutoffHour ? addCalendarDays(date, 1) : date;
+  return addWarehouseWorkingDays(start, timing.handlingDays, timing.holidays);
+}
+
+export const purposeLabels: Record<string, string> = {
+  order: "Order",
+  exchange_replacement: "Exchange replacement",
+  return_send_back: "Return sent back (failed inspection)",
+};
+
+export const inr = (n: number | null | undefined) => `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
