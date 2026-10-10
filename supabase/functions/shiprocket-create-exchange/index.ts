@@ -9,6 +9,8 @@ import {
   errorMessage,
   toIntOrNull,
 } from "../_shared/shiprocket.ts";
+import { bookReversePickup } from "../_shared/reversePickup.ts";
+import { links, notifyVendorMembers } from "../_shared/notify.ts";
 
 const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
 const DEFAULT_LENGTH_CM = 25;
@@ -74,13 +76,39 @@ Deno.serve(async (req) => {
 
     const { data: returnRequest, error: rrErr } = await supabase
       .from("return_requests")
-      .select("id, order_id, request_type, items, exchange_details, created_at")
+      .select("id, order_id, request_type, items, exchange_details, created_at, return_destination")
       .eq("id", return_request_id)
       .maybeSingle();
     if (rrErr) throw rrErr;
     if (!returnRequest) return jsonResponse({ error: "Return request not found" }, 404);
     if (returnRequest.request_type !== "exchange") {
       return jsonResponse({ error: "This is a return request - use shiprocket-create-return instead" }, 400);
+    }
+
+    // Through the warehouse: Shiprocket's exchange API would ship the
+    // replacement from the warehouse at the same moment it collects the old
+    // item - but the replacement isn't there yet. So only the old item's
+    // pickup (customer -> warehouse) is booked here; each boutique sends its
+    // replacement to the warehouse (Ship Now from their Returns tab), and the
+    // warehouse sends it on to the customer once the old item passes
+    // inspection and the replacement has arrived.
+    if (returnRequest.return_destination === "warehouse") {
+      const { shipment, alreadyScheduled } = await bookReversePickup(supabase, return_request_id);
+      if (!alreadyScheduled) {
+        const itemIds = ((returnRequest.items ?? []) as any[]).map((i) => i.order_item_id).filter(Boolean);
+        const { data: lines } = await supabase.from("order_items").select("vendor_id, vendor_order_id").in("id", itemIds);
+        const vendorIds = [...new Set((lines ?? []).map((l) => l.vendor_id).filter(Boolean))];
+        const ref = `#${String(returnRequest.order_id).slice(0, 8)}`;
+        for (const vendorId of vendorIds) {
+          await notifyVendorMembers(supabase, vendorId as string, {
+            type: "exchange_send_replacement",
+            title: "Send the exchange replacement",
+            body: `An exchange on order ${ref} was approved. Please send the replacement to the AllBoutiqs warehouse - use Ship replacement on the request in your Returns tab.`,
+            link: links.vendorReturn(return_request_id),
+          });
+        }
+      }
+      return jsonResponse({ shipments: [shipment], already_scheduled: alreadyScheduled, via_warehouse: true });
     }
 
     const { data: existingShipments } = await supabase

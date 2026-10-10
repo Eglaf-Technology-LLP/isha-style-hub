@@ -52,6 +52,34 @@ function getStatusContent(status: string, requestType: string) {
             : "Your exchange has been completed. We hope you love the replacement!",
         color: "#22c55e",
       };
+    case "at_warehouse":
+      return {
+        heading: `We've Received Your ${typeLabel}`,
+        message: "Your items reached our quality-check centre. We'll inspect them shortly and let you know.",
+        color: "#6366f1",
+      };
+    case "qc_passed":
+      return {
+        heading: "Your Items Passed Inspection",
+        message:
+          requestType === "return"
+            ? "Your items passed our quality check. Your refund is being processed."
+            : "Your items passed our quality check. Your replacement will be sent as soon as it is ready.",
+        color: "#22c55e",
+      };
+    case "qc_failed":
+      return {
+        heading: `Your ${typeLabel} Didn't Pass Inspection`,
+        message:
+          "The items you sent back didn't pass our quality check, so we can't accept this request. We're sending the items back to you - see the details below.",
+        color: "#ef4444",
+      };
+    case "replacement_shipped":
+      return {
+        heading: "Your Replacement Is on Its Way",
+        message: "Your replacement has left our warehouse and is on its way to you.",
+        color: "#6366f1",
+      };
     case "pickup_failed":
       return {
         heading: `A Quick Update on Your ${typeLabel}`,

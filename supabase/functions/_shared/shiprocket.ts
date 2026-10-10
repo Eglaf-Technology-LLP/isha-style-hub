@@ -167,23 +167,88 @@ export async function ensurePickupLocation(
     shiprocket_pickup_id?: number | null;
   },
 ): Promise<PickupLocation> {
-  if (vendor.shiprocket_pickup_location) {
-    return { name: vendor.shiprocket_pickup_location, id: vendor.shiprocket_pickup_id ?? null };
+  return registerPickupLocation(supabase, {
+    table: "vendors",
+    id: vendor.id,
+    baseName: vendor.slug,
+    name: vendor.name,
+    email: vendor.contact_email,
+    phone: vendor.contact_phone,
+    address: vendor.address,
+    registered: vendor.shiprocket_pickup_location,
+    registeredId: vendor.shiprocket_pickup_id ?? null,
+    label: "Vendor",
+  });
+}
+
+export interface WarehouseRow {
+  id: string;
+  code: string;
+  name: string;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  address: VendorAddress;
+  shiprocket_pickup_location: string | null;
+  shiprocket_pickup_id: number | null;
+}
+
+export const WAREHOUSE_COLUMNS =
+  "id, code, name, contact_name, contact_phone, contact_email, address, shiprocket_pickup_location, shiprocket_pickup_id";
+
+// The AllBoutiqs warehouse as a Shiprocket pickup location - parcels to the
+// customer and back to boutiques leave from here.
+export async function ensureWarehousePickupLocation(
+  supabase: SupabaseClient,
+  warehouse: WarehouseRow,
+): Promise<PickupLocation> {
+  return registerPickupLocation(supabase, {
+    table: "warehouses",
+    id: warehouse.id,
+    baseName: `allboutiqs-${warehouse.code.toLowerCase()}`,
+    // Shiprocket prints this as the sender on the label.
+    name: warehouse.contact_name,
+    email: warehouse.contact_email,
+    phone: warehouse.contact_phone,
+    address: warehouse.address,
+    registered: warehouse.shiprocket_pickup_location,
+    registeredId: warehouse.shiprocket_pickup_id,
+    label: "Warehouse",
+  });
+}
+
+async function registerPickupLocation(
+  supabase: SupabaseClient,
+  entity: {
+    table: "vendors" | "warehouses";
+    id: string;
+    baseName: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    address: VendorAddress | null;
+    registered: string | null;
+    registeredId: number | null;
+    label: string;
+  },
+): Promise<PickupLocation> {
+  if (entity.registered) {
+    return { name: entity.registered, id: entity.registeredId };
   }
 
-  const address = vendor.address ?? {};
+  const address = entity.address ?? {};
   const missing = ["address_line1", "city", "state", "pincode"].filter(
     (f) => !(address as Record<string, string>)[f]?.trim(),
   );
-  if (missing.length > 0 || !vendor.contact_phone?.trim()) {
+  if (missing.length > 0 || !entity.phone?.trim()) {
     throw new Error(
-      `Vendor address is incomplete - missing: ${[...missing, ...(!vendor.contact_phone?.trim() ? ["contact_phone"] : [])].join(", ")}`,
+      `${entity.label} address is incomplete - missing: ${[...missing, ...(!entity.phone?.trim() ? ["contact_phone"] : [])].join(", ")}`,
     );
   }
 
   const existing = await shiprocketRequest(supabase, "/settings/company/pickup");
   const existingLocations: any[] = existing?.data?.shipping_address ?? [];
-  const baseName = vendor.slug;
+  const baseName = entity.baseName;
   const sameName = existingLocations.find((p) => p.pickup_location === baseName);
 
   // Shiprocket has no "update pickup address" API at all (confirmed
@@ -215,9 +280,9 @@ export async function ensurePickupLocation(
       method: "POST",
       body: {
         pickup_location: pickupLocationName,
-        name: vendor.name,
-        email: vendor.contact_email || "orders@allboutiqs.com",
-        phone: vendor.contact_phone,
+        name: entity.name,
+        email: entity.email || "orders@allboutiqs.com",
+        phone: entity.phone,
         address: address.address_line1,
         address_2: address.address_line2 || "",
         city: address.city,
@@ -230,13 +295,13 @@ export async function ensurePickupLocation(
   }
 
   const { error } = await supabase
-    .from("vendors")
+    .from(entity.table)
     .update({
       shiprocket_pickup_location: pickupLocationName,
       shiprocket_pickup_id: pickupId,
       shiprocket_pickup_registered_at: new Date().toISOString(),
     })
-    .eq("id", vendor.id);
+    .eq("id", entity.id);
   if (error) throw error;
 
   return { name: pickupLocationName, id: pickupId };
@@ -314,6 +379,22 @@ export interface CourierOption {
   // function's own price sort reorders the list for display.
   recommended: boolean;
   etd: string | null;
+  // Courier days door to door, from Shiprocket's estimated_delivery_days (or
+  // worked out from etd) - what the warehouse-route delivery estimate adds up.
+  estimatedDays: number | null;
+}
+
+function courierDays(c: any): number | null {
+  const days = Number(c.estimated_delivery_days);
+  if (Number.isFinite(days) && days > 0) return Math.round(days);
+  if (c.etd) {
+    const etd = new Date(c.etd);
+    if (!isNaN(etd.getTime())) {
+      const diff = Math.ceil((etd.getTime() - Date.now()) / 86_400_000);
+      if (diff > 0) return diff;
+    }
+  }
+  return null;
 }
 
 // Real courier names/rates/ETDs for this pickup->delivery route, straight
@@ -349,10 +430,172 @@ export async function checkCourierServiceability(
         rating: typeof c.rating === "number" ? c.rating : null,
         recommended: index === 0,
         etd: c.etd ?? null,
+        estimatedDays: courierDays(c),
       };
     });
   options.sort((a, b) => a.rate - b.rate);
   return options;
+}
+
+// Courier days for a route as the delivery estimate uses them: Shiprocket's
+// recommended courier, falling back to the fastest one that gave a figure.
+export function routeTransitDays(couriers: CourierOption[]): number | null {
+  const recommended = couriers.find((c) => c.recommended && c.estimatedDays != null);
+  if (recommended) return recommended.estimatedDays;
+  const known = couriers.map((c) => c.estimatedDays).filter((d): d is number => d != null);
+  return known.length ? Math.min(...known) : null;
+}
+
+// The fare of the courier actually booked, for the shipment's cost record.
+// Best-effort: a failed lookup never blocks a booking.
+export async function bookedCourierCost(
+  supabase: SupabaseClient,
+  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; courierId: number | null },
+): Promise<number | null> {
+  if (!params.courierId || !params.pickupPincode || !params.deliveryPincode) return null;
+  try {
+    const couriers = await checkCourierServiceability(supabase, params);
+    return couriers.find((c) => c.courierId === params.courierId)?.rate ?? null;
+  } catch (e) {
+    console.error("bookedCourierCost: rate lookup failed", errorMessage(e));
+    return null;
+  }
+}
+
+export interface Consignee {
+  name: string;
+  email: string;
+  phone: string;
+  address: VendorAddress;
+}
+
+export interface ForwardBookingItem {
+  name: string;
+  sku: string;
+  units: number;
+  selling_price: number;
+}
+
+export interface ForwardBookingResult {
+  orderId: number | null;
+  shipmentId: number | null;
+  awbCode: string | null;
+  courierId: number | null;
+  courierName: string | null;
+  labelUrl: string | null;
+  manifestUrl: string | null;
+}
+
+// One parcel from a registered pickup location to any address, booked with
+// courier + pickup in one call (Shiprocket's Forward wrapper). Used by every
+// outbound leg: boutique -> warehouse, warehouse -> customer, warehouse ->
+// boutique, and the original boutique -> customer.
+export async function bookForwardShipment(
+  supabase: SupabaseClient,
+  params: {
+    channelOrderId: string;
+    orderDate: string;
+    pickupLocationName: string;
+    consignee: Consignee;
+    items: ForwardBookingItem[];
+    cod: boolean;
+    subTotal: number;
+    shippingCharges: number;
+    totalDiscount: number;
+    weightKg: number;
+    lengthCm: number;
+    breadthCm: number;
+    heightCm: number;
+    courierId?: number | null;
+  },
+): Promise<ForwardBookingResult> {
+  const a = params.consignee.address;
+  const result = await shiprocketRequest(supabase, "/shipments/create/forward-shipment", {
+    method: "POST",
+    body: {
+      mode: "Surface",
+      request_pickup: true,
+      print_label: true,
+      generate_manifest: true,
+      order_id: params.channelOrderId,
+      order_date: params.orderDate.slice(0, 19).replace("T", " "),
+      pickup_location: params.pickupLocationName,
+      billing_customer_name: params.consignee.name,
+      billing_last_name: "",
+      billing_address: a.address_line1,
+      billing_address_2: a.address_line2 || "",
+      billing_city: a.city,
+      billing_state: a.state,
+      billing_country: a.country || "India",
+      billing_pincode: a.pincode,
+      billing_email: params.consignee.email,
+      billing_phone: params.consignee.phone,
+      shipping_is_billing: "1",
+      order_items: params.items.map((i) => ({
+        name: i.name,
+        sku: i.sku,
+        units: i.units,
+        hsn: "",
+        selling_price: i.selling_price,
+        discount: "0",
+        tax: "0",
+      })),
+      payment_method: params.cod ? "COD" : "PREPAID",
+      shipping_charges: params.shippingCharges,
+      total_discount: String(params.totalDiscount),
+      sub_total: params.subTotal,
+      weight: params.weightKg,
+      length: params.lengthCm,
+      breadth: params.breadthCm,
+      height: params.heightCm,
+      ...(params.courierId ? { courier_id: params.courierId } : {}),
+    },
+  });
+
+  // HTTP 200 even for a logical failure - status:1 is the real success signal.
+  if (result.status !== 1) {
+    throw new Error(result.payload?.error_message || "Shiprocket rejected the shipment request");
+  }
+  const p = result.payload;
+  return {
+    orderId: toIntOrNull(p.order_id),
+    shipmentId: toIntOrNull(p.shipment_id),
+    awbCode: p.awb_code || null,
+    courierId: toIntOrNull(p.courier_company_id),
+    courierName: p.courier_name ?? null,
+    labelUrl: p.label_url ?? null,
+    manifestUrl: p.manifest_url ?? null,
+  };
+}
+
+// A Shiprocket order exists but we failed to record it - cancel it back out
+// so a retry doesn't leave a duplicate live booking.
+export async function cancelOrphanedShiprocketOrder(supabase: SupabaseClient, shiprocketOrderId: number | null) {
+  if (!shiprocketOrderId) return;
+  try {
+    await shiprocketRequest(supabase, "/orders/cancel", { method: "POST", body: { ids: [shiprocketOrderId] } });
+  } catch (e) {
+    console.error("cancelOrphanedShiprocketOrder failed", errorMessage(e));
+  }
+}
+
+// Cancels any not-yet-picked-up booking (by shipments row) - deletes the row
+// so the leg can be booked again. Returns false if the courier already has it.
+export async function cancelBookingRow(
+  supabase: SupabaseClient,
+  shipment: { id: string; awb_code: string | null; shiprocket_order_id: number | null; status: string },
+): Promise<boolean> {
+  if (shipment.status !== "cancelled" && !NOT_YET_PICKED_UP_STATUSES.includes(shipment.status)) return false;
+  if (shipment.shiprocket_order_id) {
+    try {
+      await shiprocketRequest(supabase, "/orders/cancel", { method: "POST", body: { ids: [shipment.shiprocket_order_id] } });
+    } catch (e) {
+      // Already cancelled on Shiprocket's side is fine; anything else is real.
+      if (shipment.status !== "cancelled") throw e;
+    }
+  }
+  await supabase.from("shipments").delete().eq("id", shipment.id);
+  return true;
 }
 
 // Shiprocket's own responses sometimes carry "" (empty string) instead of
@@ -400,11 +643,16 @@ export async function cancelShiprocketShipment(
   vendorOrderId: string,
   options: CancelShiprocketShipmentOptions = {},
 ): Promise<ShiprocketCancelResult> {
+  // The boutique's own outbound parcel: straight to the customer, or to the
+  // warehouse on the warehouse route (not an exchange replacement).
   const { data: shipment } = await supabase
     .from("shipments")
     .select("id, awb_code, shiprocket_order_id, status")
     .eq("vendor_order_id", vendorOrderId)
-    .eq("shipment_type", "forward")
+    .in("shipment_type", ["forward", "to_warehouse"])
+    .is("return_request_id", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!shipment) {

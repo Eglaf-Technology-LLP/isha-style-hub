@@ -61,10 +61,12 @@ Deno.serve(async (req) => {
     if (orderErr) throw orderErr;
     if (!order) return jsonResponse({ error: "Order not found" }, 404);
 
+    // Warehouse staff print each boutique's invoice to go in the parcel.
     const authorized =
       order.user_id === userId ||
       (await isVendorMember(supabase, userId, vendorOrder.vendor_id)) ||
-      (await isAdmin(supabase, userId));
+      (await isAdmin(supabase, userId)) ||
+      (await supabase.rpc("can_operate_warehouse", { _user_id: userId })).data === true;
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     if (existing) {

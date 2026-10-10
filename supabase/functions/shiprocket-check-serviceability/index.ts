@@ -9,16 +9,18 @@ import {
   checkCourierServiceability,
   errorMessage,
 } from "../_shared/shiprocket.ts";
+import { getWarehouse } from "../_shared/warehouse.ts";
 
 // Step 1 of "Ship Now": before booking anything, show the vendor which
 // couriers actually service this pickup->delivery route and at what
 // price, so they pick one instead of Shiprocket silently auto-assigning.
-// Read-only - no Shiprocket order/AWB is created here.
+// Read-only - no Shiprocket order/AWB is created here. On the warehouse
+// route the delivery end is the AllBoutiqs warehouse, always prepaid.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { vendor_order_id } = await req.json();
+    const { vendor_order_id, return_request_id } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
 
     const userId = await getCallerUserId(req);
@@ -40,8 +42,12 @@ Deno.serve(async (req) => {
 
     const [{ data: order, error: orderErr }, { data: items, error: itemsErr }, { data: vendor, error: vendorErr }] =
       await Promise.all([
-        supabase.from("orders").select("shipping_address, payment_method").eq("id", vendorOrder.order_id).single(),
-        supabase.from("order_items").select("product_id, quantity").eq("vendor_order_id", vendor_order_id),
+        supabase
+          .from("orders")
+          .select("shipping_address, payment_method, fulfilment_route, warehouse_id")
+          .eq("id", vendorOrder.order_id)
+          .single(),
+        supabase.from("order_items").select("id, product_id, quantity").eq("vendor_order_id", vendor_order_id),
         supabase.from("vendors").select("address").eq("id", vendorOrder.vendor_id).single(),
       ]);
     if (orderErr) throw orderErr;
@@ -49,8 +55,22 @@ Deno.serve(async (req) => {
     if (vendorErr) throw vendorErr;
     if (!items || items.length === 0) return jsonResponse({ error: "No items on this vendor order" }, 400);
 
+    const viaWarehouse = order.fulfilment_route === "warehouse" && !!order.warehouse_id;
+    const warehouse = viaWarehouse ? await getWarehouse(supabase, order.warehouse_id) : null;
+
+    // An exchange replacement weighs what the exchanged items weigh.
+    let parcelItems: { product_id: string; quantity: number }[] = items;
+    if (return_request_id) {
+      const { data: rr } = await supabase.from("return_requests").select("items").eq("id", return_request_id).maybeSingle();
+      const qtyByItem = new Map(((rr?.items ?? []) as any[]).map((i) => [i.order_item_id, i.quantity]));
+      parcelItems = items
+        .filter((i) => qtyByItem.has(i.id))
+        .map((i) => ({ product_id: i.product_id, quantity: qtyByItem.get(i.id) ?? i.quantity }));
+      if (parcelItems.length === 0) return jsonResponse({ error: "None of this exchange's items are from this boutique" }, 400);
+    }
+
     const pickupPincode = (vendor.address as any)?.pincode;
-    const deliveryPincode = (order.shipping_address as any)?.pincode;
+    const deliveryPincode = warehouse ? warehouse.address.pincode : (order.shipping_address as any)?.pincode;
     if (!pickupPincode) {
       return jsonResponse({ error: "Vendor pickup address has no pincode set - complete it in Store Settings first" }, 400);
     }
@@ -58,8 +78,8 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Order has no delivery pincode" }, 400);
     }
 
-    const isCod = order.payment_method === "cod";
-    const weightKg = await computeTotalWeightKg(supabase, items);
+    const isCod = !warehouse && order.payment_method === "cod";
+    const weightKg = await computeTotalWeightKg(supabase, parcelItems);
     const couriers = await checkCourierServiceability(supabase, {
       pickupPincode,
       deliveryPincode,
@@ -84,7 +104,14 @@ Deno.serve(async (req) => {
     // for nearly every courier regardless of how this specific order will
     // actually be paid, and confusingly labeled "COD" next to a prepaid
     // order's freight-only rate before this fix.
-    return jsonResponse({ couriers, weightKg, isCod });
+    return jsonResponse({
+      couriers,
+      weightKg,
+      isCod,
+      destination: warehouse
+        ? { kind: "warehouse", name: warehouse.name, city: warehouse.address.city, pincode: warehouse.address.pincode }
+        : { kind: "customer", pincode: deliveryPincode },
+    });
   } catch (e) {
     console.error("shiprocket-check-serviceability error", e);
     return jsonResponse({ error: errorMessage(e) }, 500);

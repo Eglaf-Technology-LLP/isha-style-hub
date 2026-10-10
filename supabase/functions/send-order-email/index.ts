@@ -28,6 +28,12 @@ interface OrderEmailRequest {
   // the delivery steps; for "cancelled" it phrases a partial cancellation
   // correctly instead of implying the whole order was cancelled.
   vendorOrderId?: string;
+  // Warehouse route: the warehouse's parcel this update is about - the
+  // email then lists every item in that parcel, whichever boutique it's from.
+  dispatchId?: string | null;
+  // Why a part was cancelled when the customer didn't ask for it (e.g. it
+  // failed inspection at the warehouse).
+  cancelReason?: string;
 }
 
 const STEPS = ["Placed", "Confirmed", "Shipped", "Out for delivery", "Delivered"];
@@ -100,7 +106,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { orderId, type, vendorOrderId }: OrderEmailRequest = await req.json();
+    const { orderId, type, vendorOrderId, dispatchId, cancelReason }: OrderEmailRequest = await req.json();
 
     if (!orderId || !type) {
       throw new Error("Missing orderId or type");
@@ -133,30 +139,56 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: vendorOrders } = await supabase
       .from("vendor_orders")
-      .select("id, vendor:vendors(name, return_window_days)")
+      .select("id, dispatch_id, status, vendor:vendors(name, return_window_days)")
       .eq("order_id", orderId);
     const thisVendorOrder = (vendorOrders ?? []).find((v: any) => v.id === vendorOrderId) as any;
-    const boutique: string | null = thisVendorOrder?.vendor?.name ?? null;
-    const multiBoutique = (vendorOrders?.length ?? 0) > 1;
-
+    const viaWarehouse = order.fulfilment_route === "warehouse";
     const isDeliveryStep = type in STEP_FOR && type !== "confirmation";
-    if (isDeliveryStep && !thisVendorOrder) throw new Error("vendorOrderId is required for delivery updates");
+    // Warehouse parcel: the boutique orders packed in it.
+    const parcelVendorOrders = dispatchId
+      ? (vendorOrders ?? []).filter((v: any) => v.dispatch_id === dispatchId)
+      : thisVendorOrder
+        ? [thisVendorOrder]
+        : [];
+    const parcelVendorOrderIds = new Set(parcelVendorOrders.map((v: any) => v.id));
+    // On the warehouse route the customer gets one parcel from AllBoutiqs,
+    // not separate boutique shipments - the boutique isn't named.
+    const boutique: string | null = viaWarehouse ? null : thisVendorOrder?.vendor?.name ?? null;
+    const liveVendorOrders = (vendorOrders ?? []).filter((v: any) => v.status !== "cancelled");
+    const multiBoutique = viaWarehouse
+      ? isDeliveryStep && liveVendorOrders.some((v: any) => !parcelVendorOrderIds.has(v.id))
+      : (vendorOrders?.length ?? 0) > 1;
 
-    // Delivery updates list only the items in this boutique's shipment.
-    const items = isDeliveryStep
-      ? (allItems ?? []).filter((i: any) => i.vendor_order_id === vendorOrderId)
-      : allItems ?? [];
+    if (isDeliveryStep && parcelVendorOrders.length === 0 && !(viaWarehouse && type === "confirmed")) {
+      throw new Error("vendorOrderId is required for delivery updates");
+    }
 
-    const { data: shipment } = isDeliveryStep
-      ? await supabase
-          .from("shipments")
-          .select("awb_code, courier_name, estimated_delivery_date")
-          .eq("vendor_order_id", vendorOrderId)
-          .in("shipment_type", ["forward", "exchange_forward"])
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : { data: null };
+    // Delivery updates list only the items in this shipment (the warehouse's
+    // confirmation covers the whole order).
+    const items =
+      isDeliveryStep && !(viaWarehouse && type === "confirmed")
+        ? (allItems ?? []).filter((i: any) => parcelVendorOrderIds.has(i.vendor_order_id))
+        : allItems ?? [];
+
+    const { data: shipment } = !isDeliveryStep
+      ? { data: null }
+      : dispatchId
+        ? await supabase
+            .from("shipments")
+            .select("awb_code, courier_name, estimated_delivery_date")
+            .eq("dispatch_id", dispatchId)
+            .eq("shipment_type", "warehouse_to_customer")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : await supabase
+            .from("shipments")
+            .select("awb_code, courier_name, estimated_delivery_date")
+            .eq("vendor_order_id", vendorOrderId)
+            .in("shipment_type", ["forward", "exchange_forward"])
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
     // order.order_status is only "cancelled" here if every vendor_order was
     // already cancelled by the time this fires - cancel-vendor-order updates
@@ -167,7 +199,9 @@ const handler = async (req: Request): Promise<Response> => {
     const from = boutique ? escapeHtml(boutique) : "The boutique";
     const partNote =
       isDeliveryStep && multiBoutique
-        ? `<p style="color:#6a6a6a; font-size:13px; margin:0 0 4px;">This update is for the items from ${escapeHtml(boutique)}. Other items in your order are shipped separately, and you'll get updates for them too.</p>`
+        ? viaWarehouse
+          ? `<p style="color:#6a6a6a; font-size:13px; margin:0 0 4px;">This parcel has part of your order. The rest will follow in a separate parcel, and you'll get updates for it too.</p>`
+          : `<p style="color:#6a6a6a; font-size:13px; margin:0 0 4px;">This update is for the items from ${escapeHtml(boutique)}. Other items in your order are shipped separately, and you'll get updates for them too.</p>`
         : "";
     const trackingUrl = shipment?.awb_code ? `https://shiprocket.co/tracking/${encodeURIComponent(shipment.awb_code)}` : null;
     const eta = shipment?.estimated_delivery_date
@@ -190,12 +224,16 @@ const handler = async (req: Request): Promise<Response> => {
       case "confirmed":
         subject = `Your order #${orderNumber} is confirmed | AllBoutiqs`;
         heading = "Your order is confirmed";
-        message = `${from} has confirmed your order and is getting it ready to ship. We'll email you the tracking details as soon as it ships.`;
+        message = viaWarehouse
+          ? "Your order is confirmed and being prepared. We'll check and pack it at our quality-check centre, then email you the tracking details as soon as it ships."
+          : `${from} has confirmed your order and is getting it ready to ship. We'll email you the tracking details as soon as it ships.`;
         break;
       case "shipped":
         subject = `Your order #${orderNumber} has shipped | AllBoutiqs`;
         heading = "Your order is on its way!";
-        message = `${from} has handed your order to the courier.`;
+        message = viaWarehouse
+          ? "Your order was checked and packed at our quality-check centre and handed to the courier."
+          : `${from} has handed your order to the courier.`;
         extraHtml = infoBox([
           ...(shipment?.courier_name ? [["Courier", escapeHtml(shipment.courier_name)] as [string, string]] : []),
           ...(shipment?.awb_code ? [["Tracking number", escapeHtml(shipment.awb_code)] as [string, string]] : []),
@@ -232,14 +270,22 @@ const handler = async (req: Request): Promise<Response> => {
           order.payment_method === "razorpay"
             ? " If you paid online, your refund will be credited to your original payment method within a few business days."
             : "";
+        const why = cancelReason ? ` ${escapeHtml(cancelReason)}` : "";
         if (isPartialCancellation) {
           subject = `Part of Your Order Cancelled - #${orderNumber} | AllBoutiqs`;
           heading = "Part of your order has been cancelled";
-          message = `The ${boutique ? escapeHtml(boutique) : "selected"} portion of your order has been cancelled as requested. The rest of your order is still being processed.${refundNote}`;
+          message = cancelReason
+            ? `Some items in your order had to be cancelled.${why} The rest of your order is still being processed.${refundNote}`
+            : `The ${boutique ? escapeHtml(boutique) : "selected"} portion of your order has been cancelled as requested. The rest of your order is still being processed.${refundNote}`;
         } else {
           subject = `Order Cancelled - #${orderNumber} | AllBoutiqs`;
           heading = "Your order has been cancelled";
-          message = `As requested, your order has been cancelled.${refundNote}`;
+          message = cancelReason ? `Your order had to be cancelled.${why}${refundNote}` : `As requested, your order has been cancelled.${refundNote}`;
+        }
+        if (cancelReason) {
+          // The cancelled items, not the whole order.
+          const cancelledIds = new Set([vendorOrderId]);
+          items.splice(0, items.length, ...(allItems ?? []).filter((i: any) => cancelledIds.has(i.vendor_order_id)));
         }
         break;
       }

@@ -18,6 +18,10 @@ export interface CancelOneVendorOrderParams {
   order: { id: string; payment_method: string; payment_status: string };
   cancelledBy: string;
   reason: string;
+  // Warehouse decisions (an item failing inspection, an undelivered parcel
+  // the admin cancels) cancel boutique orders past the normal cut-off and
+  // record their own send-back to the boutique.
+  force?: boolean;
 }
 
 export interface CancelOneVendorOrderResult {
@@ -41,18 +45,38 @@ export async function cancelOneVendorOrder(
   supabase: SupabaseClient,
   params: CancelOneVendorOrderParams,
 ): Promise<CancelOneVendorOrderResult> {
-  const { vendorOrder, order, cancelledBy, reason } = params;
+  const { vendorOrder, order, cancelledBy, reason, force = false } = params;
+  const skip = (skippedReason: string): CancelOneVendorOrderResult => ({
+    vendorOrderId: vendorOrder.id,
+    cancelled: false,
+    skippedReason,
+    refundId: null,
+    refundError: null,
+    wasAlreadyShipped: false,
+    cancellationId: null,
+  });
 
-  if (BLOCKED_VENDOR_ORDER_STATUSES.includes(vendorOrder.status)) {
-    return {
-      vendorOrderId: vendorOrder.id,
-      cancelled: false,
-      skippedReason: `already ${vendorOrder.status}`,
-      refundId: null,
-      refundError: null,
-      wasAlreadyShipped: false,
-      cancellationId: null,
-    };
+  if (vendorOrder.status === "cancelled" || (!force && BLOCKED_VENDOR_ORDER_STATUSES.includes(vendorOrder.status))) {
+    return skip(`already ${vendorOrder.status}`);
+  }
+
+  // Warehouse route: once the warehouse's parcel is booked, this part is on
+  // its way to the customer with the rest - it can only come back as a
+  // return. Still being packed: take it out of the parcel.
+  const { data: warehouseState } = await supabase
+    .from("vendor_orders")
+    .select("dispatch_id, received_at_warehouse_at, dispatch:warehouse_dispatches(id, status)")
+    .eq("id", vendorOrder.id)
+    .maybeSingle();
+  const dispatch = (warehouseState as any)?.dispatch as { id: string; status: string } | null;
+  if (dispatch && !force) {
+    if (dispatch.status !== "packing") return skip("already packed and shipped from our warehouse");
+    await supabase.from("vendor_orders").update({ dispatch_id: null }).eq("id", vendorOrder.id);
+    const { count } = await supabase
+      .from("vendor_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("dispatch_id", dispatch.id);
+    if (!count) await supabase.from("warehouse_dispatches").update({ status: "cancelled" }).eq("id", dispatch.id);
   }
 
   // Best-effort: "already picked up" is handled inside cancelShiprocketShipment
@@ -74,7 +98,8 @@ export async function cancelOneVendorOrder(
       .from("shipments")
       .update({ status_raw: `Order cancelled but Shiprocket cancellation failed: ${msg}` })
       .eq("vendor_order_id", vendorOrder.id)
-      .eq("shipment_type", "forward");
+      .in("shipment_type", ["forward", "to_warehouse"])
+      .is("return_request_id", null);
     const ref = `#${String(vo?.order_id ?? order.id).slice(0, 8)}`;
     const n = {
       type: "shipment_cancel_failed",
@@ -162,6 +187,17 @@ export async function cancelOneVendorOrder(
     .select("id")
     .single();
   if (insertErr) throw insertErr;
+
+  // Already at the warehouse: it goes back to the boutique. (One still on its
+  // way gets its send-back when the warehouse receives it.)
+  if (!force && warehouseState?.received_at_warehouse_at) {
+    const { error: sendBackErr } = await supabase.rpc("create_boutique_send_back", {
+      _vendor_order_id: vendorOrder.id,
+      _reason: "order_cancelled",
+      _notes: reason,
+    });
+    if (sendBackErr) console.error("cancelOneVendorOrder: send-back not recorded", errorMessage(sendBackErr));
+  }
 
   return {
     vendorOrderId: vendorOrder.id,

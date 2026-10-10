@@ -69,3 +69,9 @@ verify_jwt = false
 
 [functions.razorpay-payment-methods]
 verify_jwt = true
+
+# Warehouse staff / admin actions that need the courier or the payment
+# gateway (booking parcels from the warehouse, return inspection refunds).
+# Checks can_operate_warehouse itself.
+[functions.warehouse-actions]
+verify_jwt = true
