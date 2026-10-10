@@ -47,7 +47,8 @@ const CANCEL_REASONS = [
   "Other",
 ];
 
-const BLOCKED_STATUSES = ["delivered", "cancelled", "returned"];
+// "dispatched": already in the warehouse's booked parcel to the customer.
+const BLOCKED_STATUSES = ["delivered", "cancelled", "returned", "dispatched"];
 
 export function OrderCancellationDialog({
   items,

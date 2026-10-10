@@ -419,7 +419,9 @@ export default function OrderHistory() {
               const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
 
               const hasCancellableItems = order.vendor_orders.some(
-                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
+                // Warehouse route: a part already in the warehouse's booked
+                // parcel can only come back as a return.
+                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status) && !vo.parcel,
               );
               const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
               const paymentDisplay = paymentStatusDisplay(order);
@@ -788,7 +790,7 @@ export default function OrderHistory() {
               return {
                 id: item.id,
                 vendorOrderId: item.vendor_order_id as string,
-                vendorOrderStatus: vo?.status ?? "pending",
+                vendorOrderStatus: vo?.parcel ? "dispatched" : vo?.status ?? "pending",
                 productTitle: item.product_title,
                 variantTitle: item.variant_title,
                 size: item.size,

@@ -155,8 +155,10 @@ const handler = async (req: Request): Promise<Response> => {
     // not separate boutique shipments - the boutique isn't named.
     const boutique: string | null = viaWarehouse ? null : thisVendorOrder?.vendor?.name ?? null;
     const liveVendorOrders = (vendorOrders ?? []).filter((v: any) => v.status !== "cancelled");
+    // Warehouse route: only a parcel's own updates can be "part of your
+    // order" (the confirmation covers the whole order).
     const multiBoutique = viaWarehouse
-      ? isDeliveryStep && liveVendorOrders.some((v: any) => !parcelVendorOrderIds.has(v.id))
+      ? isDeliveryStep && type !== "confirmed" && liveVendorOrders.some((v: any) => !parcelVendorOrderIds.has(v.id))
       : (vendorOrders?.length ?? 0) > 1;
 
     if (isDeliveryStep && parcelVendorOrders.length === 0 && !(viaWarehouse && type === "confirmed")) {

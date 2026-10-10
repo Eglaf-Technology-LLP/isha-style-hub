@@ -538,7 +538,7 @@ BEGIN
   INTO v_vo
   FROM public.vendor_orders vo JOIN public.orders o ON o.id = vo.order_id
   WHERE vo.id = _vendor_order_id;
-  IF v_vo.id IS NULL OR v_vo.warehouse_id IS NULL THEN
+  IF NOT FOUND OR v_vo.warehouse_id IS NULL THEN
     RETURN NULL;
   END IF;
 
@@ -1201,7 +1201,7 @@ DECLARE
 BEGIN
   PERFORM public.assert_warehouse_operator();
   SELECT id, fulfilment_route, warehouse_id INTO v_order FROM public.orders WHERE id = _order_id FOR UPDATE;
-  IF v_order.id IS NULL THEN
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Order not found';
   END IF;
   IF v_order.fulfilment_route IS DISTINCT FROM 'warehouse' THEN
