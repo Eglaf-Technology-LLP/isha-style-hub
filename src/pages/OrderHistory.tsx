@@ -22,7 +22,7 @@ import { OrderCancellationDialog, CancellableOrderItem } from "@/components/Orde
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
-import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { buildOrderTimeline, buildWarehouseOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 
@@ -57,6 +57,10 @@ interface VendorOrderInfo {
   tracking_number: string | null;
   carrier: string | null;
   shipment: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
+  // Warehouse route: when this part reached the warehouse, and the
+  // warehouse's parcel to the customer that carries it.
+  arrived_at_warehouse_at: string | null;
+  parcel: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
 }
 
 interface Order {
@@ -71,6 +75,8 @@ interface Order {
   discount_code: string | null;
   discount_amount: number;
   customer_name: string;
+  fulfilment_route: string;
+  estimated_delivery_date: string | null;
   shipping_address: {
     address_line1: string;
     address_line2?: string;
@@ -90,6 +96,12 @@ const returnStatusConfig: Record<string, { label: string; className: string }> =
   completed: { label: "Completed", className: "bg-green-100 text-green-800" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-800" },
   pickup_failed: { label: "Pickup Issue - We're On It", className: "bg-amber-100 text-amber-800" },
+  pickup_scheduled: { label: "Pickup Scheduled", className: "bg-blue-100 text-blue-800" },
+  at_warehouse: { label: "Received - Being Inspected", className: "bg-indigo-100 text-indigo-800" },
+  qc_passed: { label: "Passed Inspection", className: "bg-green-100 text-green-800" },
+  qc_failed: { label: "Didn't Pass Inspection - Sending Back", className: "bg-red-100 text-red-800" },
+  replacement_shipped: { label: "Replacement Shipped", className: "bg-indigo-100 text-indigo-800" },
+  returned_to_customer: { label: "Items Sent Back to You", className: "bg-gray-100 text-gray-800" },
 };
 
 const paymentStatusColors: Record<string, string> = {
@@ -183,15 +195,26 @@ export default function OrderHistory() {
       // never surfaced to the customer.
       const ordersWithItems = await Promise.all(
         (ordersData || []).map(async (order) => {
-          const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
+          const [{ data: itemsData }, { data: vendorOrdersData }, { data: parcelData }] = await Promise.all([
             supabase.from("order_items").select("*").eq("order_id", order.id),
             supabase
               .from("vendor_orders")
               .select(
-                "id, status, updated_at, tracking_number, carrier, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
+            // The warehouse's own parcels to the customer (warehouse route).
+            order.fulfilment_route === "warehouse"
+              ? supabase
+                  .from("shipments")
+                  .select("dispatch_id, awb_code, courier_name, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date")
+                  .eq("order_id", order.id)
+                  .eq("shipment_type", "warehouse_to_customer")
+                  .neq("status", "cancelled")
+                  .order("created_at", { ascending: true })
+              : Promise.resolve({ data: [] as any[] }),
           ]);
+          const parcelByDispatch = new Map((parcelData || []).map((p: any) => [p.dispatch_id, p]));
 
           const imageByItemId = await resolveOrderItemImages(
             (itemsData || []).map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id })),
@@ -206,12 +229,15 @@ export default function OrderHistory() {
             })),
             vendor_orders: (vendorOrdersData || []).map((vo: any) => {
               const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
+              const parcel = vo.dispatch_id ? parcelByDispatch.get(vo.dispatch_id) ?? null : null;
               return {
                 id: vo.id,
                 status: vo.status,
                 updated_at: vo.updated_at,
                 tracking_number: vo.tracking_number,
                 carrier: vo.carrier,
+                arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
+                parcel,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -365,7 +391,32 @@ export default function OrderHistory() {
                   vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
                 }))
                 .filter((g) => g.vendorOrder);
-              const showGroupLabels = shipmentGroups.length > 1;
+              // Warehouse route: the customer gets AllBoutiqs' own parcel(s),
+              // so one timeline for the whole order instead of one per part.
+              const viaWarehouse = order.fulfilment_route === "warehouse";
+              const warehouseTimeline = viaWarehouse
+                ? buildWarehouseOrderTimeline({
+                    orderPlacedAt: order.created_at,
+                    orderEstimatedDeliveryDate: order.estimated_delivery_date,
+                    parts: order.vendor_orders.map((vo) => ({
+                      status: vo.status,
+                      updated_at: vo.updated_at,
+                      arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
+                      parcel: vo.parcel,
+                    })),
+                  })
+                : null;
+              const warehouseParcels = viaWarehouse
+                ? [...new Map(order.vendor_orders.filter((vo) => vo.parcel?.awb_code).map((vo) => [vo.parcel!.awb_code, vo.parcel!])).values()]
+                : [];
+              const headerStatusLabel = warehouseTimeline
+                ? warehouseTimeline.kind === "progress"
+                  ? warehouseTimeline.stages.find((s) => s.state === "current")?.label ?? "Delivered"
+                  : warehouseTimeline.kind === "cancelled"
+                    ? "Cancelled"
+                    : "Delivery unsuccessful"
+                : null;
+              const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
 
               const hasCancellableItems = order.vendor_orders.some(
                 (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
@@ -386,7 +437,12 @@ export default function OrderHistory() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
+                      {headerStatusLabel && (
+                        <Badge className={warehouseTimeline?.kind === "progress" ? "bg-indigo-100 text-indigo-800" : "bg-muted"}>
+                          {headerStatusLabel}
+                        </Badge>
+                      )}
+                      {!viaWarehouse && shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
                         <Badge className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status] || "bg-muted"}>
                           {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
                             shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
@@ -482,7 +538,14 @@ export default function OrderHistory() {
                                   <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
                                 </div>
                               ))}
-                              {group.vendorOrder && (
+                              {group.vendorOrder && viaWarehouse && (
+                                <InvoiceDownloadButton
+                                  vendorOrderId={group.vendorOrderId}
+                                  paymentStatus={order.payment_status}
+                                  vendorOrderStatus={group.vendorOrder.status}
+                                />
+                              )}
+                              {group.vendorOrder && !viaWarehouse && (
                                 <div className="pt-1 space-y-2">
                                   <OrderStatusTimeline
                                     timeline={buildOrderTimeline({
@@ -523,6 +586,24 @@ export default function OrderHistory() {
                               )}
                             </div>
                           ))}
+
+                          {warehouseTimeline && (
+                            <div className="pt-1 space-y-2">
+                              <OrderStatusTimeline timeline={warehouseTimeline} />
+                              {warehouseParcels.map((parcel) => (
+                                <a
+                                  key={parcel.awb_code}
+                                  href={`https://shiprocket.co/tracking/${parcel.awb_code}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-primary hover:underline block"
+                                >
+                                  {parcel.courier_name ? `${parcel.courier_name} • ` : ""}
+                                  Track {warehouseParcels.length > 1 ? "parcel" : "shipment"}
+                                </a>
+                              ))}
+                            </div>
+                          )}
 
                           <div className="pt-3 space-y-1 text-sm border-t">
                             <div className="flex justify-between">

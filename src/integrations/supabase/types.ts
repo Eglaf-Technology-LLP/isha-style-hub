@@ -72,6 +72,51 @@ export type Database = {
         }
         Relationships: []
       }
+      boutique_send_backs: {
+        Row: {
+          created_at: string
+          id: string
+          items: Json
+          notes: string | null
+          order_id: string
+          reason: string
+          return_request_id: string | null
+          status: string
+          updated_at: string
+          vendor_id: string
+          vendor_order_id: string | null
+          warehouse_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_id: string
+          reason: string
+          return_request_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id: string
+          vendor_order_id?: string | null
+          warehouse_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_id?: string
+          reason?: string
+          return_request_id?: string | null
+          status?: string
+          updated_at?: string
+          vendor_id?: string
+          vendor_order_id?: string | null
+          warehouse_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -636,6 +681,7 @@ export type Database = {
           id: string
           is_returnable: boolean
           order_id: string
+          prep_days: number | null
           price: number
           product_id: string
           product_title: string
@@ -653,6 +699,7 @@ export type Database = {
           id?: string
           is_returnable?: boolean
           order_id: string
+          prep_days?: number | null
           price: number
           product_id: string
           product_title: string
@@ -670,6 +717,7 @@ export type Database = {
           id?: string
           is_returnable?: boolean
           order_id?: string
+          prep_days?: number | null
           price?: number
           product_id?: string
           product_title?: string
@@ -731,6 +779,8 @@ export type Database = {
           customer_phone: string
           discount_amount: number
           discount_code: string | null
+          estimated_delivery_date: string | null
+          fulfilment_route: string
           id: string
           notes: string | null
           order_status: string
@@ -744,6 +794,7 @@ export type Database = {
           total: number
           updated_at: string
           user_id: string | null
+          warehouse_id: string | null
         }
         Insert: {
           created_at?: string
@@ -752,6 +803,8 @@ export type Database = {
           customer_phone: string
           discount_amount?: number
           discount_code?: string | null
+          estimated_delivery_date?: string | null
+          fulfilment_route?: string
           id?: string
           notes?: string | null
           order_status?: string
@@ -765,6 +818,7 @@ export type Database = {
           total: number
           updated_at?: string
           user_id?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           created_at?: string
@@ -773,6 +827,8 @@ export type Database = {
           customer_phone?: string
           discount_amount?: number
           discount_code?: string | null
+          estimated_delivery_date?: string | null
+          fulfilment_route?: string
           id?: string
           notes?: string | null
           order_status?: string
@@ -786,6 +842,7 @@ export type Database = {
           total?: number
           updated_at?: string
           user_id?: string | null
+          warehouse_id?: string | null
         }
         Relationships: []
       }
@@ -892,6 +949,7 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          default_prep_days: number
           id: boolean
           payout_settlement_days: number
           return_evidence_required: boolean
@@ -899,8 +957,14 @@ export type Database = {
           review_images_require_approval: boolean
           updated_at: string
           updated_by: string | null
+          warehouse_cutoff_hour: number
+          warehouse_handling_days: number
+          warehouse_inbound_transit_days: number
+          warehouse_max_wait_days: number
+          warehouse_routing_enabled: boolean
         }
         Insert: {
+          default_prep_days?: number
           id?: boolean
           payout_settlement_days?: number
           return_evidence_required?: boolean
@@ -908,8 +972,14 @@ export type Database = {
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
+          warehouse_cutoff_hour?: number
+          warehouse_handling_days?: number
+          warehouse_inbound_transit_days?: number
+          warehouse_max_wait_days?: number
+          warehouse_routing_enabled?: boolean
         }
         Update: {
+          default_prep_days?: number
           id?: boolean
           payout_settlement_days?: number
           return_evidence_required?: boolean
@@ -917,6 +987,11 @@ export type Database = {
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
+          warehouse_cutoff_hour?: number
+          warehouse_handling_days?: number
+          warehouse_inbound_transit_days?: number
+          warehouse_max_wait_days?: number
+          warehouse_routing_enabled?: boolean
         }
         Relationships: []
       }
@@ -1066,8 +1141,10 @@ export type Database = {
           is_returnable: boolean
           length_cm: number | null
           low_stock_threshold: number
+          made_to_order: boolean
           name: string
           net_quantity: string
+          prep_days: number | null
           price: number
           rejection_reason: string | null
           related_product_ids: string[] | null
@@ -1100,8 +1177,10 @@ export type Database = {
           is_returnable?: boolean
           length_cm?: number | null
           low_stock_threshold?: number
+          made_to_order?: boolean
           name: string
           net_quantity?: string
+          prep_days?: number | null
           price?: number
           rejection_reason?: string | null
           related_product_ids?: string[] | null
@@ -1134,8 +1213,10 @@ export type Database = {
           is_returnable?: boolean
           length_cm?: number | null
           low_stock_threshold?: number
+          made_to_order?: boolean
           name?: string
           net_quantity?: string
+          prep_days?: number | null
           price?: number
           rejection_reason?: string | null
           related_product_ids?: string[] | null
@@ -1357,13 +1438,24 @@ export type Database = {
           items: Json
           order_id: string
           reason: string
+          received_at_warehouse_at: string | null
+          received_by: string | null
           refund_amount: number | null
+          replacement_qc_notes: string | null
+          replacement_qc_status: string | null
+          replacement_received_at: string | null
           request_type: string
+          return_destination: string | null
           status: string
           updated_at: string
           user_id: string
           vendor_decision_at: string | null
           vendor_notes: string | null
+          warehouse_qc_at: string | null
+          warehouse_qc_by: string | null
+          warehouse_qc_notes: string | null
+          warehouse_qc_status: string | null
+          warehouse_shelf: string | null
         }
         Insert: {
           additional_notes?: string | null
@@ -1377,13 +1469,24 @@ export type Database = {
           items?: Json
           order_id: string
           reason: string
+          received_at_warehouse_at?: string | null
+          received_by?: string | null
           refund_amount?: number | null
+          replacement_qc_notes?: string | null
+          replacement_qc_status?: string | null
+          replacement_received_at?: string | null
           request_type?: string
+          return_destination?: string | null
           status?: string
           updated_at?: string
           user_id: string
           vendor_decision_at?: string | null
           vendor_notes?: string | null
+          warehouse_qc_at?: string | null
+          warehouse_qc_by?: string | null
+          warehouse_qc_notes?: string | null
+          warehouse_qc_status?: string | null
+          warehouse_shelf?: string | null
         }
         Update: {
           additional_notes?: string | null
@@ -1397,13 +1500,24 @@ export type Database = {
           items?: Json
           order_id?: string
           reason?: string
+          received_at_warehouse_at?: string | null
+          received_by?: string | null
           refund_amount?: number | null
+          replacement_qc_notes?: string | null
+          replacement_qc_status?: string | null
+          replacement_received_at?: string | null
           request_type?: string
+          return_destination?: string | null
           status?: string
           updated_at?: string
           user_id?: string
           vendor_decision_at?: string | null
           vendor_notes?: string | null
+          warehouse_qc_at?: string | null
+          warehouse_qc_by?: string | null
+          warehouse_qc_notes?: string | null
+          warehouse_qc_status?: string | null
+          warehouse_shelf?: string | null
         }
         Relationships: [
           {
@@ -1578,19 +1692,24 @@ export type Database = {
       shipments: {
         Row: {
           awb_code: string | null
+          cost_borne_by: string
+          courier_cost: number | null
           courier_id: number | null
           courier_name: string | null
           created_at: string
           delivered_at: string | null
+          dispatch_id: string | null
           estimated_delivery_date: string | null
           id: string
           invoice_url: string | null
           label_url: string | null
           manifest_url: string | null
+          order_id: string | null
           picked_up_at: string | null
           pickup_scheduled_at: string | null
           return_request_id: string | null
           rto_initiated_at: string | null
+          send_back_id: string | null
           shipment_type: string
           shiprocket_channel_order_id: string | null
           shiprocket_order_id: number | null
@@ -1598,23 +1717,29 @@ export type Database = {
           status: string
           status_raw: string | null
           updated_at: string
-          vendor_order_id: string
+          vendor_order_id: string | null
+          warehouse_id: string | null
         }
         Insert: {
           awb_code?: string | null
+          cost_borne_by?: string
+          courier_cost?: number | null
           courier_id?: number | null
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
+          dispatch_id?: string | null
           estimated_delivery_date?: string | null
           id?: string
           invoice_url?: string | null
           label_url?: string | null
           manifest_url?: string | null
+          order_id?: string | null
           picked_up_at?: string | null
           pickup_scheduled_at?: string | null
           return_request_id?: string | null
           rto_initiated_at?: string | null
+          send_back_id?: string | null
           shipment_type?: string
           shiprocket_channel_order_id?: string | null
           shiprocket_order_id?: number | null
@@ -1622,23 +1747,29 @@ export type Database = {
           status?: string
           status_raw?: string | null
           updated_at?: string
-          vendor_order_id: string
+          vendor_order_id?: string | null
+          warehouse_id?: string | null
         }
         Update: {
           awb_code?: string | null
+          cost_borne_by?: string
+          courier_cost?: number | null
           courier_id?: number | null
           courier_name?: string | null
           created_at?: string
           delivered_at?: string | null
+          dispatch_id?: string | null
           estimated_delivery_date?: string | null
           id?: string
           invoice_url?: string | null
           label_url?: string | null
           manifest_url?: string | null
+          order_id?: string | null
           picked_up_at?: string | null
           pickup_scheduled_at?: string | null
           return_request_id?: string | null
           rto_initiated_at?: string | null
+          send_back_id?: string | null
           shipment_type?: string
           shiprocket_channel_order_id?: string | null
           shiprocket_order_id?: number | null
@@ -1646,7 +1777,8 @@ export type Database = {
           status?: string
           status_raw?: string | null
           updated_at?: string
-          vendor_order_id?: string
+          vendor_order_id?: string | null
+          warehouse_id?: string | null
         }
         Relationships: [
           {
@@ -1968,18 +2100,30 @@ export type Database = {
       }
       vendor_orders: {
         Row: {
+          arrived_at_warehouse_at: string | null
           carrier: string | null
           commission_amount: number
           commission_rate: number
           created_at: string
           delivered_at: string | null
+          dispatch_id: string | null
           due_notified_at: string | null
+          expected_at_warehouse_on: string | null
           id: string
+          late_reminder_sent_at: string | null
           net_payable: number
           order_id: string
+          overdue_alerted_at: string | null
           payout_eligible_on: string | null
           payout_id: string | null
           payout_notified_at: string | null
+          qc_at: string | null
+          qc_by: string | null
+          qc_notes: string | null
+          qc_status: string | null
+          ready_by: string | null
+          received_at_warehouse_at: string | null
+          received_by: string | null
           reminder_sent_at: string | null
           rzp_released_at: string | null
           rzp_reversed_amount: number
@@ -1997,20 +2141,33 @@ export type Database = {
           tracking_number: string | null
           updated_at: string
           vendor_id: string
+          warehouse_shelf: string | null
         }
         Insert: {
+          arrived_at_warehouse_at?: string | null
           carrier?: string | null
           commission_amount?: number
           commission_rate?: number
           created_at?: string
           delivered_at?: string | null
+          dispatch_id?: string | null
           due_notified_at?: string | null
+          expected_at_warehouse_on?: string | null
           id?: string
+          late_reminder_sent_at?: string | null
           net_payable?: number
           order_id: string
+          overdue_alerted_at?: string | null
           payout_eligible_on?: string | null
           payout_id?: string | null
           payout_notified_at?: string | null
+          qc_at?: string | null
+          qc_by?: string | null
+          qc_notes?: string | null
+          qc_status?: string | null
+          ready_by?: string | null
+          received_at_warehouse_at?: string | null
+          received_by?: string | null
           reminder_sent_at?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
@@ -2028,20 +2185,33 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vendor_id: string
+          warehouse_shelf?: string | null
         }
         Update: {
+          arrived_at_warehouse_at?: string | null
           carrier?: string | null
           commission_amount?: number
           commission_rate?: number
           created_at?: string
           delivered_at?: string | null
+          dispatch_id?: string | null
           due_notified_at?: string | null
+          expected_at_warehouse_on?: string | null
           id?: string
+          late_reminder_sent_at?: string | null
           net_payable?: number
           order_id?: string
+          overdue_alerted_at?: string | null
           payout_eligible_on?: string | null
           payout_id?: string | null
           payout_notified_at?: string | null
+          qc_at?: string | null
+          qc_by?: string | null
+          qc_notes?: string | null
+          qc_status?: string | null
+          ready_by?: string | null
+          received_at_warehouse_at?: string | null
+          received_by?: string | null
           reminder_sent_at?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
@@ -2059,6 +2229,7 @@ export type Database = {
           tracking_number?: string | null
           updated_at?: string
           vendor_id?: string
+          warehouse_shelf?: string | null
         }
         Relationships: [
           {
@@ -2264,6 +2435,7 @@ export type Database = {
           contact_email: string | null
           contact_phone: string | null
           created_at: string
+          default_prep_days: number | null
           description: string | null
           free_shipping_threshold: number | null
           gst_number: string | null
@@ -2299,6 +2471,7 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          default_prep_days?: number | null
           description?: string | null
           free_shipping_threshold?: number | null
           gst_number?: string | null
@@ -2334,6 +2507,7 @@ export type Database = {
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
+          default_prep_days?: number | null
           description?: string | null
           free_shipping_threshold?: number | null
           gst_number?: string | null
@@ -2356,6 +2530,129 @@ export type Database = {
           shiprocket_pickup_registered_at?: string | null
           slug?: string
           status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      warehouse_dispatches: {
+        Row: {
+          breadth_cm: number
+          created_at: string
+          height_cm: number
+          id: string
+          length_cm: number
+          order_id: string
+          packed_at: string
+          packed_by: string | null
+          purpose: string
+          return_request_id: string | null
+          rto_received_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+          weight_kg: number
+        }
+        Insert: {
+          breadth_cm: number
+          created_at?: string
+          height_cm: number
+          id?: string
+          length_cm: number
+          order_id: string
+          packed_at?: string
+          packed_by?: string | null
+          purpose?: string
+          return_request_id?: string | null
+          rto_received_at?: string | null
+          status?: string
+          updated_at?: string
+          warehouse_id: string
+          weight_kg: number
+        }
+        Update: {
+          breadth_cm?: number
+          created_at?: string
+          height_cm?: number
+          id?: string
+          length_cm?: number
+          order_id?: string
+          packed_at?: string
+          packed_by?: string | null
+          purpose?: string
+          return_request_id?: string | null
+          rto_received_at?: string | null
+          status?: string
+          updated_at?: string
+          warehouse_id?: string
+          weight_kg?: number
+        }
+        Relationships: []
+      }
+      warehouse_holidays: {
+        Row: {
+          created_at: string
+          holiday_date: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          holiday_date: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          holiday_date?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      warehouses: {
+        Row: {
+          address: Json
+          code: string
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          shiprocket_pickup_id: number | null
+          shiprocket_pickup_location: string | null
+          shiprocket_pickup_registered_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          address: Json
+          code: string
+          contact_email: string
+          contact_name: string
+          contact_phone: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          shiprocket_pickup_id?: number | null
+          shiprocket_pickup_location?: string | null
+          shiprocket_pickup_registered_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: Json
+          code?: string
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          shiprocket_pickup_id?: number | null
+          shiprocket_pickup_location?: string | null
+          shiprocket_pickup_registered_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -2406,10 +2703,30 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_list_warehouse_staff: {
+        Args: never
+        Returns: {
+          added_at: string
+          email: string
+          user_id: string
+        }[]
+      }
+      admin_redispatch_after_rto: {
+        Args: { _dispatch_id: string }
+        Returns: undefined
+      }
+      admin_set_warehouse_staff: {
+        Args: { _email: string; _enabled: boolean }
+        Returns: string
+      }
       admin_user_ids: { Args: never; Returns: string[] }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
         Args: { _object_name: string; _user_id: string }
+        Returns: boolean
+      }
+      can_operate_warehouse: {
+        Args: { _user_id: string }
         Returns: boolean
       }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
@@ -2553,9 +2870,87 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      warehouse_cancel_dispatch: {
+        Args: { _dispatch_id: string }
+        Returns: undefined
+      }
+      warehouse_create_dispatch: {
+        Args: { _allow_partial?: boolean; _breadth_cm: number; _height_cm: number; _length_cm: number; _order_id: string; _vendor_order_ids: string[]; _weight_kg: number }
+        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "warehouse_dispatches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_dispatch_by: {
+        Args: { _received_at: string }
+        Returns: string
+      }
+      warehouse_receive_parcel: {
+        Args: { _shelf?: string; _vendor_order_id: string }
+        Returns: Database["public"]["Tables"]["vendor_orders"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "vendor_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_receive_replacement: {
+        Args: { _return_request_id: string }
+        Returns: Database["public"]["Tables"]["return_requests"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "return_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_receive_return: {
+        Args: { _return_request_id: string; _shelf?: string }
+        Returns: Database["public"]["Tables"]["return_requests"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "return_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_receive_rto: {
+        Args: { _dispatch_id: string }
+        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "warehouse_dispatches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_record_qc: {
+        Args: { _notes?: string; _passed: boolean; _vendor_order_id: string }
+        Returns: Database["public"]["Tables"]["vendor_orders"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "vendor_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      warehouse_update_dispatch_parcel: {
+        Args: { _breadth_cm: number; _dispatch_id: string; _height_cm: number; _length_cm: number; _weight_kg: number }
+        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        SetofOptions: {
+          from: "*"
+          to: "warehouse_dispatches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
-      app_role: "admin" | "user" | "vendor_admin" | "vendor_staff"
+      app_role: "admin" | "user" | "vendor_admin" | "vendor_staff" | "warehouse_staff"
       membership_plan: "monthly" | "annual"
       membership_status: "active" | "cancelled" | "expired"
     }
@@ -2688,7 +3083,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      app_role: ["admin", "user", "vendor_admin", "vendor_staff"],
+      app_role: ["admin", "user", "vendor_admin", "vendor_staff", "warehouse_staff"],
       membership_plan: ["monthly", "annual"],
       membership_status: ["active", "cancelled", "expired"],
     },

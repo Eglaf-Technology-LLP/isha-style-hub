@@ -1,10 +1,12 @@
-import { Package, CheckCircle2, Truck, MapPin, PackageCheck, Ban, RotateCcw, AlertTriangle } from "lucide-react";
+import { Package, CheckCircle2, Truck, MapPin, PackageCheck, Ban, RotateCcw, AlertTriangle, Scissors, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 import { OrderTimeline, TimelineStage } from "@/lib/orderStatus";
 
 const STAGE_ICONS: Record<TimelineStage["key"], typeof Package> = {
   placed: Package,
   confirmed: CheckCircle2,
+  preparing: Scissors,
+  quality_check: ShieldCheck,
   shipped: Truck,
   out_for_delivery: MapPin,
   delivered: PackageCheck,
@@ -29,12 +31,15 @@ export function OrderStatusTimeline({ timeline, compact = false }: OrderStatusTi
     const Icon = timeline.kind === "cancelled" ? Ban : RotateCcw;
     const label = timeline.kind === "cancelled" ? "Order Cancelled" : "Returned";
     return (
-      <div className={`flex items-center gap-2 text-destructive ${compact ? "text-xs" : "text-sm"}`}>
-        <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
-        <span className="font-medium">{label}</span>
-        {timeline.terminalAt && (
-          <span className="text-muted-foreground">{formatDate(timeline.terminalAt)}</span>
-        )}
+      <div className="space-y-1">
+        <div className={`flex items-center gap-2 text-destructive ${compact ? "text-xs" : "text-sm"}`}>
+          <Icon className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+          <span className="font-medium">{label}</span>
+          {timeline.terminalAt && (
+            <span className="text-muted-foreground">{formatDate(timeline.terminalAt)}</span>
+          )}
+        </div>
+        {timeline.note && <p className="text-xs text-muted-foreground">{timeline.note}</p>}
       </div>
     );
   }
@@ -97,6 +102,8 @@ export function OrderStatusTimeline({ timeline, compact = false }: OrderStatusTi
           <span>Last delivery attempt failed - a retry is scheduled</span>
         </div>
       )}
+
+      {timeline.note && <p className="text-xs text-muted-foreground">{timeline.note}</p>}
 
       {timeline.estimatedDeliveryDate && (
         <p className={`text-primary font-medium ${compact ? "text-xs" : "text-sm"}`}>

@@ -47,6 +47,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     free_shipping_threshold: "",
     return_window_days: "7",
     return_policy: "",
+    default_prep_days: "",
   });
   const [codEnabled, setCodEnabled] = useState(true);
   const [returnsEnabled, setReturnsEnabled] = useState(true);
@@ -73,6 +74,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
         vendor.free_shipping_threshold != null ? String(vendor.free_shipping_threshold) : "",
       return_window_days: String(vendor.return_window_days ?? 7),
       return_policy: vendor.return_policy || "",
+      default_prep_days: vendor.default_prep_days != null ? String(vendor.default_prep_days) : "",
     });
     setCodEnabled(vendor.cod_enabled);
     setReturnsEnabled(vendor.returns_enabled);
@@ -125,6 +127,10 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
             : null,
           return_window_days: Number(form.return_window_days) || 7,
           return_policy: form.return_policy.trim() || null,
+          default_prep_days:
+            form.default_prep_days.trim() === ""
+              ? null
+              : Math.min(60, Math.max(0, Math.round(Number(form.default_prep_days) || 0))),
           cod_enabled: codEnabled,
           returns_enabled: returnsEnabled,
           logo_url: logoUrl,
@@ -295,6 +301,23 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   onChange={(e) => set("return_window_days", e.target.value)}
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
+              <Input
+                id="vs-prep"
+                type="number"
+                min={0}
+                max={60}
+                placeholder="2"
+                value={form.default_prep_days}
+                onChange={(e) => set("default_prep_days", e.target.value)}
+                className="max-w-[160px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                How many working days you need to pack an order before handing it to the courier. Used in the
+                delivery date customers see. Leave empty for 2 days; set a longer time on made-to-order products.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="vs-policy">Return policy</Label>

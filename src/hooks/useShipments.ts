@@ -15,10 +15,18 @@ export interface CourierOption {
   etd: string | null;
 }
 
+export interface ShipDestination {
+  kind: "warehouse" | "customer";
+  name?: string;
+  city?: string;
+  pincode: string;
+}
+
 export interface Shipment {
   id: string;
   vendor_order_id: string;
   return_request_id: string | null;
+  dispatch_id: string | null;
   shipment_type: string;
   awb_code: string | null;
   courier_name: string | null;
@@ -71,13 +79,16 @@ export function useShipments(vendorOrderIds: string[]) {
 
   // Step 1: real couriers + fares for this route, so the vendor picks one
   // instead of Shiprocket silently auto-assigning. Read-only.
+  // returnRequestId: rates for an exchange's replacement (warehouse route).
   const checkServiceability = async (
     vendorOrderId: string,
-  ): Promise<{ couriers: CourierOption[]; isCod: boolean } | null> => {
-    const { data, errorMessage: msg } = await invokeEdgeFunction<{ couriers: CourierOption[]; isCod: boolean }>(
-      "shiprocket-check-serviceability",
-      { vendor_order_id: vendorOrderId },
-    );
+    returnRequestId?: string,
+  ): Promise<{ couriers: CourierOption[]; isCod: boolean; destination?: ShipDestination } | null> => {
+    const { data, errorMessage: msg } = await invokeEdgeFunction<{
+      couriers: CourierOption[];
+      isCod: boolean;
+      destination?: ShipDestination;
+    }>("shiprocket-check-serviceability", { vendor_order_id: vendorOrderId, return_request_id: returnRequestId });
     if (msg) {
       toast.error(msg);
       return null;
@@ -89,12 +100,18 @@ export function useShipments(vendorOrderIds: string[]) {
   // courierEtd is the exact etd already shown for that courier in step 1 -
   // passed through so the real promised date gets persisted instead of
   // discarded once booking succeeds.
-  const shipNow = async (vendorOrderId: string, courierId?: number, courierEtd?: string | null): Promise<boolean> => {
+  const shipNow = async (
+    vendorOrderId: string,
+    courierId?: number,
+    courierEtd?: string | null,
+    returnRequestId?: string,
+  ): Promise<boolean> => {
     setActioningId(vendorOrderId);
     const { data, errorMessage: msg } = await invokeEdgeFunction("shiprocket-create-shipment", {
       vendor_order_id: vendorOrderId,
       courier_id: courierId,
       courier_etd: courierEtd,
+      return_request_id: returnRequestId,
     });
     setActioningId(null);
     if (msg) {
@@ -102,7 +119,11 @@ export function useShipments(vendorOrderIds: string[]) {
       return false;
     }
     toast.success(
-      data?.already_shipped ? "This order was already shipped" : "Shipment booked - pickup requested",
+      data?.already_shipped
+        ? "This order was already shipped"
+        : data?.via_warehouse
+          ? "Booked to the AllBoutiqs warehouse - pickup requested"
+          : "Shipment booked - pickup requested",
     );
     await fetchShipments();
     return true;
@@ -123,8 +144,23 @@ export function useShipments(vendorOrderIds: string[]) {
     return true;
   };
 
+  // The boutique's own parcel: to the customer, or to the warehouse on the
+  // warehouse route (the latest one, if an item had to be sent again).
   const forwardShipmentFor = (vendorOrderId: string) =>
-    shipments.find((s) => s.vendor_order_id === vendorOrderId && s.shipment_type === "forward") ?? null;
+    shipments
+      .filter(
+        (s) =>
+          s.vendor_order_id === vendorOrderId &&
+          !s.return_request_id &&
+          (s.shipment_type === "forward" || s.shipment_type === "to_warehouse"),
+      )
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+
+  // The warehouse's parcel to the customer that carries this boutique order.
+  const customerParcelFor = (vendorOrderId: string) =>
+    shipments
+      .filter((s) => s.shipment_type === "warehouse_to_customer" && s.vendor_order_id === vendorOrderId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
 
   return {
     shipments,
@@ -134,6 +170,7 @@ export function useShipments(vendorOrderIds: string[]) {
     shipNow,
     cancelShipment,
     forwardShipmentFor,
+    customerParcelFor,
     refetch: fetchShipments,
   };
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { deliveryDateLabel, fetchCartDeliveryDate } from "@/components/CartShippingEstimate";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -320,6 +321,36 @@ export default function Checkout() {
 
   const shippingCost = vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0);
 
+  // Whole-cart delivery date for the address's pincode: slowest boutique
+  // (preparation + courier to the AllBoutiqs warehouse) + 1 working day at the
+  // warehouse + courier to the customer. Saved on the order as the date shown.
+  const [deliveryEta, setDeliveryEta] = useState<string | null>(null);
+  const etaVendorItems = useMemo(() => {
+    const map = new Map<string, { productId: string; quantity: number }[]>();
+    for (const item of items) {
+      if (!item.vendorId) continue;
+      map.set(item.vendorId, [...(map.get(item.vendorId) ?? []), { productId: item.productId, quantity: item.quantity }]);
+    }
+    return map;
+  }, [items]);
+  useEffect(() => {
+    const pin = shippingAddress.pincode;
+    if (!/^\d{6}$/.test(pin) || etaVendorItems.size === 0) {
+      setDeliveryEta(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchCartDeliveryDate(pin, etaVendorItems).then((date) => {
+        if (!cancelled) setDeliveryEta(date);
+      });
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [shippingAddress.pincode, etaVendorItems]);
+
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
     if (appliedDiscount.discount_type === "percentage") {
@@ -587,6 +618,7 @@ export default function Checkout() {
           discount_amount: discountAmount,
           notes: notes || null,
           razorpay_order_id: razorpayOrderId,
+          estimated_delivery_date: deliveryEta,
         });
 
       if (orderError) throw orderError;
@@ -1361,6 +1393,12 @@ export default function Checkout() {
                   <span>Total</span>
                   <span className="text-primary">₹{formatMoney(total)}</span>
                 </div>
+
+                {deliveryEta && (
+                  <p className="text-sm text-green-700 font-medium">
+                    Estimated delivery by {deliveryDateLabel(deliveryEta)}
+                  </p>
+                )}
 
                 <Button
                   className="w-full"

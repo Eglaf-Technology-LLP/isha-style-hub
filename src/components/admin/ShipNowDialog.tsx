@@ -12,15 +12,20 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Truck, Star } from "lucide-react";
-import { CourierOption } from "@/hooks/useShipments";
+import { CourierOption, ShipDestination } from "@/hooks/useShipments";
 
 interface ShipNowDialogProps {
   vendorOrderId: string;
   actioning: boolean;
-  checkServiceability: (vendorOrderId: string) => Promise<{ couriers: CourierOption[]; isCod: boolean } | null>;
-  shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null) => Promise<boolean>;
+  checkServiceability: (
+    vendorOrderId: string,
+    returnRequestId?: string,
+  ) => Promise<{ couriers: CourierOption[]; isCod: boolean; destination?: ShipDestination } | null>;
+  shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null, returnRequestId?: string) => Promise<boolean>;
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
+  // Books an exchange's replacement to the warehouse instead of the order itself.
+  returnRequestId?: string;
 }
 
 // The real ask: don't let Shiprocket silently auto-assign a courier - show
@@ -33,11 +38,13 @@ export function ShipNowDialog({
   shipNow,
   triggerLabel = "Ship Now",
   triggerSize = "sm",
+  returnRequestId,
 }: ShipNowDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
   const [isCod, setIsCod] = useState(false);
+  const [destination, setDestination] = useState<ShipDestination | null>(null);
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
 
@@ -46,11 +53,12 @@ export function ShipNowDialog({
     setLoading(true);
     setCouriers(null);
     setSelectedCourierId(null);
-    const result = await checkServiceability(vendorOrderId);
+    const result = await checkServiceability(vendorOrderId, returnRequestId);
     setLoading(false);
     if (result) {
       setCouriers(result.couriers);
       setIsCod(result.isCod);
+      setDestination(result.destination ?? null);
       setSelectedCourierId(result.couriers[0]?.courierId ?? null);
     } else {
       setOpen(false);
@@ -61,7 +69,7 @@ export function ShipNowDialog({
     if (!selectedCourierId) return;
     setBooking(true);
     const selectedEtd = couriers?.find((c) => c.courierId === selectedCourierId)?.etd ?? null;
-    const success = await shipNow(vendorOrderId, selectedCourierId, selectedEtd);
+    const success = await shipNow(vendorOrderId, selectedCourierId, selectedEtd, returnRequestId);
     setBooking(false);
     if (success) setOpen(false);
   };
@@ -98,10 +106,19 @@ export function ShipNowDialog({
                 regardless of how this specific order is actually paid) read
                 as "this rate includes COD" even for prepaid orders, which is
                 exactly the confusion that prompted this fix. */}
+            {destination?.kind === "warehouse" && (
+              <p className="text-sm -mt-2 rounded-md bg-primary/5 border border-primary/20 p-2">
+                Ships to <span className="font-medium">{destination.name}</span>
+                {destination.city ? `, ${destination.city}` : ""} ({destination.pincode}). We check it there and send
+                it on to the customer{returnRequestId ? "" : " together with the rest of their order"}.
+              </p>
+            )}
             <p className="text-xs text-muted-foreground -mt-2">
-              {isCod
-                ? "This order is Cash on Delivery - rates below include the courier's COD handling charge."
-                : "This order is prepaid - rates below are freight only."}
+              {destination?.kind === "warehouse"
+                ? "Parcels to the warehouse are prepaid - rates below are freight only, paid by AllBoutiqs."
+                : isCod
+                  ? "This order is Cash on Delivery - rates below include the courier's COD handling charge."
+                  : "This order is prepaid - rates below are freight only."}
             </p>
             <RadioGroup
               value={selectedCourierId?.toString() ?? ""}

@@ -27,6 +27,8 @@ export interface Vendor {
   free_shipping_threshold: number | null;
   return_window_days: number;
   return_policy: string | null;
+  // "Ready to ship in N days" - null means the platform default (2).
+  default_prep_days: number | null;
   boutique_code: string;
   cod_enabled: boolean;
   returns_enabled: boolean;

@@ -58,6 +58,7 @@ import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { NewOrdersBanner } from "@/components/NewOrdersBanner";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
+import { formatShortDate, vendorOrderStatusColors, vendorOrderStatusLabel } from "@/lib/warehouse";
 import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
@@ -96,6 +97,8 @@ interface VendorProduct {
   net_quantity: string;
   is_returnable: boolean;
   cod_available: boolean;
+  prep_days: number | null;
+  made_to_order: boolean;
   ai_content_status: AiContentStatus | null;
   ai_original_photo_paths: string[];
   video_url: string | null;
@@ -142,6 +145,13 @@ interface VendorOrder {
   discount_code?: string | null;
   discount_amount?: number;
   items?: VendorOrderItem[];
+  // Warehouse route: the parcel goes to the AllBoutiqs warehouse, which
+  // checks it and sends it on to the customer.
+  via_warehouse?: boolean;
+  ready_by: string | null;
+  qc_status: string | null;
+  qc_notes: string | null;
+  arrived_at_warehouse_at: string | null;
 }
 
 interface VendorOrderItem {
@@ -188,7 +198,7 @@ export default function VendorDashboard() {
     "all",
   );
   const [orderStatusTab, setOrderStatusTab] = useState<
-    "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
+    "all" | "pending" | "confirmed" | "processing" | "warehouse" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
   >("all");
   const { lastSeenAt: orderListLastSeenAt, markSeen: markOrderListSeen } = useListSeenTracking("orders_vendor");
   const [orderSearch, setOrderSearch] = useState("");
@@ -303,14 +313,14 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id, rzp_transfer_status, rzp_transfer_amount, rzp_transfer_error, rzp_released_at, rzp_settled_at, rzp_settlement_utr"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id, rzp_transfer_status, rzp_transfer_amount, rzp_transfer_error, rzp_released_at, rzp_settled_at, rzp_settlement_utr, ready_by, qc_status, qc_notes, arrived_at_warehouse_at"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -355,7 +365,7 @@ export default function VendorDashboard() {
         const { data: ords } = await supabase
           .from("orders")
           .select(
-            "id, customer_name, customer_phone, customer_email, shipping_address, payment_status, payment_method, discount_code, discount_amount"
+            "id, customer_name, customer_phone, customer_email, shipping_address, payment_status, payment_method, discount_code, discount_amount, fulfilment_route"
           )
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
@@ -369,6 +379,7 @@ export default function VendorDashboard() {
           o.payment_method = ord?.payment_method;
           o.discount_code = ord?.discount_code ?? null;
           o.discount_amount = ord?.discount_amount ?? 0;
+          o.via_warehouse = ord?.fulfilment_route === "warehouse";
         });
 
         // Scoped to this vendor's own vendor_order_id - a multi-vendor order's
@@ -442,6 +453,8 @@ export default function VendorDashboard() {
     { key: "pending", label: "Need to Confirm", statuses: ["pending"] },
     { key: "confirmed", label: "Confirmed", statuses: ["confirmed"] },
     { key: "processing", label: "Processing", statuses: ["processing"] },
+    // Warehouse route: on its way to, or checked in at, the AllBoutiqs warehouse.
+    { key: "warehouse", label: "At Warehouse", statuses: ["in_transit_to_warehouse", "at_warehouse", "qc_failed"] },
     { key: "shipped", label: "Shipped", statuses: ["shipped", "out_for_delivery"] },
     { key: "delivered", label: "Delivered", statuses: ["delivered"] },
     { key: "cancelled", label: "Cancelled", statuses: ["cancelled"] },
@@ -1083,9 +1096,15 @@ export default function VendorDashboard() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge className={`${statusColors[o.status] || "bg-muted"} capitalize`}>
-                                {o.status.replace(/_/g, " ")}
+                              <Badge className={vendorOrderStatusColors[o.status] || "bg-muted"}>
+                                {vendorOrderStatusLabel(o.status, !!o.via_warehouse)}
                               </Badge>
+                              {o.via_warehouse && (
+                                <div className="text-[11px] text-muted-foreground mt-1 whitespace-nowrap">Via AllBoutiqs warehouse</div>
+                              )}
+                              {o.status === "qc_failed" && o.qc_notes && (
+                                <div className="text-xs text-destructive mt-1 max-w-[220px]">Inspection: {o.qc_notes}</div>
+                              )}
                             </TableCell>
                             <TableCell>
                               {(() => {
@@ -1104,11 +1123,41 @@ export default function VendorDashboard() {
                                           (AWB {shipment.awb_code}) - book again
                                         </div>
                                       )}
+                                      {o.via_warehouse && !["pending", "confirmed", "processing"].includes(o.status) ? (
+                                        <span className="text-xs text-muted-foreground">With the warehouse</span>
+                                      ) : (
+                                        <>
+                                          <ShipNowDialog
+                                            vendorOrderId={o.id}
+                                            actioning={actioningId === o.id}
+                                            checkServiceability={checkServiceability}
+                                            shipNow={shipNow}
+                                            triggerLabel={o.via_warehouse ? "Ship to warehouse" : "Ship Now"}
+                                          />
+                                          {o.via_warehouse && o.ready_by && (
+                                            <div className="text-[11px] text-muted-foreground whitespace-nowrap">
+                                              Hand to courier by {formatShortDate(o.ready_by)}
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                // A replacement is due: the earlier parcel reached the
+                                // warehouse but failed inspection.
+                                if (o.via_warehouse && o.status === "confirmed" && shipment.status === "delivered") {
+                                  return (
+                                    <div className="space-y-1">
+                                      <div className="text-xs text-destructive max-w-[220px]">
+                                        Previous parcel failed inspection - send a replacement
+                                      </div>
                                       <ShipNowDialog
                                         vendorOrderId={o.id}
                                         actioning={actioningId === o.id}
                                         checkServiceability={checkServiceability}
                                         shipNow={shipNow}
+                                        triggerLabel="Ship replacement to warehouse"
                                       />
                                     </div>
                                   );

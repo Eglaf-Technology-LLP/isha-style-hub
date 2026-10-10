@@ -16,7 +16,7 @@ export interface ShipmentTimestamps {
 export type TimelineStageState = "complete" | "current" | "upcoming";
 
 export interface TimelineStage {
-  key: "placed" | "confirmed" | "shipped" | "out_for_delivery" | "delivered";
+  key: "placed" | "confirmed" | "preparing" | "quality_check" | "shipped" | "out_for_delivery" | "delivered";
   label: string;
   date: string | null;
   state: TimelineStageState;
@@ -28,6 +28,8 @@ export interface OrderTimeline {
   isNdr: boolean;
   estimatedDeliveryDate: string | null;
   terminalAt: string | null;
+  // Shown under the timeline (e.g. "Part of your order has shipped").
+  note?: string | null;
 }
 
 const STAGE_DEFS: { key: TimelineStage["key"]; label: string }[] = [
@@ -105,5 +107,107 @@ export function buildOrderTimeline(input: BuildOrderTimelineInput): OrderTimelin
     isNdr: vendorOrderStatus === "ndr",
     estimatedDeliveryDate: vendorOrderStatus === "delivered" ? null : shipment?.estimated_delivery_date ?? null,
     terminalAt: null,
+  };
+}
+
+// ---------- warehouse route ----------
+//
+// The customer sees one parcel from AllBoutiqs, not one per boutique: a single
+// timeline for the whole order - Being prepared by the boutique -> At our
+// quality-check centre -> Packed and shipped -> Out for delivery -> Delivered.
+
+const WAREHOUSE_STAGE_DEFS: { key: TimelineStage["key"]; label: string }[] = [
+  { key: "preparing", label: "Being prepared by the boutique" },
+  { key: "quality_check", label: "At our quality-check centre" },
+  { key: "shipped", label: "Packed and shipped" },
+  { key: "out_for_delivery", label: "Out for Delivery" },
+  { key: "delivered", label: "Delivered" },
+];
+
+const WAREHOUSE_STATUS_TO_STAGE_INDEX: Record<string, number> = {
+  pending: 0,
+  confirmed: 0,
+  processing: 0,
+  in_transit_to_warehouse: 0,
+  at_warehouse: 1,
+  qc_failed: 1,
+  shipped: 2,
+  out_for_delivery: 3,
+  ndr: 3,
+  delivered: 4,
+};
+
+export interface WarehouseTimelinePart {
+  status: string;
+  updated_at: string;
+  arrived_at_warehouse_at: string | null;
+  parcel: ShipmentTimestamps | null;
+}
+
+export interface BuildWarehouseTimelineInput {
+  orderPlacedAt: string;
+  orderEstimatedDeliveryDate: string | null;
+  parts: WarehouseTimelinePart[];
+}
+
+export function buildWarehouseOrderTimeline(input: BuildWarehouseTimelineInput): OrderTimeline {
+  const live = input.parts.filter((p) => p.status !== "cancelled");
+  if (live.length === 0) {
+    const last = input.parts.map((p) => p.updated_at).sort().pop() ?? null;
+    return { kind: "cancelled", stages: [], isNdr: false, estimatedDeliveryDate: null, terminalAt: last };
+  }
+  if (live.every((p) => p.status === "returned")) {
+    return {
+      kind: "returned",
+      stages: [],
+      isNdr: false,
+      estimatedDeliveryDate: null,
+      terminalAt: live.map((p) => p.updated_at).sort().pop() ?? null,
+      note: "The courier couldn't deliver your order and it's coming back to us. Our team will contact you.",
+    };
+  }
+
+  // The order is as far along as its least advanced part.
+  const indexes = live.filter((p) => p.status !== "returned").map((p) => WAREHOUSE_STATUS_TO_STAGE_INDEX[p.status] ?? 0);
+  const currentIndex = Math.min(...indexes);
+  const furthest = Math.max(...indexes);
+  const parcels = live.map((p) => p.parcel).filter((s): s is ShipmentTimestamps => !!s);
+  const latest = (values: (string | null | undefined)[]) =>
+    values.filter((v): v is string => !!v).sort().pop() ?? null;
+
+  const dateForStage = (key: TimelineStage["key"]): string | null => {
+    switch (key) {
+      case "preparing":
+        return input.orderPlacedAt;
+      case "quality_check":
+        return latest(live.map((p) => p.arrived_at_warehouse_at));
+      case "shipped":
+        return latest(parcels.map((s) => s.picked_up_at ?? s.pickup_scheduled_at ?? s.created_at));
+      case "delivered":
+        return latest(parcels.map((s) => s.delivered_at));
+      default:
+        return null;
+    }
+  };
+
+  const stages: TimelineStage[] = WAREHOUSE_STAGE_DEFS.map((def, i) => ({
+    key: def.key,
+    label: def.label,
+    date: i <= currentIndex ? dateForStage(def.key) : null,
+    state: i < currentIndex ? "complete" : i === currentIndex ? "current" : "upcoming",
+  }));
+  if (currentIndex === 4) stages[4].state = "complete";
+
+  const parcelEtd = latest(parcels.map((s) => s.estimated_delivery_date));
+  return {
+    kind: "progress",
+    stages,
+    isNdr: live.some((p) => p.status === "ndr"),
+    estimatedDeliveryDate: currentIndex === 4 ? null : parcelEtd ?? input.orderEstimatedDeliveryDate,
+    terminalAt: null,
+    note:
+      furthest > currentIndex && furthest >= 2
+        ? "Part of your order is already on its way - the rest will follow in a separate parcel."
+        : null,
   };
 }

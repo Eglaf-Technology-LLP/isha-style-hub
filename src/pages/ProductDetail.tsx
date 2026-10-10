@@ -15,6 +15,7 @@ import {
   Truck,
   RotateCcw,
   Banknote,
+  Scissors,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
@@ -110,7 +111,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold"
+              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold, default_prep_days"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -553,6 +554,21 @@ export default function ProductDetail() {
                   </p>
                 </div>
               </div>
+              {(product as any).made_to_order && (
+                <div className="flex items-center gap-3 pt-1 border-t border-border/60">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <Scissors className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">
+                      Made to order: ships in {(product as any).prep_days ?? (vendorInfo as any)?.default_prep_days ?? 2} days
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Made for you after you order - the delivery date below includes this time.
+                    </p>
+                  </div>
+                </div>
+              )}
               {product.vendor_id && (
                 <div className="pt-1 border-t border-border/60">
                   <p className="text-sm font-medium mb-2">Check delivery date</p>

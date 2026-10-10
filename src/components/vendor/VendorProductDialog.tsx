@@ -59,6 +59,8 @@ export interface VendorProductRow {
   net_quantity?: string;
   is_returnable?: boolean;
   cod_available?: boolean;
+  prep_days?: number | null;
+  made_to_order?: boolean;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
   video_url?: string | null;
@@ -92,6 +94,9 @@ const empty = {
   net_quantity: "1 N",
   is_returnable: true,
   cod_available: true,
+  // Empty = the boutique's own "ready to ship in" days.
+  prep_days: "",
+  made_to_order: false,
 };
 
 export function VendorProductDialog({
@@ -134,6 +139,8 @@ export function VendorProductDialog({
         net_quantity: product.net_quantity || "1 N",
         is_returnable: product.is_returnable ?? true,
         cod_available: product.cod_available ?? true,
+        prep_days: product.prep_days != null ? String(product.prep_days) : "",
+        made_to_order: product.made_to_order ?? false,
       });
       setImages(product.images || []);
       setVariants(product.variants || []);
@@ -185,6 +192,9 @@ export function VendorProductDialog({
         net_quantity: form.net_quantity.trim() || "1 N",
         is_returnable: form.is_returnable,
         cod_available: form.cod_available,
+        prep_days:
+          form.prep_days.trim() === "" ? null : Math.min(90, Math.max(0, Math.round(Number(form.prep_days) || 0))),
+        made_to_order: form.made_to_order,
         ai_content_status: aiContentStatus,
         // Cleared on "No AI" - originals only belong with an AI declaration.
         ai_original_photo_paths: needsOriginals ? originalPhotos : [],
@@ -449,6 +459,40 @@ export function VendorProductDialog({
               </p>
             </div>
             <Switch id="vp-cod" checked={form.cod_available} onCheckedChange={(v) => set("cod_available", v)} />
+          </div>
+
+          <div className="rounded-lg border border-border p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label htmlFor="vp-mto" className="text-sm font-medium">
+                  Made to order
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Shows "Made to order: ships in N days" on the product page, so a later delivery date doesn't look
+                  like a mistake.
+                </p>
+              </div>
+              <Switch id="vp-mto" checked={form.made_to_order} onCheckedChange={(v) => set("made_to_order", v)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="vp-prep" className="text-sm font-medium">
+                Ready to ship in (days)
+              </Label>
+              <Input
+                id="vp-prep"
+                type="number"
+                min={0}
+                max={90}
+                placeholder="Your store default"
+                value={form.prep_days}
+                onChange={(e) => set("prep_days", e.target.value)}
+                className="max-w-[200px]"
+              />
+              <p className="text-xs text-muted-foreground">
+                Working days you need to make or pack this product before the courier collects it. Leave empty to
+                use your store's default.
+              </p>
+            </div>
           </div>
         </div>
 

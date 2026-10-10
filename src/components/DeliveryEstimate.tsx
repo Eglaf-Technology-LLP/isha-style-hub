@@ -16,6 +16,10 @@ interface DeliveryEstimateProps {
   productId: string;
 }
 
+function dateLabel(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
+
 function earliestEtaLabel(couriers: CourierOption[]): string | null {
   const dates = couriers
     .map((c) => (c.etd ? new Date(c.etd) : null))
@@ -27,8 +31,10 @@ function earliestEtaLabel(couriers: CourierOption[]): string | null {
 
 // Real delivery-date estimate for this specific vendor+product, using the
 // same live Shiprocket serviceability check "Ship Now" uses - not a
-// platform-wide guess. No pincode-checker convention existed anywhere in
-// this codebase before, so this is new UI, kept intentionally small.
+// platform-wide guess. While orders go through the AllBoutiqs warehouse the
+// server adds up the whole journey (the boutique's preparation time + courier
+// to the warehouse + 1 working day there + courier to this pincode) and
+// returns estimated_delivery_date.
 export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps) {
   const { defaultAddress } = useSavedAddresses();
   const [pincode, setPincode] = useState("");
@@ -40,16 +46,24 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
     if (!/^\d{6}$/.test(pin)) return;
     setChecking(true);
     setResult(null);
-    const { data, errorMessage } = await invokeEdgeFunction<{ available: boolean; couriers: CourierOption[] }>(
-      "shiprocket-estimate-delivery",
-      { vendor_id: vendorId, delivery_pincode: pin, items: [{ product_id: productId, quantity: 1 }] },
-    );
+    const { data, errorMessage } = await invokeEdgeFunction<{
+      available: boolean;
+      couriers: CourierOption[];
+      estimated_delivery_date?: string | null;
+    }>("shiprocket-estimate-delivery", {
+      vendor_id: vendorId,
+      delivery_pincode: pin,
+      items: [{ product_id: productId, quantity: 1 }],
+    });
     setChecking(false);
     if (errorMessage || !data?.available || data.couriers.length === 0) {
       setResult({ available: false, etaLabel: null });
       return;
     }
-    setResult({ available: true, etaLabel: earliestEtaLabel(data.couriers) });
+    setResult({
+      available: true,
+      etaLabel: data.estimated_delivery_date ? dateLabel(data.estimated_delivery_date) : earliestEtaLabel(data.couriers),
+    });
   };
 
   useEffect(() => {

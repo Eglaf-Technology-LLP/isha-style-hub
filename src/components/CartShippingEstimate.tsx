@@ -17,6 +17,29 @@ interface VendorShippingGroup {
   checked: boolean;
 }
 
+// Whole-cart delivery date (YYYY-MM-DD), or null when it can't be
+// estimated. Shared with Checkout.
+export async function fetchCartDeliveryDate(
+  pin: string,
+  vendorItemsMap: Map<string, { productId: string; quantity: number }[]>,
+): Promise<string | null> {
+  const groups = [...vendorItemsMap.entries()].map(([vendorId, items]) => ({
+    vendor_id: vendorId,
+    items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+  }));
+  if (groups.length === 0) return null;
+  const { data } = await invokeEdgeFunction<{ available: boolean; estimated_delivery_date?: string | null }>(
+    "shiprocket-estimate-delivery",
+    { delivery_pincode: pin, groups },
+  );
+  if (!data?.available || !data.estimated_delivery_date) return null;
+  return data.estimated_delivery_date;
+}
+
+export function deliveryDateLabel(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+}
+
 // Cart never grouped items by vendor before (a single order/cart can span
 // several vendors, same as everywhere else in this schema) and only ever
 // showed a placeholder "calculated at checkout" line - this replaces it
@@ -30,6 +53,9 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
   const [pincode, setPincode] = useState("");
   const [groups, setGroups] = useState<VendorShippingGroup[]>([]);
   const [checking, setChecking] = useState(false);
+  // One date for the whole cart: everything arrives together in one parcel
+  // from the AllBoutiqs warehouse.
+  const [cartEta, setCartEta] = useState<string | null | undefined>(undefined);
   const autoChecked = useRef(false);
 
   const vendorItemsMap = useMemo(() => {
@@ -80,6 +106,8 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
   const checkShipping = async (pin: string) => {
     if (!/^\d{6}$/.test(pin) || groups.length === 0) return;
     setChecking(true);
+    setCartEta(undefined);
+    const etaRequest = fetchCartDeliveryDate(pin, vendorItemsMap).then(setCartEta);
     await Promise.all(
       groups.map(async (group) => {
         // Already free regardless of courier rate - no need to call out.
@@ -104,6 +132,7 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
         );
       }),
     );
+    await etaRequest;
     setChecking(false);
   };
 
@@ -161,6 +190,12 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
             <span>Estimated shipping total</span>
             <span>{totalEstimated > 0 ? `₹${totalEstimated.toFixed(0)}` : "Free"}</span>
           </div>
+          {cartEta && (
+            <div className="flex justify-between text-green-700 font-medium">
+              <span>Estimated delivery</span>
+              <span>by {deliveryDateLabel(cartEta)}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
