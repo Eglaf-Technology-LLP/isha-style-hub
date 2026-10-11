@@ -157,6 +157,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          hsn_code_id: string | null
           id: string
           image_url: string | null
           name: string
@@ -166,6 +167,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          hsn_code_id?: string | null
           id?: string
           image_url?: string | null
           name: string
@@ -175,13 +177,22 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          hsn_code_id?: string | null
           id?: string
           image_url?: string | null
           name?: string
           slug?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_hsn_code_id_fkey"
+            columns: ["hsn_code_id"]
+            isOneToOne: false
+            referencedRelation: "hsn_codes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       discounts: {
         Row: {
@@ -393,6 +404,42 @@ export type Database = {
           purchaser_user_id?: string | null
           recipient_email?: string | null
           recipient_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      hsn_codes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string
+          gst_rate: number
+          gst_rate_above_limit: number | null
+          id: string
+          is_active: boolean
+          price_limit: number | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description: string
+          gst_rate: number
+          gst_rate_above_limit?: number | null
+          id?: string
+          is_active?: boolean
+          price_limit?: number | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string
+          gst_rate?: number
+          gst_rate_above_limit?: number | null
+          id?: string
+          is_active?: boolean
+          price_limit?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -2852,6 +2899,10 @@ export type Database = {
       }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
+      gst_rate_for: {
+        Args: { _hsn_code_id: string; _unit_price: number }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

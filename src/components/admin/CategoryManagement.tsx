@@ -33,6 +33,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { useCategories, Category } from "@/hooks/useCategories";
+import { describeGst, useHsnCodes } from "@/hooks/useHsnCodes";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CategoryImportExportDialog } from "./CategoryImportExportDialog";
 
 export function CategoryManagement() {
@@ -46,9 +48,11 @@ export function CategoryManagement() {
 
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const { hsnCodes } = useHsnCodes();
   const [categoryForm, setCategoryForm] = useState({
     name: "",
     description: "",
+    hsn_code_id: "",
   });
   const [categoryImage, setCategoryImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -56,7 +60,7 @@ export function CategoryManagement() {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
-    setCategoryForm({ name: "", description: "" });
+    setCategoryForm({ name: "", description: "", hsn_code_id: "" });
     setCategoryImage(null);
     setImagePreview(null);
     setEditingCategory(null);
@@ -85,7 +89,9 @@ export function CategoryManagement() {
     const result = await addCategory(
       categoryForm.name,
       categoryForm.description,
-      categoryImage || undefined
+      categoryImage || undefined,
+      undefined,
+      categoryForm.hsn_code_id || null
     );
     setIsSubmitting(false);
 
@@ -104,6 +110,7 @@ export function CategoryManagement() {
       {
         name: categoryForm.name,
         description: categoryForm.description,
+        hsn_code_id: categoryForm.hsn_code_id || null,
       },
       categoryImage || undefined
     );
@@ -120,6 +127,7 @@ export function CategoryManagement() {
     setCategoryForm({
       name: category.name,
       description: category.description || "",
+      hsn_code_id: category.hsn_code_id || "",
     });
     setCategoryImage(null);
     setImagePreview(category.image_url || null);
@@ -162,6 +170,32 @@ export function CategoryManagement() {
           }
           rows={3}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={isEdit ? "edit-hsn" : "add-hsn"}>HSN code (sets the GST rate)</Label>
+        <Select
+          value={categoryForm.hsn_code_id}
+          onValueChange={(v) => setCategoryForm((prev) => ({ ...prev, hsn_code_id: v }))}
+        >
+          <SelectTrigger id={isEdit ? "edit-hsn" : "add-hsn"}>
+            <SelectValue placeholder="Choose the HSN code for this category" />
+          </SelectTrigger>
+          <SelectContent>
+            {hsnCodes
+              .filter((h) => h.is_active || h.id === categoryForm.hsn_code_id)
+              .map((h) => (
+                <SelectItem key={h.id} value={h.id}>
+                  {h.code} · {h.description} ({describeGst(h)})
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+        {!categoryForm.hsn_code_id && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            Without an HSN code, products in this category can't be taxed on the customer invoice.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -310,6 +344,16 @@ export function CategoryManagement() {
                           {category.description}
                         </p>
                       )}
+                      {(() => {
+                        const hsn = hsnCodes.find((h) => h.id === category.hsn_code_id);
+                        return hsn ? (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            HSN {hsn.code} · GST {describeGst(hsn)}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">No HSN code - set one for GST</p>
+                        );
+                      })()}
                     </div>
                     <div className="flex items-center gap-1">
                       <Dialog

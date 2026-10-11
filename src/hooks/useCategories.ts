@@ -8,6 +8,9 @@ export interface Category {
   slug: string;
   description: string | null;
   image_url: string | null;
+  // GST: the category's HSN code (see hsn_codes); its products are taxed at
+  // that code's rate on the customer invoice.
+  hsn_code_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -37,7 +40,13 @@ export function useCategories() {
     }
   };
 
-  const addCategory = async (name: string, description?: string, imageFile?: File, imageUrl?: string) => {
+  const addCategory = async (
+    name: string,
+    description?: string,
+    imageFile?: File,
+    imageUrl?: string,
+    hsnCodeId?: string | null,
+  ) => {
     try {
       const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
@@ -70,6 +79,7 @@ export function useCategories() {
           slug,
           description: description || null,
           image_url,
+          hsn_code_id: hsnCodeId ?? null,
         })
         .select()
         .single();
