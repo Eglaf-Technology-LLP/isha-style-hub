@@ -459,23 +459,133 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_lines: {
+        Row: {
+          cgst_amount: number
+          color: string | null
+          description: string
+          discount: number
+          gst_rate: number
+          hsn_code: string | null
+          id: string
+          igst_amount: number
+          invoice_id: string
+          line_no: number
+          order_item_id: string | null
+          quantity: number
+          sgst_amount: number
+          size: string | null
+          sku: string | null
+          taxable_value: number
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          cgst_amount?: number
+          color?: string | null
+          description: string
+          discount?: number
+          gst_rate: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_id: string
+          line_no: number
+          order_item_id?: string | null
+          quantity: number
+          sgst_amount?: number
+          size?: string | null
+          sku?: string | null
+          taxable_value: number
+          total: number
+          unit_price: number
+        }
+        Update: {
+          cgst_amount?: number
+          color?: string | null
+          description?: string
+          discount?: number
+          gst_rate?: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_id?: string
+          line_no?: number
+          order_item_id?: string | null
+          quantity?: number
+          sgst_amount?: number
+          size?: string | null
+          sku?: string | null
+          taxable_value?: number
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_series: {
+        Row: {
+          fiscal_year: string
+          last_serial: number
+          vendor_id: string
+        }
+        Insert: {
+          fiscal_year: string
+          last_serial?: number
+          vendor_id: string
+        }
+        Update: {
+          fiscal_year?: string
+          last_serial?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_series_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           billing_address: Json
           billing_name: string
+          billing_state: string | null
+          cgst_amount: number
           created_at: string
           discount_amount: number
           discount_code: string | null
           id: string
+          igst_amount: number
           invoice_number: string
           issued_at: string
+          order_date: string | null
           order_id: string
+          order_number: string | null
+          place_of_supply_code: string | null
           seller_address: Json | null
           seller_gstin: string | null
+          seller_legal_name: string | null
           seller_name: string
+          seller_pan: string | null
+          seller_state: string | null
+          seller_state_code: string | null
+          sgst_amount: number
           shipping_cost: number
           subtotal: number
+          supply_type: string | null
           tax_amount: number
+          taxable_value: number | null
           total: number
           vendor_id: string
           vendor_order_id: string
@@ -483,19 +593,32 @@ export type Database = {
         Insert: {
           billing_address: Json
           billing_name: string
+          billing_state?: string | null
+          cgst_amount?: number
           created_at?: string
           discount_amount?: number
           discount_code?: string | null
           id?: string
+          igst_amount?: number
           invoice_number: string
           issued_at?: string
+          order_date?: string | null
           order_id: string
+          order_number?: string | null
+          place_of_supply_code?: string | null
           seller_address?: Json | null
           seller_gstin?: string | null
+          seller_legal_name?: string | null
           seller_name: string
+          seller_pan?: string | null
+          seller_state?: string | null
+          seller_state_code?: string | null
+          sgst_amount?: number
           shipping_cost?: number
           subtotal: number
+          supply_type?: string | null
           tax_amount?: number
+          taxable_value?: number | null
           total: number
           vendor_id: string
           vendor_order_id: string
@@ -503,19 +626,32 @@ export type Database = {
         Update: {
           billing_address?: Json
           billing_name?: string
+          billing_state?: string | null
+          cgst_amount?: number
           created_at?: string
           discount_amount?: number
           discount_code?: string | null
           id?: string
+          igst_amount?: number
           invoice_number?: string
           issued_at?: string
+          order_date?: string | null
           order_id?: string
+          order_number?: string | null
+          place_of_supply_code?: string | null
           seller_address?: Json | null
           seller_gstin?: string | null
+          seller_legal_name?: string | null
           seller_name?: string
+          seller_pan?: string | null
+          seller_state?: string | null
+          seller_state_code?: string | null
+          sgst_amount?: number
           shipping_cost?: number
           subtotal?: number
+          supply_type?: string | null
           tax_amount?: number
+          taxable_value?: number | null
           total?: number
           vendor_id?: string
           vendor_order_id?: string
@@ -2913,6 +3049,7 @@ export type Database = {
         Returns: string
       }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
+      fiscal_year_code: { Args: { _at: string }; Returns: string }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       gst_rate_for: {
         Args: { _hsn_code_id: string; _unit_price: number }
@@ -2942,6 +3079,10 @@ export type Database = {
         Returns: boolean
       }
       is_warehouse_working_day: { Args: { _d: string }; Returns: boolean }
+      next_boutique_invoice_number: {
+        Args: { _at: string; _vendor_id: string }
+        Returns: string
+      }
       next_invoice_seq: { Args: never; Returns: number }
       nlink: {
         Args: { _focus?: string; _path: string; _tab: string }
