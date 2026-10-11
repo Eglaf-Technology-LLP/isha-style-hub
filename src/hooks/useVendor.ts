@@ -24,6 +24,10 @@ export interface Vendor {
   is_verified: boolean;
   // Boutique-specific commission override; null = the platform rate in force.
   commission_rate: number | null;
+  // Founding Boutique: badge, and 0% commission between these dates.
+  is_founding: boolean;
+  founding_from: string | null;
+  founding_until: string | null;
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;
   return_window_days: number;

@@ -12,8 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck, BadgeCheck } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck, BadgeCheck, Sparkles } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
+import { FoundingBoutiqueDialog } from "./FoundingBoutiqueDialog";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { VendorImportExportDialog } from "./VendorImportExportDialog";
@@ -31,6 +33,7 @@ export function VendorManagement() {
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState<string | null>(null);
   const [viewVendor, setViewVendor] = useState<AdminVendor | null>(null);
+  const [foundingVendor, setFoundingVendor] = useState<AdminVendor | null>(null);
   const [gradeByVendor, setGradeByVendor] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -186,6 +189,7 @@ export function VendorManagement() {
                           {v.boutique_code}
                         </Badge>
                         {v.is_verified && <VerifiedBoutiqueBadge size="sm" />}
+                        {v.is_founding && <FoundingBoutiqueBadge size="sm" />}
                       </div>
                       <div className="text-xs text-muted-foreground">/store/{v.slug}</div>
                       <div className="text-xs text-muted-foreground">
@@ -221,7 +225,14 @@ export function VendorManagement() {
                         <span className="text-muted-foreground text-xs">No</span>
                       )}
                     </TableCell>
-                    <TableCell>{v.commission_rate != null ? `${v.commission_rate}%` : "Platform"}</TableCell>
+                    <TableCell>
+                      {v.commission_rate != null ? `${v.commission_rate}%` : "Platform"}
+                      {v.is_founding && v.founding_until && (
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400 whitespace-nowrap">
+                          0% until {v.founding_until}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-xs">
                       ₹{v.shipping_flat_rate} flat
                       <br />
@@ -324,6 +335,14 @@ export function VendorManagement() {
                           <BadgeCheck className="h-4 w-4 mr-1" />
                           {v.is_verified ? "Verified" : "Verify"}
                         </Button>
+                        <Button
+                          size="sm"
+                          variant={v.is_founding ? "default" : "outline"}
+                          onClick={() => setFoundingVendor(v)}
+                          title="Founding Boutique: badge and 0% commission for a period"
+                        >
+                          <Sparkles className="h-4 w-4 mr-1" /> Founding
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => setViewVendor(v)}>
                           <Eye className="h-4 w-4 mr-1" /> View
                         </Button>
@@ -337,6 +356,14 @@ export function VendorManagement() {
         )}
       </CardContent>
 
+      {foundingVendor && (
+        <FoundingBoutiqueDialog
+          vendor={foundingVendor}
+          open={!!foundingVendor}
+          onOpenChange={(o) => !o && setFoundingVendor(null)}
+          onSaved={fetchVendors}
+        />
+      )}
       {viewVendor && (
         <VendorDetailsDialog
           vendor={viewVendor}

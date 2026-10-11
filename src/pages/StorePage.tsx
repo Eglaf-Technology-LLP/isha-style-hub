@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Product, mapDbVariant } from "@/hooks/useProducts";
 import { Loader2, Store, Truck, RotateCcw, Star, ShieldCheck } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 
 interface StoreVendor {
   id: string;
@@ -21,6 +22,7 @@ interface StoreVendor {
   banner_url: string | null;
   is_trusted: boolean;
   is_verified: boolean;
+  is_founding: boolean;
   rating: number | null;
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;
@@ -43,7 +45,7 @@ export default function StorePage() {
         const { data: v, error } = await supabase
           .from("vendors")
           .select(
-            "id, name, slug, boutique_code, description, logo_url, banner_url, is_trusted, is_verified, rating, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy"
+            "id, name, slug, boutique_code, description, logo_url, banner_url, is_trusted, is_verified, is_founding, rating, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy"
           )
           .eq("slug", slug)
           .eq("status", "approved")
@@ -147,6 +149,7 @@ export default function StorePage() {
                 {vendor.name}
               </h1>
               {vendor.is_verified && <VerifiedBoutiqueBadge />}
+              {vendor.is_founding && <FoundingBoutiqueBadge />}
               {vendor.is_trusted && (
                 <Badge variant="secondary" className="gap-1">
                   <ShieldCheck className="h-3 w-3" /> Trusted partner

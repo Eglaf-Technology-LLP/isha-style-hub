@@ -1260,6 +1260,7 @@ export type Database = {
           customer_shipping_enabled: boolean
           default_prep_days: number
           id: boolean
+          launch_date: string | null
           payout_settlement_days: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
@@ -1276,6 +1277,7 @@ export type Database = {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           id?: boolean
+          launch_date?: string | null
           payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
@@ -1292,6 +1294,7 @@ export type Database = {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           id?: boolean
+          launch_date?: string | null
           payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
@@ -2786,9 +2789,12 @@ export type Database = {
           created_at: string
           default_prep_days: number | null
           description: string | null
+          founding_from: string | null
+          founding_until: string | null
           free_shipping_threshold: number | null
           gst_number: string | null
           id: string
+          is_founding: boolean
           is_trusted: boolean
           is_verified: boolean
           logo_url: string | null
@@ -2822,9 +2828,12 @@ export type Database = {
           created_at?: string
           default_prep_days?: number | null
           description?: string | null
+          founding_from?: string | null
+          founding_until?: string | null
           free_shipping_threshold?: number | null
           gst_number?: string | null
           id?: string
+          is_founding?: boolean
           is_trusted?: boolean
           is_verified?: boolean
           logo_url?: string | null
@@ -2858,9 +2867,12 @@ export type Database = {
           created_at?: string
           default_prep_days?: number | null
           description?: string | null
+          founding_from?: string | null
+          founding_until?: string | null
           free_shipping_threshold?: number | null
           gst_number?: string | null
           id?: string
+          is_founding?: boolean
           is_trusted?: boolean
           is_verified?: boolean
           logo_url?: string | null
@@ -3116,6 +3128,10 @@ export type Database = {
       dispatch_lead_vendor_order: {
         Args: { _dispatch_id: string }
         Returns: string
+      }
+      effective_commission_pct: {
+        Args: { _at: string; _vendor_id: string }
+        Returns: number
       }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       fiscal_year_code: { Args: { _at: string }; Returns: string }

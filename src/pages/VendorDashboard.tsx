@@ -67,6 +67,7 @@ import { ProductImportExportDialog } from "@/components/admin/ProductImportExpor
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ExternalLink, XCircle } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import type { AiContentStatus } from "@/lib/aiContent";
 import { VendorPayoutStages } from "@/components/vendor/VendorPayoutStages";
 import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatusBadge";
@@ -584,6 +585,7 @@ export default function VendorDashboard() {
                   {vendor.boutique_code}
                 </Badge>
                 {vendor.is_verified && <VerifiedBoutiqueBadge size="sm" />}
+                {vendor.is_founding && <FoundingBoutiqueBadge size="sm" />}
                 {vendor.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
                     Trusted partner

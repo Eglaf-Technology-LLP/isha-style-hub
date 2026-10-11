@@ -37,6 +37,7 @@ import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -49,6 +50,7 @@ export default function ProductDetail() {
     slug: string;
     is_trusted: boolean;
     is_verified: boolean;
+    is_founding: boolean;
     return_window_days: number;
     returns_enabled: boolean;
     cod_enabled: boolean;
@@ -114,7 +116,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, is_verified, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold, default_prep_days"
+              "name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold, default_prep_days"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -361,6 +363,7 @@ export default function ProductDetail() {
                   </p>
                 )}
                 {vendorInfo?.is_verified && <VerifiedBoutiqueBadge size="sm" />}
+                {vendorInfo?.is_founding && <FoundingBoutiqueBadge size="sm" />}
                 {vendorInfo?.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
                     Trusted partner

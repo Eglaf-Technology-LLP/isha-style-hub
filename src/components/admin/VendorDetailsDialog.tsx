@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Vendor } from "@/hooks/useVendor";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
+import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { VendorKycSection } from "./VendorKycSection";
 
 interface PayoutAccount {
@@ -210,6 +211,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
               </Badge>
             )}
             {vendor.is_verified && <VerifiedBoutiqueBadge size="sm" />}
+            {vendor.is_founding && <FoundingBoutiqueBadge size="sm" />}
           </DialogDescription>
         </DialogHeader>
 
