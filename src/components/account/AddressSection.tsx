@@ -16,6 +16,8 @@ import {
 import { Loader2, Plus, Edit, Trash2, MapPin, Star } from "lucide-react";
 import { useSavedAddresses, AddressFormData, SavedAddress } from "@/hooks/useSavedAddresses";
 import { toast } from "sonner";
+import { StateSelect } from "@/components/StateSelect";
+import { normalizeState } from "@/lib/indianStates";
 
 export function AddressSection() {
   const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useSavedAddresses();
@@ -65,7 +67,7 @@ export function AddressSection() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.full_name || !formData.phone || !formData.address_line_1 || !formData.city || !formData.state || !formData.pincode) {
+    if (!formData.full_name || !formData.phone || !formData.address_line_1 || !formData.city || !normalizeState(formData.state) || !formData.pincode) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -183,11 +185,10 @@ export function AddressSection() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="state">State *</Label>
-                  <Input
+                  <StateSelect
                     id="state"
                     value={formData.state}
-                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                    placeholder="Maharashtra"
+                    onChange={(state) => setFormData({ ...formData, state })}
                   />
                 </div>
               </div>

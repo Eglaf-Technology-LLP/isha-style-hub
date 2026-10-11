@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StateSelect } from "@/components/StateSelect";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserPlus } from "lucide-react";
@@ -177,7 +178,11 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
           ].map(([k, label]) => (
             <div key={k} className="space-y-1.5">
               <Label htmlFor={`wd-${k}`}>{label}</Label>
-              <Input id={`wd-${k}`} value={details[k] ?? ""} onChange={(e) => setDetails((d) => ({ ...d, [k]: e.target.value }))} />
+              {k === "state" ? (
+                <StateSelect id="wd-state" value={details.state ?? ""} onChange={(v) => setDetails((d) => ({ ...d, state: v }))} />
+              ) : (
+                <Input id={`wd-${k}`} value={details[k] ?? ""} onChange={(e) => setDetails((d) => ({ ...d, [k]: e.target.value }))} />
+              )}
             </div>
           ))}
           <Button onClick={saveDetails} disabled={saving === "details" || !warehouse}>

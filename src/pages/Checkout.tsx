@@ -33,6 +33,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
+import { StateSelect } from "@/components/StateSelect";
+import { normalizeState } from "@/lib/indianStates";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -201,7 +203,7 @@ export default function Checkout() {
         norm(a.address_line_1) === norm(shippingAddress.address_line1) &&
         norm(a.address_line_2 || "") === norm(shippingAddress.address_line2) &&
         norm(a.city) === norm(shippingAddress.city) &&
-        norm(a.state) === norm(shippingAddress.state) &&
+        normalizeState(a.state) === normalizeState(shippingAddress.state) &&
         norm(a.pincode) === norm(shippingAddress.pincode)
     );
     if (matchesExisting) return;
@@ -213,7 +215,7 @@ export default function Checkout() {
       address_line_1: shippingAddress.address_line1,
       address_line_2: shippingAddress.address_line2 || undefined,
       city: shippingAddress.city,
-      state: shippingAddress.state,
+      state: normalizeState(shippingAddress.state),
       pincode: shippingAddress.pincode,
       is_default: savedAddresses.length === 0,
     });
@@ -502,8 +504,8 @@ export default function Checkout() {
       toast.error("Please enter your city");
       return false;
     }
-    if (!shippingAddress.state.trim()) {
-      toast.error("Please enter your state");
+    if (!normalizeState(shippingAddress.state)) {
+      toast.error("Please select your state");
       return false;
     }
     if (!shippingAddress.pincode.trim() || shippingAddress.pincode.length !== 6) {
@@ -607,7 +609,8 @@ export default function Checkout() {
           customer_name: customerInfo.name,
           customer_email: customerInfo.email,
           customer_phone: customerInfo.phone,
-          shipping_address: shippingAddress,
+          // State saved in the dropdown's spelling - the GST invoice compares it.
+          shipping_address: { ...shippingAddress, state: normalizeState(shippingAddress.state) },
           payment_method: paymentMethod,
           payment_status: "pending",
           order_status: "pending",
@@ -1116,13 +1119,10 @@ export default function Checkout() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="state">State *</Label>
-                    <Input
+                    <StateSelect
                       id="state"
-                      placeholder="State"
                       value={shippingAddress.state}
-                      onChange={(e) =>
-                        setShippingAddress((prev) => ({ ...prev, state: e.target.value }))
-                      }
+                      onChange={(state) => setShippingAddress((prev) => ({ ...prev, state }))}
                     />
                   </div>
                 </div>

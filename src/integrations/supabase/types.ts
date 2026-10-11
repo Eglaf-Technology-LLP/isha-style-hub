@@ -444,6 +444,21 @@ export type Database = {
         }
         Relationships: []
       }
+      indian_states: {
+        Row: {
+          gst_code: string
+          name: string
+        }
+        Insert: {
+          gst_code: string
+          name: string
+        }
+        Update: {
+          gst_code?: string
+          name?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           billing_address: Json
@@ -2903,6 +2918,7 @@ export type Database = {
         Args: { _hsn_code_id: string; _unit_price: number }
         Returns: number
       }
+      gst_state_code: { Args: { _state: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

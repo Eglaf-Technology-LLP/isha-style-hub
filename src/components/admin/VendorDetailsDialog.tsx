@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StateSelect } from "@/components/StateSelect";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -341,7 +342,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-state">State</Label>
-                  <Input id="vd-state" value={form.state} onChange={(e) => set("state", e.target.value)} />
+                  <StateSelect id="vd-state" value={form.state} onChange={(v) => set("state", v)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-pincode">Pincode</Label>

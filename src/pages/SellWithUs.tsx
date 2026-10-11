@@ -7,6 +7,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StateSelect } from "@/components/StateSelect";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -872,7 +873,7 @@ export default function SellWithUs() {
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
-                  <Input placeholder="State" value={form.state} onChange={(e) => set("state", e.target.value)} />
+                  <StateSelect value={form.state} onChange={(v) => set("state", v)} />
                   <Input placeholder="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
                 </div>
               </FormSection>
