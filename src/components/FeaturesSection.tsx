@@ -1,3 +1,4 @@
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { Truck, RotateCcw, Shield, HeadphonesIcon } from "lucide-react";
 
 const features = [
@@ -5,6 +6,7 @@ const features = [
     icon: Truck,
     title: "Free Shipping",
     description: "On orders above ₹999",
+    // Replaced below while the admin's shipping switch is archived.
   },
   {
     icon: RotateCcw,
@@ -24,11 +26,14 @@ const features = [
 ];
 
 export function FeaturesSection() {
+  const { shippingCharged } = useCustomerShipping();
   return (
     <section className="py-12 bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-border lg:divide-y-0 lg:divide-x">
-          {features.map((feature) => (
+          {features
+            .map((f) => (f.title === "Free Shipping" && !shippingCharged ? { ...f, description: "On all orders" } : f))
+            .map((feature) => (
             <div
               key={feature.title}
               className="group flex flex-col items-center text-center p-6"

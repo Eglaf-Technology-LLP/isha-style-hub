@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -28,6 +29,7 @@ interface StoreVendor {
 }
 
 export default function StorePage() {
+  const { shippingCharged } = useCustomerShipping();
   const { slug } = useParams<{ slug: string }>();
   const [vendor, setVendor] = useState<StoreVendor | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -171,10 +173,16 @@ export default function StorePage() {
             <div className="text-sm">
               <p className="font-medium">Shipping</p>
               <p className="text-muted-foreground">
-                Flat ₹{Number(vendor.shipping_flat_rate).toFixed(0)} per order
-                {vendor.free_shipping_threshold
-                  ? ` · Free above ₹${Number(vendor.free_shipping_threshold).toFixed(0)}`
-                  : ""}
+                {!shippingCharged ? (
+                  "Free shipping on all orders"
+                ) : (
+                  <>
+                    Flat ₹{Number(vendor.shipping_flat_rate).toFixed(0)} per order
+                    {vendor.free_shipping_threshold
+                      ? ` · Free above ₹${Number(vendor.free_shipping_threshold).toFixed(0)}`
+                      : ""}
+                  </>
+                )}
               </p>
             </div>
           </div>

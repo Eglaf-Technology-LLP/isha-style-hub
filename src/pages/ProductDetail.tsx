@@ -18,6 +18,7 @@ import {
   Scissors,
 } from "lucide-react";
 import { COMPANY } from "@/lib/company";
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ export default function ProductDetail() {
     free_shipping_threshold: number | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const { shippingCharged } = useCustomerShipping();
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -507,12 +509,14 @@ export default function ProductDetail() {
                 </div>
                 <div>
                   <p className="font-medium">
-                    {vendorInfo?.free_shipping_threshold != null
+                    {!shippingCharged || vendorInfo?.free_shipping_threshold != null
                       ? "Free Delivery"
                       : "Shipping"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {vendorInfo?.free_shipping_threshold != null
+                    {!shippingCharged
+                      ? "On all orders"
+                      : vendorInfo?.free_shipping_threshold != null
                       ? `On orders above ₹${vendorInfo.free_shipping_threshold}`
                       : vendorInfo?.shipping_flat_rate
                         ? `₹${vendorInfo.shipping_flat_rate} flat rate`

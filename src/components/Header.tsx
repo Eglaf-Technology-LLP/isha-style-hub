@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CartDrawer } from "./CartDrawer";
 import { NotificationBell } from "./NotificationBell";
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { GlobalSearch } from "./GlobalSearch";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,7 @@ export function Header() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const { vendor } = useVendor();
   const { isAdmin } = useAdmin();
+  const { shippingCharged } = useCustomerShipping();
 
   useEffect(() => {
     // Fetch categories
@@ -71,7 +73,7 @@ export function Header() {
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
       {/* Top Bar */}
       <div className="bg-primary text-primary-foreground text-center py-2 text-sm">
-        Free Shipping on Orders Above ₹999 | Use Code: ALLBOUTIQS10 for 10% Off
+        {shippingCharged ? "Free Shipping on Orders Above ₹999" : "Free Shipping on All Orders"} | Use Code: ALLBOUTIQS10 for 10% Off
       </div>
 
       {/* Main Header */}

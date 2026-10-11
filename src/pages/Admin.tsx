@@ -49,6 +49,7 @@ import { PaymentManagement } from "@/components/admin/PaymentManagement";
 import { OrderManagement } from "@/components/admin/OrderManagement";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
 import { HsnManagement } from "@/components/admin/HsnManagement";
+import { CustomerShippingCard } from "@/components/admin/CustomerShippingCard";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
@@ -416,7 +417,8 @@ export default function Admin() {
           </TabsContent>
 
           {/* Promotions Tab */}
-          <TabsContent value="promotions">
+          <TabsContent value="promotions" className="space-y-6">
+            <CustomerShippingCard />
             <PromotionsManagement />
           </TabsContent>
 

@@ -47,6 +47,18 @@ const handler = async (req: Request): Promise<Response> => {
       </tr>
     `).join("");
 
+    // Admin's shipping switch: archived = free shipping on every order.
+    const { data: settings } = await createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    )
+      .from("platform_settings")
+      .select("customer_shipping_enabled")
+      .maybeSingle();
+    const freeShippingLine = settings?.customer_shipping_enabled
+      ? "Free shipping on orders above ₹999"
+      : "Free shipping on all orders";
+
     const bodyHtml = `
       <p style="color: #5a5a5a; line-height: 1.6;">
         We noticed you didn't complete your purchase. No worries — your items are still waiting for you!
@@ -70,7 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
         <tr><td>
           <p style="margin:0 0 8px; font-weight:700; font-size:13px; color:#1a1a1a;">Why shop with us?</p>
           <ul style="color: #5a5a5a; margin: 0; padding-left: 18px; font-size: 13px; line-height:1.7;">
-            <li>Free shipping on orders above ₹999</li>
+            <li>${freeShippingLine}</li>
             <li>Easy 7-day returns</li>
             <li>100% authentic products</li>
           </ul>

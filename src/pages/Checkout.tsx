@@ -35,6 +35,7 @@ import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -125,6 +126,7 @@ export default function Checkout() {
 
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
+  const { shippingCharged } = useCustomerShipping();
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("cod");
   const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";
   const [codOffProducts, setCodOffProducts] = useState<string[]>([]);
@@ -294,7 +296,8 @@ export default function Checkout() {
       );
 
       if (key === PLATFORM_GROUP_KEY) {
-        const shipping = groupSubtotal >= PLATFORM_SHIPPING.threshold ? 0 : PLATFORM_SHIPPING.flatRate;
+        const shipping =
+          !shippingCharged || groupSubtotal >= PLATFORM_SHIPPING.threshold ? 0 : PLATFORM_SHIPPING.flatRate;
         return {
           vendorId: null,
           vendorName: null,
@@ -308,7 +311,8 @@ export default function Checkout() {
       const info = vendorInfo[key];
       const flatRate = info?.shipping_flat_rate ?? PLATFORM_SHIPPING.flatRate;
       const threshold = info ? info.free_shipping_threshold : PLATFORM_SHIPPING.threshold;
-      const shipping = threshold !== null && groupSubtotal >= threshold ? 0 : flatRate;
+      // Admin's shipping switch archived = no shipping charge for anyone.
+      const shipping = !shippingCharged || (threshold !== null && groupSubtotal >= threshold) ? 0 : flatRate;
 
       return {
         vendorId: key,
@@ -319,7 +323,7 @@ export default function Checkout() {
         shippingCost: shipping,
       };
     });
-  }, [items, vendorInfo]);
+  }, [items, vendorInfo, shippingCharged]);
 
   const shippingCost = vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0);
 

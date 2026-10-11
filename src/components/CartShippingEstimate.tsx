@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
@@ -49,6 +50,7 @@ export function deliveryDateLabel(isoDate: string): string {
 // existing flat-rate calculation, unchanged - the two can differ slightly,
 // which the "Estimated" label is there to signal.
 export function CartShippingEstimate({ items }: { items: CartItem[] }) {
+  const { shippingCharged } = useCustomerShipping();
   const { defaultAddress } = useSavedAddresses();
   const [pincode, setPincode] = useState("");
   const [groups, setGroups] = useState<VendorShippingGroup[]>([]);
@@ -151,7 +153,7 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
 
   const anyChecked = groups.some((g) => g.checked);
   const totalEstimated = groups.reduce((sum, g) => {
-    if (g.freeThreshold != null && g.subtotal >= g.freeThreshold) return sum;
+    if (!shippingCharged || (g.freeThreshold != null && g.subtotal >= g.freeThreshold)) return sum;
     return sum + (g.estimatedRate ?? g.flatRate);
   }, 0);
 
@@ -177,7 +179,7 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
       {anyChecked && (
         <div className="space-y-1 text-sm">
           {groups.map((g) => {
-            const isFree = g.freeThreshold != null && g.subtotal >= g.freeThreshold;
+            const isFree = !shippingCharged || (g.freeThreshold != null && g.subtotal >= g.freeThreshold);
             const rate = isFree ? 0 : g.estimatedRate ?? g.flatRate;
             return (
               <div key={g.vendorId} className="flex justify-between text-muted-foreground">

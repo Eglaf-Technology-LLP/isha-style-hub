@@ -1191,6 +1191,7 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          customer_shipping_enabled: boolean
           default_prep_days: number
           id: boolean
           payout_settlement_days: number
@@ -1206,6 +1207,7 @@ export type Database = {
           warehouse_routing_enabled: boolean
         }
         Insert: {
+          customer_shipping_enabled?: boolean
           default_prep_days?: number
           id?: boolean
           payout_settlement_days?: number
@@ -1221,6 +1223,7 @@ export type Database = {
           warehouse_routing_enabled?: boolean
         }
         Update: {
+          customer_shipping_enabled?: boolean
           default_prep_days?: number
           id?: boolean
           payout_settlement_days?: number
