@@ -103,10 +103,17 @@ serve(async (req) => {
       const hold = Number(holdDays ?? 0);
       const ref = `#${String(vo.order_id).slice(0, 8)}`;
       const blocked = blockedReason(vendor, account);
+      // Weekly payouts: ready 24h after delivery (or after the return window),
+      // paid on the payment day after the weekly cut-off.
+      const { data: rates } = await supabase.rpc("rates_on", { _at: new Date().toISOString() });
+      const days = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const weekly = rates
+        ? ` We pay weekly: everything ready by ${days[rates.payout_cutoff_weekday]} ${String(rates.payout_cutoff_time).slice(0, 5)} is paid on ${days[rates.payout_weekday]}.`
+        : "";
       const why =
-        hold > 0
+        (hold > 0
           ? `This is after the ${hold}-day return window, so any return can be settled before you're paid.`
-          : "Nothing in this order is returnable, so there's no return-window wait.";
+          : "Nothing in this order is returnable, so there's no return-window wait.") + weekly;
       built = blocked
         ? {
             subject: `Action needed: add your payout account to receive ${inr(vo.net_payable)} | AllBoutiqs`,
@@ -270,7 +277,7 @@ serve(async (req) => {
             p(`Hi ${vendor.name}, Razorpay couldn't complete this payout:`) +
             list +
             factsBox([["Reason", String(body.reason ?? "Not given")]]) +
-            p("Your money is safe. We retry automatically every day; if the reason is about your bank details, please update them in your Payouts tab."),
+            p("Your money is safe. We retry automatically in the next payout run; if the reason is about your bank details, please update them in your Payouts tab."),
           ctaLabel: "View payouts",
         };
       }

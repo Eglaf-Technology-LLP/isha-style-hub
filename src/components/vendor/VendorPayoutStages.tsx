@@ -137,8 +137,8 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
             <Landmark className="h-5 w-5" /> Your money
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            After delivery, each order waits for its return window (no wait if nothing is returnable), then joins the
-            queue for our next bank transfer. You get an email at every step.
+            Payouts are weekly: an order is ready 24 hours after delivery (or once its return window ends, if
+            longer), and everything ready by Tuesday 11:59 PM is paid on Wednesday. You get an email at every step.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

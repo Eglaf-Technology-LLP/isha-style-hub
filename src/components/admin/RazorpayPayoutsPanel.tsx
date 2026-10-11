@@ -89,8 +89,9 @@ export function RazorpayPayoutsPanel() {
         <div>
           <CardTitle>Automatic payouts (Razorpay)</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Each boutique's share is held in Razorpay from payment and released automatically every day at 10:00 once
-            delivery and the return window are done; Razorpay then credits the boutique's bank.
+            Each boutique's share is held in Razorpay from payment and released automatically on the weekly payment
+            day (10:00) once it is ready - 24 hours after delivery or after the return window, by the weekly cut-off.
+            Razorpay then credits the boutique's bank. Timing is set in Fees, taxes &amp; payout timing above.
           </p>
         </div>
         <Button size="sm" onClick={releaseNow} disabled={releasing}>

@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
             .maybeSingle();
           if (vo) {
             const ref = `#${String(vo.order_id).slice(0, 8)}`;
-            await notifyAdmins(supabase, "payout_transfer_failed", "Razorpay payout failed", `Order ${ref}: ${reason}. It will be retried in the next daily payout run.`);
+            await notifyAdmins(supabase, "payout_transfer_failed", "Razorpay payout failed", `Order ${ref}: ${reason}. It will be retried in the next payout run.`);
             await notifyVendor(
               supabase,
               vo.vendor_id,
