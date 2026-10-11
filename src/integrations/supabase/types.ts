@@ -3468,6 +3468,43 @@ export type Database = {
         Args: { _request_id: string }
         Returns: string
       }
+      statement_lines: {
+        Args: { _from: string; _to: string; _vendor_id: string }
+        Returns: {
+          boutique_code: string
+          boutique_name: string
+          cod_charge: number
+          commission: number
+          courier: number
+          delivered_on: string
+          fee_gst: number
+          fee_invoice_number: string
+          gateway_fee: number
+          goods_value: number
+          gst: number
+          net_payout: number
+          net_taxable: number
+          order_date: string
+          order_number: string
+          payment_date: string
+          payment_method: string
+          payout_status: string
+          product_value: number
+          refunded: number
+          status: string
+          supply_type: string
+          tcs_cgst: number
+          tcs_igst: number
+          tcs_rate: number
+          tcs_sgst: number
+          tds: number
+          tds_rate: number
+          tech_fee: number
+          utr: string
+          vendor_id: string
+          vendor_order_id: string
+        }[]
+      }
       submit_vendor_application: { Args: { _app: Json }; Returns: string }
       vendor_bank_last4: { Args: { _vendor_id: string }; Returns: string }
       vendor_document_label: { Args: { _doc_type: string }; Returns: string }

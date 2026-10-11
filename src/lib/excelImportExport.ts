@@ -29,6 +29,20 @@ export async function parseWorkbook(file: File): Promise<Record<string, string>[
   });
 }
 
+// Several sheets in one file (e.g. a statement and its summaries).
+export async function buildWorkbookSheets(
+  sheets: { name: string; rows: Record<string, unknown>[] }[],
+  filename: string,
+): Promise<void> {
+  const XLSX = await loadXlsx();
+  const workbook = XLSX.utils.book_new();
+  for (const { name, rows } of sheets) {
+    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Note: "Nothing in this period" }]);
+    XLSX.utils.book_append_sheet(workbook, sheet, name.slice(0, 31));
+  }
+  XLSX.writeFile(workbook, filename);
+}
+
 export async function buildWorkbook(rows: Record<string, unknown>[], filename: string): Promise<void> {
   const XLSX = await loadXlsx();
   const sheet = XLSX.utils.json_to_sheet(rows);

@@ -77,6 +77,7 @@ import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
 import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
+import { StatementDownload } from "@/components/StatementDownload";
 
 interface VendorProduct {
   id: string;
@@ -1257,6 +1258,9 @@ export default function VendorDashboard() {
 
           {/* Payouts Tab */}
           <TabsContent value="payouts" className="space-y-6">
+            <div className="flex justify-end">
+              <StatementDownload vendorId={vendor.id} />
+            </div>
             <VendorPayoutStages
               vendorId={vendor.id}
               orders={orders}

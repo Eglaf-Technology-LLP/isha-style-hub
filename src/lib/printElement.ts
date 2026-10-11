@@ -1,7 +1,7 @@
 // Print one element on its own A4 page: opens a window containing just
 // that element plus the site's stylesheets, then prints it. Printing a
 // dialog in place drags the rest of the page along (and clips the dialog).
-export function printElement(el: HTMLElement | null, title: string): void {
+export function printElement(el: HTMLElement | null, title: string, options: { landscape?: boolean } = {}): void {
   if (!el) return;
   const w = window.open("", "_blank", "width=1000,height=1100");
   if (!w) return;
@@ -19,7 +19,7 @@ export function printElement(el: HTMLElement | null, title: string): void {
 <title>${title.replace(/</g, "&lt;")}</title>
 ${styles}
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4${options.landscape ? " landscape" : ""}; margin: 12mm; }
   html, body { background: #fff !important; color: #000; }
   body { margin: 0; padding: 16px; }
   @media print { body { padding: 0; } }

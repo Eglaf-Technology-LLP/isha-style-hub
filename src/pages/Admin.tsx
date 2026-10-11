@@ -52,6 +52,7 @@ import { HsnManagement } from "@/components/admin/HsnManagement";
 import { CustomerShippingCard } from "@/components/admin/CustomerShippingCard";
 import { PlatformRatesCard } from "@/components/admin/PlatformRatesCard";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
+import { StatementDownload } from "@/components/StatementDownload";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
@@ -439,6 +440,9 @@ export default function Admin() {
 
           <TabsContent value="vendor-payouts">
             <div className="space-y-6">
+              <div className="flex justify-end">
+                <StatementDownload admin />
+              </div>
               <PlatformRatesCard />
               <FeeInvoicesCard admin />
               <RazorpayPayoutsPanel />
