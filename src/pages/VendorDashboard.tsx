@@ -76,6 +76,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
 import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
+import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 
 interface VendorProduct {
   id: string;
@@ -1262,6 +1263,7 @@ export default function VendorDashboard() {
               hasPayoutAccount={hasPayoutAccount}
               accountStatus={vendor.payout_account_status}
             />
+            <FeeInvoicesCard vendorId={vendor.id} />
             <Card data-focus-id="account">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

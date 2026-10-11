@@ -313,6 +313,131 @@ export type Database = {
           },
         ]
       }
+      fee_invoice_series: {
+        Row: {
+          fiscal_year: string
+          last_serial: number
+        }
+        Insert: {
+          fiscal_year: string
+          last_serial?: number
+        }
+        Update: {
+          fiscal_year?: string
+          last_serial?: number
+        }
+        Relationships: []
+      }
+      fee_invoices: {
+        Row: {
+          cgst_amount: number
+          commission_amount: number
+          founding_waiver: boolean
+          gst_rate: number
+          id: string
+          igst_amount: number
+          invoice_number: string
+          issued_at: string
+          order_count: number
+          payout_date: string
+          period_end: string | null
+          period_start: string | null
+          product_value: number
+          recipient_address: Json | null
+          recipient_gstin: string | null
+          recipient_legal_name: string | null
+          recipient_name: string
+          recipient_pan: string | null
+          recipient_state_code: string | null
+          sac_code: string
+          sgst_amount: number
+          supplier_cin: string
+          supplier_gstin: string
+          supplier_name: string
+          supplier_state_code: string
+          supply_type: string
+          taxable_value: number
+          tech_fee_amount: number
+          total: number
+          vendor_id: string
+          vendor_order_ids: string[]
+        }
+        Insert: {
+          cgst_amount?: number
+          commission_amount: number
+          founding_waiver?: boolean
+          gst_rate: number
+          id?: string
+          igst_amount?: number
+          invoice_number: string
+          issued_at?: string
+          order_count: number
+          payout_date: string
+          period_end?: string | null
+          period_start?: string | null
+          product_value: number
+          recipient_address?: Json | null
+          recipient_gstin?: string | null
+          recipient_legal_name?: string | null
+          recipient_name: string
+          recipient_pan?: string | null
+          recipient_state_code?: string | null
+          sac_code: string
+          sgst_amount?: number
+          supplier_cin: string
+          supplier_gstin: string
+          supplier_name: string
+          supplier_state_code: string
+          supply_type: string
+          taxable_value: number
+          tech_fee_amount: number
+          total: number
+          vendor_id: string
+          vendor_order_ids: string[]
+        }
+        Update: {
+          cgst_amount?: number
+          commission_amount?: number
+          founding_waiver?: boolean
+          gst_rate?: number
+          id?: string
+          igst_amount?: number
+          invoice_number?: string
+          issued_at?: string
+          order_count?: number
+          payout_date?: string
+          period_end?: string | null
+          period_start?: string | null
+          product_value?: number
+          recipient_address?: Json | null
+          recipient_gstin?: string | null
+          recipient_legal_name?: string | null
+          recipient_name?: string
+          recipient_pan?: string | null
+          recipient_state_code?: string | null
+          sac_code?: string
+          sgst_amount?: number
+          supplier_cin?: string
+          supplier_gstin?: string
+          supplier_name?: string
+          supplier_state_code?: string
+          supply_type?: string
+          taxable_value?: number
+          tech_fee_amount?: number
+          total?: number
+          vendor_id?: string
+          vendor_order_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flash_sales: {
         Row: {
           created_at: string
@@ -2455,6 +2580,7 @@ export type Database = {
           expected_at_warehouse_on: string | null
           fee_gst_amount: number
           fee_gst_rate: number
+          fee_invoice_id: string | null
           fees_computed_at: string | null
           gateway_fee_amount: number
           gateway_fee_rate: number
@@ -2520,6 +2646,7 @@ export type Database = {
           expected_at_warehouse_on?: string | null
           fee_gst_amount?: number
           fee_gst_rate?: number
+          fee_invoice_id?: string | null
           fees_computed_at?: string | null
           gateway_fee_amount?: number
           gateway_fee_rate?: number
@@ -2585,6 +2712,7 @@ export type Database = {
           expected_at_warehouse_on?: string | null
           fee_gst_amount?: number
           fee_gst_rate?: number
+          fee_invoice_id?: string | null
           fees_computed_at?: string | null
           gateway_fee_amount?: number
           gateway_fee_rate?: number
@@ -2642,6 +2770,13 @@ export type Database = {
             columns: ["dispatch_id"]
             isOneToOne: false
             referencedRelation: "warehouse_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_orders_fee_invoice_id_fkey"
+            columns: ["fee_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fee_invoices"
             referencedColumns: ["id"]
           },
           {
@@ -3199,6 +3334,7 @@ export type Database = {
       }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       fiscal_year_code: { Args: { _at: string }; Returns: string }
+      generate_fee_invoices: { Args: { _upto?: string }; Returns: number }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       gst_rate_for: {
         Args: { _hsn_code_id: string; _unit_price: number }
@@ -3232,7 +3368,9 @@ export type Database = {
         Args: { _at: string; _vendor_id: string }
         Returns: string
       }
+      next_fee_invoice_number: { Args: { _at: string }; Returns: string }
       next_invoice_seq: { Args: never; Returns: number }
+      next_payout_date: { Args: { _ready_at: string }; Returns: string }
       nlink: {
         Args: { _focus?: string; _path: string; _tab: string }
         Returns: string
@@ -3449,6 +3587,7 @@ export type Database = {
           expected_at_warehouse_on: string | null
           fee_gst_amount: number
           fee_gst_rate: number
+          fee_invoice_id: string | null
           fees_computed_at: string | null
           gateway_fee_amount: number
           gateway_fee_rate: number
@@ -3629,6 +3768,7 @@ export type Database = {
           expected_at_warehouse_on: string | null
           fee_gst_amount: number
           fee_gst_rate: number
+          fee_invoice_id: string | null
           fees_computed_at: string | null
           gateway_fee_amount: number
           gateway_fee_rate: number
