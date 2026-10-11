@@ -115,7 +115,43 @@ export type Database = {
           vendor_order_id?: string | null
           warehouse_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "boutique_send_backs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boutique_send_backs_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boutique_send_backs_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boutique_send_backs_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boutique_send_backs_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       categories: {
         Row: {
@@ -844,7 +880,15 @@ export type Database = {
           user_id?: string | null
           warehouse_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "orders_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payment_events: {
         Row: {
@@ -1782,6 +1826,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "shipments_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "shipments_return_request_id_fkey"
             columns: ["return_request_id"]
             isOneToOne: false
@@ -1789,10 +1847,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "shipments_send_back_id_fkey"
+            columns: ["send_back_id"]
+            isOneToOne: false
+            referencedRelation: "boutique_send_backs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "shipments_vendor_order_id_fkey"
             columns: ["vendor_order_id"]
             isOneToOne: false
             referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
             referencedColumns: ["id"]
           },
         ]
@@ -2236,6 +2308,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "vendor_orders_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vendor_orders_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -2589,7 +2668,29 @@ export type Database = {
           warehouse_id?: string
           weight_kg?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_dispatches_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_dispatches_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warehouse_dispatches_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       warehouse_holidays: {
         Row: {
@@ -2695,6 +2796,10 @@ export type Database = {
     }
     Functions: {
       add_business_days: { Args: { _d: string; _n: number }; Returns: string }
+      add_warehouse_working_days: {
+        Args: { _d: string; _n: number }
+        Returns: string
+      }
       adjust_stock: {
         Args: {
           _delta: number
@@ -2723,21 +2828,28 @@ export type Database = {
         Returns: string
       }
       admin_user_ids: { Args: never; Returns: string[] }
+      admin_user_ids_and_warehouse: { Args: never; Returns: string[] }
+      assert_warehouse_operator: { Args: never; Returns: undefined }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
         Args: { _object_name: string; _user_id: string }
         Returns: boolean
       }
-      can_operate_warehouse: {
-        Args: { _user_id: string }
-        Returns: boolean
-      }
+      can_operate_warehouse: { Args: { _user_id: string }; Returns: boolean }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
       claim_email_otp_attempt: {
         Args: { _id: string; _max_attempts: number }
         Returns: number
       }
+      create_boutique_send_back: {
+        Args: { _notes?: string; _reason: string; _vendor_order_id: string }
+        Returns: string
+      }
       derive_order_status: { Args: { _order_id: string }; Returns: string }
+      dispatch_lead_vendor_order: {
+        Args: { _dispatch_id: string }
+        Returns: string
+      }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
@@ -2757,10 +2869,12 @@ export type Database = {
         Returns: undefined
       }
       is_privileged_writer: { Args: never; Returns: boolean }
+      is_server_or_warehouse: { Args: never; Returns: boolean }
       is_vendor_member: {
         Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
+      is_warehouse_working_day: { Args: { _d: string }; Returns: boolean }
       next_invoice_seq: { Args: never; Returns: number }
       nlink: {
         Args: { _focus?: string; _path: string; _tab: string }
@@ -2806,6 +2920,10 @@ export type Database = {
             }
             Returns: undefined
           }
+      notify_warehouse: {
+        Args: { _body: string; _link: string; _title: string; _type: string }
+        Returns: undefined
+      }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
         Returns: boolean
@@ -2831,6 +2949,10 @@ export type Database = {
       vendor_optional_documents: {
         Args: { _constitution: string }
         Returns: string[]
+      }
+      vendor_order_items_snapshot: {
+        Args: { _vendor_order_id: string }
+        Returns: Json
       }
       vendor_order_payout_date: {
         Args: { _delivered_at: string; _vendor_order_id: string }
@@ -2859,13 +2981,24 @@ export type Database = {
           items: Json
           order_id: string
           reason: string
+          received_at_warehouse_at: string | null
+          received_by: string | null
           refund_amount: number | null
+          replacement_qc_notes: string | null
+          replacement_qc_status: string | null
+          replacement_received_at: string | null
           request_type: string
+          return_destination: string | null
           status: string
           updated_at: string
           user_id: string
           vendor_decision_at: string | null
           vendor_notes: string | null
+          warehouse_qc_at: string | null
+          warehouse_qc_by: string | null
+          warehouse_qc_notes: string | null
+          warehouse_qc_status: string | null
+          warehouse_shelf: string | null
         }
         SetofOptions: {
           from: "*"
@@ -2879,8 +3012,32 @@ export type Database = {
         Returns: undefined
       }
       warehouse_create_dispatch: {
-        Args: { _allow_partial?: boolean; _breadth_cm: number; _height_cm: number; _length_cm: number; _order_id: string; _vendor_order_ids: string[]; _weight_kg: number }
-        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        Args: {
+          _allow_partial?: boolean
+          _breadth_cm: number
+          _height_cm: number
+          _length_cm: number
+          _order_id: string
+          _vendor_order_ids: string[]
+          _weight_kg: number
+        }
+        Returns: {
+          breadth_cm: number
+          created_at: string
+          height_cm: number
+          id: string
+          length_cm: number
+          order_id: string
+          packed_at: string
+          packed_by: string | null
+          purpose: string
+          return_request_id: string | null
+          rto_received_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+          weight_kg: number
+        }
         SetofOptions: {
           from: "*"
           to: "warehouse_dispatches"
@@ -2888,13 +3045,54 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      warehouse_dispatch_by: {
-        Args: { _received_at: string }
-        Returns: string
-      }
+      warehouse_dispatch_by: { Args: { _received_at: string }; Returns: string }
       warehouse_receive_parcel: {
         Args: { _shelf?: string; _vendor_order_id: string }
-        Returns: Database["public"]["Tables"]["vendor_orders"]["Row"]
+        Returns: {
+          arrived_at_warehouse_at: string | null
+          carrier: string | null
+          commission_amount: number
+          commission_rate: number
+          created_at: string
+          delivered_at: string | null
+          dispatch_id: string | null
+          due_notified_at: string | null
+          expected_at_warehouse_on: string | null
+          id: string
+          late_reminder_sent_at: string | null
+          net_payable: number
+          order_id: string
+          overdue_alerted_at: string | null
+          payout_eligible_on: string | null
+          payout_id: string | null
+          payout_notified_at: string | null
+          qc_at: string | null
+          qc_by: string | null
+          qc_notes: string | null
+          qc_status: string | null
+          ready_by: string | null
+          received_at_warehouse_at: string | null
+          received_by: string | null
+          reminder_sent_at: string | null
+          return_window_ends_on: string | null
+          rzp_released_at: string | null
+          rzp_reversed_amount: number
+          rzp_settled_at: string | null
+          rzp_settlement_id: string | null
+          rzp_settlement_utr: string | null
+          rzp_transfer_amount: number | null
+          rzp_transfer_error: string | null
+          rzp_transfer_id: string | null
+          rzp_transfer_kind: string | null
+          rzp_transfer_status: string | null
+          shipping_cost: number
+          status: string
+          subtotal: number
+          tracking_number: string | null
+          updated_at: string
+          vendor_id: string
+          warehouse_shelf: string | null
+        }
         SetofOptions: {
           from: "*"
           to: "vendor_orders"
@@ -2904,7 +3102,37 @@ export type Database = {
       }
       warehouse_receive_replacement: {
         Args: { _return_request_id: string }
-        Returns: Database["public"]["Tables"]["return_requests"]["Row"]
+        Returns: {
+          additional_notes: string | null
+          admin_notes: string | null
+          created_at: string
+          escalated_at: string | null
+          evidence_video_url: string | null
+          exchange_details: Json | null
+          handled_by: string
+          id: string
+          items: Json
+          order_id: string
+          reason: string
+          received_at_warehouse_at: string | null
+          received_by: string | null
+          refund_amount: number | null
+          replacement_qc_notes: string | null
+          replacement_qc_status: string | null
+          replacement_received_at: string | null
+          request_type: string
+          return_destination: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vendor_decision_at: string | null
+          vendor_notes: string | null
+          warehouse_qc_at: string | null
+          warehouse_qc_by: string | null
+          warehouse_qc_notes: string | null
+          warehouse_qc_status: string | null
+          warehouse_shelf: string | null
+        }
         SetofOptions: {
           from: "*"
           to: "return_requests"
@@ -2914,7 +3142,37 @@ export type Database = {
       }
       warehouse_receive_return: {
         Args: { _return_request_id: string; _shelf?: string }
-        Returns: Database["public"]["Tables"]["return_requests"]["Row"]
+        Returns: {
+          additional_notes: string | null
+          admin_notes: string | null
+          created_at: string
+          escalated_at: string | null
+          evidence_video_url: string | null
+          exchange_details: Json | null
+          handled_by: string
+          id: string
+          items: Json
+          order_id: string
+          reason: string
+          received_at_warehouse_at: string | null
+          received_by: string | null
+          refund_amount: number | null
+          replacement_qc_notes: string | null
+          replacement_qc_status: string | null
+          replacement_received_at: string | null
+          request_type: string
+          return_destination: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          vendor_decision_at: string | null
+          vendor_notes: string | null
+          warehouse_qc_at: string | null
+          warehouse_qc_by: string | null
+          warehouse_qc_notes: string | null
+          warehouse_qc_status: string | null
+          warehouse_shelf: string | null
+        }
         SetofOptions: {
           from: "*"
           to: "return_requests"
@@ -2924,7 +3182,23 @@ export type Database = {
       }
       warehouse_receive_rto: {
         Args: { _dispatch_id: string }
-        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        Returns: {
+          breadth_cm: number
+          created_at: string
+          height_cm: number
+          id: string
+          length_cm: number
+          order_id: string
+          packed_at: string
+          packed_by: string | null
+          purpose: string
+          return_request_id: string | null
+          rto_received_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+          weight_kg: number
+        }
         SetofOptions: {
           from: "*"
           to: "warehouse_dispatches"
@@ -2934,7 +3208,51 @@ export type Database = {
       }
       warehouse_record_qc: {
         Args: { _notes?: string; _passed: boolean; _vendor_order_id: string }
-        Returns: Database["public"]["Tables"]["vendor_orders"]["Row"]
+        Returns: {
+          arrived_at_warehouse_at: string | null
+          carrier: string | null
+          commission_amount: number
+          commission_rate: number
+          created_at: string
+          delivered_at: string | null
+          dispatch_id: string | null
+          due_notified_at: string | null
+          expected_at_warehouse_on: string | null
+          id: string
+          late_reminder_sent_at: string | null
+          net_payable: number
+          order_id: string
+          overdue_alerted_at: string | null
+          payout_eligible_on: string | null
+          payout_id: string | null
+          payout_notified_at: string | null
+          qc_at: string | null
+          qc_by: string | null
+          qc_notes: string | null
+          qc_status: string | null
+          ready_by: string | null
+          received_at_warehouse_at: string | null
+          received_by: string | null
+          reminder_sent_at: string | null
+          return_window_ends_on: string | null
+          rzp_released_at: string | null
+          rzp_reversed_amount: number
+          rzp_settled_at: string | null
+          rzp_settlement_id: string | null
+          rzp_settlement_utr: string | null
+          rzp_transfer_amount: number | null
+          rzp_transfer_error: string | null
+          rzp_transfer_id: string | null
+          rzp_transfer_kind: string | null
+          rzp_transfer_status: string | null
+          shipping_cost: number
+          status: string
+          subtotal: number
+          tracking_number: string | null
+          updated_at: string
+          vendor_id: string
+          warehouse_shelf: string | null
+        }
         SetofOptions: {
           from: "*"
           to: "vendor_orders"
@@ -2943,8 +3261,30 @@ export type Database = {
         }
       }
       warehouse_update_dispatch_parcel: {
-        Args: { _breadth_cm: number; _dispatch_id: string; _height_cm: number; _length_cm: number; _weight_kg: number }
-        Returns: Database["public"]["Tables"]["warehouse_dispatches"]["Row"]
+        Args: {
+          _breadth_cm: number
+          _dispatch_id: string
+          _height_cm: number
+          _length_cm: number
+          _weight_kg: number
+        }
+        Returns: {
+          breadth_cm: number
+          created_at: string
+          height_cm: number
+          id: string
+          length_cm: number
+          order_id: string
+          packed_at: string
+          packed_by: string | null
+          purpose: string
+          return_request_id: string | null
+          rto_received_at: string | null
+          status: string
+          updated_at: string
+          warehouse_id: string
+          weight_kg: number
+        }
         SetofOptions: {
           from: "*"
           to: "warehouse_dispatches"
@@ -2952,9 +3292,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      warehouse_watch: { Args: never; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "user" | "vendor_admin" | "vendor_staff" | "warehouse_staff"
+      app_role:
+        | "admin"
+        | "user"
+        | "vendor_admin"
+        | "vendor_staff"
+        | "warehouse_staff"
       membership_plan: "monthly" | "annual"
       membership_status: "active" | "cancelled" | "expired"
     }
@@ -3087,7 +3433,13 @@ export const Constants = {
   },
   public: {
     Enums: {
-      app_role: ["admin", "user", "vendor_admin", "vendor_staff", "warehouse_staff"],
+      app_role: [
+        "admin",
+        "user",
+        "vendor_admin",
+        "vendor_staff",
+        "warehouse_staff",
+      ],
       membership_plan: ["monthly", "annual"],
       membership_status: ["active", "cancelled", "expired"],
     },
