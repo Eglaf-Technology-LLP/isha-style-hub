@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin } from "lucide-react";
+import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, MessageCircle } from "lucide-react";
+import { COMPANY, telHref } from "@/lib/company";
 import { Separator } from "@/components/ui/separator";
 import logo from "@/assets/logo-white.png";
 
@@ -101,15 +102,25 @@ export function Footer() {
             <ul className="space-y-3">
               <li className="flex items-center gap-2 text-secondary-foreground/80">
                 <Phone className="h-4 w-4" />
-                <span>+91 98765 43210</span>
+                <a href={telHref(COMPANY.supportPhone)} className="hover:text-secondary-foreground">
+                  {COMPANY.supportPhone}
+                </a>
+              </li>
+              <li className="flex items-center gap-2 text-secondary-foreground/80">
+                <MessageCircle className="h-4 w-4" />
+                <a href={COMPANY.whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-secondary-foreground">
+                  WhatsApp {COMPANY.whatsapp}
+                </a>
               </li>
               <li className="flex items-center gap-2 text-secondary-foreground/80">
                 <Mail className="h-4 w-4" />
-                <span>hello@allboutiqs.com</span>
+                <a href={`mailto:${COMPANY.supportEmail}`} className="hover:text-secondary-foreground">
+                  {COMPANY.supportEmail}
+                </a>
               </li>
               <li className="flex items-start gap-2 text-secondary-foreground/80">
                 <MapPin className="h-4 w-4 mt-1" />
-                <span>Mumbai, Maharashtra, India</span>
+                <span>{COMPANY.location}</span>
               </li>
             </ul>
           </div>

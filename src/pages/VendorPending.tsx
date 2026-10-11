@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { COMPANY } from "@/lib/company";
 import { useVendor } from "@/hooks/useVendor";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -85,7 +86,7 @@ export default function VendorPending() {
               <Mail className="h-4 w-4 mt-0.5 text-primary" />
               <p>
                 We'll email you at your contact address once a decision is made. For
-                questions, reply to hello@allboutiqs.com.
+                questions, write to {COMPANY.supportEmail} or call {COMPANY.supportPhone}.
               </p>
             </div>
 

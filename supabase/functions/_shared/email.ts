@@ -1,4 +1,5 @@
 import nodemailer from "npm:nodemailer@^9";
+import { COMPANY } from "./company.ts";
 
 // Every email in this app now goes out through this one function, over
 // real SMTP (Zoho) - the previous per-function Resend-based sendEmail()
@@ -37,6 +38,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   await transport.sendMail({
     from: `AllBoutiqs <${fromEmail}>`,
     to,
+    replyTo: COMPANY.supportEmail,
     subject,
     html,
   });
@@ -106,6 +108,7 @@ ${
 <td style="padding:24px 32px 32px;">
 <hr style="border:none; border-top:1px solid #ececec; margin:0 0 20px;" />
 <p style="margin:0 0 6px; font-size:12px; color:#8a8a8a;">AllBoutiqs — India's Trusted Boutiques on One Marketplace</p>
+<p style="margin:0 0 6px; font-size:12px; color:#8a8a8a;">Need help? <a href="mailto:${COMPANY.supportEmail}" style="color:#7a2e22; text-decoration:none;">${COMPANY.supportEmail}</a> · ${COMPANY.supportPhone} · <a href="${COMPANY.whatsappUrl}" style="color:#7a2e22; text-decoration:none;">WhatsApp ${COMPANY.whatsapp}</a></p>
 <p style="margin:0; font-size:12px; color:#8a8a8a;">
 <a href="${siteUrl}" style="color:#7a2e22; text-decoration:none;">Visit AllBoutiqs</a>
 &nbsp;·&nbsp;

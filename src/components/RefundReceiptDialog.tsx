@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { COMPANY } from "@/lib/company";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Printer, Receipt as ReceiptIcon } from "lucide-react";
@@ -59,7 +60,7 @@ export function RefundReceiptDialog({ refund }: { refund: Refund }) {
           <div id="refund-receipt-content" className="space-y-4 text-sm">
             <div className="text-center border-b border-border pb-3">
               <p className="font-serif text-lg font-semibold">AllBoutiqs</p>
-              <p className="text-xs text-muted-foreground">hello@allboutiqs.com</p>
+              <p className="text-xs text-muted-foreground">{COMPANY.supportEmail} · {COMPANY.supportPhone}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

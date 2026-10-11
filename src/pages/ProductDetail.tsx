@@ -17,6 +17,7 @@ import {
   Banknote,
   Scissors,
 } from "lucide-react";
+import { COMPANY } from "@/lib/company";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
 import { toast } from "sonner";
@@ -671,8 +672,12 @@ export default function ProductDetail() {
                           {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
                         </>
                       ) : (
-                        "customercare@allboutiqs.com"
+                        `${COMPANY.supportEmail} · ${COMPANY.supportPhone}`
                       )}
+                    </li>
+                    <li>
+                      <span className="font-medium text-foreground">AllBoutiqs Customer Care:</span>{" "}
+                      {COMPANY.supportEmail} · {COMPANY.supportPhone} · WhatsApp {COMPANY.whatsapp}
                     </li>
                     <li>
                       <span className="font-medium text-foreground">Commodity:</span>{" "}

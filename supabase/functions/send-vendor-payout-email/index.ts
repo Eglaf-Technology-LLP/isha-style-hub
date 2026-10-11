@@ -313,7 +313,7 @@ serve(async (req) => {
             ["Account", `ending ${last4(a.bank_account_number)}`],
             ["IFSC", a.bank_ifsc],
           ]) +
-          p("<strong>If you didn't make this change, contact us immediately at hello@allboutiqs.com</strong> so we can stop any transfers."),
+          p("<strong>If you didn't make this change, contact us immediately at support@allboutiqs.com</strong> so we can stop any transfers."),
         ctaLabel: "Review payout details",
       };
     } else if (event === "account_reminder") {
