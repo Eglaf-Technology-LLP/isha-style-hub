@@ -22,7 +22,8 @@ export interface Vendor {
   status: string;
   is_trusted: boolean;
   is_verified: boolean;
-  commission_rate: number;
+  // Boutique-specific commission override; null = the platform rate in force.
+  commission_rate: number | null;
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;
   return_window_days: number;

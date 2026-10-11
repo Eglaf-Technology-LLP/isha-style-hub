@@ -221,7 +221,7 @@ export function VendorManagement() {
                         <span className="text-muted-foreground text-xs">No</span>
                       )}
                     </TableCell>
-                    <TableCell>{v.commission_rate}%</TableCell>
+                    <TableCell>{v.commission_rate != null ? `${v.commission_rate}%` : "Platform"}</TableCell>
                     <TableCell className="text-xs">
                       ₹{v.shipping_flat_rate} flat
                       <br />

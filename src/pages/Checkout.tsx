@@ -36,6 +36,7 @@ import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
+import { usePlatformRates } from "@/hooks/usePlatformRates";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,6 +128,7 @@ export default function Checkout() {
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
+  const platformRates = usePlatformRates();
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("cod");
   const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";
   const [codOffProducts, setCodOffProducts] = useState<string[]>([]);
@@ -317,13 +319,13 @@ export default function Checkout() {
       return {
         vendorId: key,
         vendorName: info?.name ?? "Store",
-        commissionRate: info?.commission_rate ?? 10,
+        commissionRate: info?.commission_rate ?? Number(platformRates.current?.marketplace_commission_pct ?? 10),
         items: groupItems,
         subtotal: groupSubtotal,
         shippingCost: shipping,
       };
     });
-  }, [items, vendorInfo, shippingCharged]);
+  }, [items, vendorInfo, shippingCharged, platformRates.current]);
 
   const shippingCost = vendorGroups.reduce((sum, g) => sum + g.shippingCost, 0);
 

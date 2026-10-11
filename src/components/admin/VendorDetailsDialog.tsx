@@ -75,7 +75,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     city: "",
     state: "",
     pincode: "",
-    commission_rate: "0",
+    commission_rate: "",
     shipping_flat_rate: "0",
     free_shipping_threshold: "",
     return_window_days: "7",
@@ -104,7 +104,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       city: vendor.address?.city || "",
       state: vendor.address?.state || "",
       pincode: vendor.address?.pincode || "",
-      commission_rate: String(vendor.commission_rate ?? 0),
+      commission_rate: vendor.commission_rate != null ? String(vendor.commission_rate) : "",
       shipping_flat_rate: String(vendor.shipping_flat_rate ?? 0),
       free_shipping_threshold:
         vendor.free_shipping_threshold != null ? String(vendor.free_shipping_threshold) : "",
@@ -167,7 +167,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
           ...(addressChanged && vendor.shiprocket_pickup_location
             ? { shiprocket_pickup_location: null, shiprocket_pickup_registered_at: null }
             : {}),
-          commission_rate: Number(form.commission_rate) || 0,
+          // Blank = use the platform's marketplace commission.
+          commission_rate: form.commission_rate.trim() === "" ? null : Number(form.commission_rate),
           shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
           free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
           return_window_days: Number(form.return_window_days) || 7,
@@ -358,12 +359,13 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
               <h4 className="font-medium">Fees &amp; Policies</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="vd-commission">Commission rate (%)</Label>
+                  <Label htmlFor="vd-commission">Commission override (%)</Label>
                   <Input
                     id="vd-commission"
                     type="number"
                     min={0}
                     max={100}
+                    placeholder="Platform rate"
                     value={form.commission_rate}
                     onChange={(e) => set("commission_rate", e.target.value)}
                   />

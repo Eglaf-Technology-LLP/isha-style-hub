@@ -92,7 +92,7 @@ export function vendorsToRows(
     contact_email: string | null;
     status: string;
     is_trusted: boolean;
-    commission_rate: number;
+    commission_rate: number | null;
     shipping_flat_rate: number;
     free_shipping_threshold: number | null;
     return_window_days: number;
@@ -106,7 +106,7 @@ export function vendorsToRows(
     [VENDOR_COLUMNS.contactEmail]: v.contact_email ?? "",
     [VENDOR_COLUMNS.status]: v.status,
     [VENDOR_COLUMNS.isTrusted]: v.is_trusted ? "TRUE" : "FALSE",
-    [VENDOR_COLUMNS.commissionRate]: String(v.commission_rate),
+    [VENDOR_COLUMNS.commissionRate]: v.commission_rate != null ? String(v.commission_rate) : "",
     [VENDOR_COLUMNS.shippingFlatRate]: String(v.shipping_flat_rate),
     [VENDOR_COLUMNS.freeShippingThreshold]: v.free_shipping_threshold != null ? String(v.free_shipping_threshold) : "",
     [VENDOR_COLUMNS.returnWindowDays]: String(v.return_window_days),

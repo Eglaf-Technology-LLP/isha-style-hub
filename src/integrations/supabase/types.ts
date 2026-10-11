@@ -1189,6 +1189,72 @@ export type Database = {
           },
         ]
       }
+      platform_rates: {
+        Row: {
+          charge_courier_to_boutique: boolean
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          fee_gst_pct: number
+          fee_sac_code: string
+          gst_tcs_pct: number
+          id: string
+          marketplace_commission_pct: number
+          note: string | null
+          payment_gateway_fee_pct: number
+          payout_cutoff_time: string
+          payout_cutoff_weekday: number
+          payout_hold_hours: number
+          payout_weekday: number
+          tds_individual_exempt_upto: number
+          tds_no_pan_pct: number
+          tds_pct: number
+          technology_fee_pct: number
+        }
+        Insert: {
+          charge_courier_to_boutique?: boolean
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          fee_gst_pct?: number
+          fee_sac_code?: string
+          gst_tcs_pct?: number
+          id?: string
+          marketplace_commission_pct?: number
+          note?: string | null
+          payment_gateway_fee_pct?: number
+          payout_cutoff_time?: string
+          payout_cutoff_weekday?: number
+          payout_hold_hours?: number
+          payout_weekday?: number
+          tds_individual_exempt_upto?: number
+          tds_no_pan_pct?: number
+          tds_pct?: number
+          technology_fee_pct?: number
+        }
+        Update: {
+          charge_courier_to_boutique?: boolean
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          fee_gst_pct?: number
+          fee_sac_code?: string
+          gst_tcs_pct?: number
+          id?: string
+          marketplace_commission_pct?: number
+          note?: string | null
+          payment_gateway_fee_pct?: number
+          payout_cutoff_time?: string
+          payout_cutoff_weekday?: number
+          payout_hold_hours?: number
+          payout_weekday?: number
+          tds_individual_exempt_upto?: number
+          tds_no_pan_pct?: number
+          tds_pct?: number
+          technology_fee_pct?: number
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           customer_shipping_enabled: boolean
@@ -2714,7 +2780,7 @@ export type Database = {
           banner_url: string | null
           boutique_code: string
           cod_enabled: boolean
-          commission_rate: number
+          commission_rate: number | null
           contact_email: string | null
           contact_phone: string | null
           created_at: string
@@ -2750,7 +2816,7 @@ export type Database = {
           banner_url?: string | null
           boutique_code?: string
           cod_enabled?: boolean
-          commission_rate?: number
+          commission_rate?: number | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -2786,7 +2852,7 @@ export type Database = {
           banner_url?: string | null
           boutique_code?: string
           cod_enabled?: boolean
-          commission_rate?: number
+          commission_rate?: number | null
           contact_email?: string | null
           contact_phone?: string | null
           created_at?: string
@@ -3141,6 +3207,36 @@ export type Database = {
       }
       order_ref: { Args: { _order_id: string }; Returns: string }
       process_vendor_payout_queue: { Args: never; Returns: undefined }
+      rates_on: {
+        Args: { _at: string }
+        Returns: {
+          charge_courier_to_boutique: boolean
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          fee_gst_pct: number
+          fee_sac_code: string
+          gst_tcs_pct: number
+          id: string
+          marketplace_commission_pct: number
+          note: string | null
+          payment_gateway_fee_pct: number
+          payout_cutoff_time: string
+          payout_cutoff_weekday: number
+          payout_hold_hours: number
+          payout_weekday: number
+          tds_individual_exempt_upto: number
+          tds_no_pan_pct: number
+          tds_pct: number
+          technology_fee_pct: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "platform_rates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       remind_unconfirmed_orders: { Args: never; Returns: undefined }
       return_request_contains_vendor_item: {
         Args: { _return_request_id: string; _user_id: string }

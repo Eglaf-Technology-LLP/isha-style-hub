@@ -74,6 +74,7 @@ import { formatPayoutDate } from "@/lib/payoutDates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
 import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
+import { usePlatformRates } from "@/hooks/usePlatformRates";
 
 interface VendorProduct {
   id: string;
@@ -189,6 +190,7 @@ export default function VendorDashboard() {
   const { categories } = useCategories();
   const navigate = useNavigate();
   const [tab, setTab] = useUrlTab("dashboard");
+  const platformRates = usePlatformRates();
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -692,7 +694,7 @@ export default function VendorDashboard() {
                     {dataLoading ? "..." : `₹${revenue.toFixed(0)}`}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Commission {vendor.commission_rate}%
+                    Commission {vendor.commission_rate ?? platformRates.current?.marketplace_commission_pct ?? "—"}%
                   </p>
                 </CardContent>
               </Card>
