@@ -2444,13 +2444,23 @@ export type Database = {
         Row: {
           arrived_at_warehouse_at: string | null
           carrier: string | null
+          cod_handling_charge: number
           commission_amount: number
           commission_rate: number
+          courier_charge: number
           created_at: string
           delivered_at: string | null
           dispatch_id: string | null
           due_notified_at: string | null
           expected_at_warehouse_on: string | null
+          fee_gst_amount: number
+          fee_gst_rate: number
+          fees_computed_at: string | null
+          gateway_fee_amount: number
+          gateway_fee_rate: number
+          goods_gst: number
+          goods_value: number
+          hsn_missing: boolean
           id: string
           late_reminder_sent_at: string | null
           net_payable: number
@@ -2459,10 +2469,12 @@ export type Database = {
           payout_eligible_on: string | null
           payout_id: string | null
           payout_notified_at: string | null
+          product_value: number
           qc_at: string | null
           qc_by: string | null
           qc_notes: string | null
           qc_status: string | null
+          rates_effective_from: string | null
           ready_by: string | null
           received_at_warehouse_at: string | null
           received_by: string | null
@@ -2479,8 +2491,16 @@ export type Database = {
           rzp_transfer_kind: string | null
           rzp_transfer_status: string | null
           shipping_cost: number
+          shipping_to_boutique: boolean
           status: string
           subtotal: number
+          supply_type: string | null
+          tcs_amount: number
+          tcs_rate: number
+          tds_amount: number
+          tds_rate: number
+          tech_fee_amount: number
+          tech_fee_rate: number
           tracking_number: string | null
           updated_at: string
           vendor_id: string
@@ -2489,13 +2509,23 @@ export type Database = {
         Insert: {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
+          cod_handling_charge?: number
           commission_amount?: number
           commission_rate?: number
+          courier_charge?: number
           created_at?: string
           delivered_at?: string | null
           dispatch_id?: string | null
           due_notified_at?: string | null
           expected_at_warehouse_on?: string | null
+          fee_gst_amount?: number
+          fee_gst_rate?: number
+          fees_computed_at?: string | null
+          gateway_fee_amount?: number
+          gateway_fee_rate?: number
+          goods_gst?: number
+          goods_value?: number
+          hsn_missing?: boolean
           id?: string
           late_reminder_sent_at?: string | null
           net_payable?: number
@@ -2504,10 +2534,12 @@ export type Database = {
           payout_eligible_on?: string | null
           payout_id?: string | null
           payout_notified_at?: string | null
+          product_value?: number
           qc_at?: string | null
           qc_by?: string | null
           qc_notes?: string | null
           qc_status?: string | null
+          rates_effective_from?: string | null
           ready_by?: string | null
           received_at_warehouse_at?: string | null
           received_by?: string | null
@@ -2524,8 +2556,16 @@ export type Database = {
           rzp_transfer_kind?: string | null
           rzp_transfer_status?: string | null
           shipping_cost?: number
+          shipping_to_boutique?: boolean
           status?: string
           subtotal?: number
+          supply_type?: string | null
+          tcs_amount?: number
+          tcs_rate?: number
+          tds_amount?: number
+          tds_rate?: number
+          tech_fee_amount?: number
+          tech_fee_rate?: number
           tracking_number?: string | null
           updated_at?: string
           vendor_id: string
@@ -2534,13 +2574,23 @@ export type Database = {
         Update: {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
+          cod_handling_charge?: number
           commission_amount?: number
           commission_rate?: number
+          courier_charge?: number
           created_at?: string
           delivered_at?: string | null
           dispatch_id?: string | null
           due_notified_at?: string | null
           expected_at_warehouse_on?: string | null
+          fee_gst_amount?: number
+          fee_gst_rate?: number
+          fees_computed_at?: string | null
+          gateway_fee_amount?: number
+          gateway_fee_rate?: number
+          goods_gst?: number
+          goods_value?: number
+          hsn_missing?: boolean
           id?: string
           late_reminder_sent_at?: string | null
           net_payable?: number
@@ -2549,10 +2599,12 @@ export type Database = {
           payout_eligible_on?: string | null
           payout_id?: string | null
           payout_notified_at?: string | null
+          product_value?: number
           qc_at?: string | null
           qc_by?: string | null
           qc_notes?: string | null
           qc_status?: string | null
+          rates_effective_from?: string | null
           ready_by?: string | null
           received_at_warehouse_at?: string | null
           received_by?: string | null
@@ -2569,8 +2621,16 @@ export type Database = {
           rzp_transfer_kind?: string | null
           rzp_transfer_status?: string | null
           shipping_cost?: number
+          shipping_to_boutique?: boolean
           status?: string
           subtotal?: number
+          supply_type?: string | null
+          tcs_amount?: number
+          tcs_rate?: number
+          tds_amount?: number
+          tds_rate?: number
+          tech_fee_amount?: number
+          tech_fee_rate?: number
           tracking_number?: string | null
           updated_at?: string
           vendor_id?: string
@@ -3120,6 +3180,10 @@ export type Database = {
         Args: { _id: string; _max_attempts: number }
         Returns: number
       }
+      compute_vendor_order_fees: {
+        Args: { _vendor_order_id: string }
+        Returns: undefined
+      }
       create_boutique_send_back: {
         Args: { _notes?: string; _reason: string; _vendor_order_id: string }
         Returns: string
@@ -3374,13 +3438,23 @@ export type Database = {
         Returns: {
           arrived_at_warehouse_at: string | null
           carrier: string | null
+          cod_handling_charge: number
           commission_amount: number
           commission_rate: number
+          courier_charge: number
           created_at: string
           delivered_at: string | null
           dispatch_id: string | null
           due_notified_at: string | null
           expected_at_warehouse_on: string | null
+          fee_gst_amount: number
+          fee_gst_rate: number
+          fees_computed_at: string | null
+          gateway_fee_amount: number
+          gateway_fee_rate: number
+          goods_gst: number
+          goods_value: number
+          hsn_missing: boolean
           id: string
           late_reminder_sent_at: string | null
           net_payable: number
@@ -3389,10 +3463,12 @@ export type Database = {
           payout_eligible_on: string | null
           payout_id: string | null
           payout_notified_at: string | null
+          product_value: number
           qc_at: string | null
           qc_by: string | null
           qc_notes: string | null
           qc_status: string | null
+          rates_effective_from: string | null
           ready_by: string | null
           received_at_warehouse_at: string | null
           received_by: string | null
@@ -3409,8 +3485,16 @@ export type Database = {
           rzp_transfer_kind: string | null
           rzp_transfer_status: string | null
           shipping_cost: number
+          shipping_to_boutique: boolean
           status: string
           subtotal: number
+          supply_type: string | null
+          tcs_amount: number
+          tcs_rate: number
+          tds_amount: number
+          tds_rate: number
+          tech_fee_amount: number
+          tech_fee_rate: number
           tracking_number: string | null
           updated_at: string
           vendor_id: string
@@ -3534,13 +3618,23 @@ export type Database = {
         Returns: {
           arrived_at_warehouse_at: string | null
           carrier: string | null
+          cod_handling_charge: number
           commission_amount: number
           commission_rate: number
+          courier_charge: number
           created_at: string
           delivered_at: string | null
           dispatch_id: string | null
           due_notified_at: string | null
           expected_at_warehouse_on: string | null
+          fee_gst_amount: number
+          fee_gst_rate: number
+          fees_computed_at: string | null
+          gateway_fee_amount: number
+          gateway_fee_rate: number
+          goods_gst: number
+          goods_value: number
+          hsn_missing: boolean
           id: string
           late_reminder_sent_at: string | null
           net_payable: number
@@ -3549,10 +3643,12 @@ export type Database = {
           payout_eligible_on: string | null
           payout_id: string | null
           payout_notified_at: string | null
+          product_value: number
           qc_at: string | null
           qc_by: string | null
           qc_notes: string | null
           qc_status: string | null
+          rates_effective_from: string | null
           ready_by: string | null
           received_at_warehouse_at: string | null
           received_by: string | null
@@ -3569,8 +3665,16 @@ export type Database = {
           rzp_transfer_kind: string | null
           rzp_transfer_status: string | null
           shipping_cost: number
+          shipping_to_boutique: boolean
           status: string
           subtotal: number
+          supply_type: string | null
+          tcs_amount: number
+          tcs_rate: number
+          tds_amount: number
+          tds_rate: number
+          tech_fee_amount: number
+          tech_fee_rate: number
           tracking_number: string | null
           updated_at: string
           vendor_id: string
