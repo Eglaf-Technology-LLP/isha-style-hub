@@ -21,7 +21,8 @@ import { ShipNowDialog } from "./ShipNowDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { Link } from "react-router-dom";
-import { vendorOrderStatusLabel } from "@/lib/warehouse";
+import { formatShortDate, vendorOrderStatusLabel } from "@/lib/warehouse";
+import { Input } from "@/components/ui/input";
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
@@ -47,6 +48,10 @@ const statusColors: Record<string, string> = {
 export function OrderFulfillmentSection({ order }: { order: Order }) {
   const [vendorNames, setVendorNames] = useState<Record<string, string>>({});
   const [vendorOrderStatuses, setVendorOrderStatuses] = useState<Record<string, string>>({});
+  // Last day each delivered part can be returned/exchanged.
+  const [returnWindows, setReturnWindows] = useState<Record<string, string | null>>({});
+  const [editingWindowId, setEditingWindowId] = useState<string | null>(null);
+  const [windowDate, setWindowDate] = useState("");
   const [vendorOrderFinancials, setVendorOrderFinancials] = useState<
     Record<string, { subtotal: number; shipping_cost: number }>
   >({});
@@ -68,10 +73,11 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     if (vendorOrderIds.length === 0) return;
     supabase
       .from("vendor_orders")
-      .select("id, status, subtotal, shipping_cost")
+      .select("id, status, subtotal, shipping_cost, return_window_ends_on")
       .in("id", vendorOrderIds)
       .then(({ data }) => {
         setVendorOrderStatuses(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.status])));
+        setReturnWindows(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.return_window_ends_on])));
         setVendorOrderFinancials(
           Object.fromEntries((data ?? []).map((vo) => [vo.id, { subtotal: vo.subtotal, shipping_cost: vo.shipping_cost }]))
         );
@@ -118,6 +124,22 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     refetchVendorOrderStatuses();
   };
 
+  // An exception (e.g. damage reported late): give this part more days.
+  const saveReturnWindow = async (vendorOrderId: string) => {
+    if (!windowDate) return;
+    const { error } = await supabase
+      .from("vendor_orders")
+      .update({ return_window_ends_on: windowDate })
+      .eq("id", vendorOrderId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Return window updated");
+    setEditingWindowId(null);
+    refetchVendorOrderStatuses();
+  };
+
   if (vendorOrderIds.length === 0) return null;
   const viaWarehouse = order.fulfilment_route === "warehouse";
 
@@ -147,6 +169,43 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                   {vendorOrderStatusLabel(status, viaWarehouse)}
                 </Badge>
               </div>
+
+              {status === "delivered" && (
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="text-muted-foreground">
+                    {returnWindows[vendorOrderId]
+                      ? `Returns until ${formatShortDate(returnWindows[vendorOrderId])}`
+                      : "Return window not set"}
+                  </span>
+                  {editingWindowId === vendorOrderId ? (
+                    <>
+                      <Input
+                        type="date"
+                        value={windowDate}
+                        onChange={(e) => setWindowDate(e.target.value)}
+                        className="h-7 w-40 text-xs"
+                      />
+                      <Button size="sm" className="h-7 text-xs" onClick={() => saveReturnWindow(vendorOrderId)} disabled={!windowDate}>
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingWindowId(null)}>
+                        Cancel
+                      </Button>
+                    </>
+                  ) : (
+                    <button
+                      className="text-primary hover:underline"
+                      onClick={() => {
+                        setEditingWindowId(vendorOrderId);
+                        setWindowDate(returnWindows[vendorOrderId] ?? "");
+                      }}
+                      title="For an exception, e.g. damage reported late"
+                    >
+                      Change
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="text-xs space-y-1">
                 {group.items.map((item) => (

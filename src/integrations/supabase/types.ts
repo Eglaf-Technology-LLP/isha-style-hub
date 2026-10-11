@@ -2125,6 +2125,7 @@ export type Database = {
           received_at_warehouse_at: string | null
           received_by: string | null
           reminder_sent_at: string | null
+          return_window_ends_on: string | null
           rzp_released_at: string | null
           rzp_reversed_amount: number
           rzp_settled_at: string | null
@@ -2169,6 +2170,7 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           reminder_sent_at?: string | null
+          return_window_ends_on?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
           rzp_settled_at?: string | null
@@ -2213,6 +2215,7 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           reminder_sent_at?: string | null
+          return_window_ends_on?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
           rzp_settled_at?: string | null
@@ -2734,6 +2737,7 @@ export type Database = {
         Args: { _id: string; _max_attempts: number }
         Returns: number
       }
+      derive_order_status: { Args: { _order_id: string }; Returns: string }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
       has_role: {

@@ -176,6 +176,11 @@ export function useReturnRequests(isAdmin: boolean = false) {
           toast.error("Please add at least one photo for every selected item");
           return false;
         }
+        // Return window closed / not delivered yet (enforce_return_window).
+        if (error.message?.includes("return window") || error.message?.includes("hasn't been delivered")) {
+          toast.error(error.message);
+          return false;
+        }
         throw error;
       }
       toast.success("Return request submitted successfully!");

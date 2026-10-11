@@ -25,6 +25,7 @@ import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, buildWarehouseOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
+import { formatShortDate, istToday } from "@/lib/warehouse";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -61,6 +62,9 @@ interface VendorOrderInfo {
   // warehouse's parcel to the customer that carries it.
   arrived_at_warehouse_at: string | null;
   parcel: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
+  // Last day this part can be returned/exchanged (its boutique's window
+  // from the day it was delivered). Set on delivery.
+  return_window_ends_on: string | null;
 }
 
 interface Order {
@@ -150,6 +154,28 @@ const shipmentStatusColors: Record<string, string> = {
   ndr: "bg-orange-100 text-orange-800",
 };
 
+// Each boutique's part can be returned or exchanged from the day it is
+// delivered until its return window ends - the server enforces the same rule.
+function returnWindowFor(order: Order): { items: OrderItem[]; note: string | null; closedOn: string | null } {
+  const today = istToday();
+  const delivered = order.vendor_orders.filter((vo) => vo.status === "delivered");
+  const open = delivered.filter((vo) => !vo.return_window_ends_on || vo.return_window_ends_on >= today);
+  const openIds = new Set(open.map((vo) => vo.id));
+  const items = order.order_items.filter((i) => i.vendor_order_id && openIds.has(i.vendor_order_id));
+  const deadlines = [...new Set(open.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d))].sort();
+  const note =
+    deadlines.length === 0
+      ? null
+      : deadlines.length === 1
+        ? `Available until ${formatShortDate(deadlines[0])}`
+        : `Available until ${formatShortDate(deadlines[0])} for some items, ${formatShortDate(deadlines[deadlines.length - 1])} for others`;
+  const closedOn =
+    items.length === 0
+      ? delivered.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d).sort().pop() ?? null
+      : null;
+  return { items, note, closedOn };
+}
+
 export default function OrderHistory() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -200,7 +226,7 @@ export default function OrderHistory() {
             supabase
               .from("vendor_orders")
               .select(
-                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
             // The warehouse's own parcels to the customer (warehouse route).
@@ -238,6 +264,7 @@ export default function OrderHistory() {
                 carrier: vo.carrier,
                 arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
                 parcel,
+                return_window_ends_on: vo.return_window_ends_on,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -425,6 +452,7 @@ export default function OrderHistory() {
               );
               const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
               const paymentDisplay = paymentStatusDisplay(order);
+              const returnWindow = returnWindowFor(order);
 
               return (
               <Card key={order.id} data-focus-id={order.id}>
@@ -730,18 +758,18 @@ export default function OrderHistory() {
                             </div>
                           )}
 
-                          {order.order_status === "delivered" && (
-                            <div className="pt-4 border-t">
+                          {returnWindow.items.length > 0 ? (
+                            <div className="pt-4 border-t space-y-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="gap-2"
                                 onClick={() => {
                                   setReturnOrderId(order.id);
-                                  setReturnOrderItems(order.order_items);
+                                  setReturnOrderItems(returnWindow.items);
                                 }}
                               >
-                                {order.order_items.some((i) => i.is_returnable) ? (
+                                {returnWindow.items.some((i) => i.is_returnable) ? (
                                   <>
                                     <RotateCcw className="h-4 w-4" />
                                     Return / Exchange
@@ -753,7 +781,14 @@ export default function OrderHistory() {
                                   </>
                                 )}
                               </Button>
+                              {returnWindow.note && <p className="text-xs text-muted-foreground">{returnWindow.note}</p>}
                             </div>
+                          ) : (
+                            returnWindow.closedOn && (
+                              <p className="pt-4 border-t text-xs text-muted-foreground">
+                                Return / exchange window closed on {formatShortDate(returnWindow.closedOn)}
+                              </p>
+                            )
                           )}
                         </div>
                       </AccordionContent>

@@ -454,18 +454,12 @@ async function handleLastMile(
     };
     const next = vendorOrderStatus[s];
     if (next) {
+      // The whole order's status follows (sync_order_status_from_parts).
       await supabase
         .from("vendor_orders")
         .update({ status: next })
         .eq("dispatch_id", dispatchId)
         .not("status", "in", "(cancelled,delivered)");
-      if (next === "delivered") {
-        // The order is delivered once nothing in it is still on the way.
-        const { data: siblings } = await supabase.from("vendor_orders").select("status").eq("order_id", dispatch.order_id);
-        if ((siblings ?? []).every((v) => ["delivered", "cancelled"].includes(v.status))) {
-          await supabase.from("orders").update({ order_status: "delivered" }).eq("id", dispatch.order_id);
-        }
-      }
     }
     if (s === "rto") {
       await notifyWarehouseStaff(supabase, {
