@@ -77,6 +77,7 @@ import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
 import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
+import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
 
 interface VendorProduct {
@@ -128,6 +129,8 @@ interface VendorOrder {
   rzp_released_at: string | null;
   rzp_settled_at: string | null;
   rzp_settlement_utr: string | null;
+  // COD: when this part's cash reached AllBoutiqs from Shiprocket.
+  cod_received_at?: string | null;
   status: string;
   tracking_number: string | null;
   carrier: string | null;
@@ -325,7 +328,7 @@ export default function VendorDashboard() {
         supabase
           .from("vendor_orders")
           .select(
-            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id, rzp_transfer_status, rzp_transfer_amount, rzp_transfer_error, rzp_released_at, rzp_settled_at, rzp_settlement_utr, ready_by, qc_status, qc_notes, arrived_at_warehouse_at"
+            "id, order_id, subtotal, shipping_cost, commission_amount, net_payable, status, tracking_number, carrier, created_at, updated_at, delivered_at, payout_eligible_on, payout_id, rzp_transfer_status, rzp_transfer_amount, rzp_transfer_error, rzp_released_at, rzp_settled_at, rzp_settlement_utr, cod_received_at, ready_by, qc_status, qc_notes, arrived_at_warehouse_at"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -1267,6 +1270,7 @@ export default function VendorDashboard() {
               hasPayoutAccount={hasPayoutAccount}
               accountStatus={vendor.payout_account_status}
             />
+            <CodTrackingCard vendorId={vendor.id} />
             <FeeInvoicesCard vendorId={vendor.id} />
             <Card data-focus-id="account">
               <CardHeader>

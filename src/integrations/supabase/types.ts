@@ -2131,6 +2131,12 @@ export type Database = {
       shipments: {
         Row: {
           awb_code: string | null
+          cod_amount: number | null
+          cod_charge: number | null
+          cod_remittance_status: string | null
+          cod_remittance_utr: string | null
+          cod_remitted_on: string | null
+          cod_synced_at: string | null
           cost_borne_by: string
           courier_cost: number | null
           courier_id: number | null
@@ -2161,6 +2167,12 @@ export type Database = {
         }
         Insert: {
           awb_code?: string | null
+          cod_amount?: number | null
+          cod_charge?: number | null
+          cod_remittance_status?: string | null
+          cod_remittance_utr?: string | null
+          cod_remitted_on?: string | null
+          cod_synced_at?: string | null
           cost_borne_by?: string
           courier_cost?: number | null
           courier_id?: number | null
@@ -2191,6 +2203,12 @@ export type Database = {
         }
         Update: {
           awb_code?: string | null
+          cod_amount?: number | null
+          cod_charge?: number | null
+          cod_remittance_status?: string | null
+          cod_remittance_utr?: string | null
+          cod_remitted_on?: string | null
+          cod_synced_at?: string | null
           cost_borne_by?: string
           courier_cost?: number | null
           courier_id?: number | null
@@ -2570,6 +2588,9 @@ export type Database = {
           arrived_at_warehouse_at: string | null
           carrier: string | null
           cod_handling_charge: number
+          cod_received_at: string | null
+          cod_received_source: string | null
+          cod_received_utr: string | null
           commission_amount: number
           commission_rate: number
           courier_charge: number
@@ -2636,6 +2657,9 @@ export type Database = {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
           cod_handling_charge?: number
+          cod_received_at?: string | null
+          cod_received_source?: string | null
+          cod_received_utr?: string | null
           commission_amount?: number
           commission_rate?: number
           courier_charge?: number
@@ -2702,6 +2726,9 @@ export type Database = {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
           cod_handling_charge?: number
+          cod_received_at?: string | null
+          cod_received_source?: string | null
+          cod_received_utr?: string | null
           commission_amount?: number
           commission_rate?: number
           courier_charge?: number
@@ -3303,6 +3330,7 @@ export type Database = {
       }
       admin_user_ids: { Args: never; Returns: string[] }
       admin_user_ids_and_warehouse: { Args: never; Returns: string[] }
+      apply_shipment_cod: { Args: { _shipment_id: string }; Returns: undefined }
       assert_warehouse_operator: { Args: never; Returns: undefined }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
@@ -3314,6 +3342,32 @@ export type Database = {
       claim_email_otp_attempt: {
         Args: { _id: string; _max_attempts: number }
         Returns: number
+      }
+      cod_tracking: {
+        Args: { _vendor_id: string }
+        Returns: {
+          awb_code: string
+          boutique_code: string
+          boutique_name: string
+          cod_amount: number
+          cod_charge: number
+          cod_received_at: string
+          cod_received_source: string
+          cod_received_utr: string
+          courier_name: string
+          delivered_at: string
+          net_payable: number
+          order_date: string
+          order_number: string
+          paid_at: string
+          payout_on: string
+          payout_utr: string
+          shiprocket_status: string
+          stage: string
+          status: string
+          vendor_id: string
+          vendor_order_id: string
+        }[]
       }
       compute_vendor_order_fees: {
         Args: { _vendor_order_id: string }
@@ -3364,6 +3418,14 @@ export type Database = {
         Returns: boolean
       }
       is_warehouse_working_day: { Args: { _d: string }; Returns: boolean }
+      mark_cod_received: {
+        Args: {
+          _received_on: string
+          _utr: string
+          _vendor_order_ids: string[]
+        }
+        Returns: number
+      }
       next_boutique_invoice_number: {
         Args: { _at: string; _vendor_id: string }
         Returns: string
@@ -3454,6 +3516,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_cod_received: {
+        Args: {
+          _received_at: string
+          _source: string
+          _utr: string
+          _vendor_order_ids: string[]
+        }
+        Returns: number
       }
       remind_unconfirmed_orders: { Args: never; Returns: undefined }
       return_request_contains_vendor_item: {
@@ -3614,6 +3685,9 @@ export type Database = {
           arrived_at_warehouse_at: string | null
           carrier: string | null
           cod_handling_charge: number
+          cod_received_at: string | null
+          cod_received_source: string | null
+          cod_received_utr: string | null
           commission_amount: number
           commission_rate: number
           courier_charge: number
@@ -3795,6 +3869,9 @@ export type Database = {
           arrived_at_warehouse_at: string | null
           carrier: string | null
           cod_handling_charge: number
+          cod_received_at: string | null
+          cod_received_source: string | null
+          cod_received_utr: string | null
           commission_amount: number
           commission_rate: number
           courier_charge: number

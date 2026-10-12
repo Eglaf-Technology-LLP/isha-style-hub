@@ -52,6 +52,7 @@ import { HsnManagement } from "@/components/admin/HsnManagement";
 import { CustomerShippingCard } from "@/components/admin/CustomerShippingCard";
 import { PlatformRatesCard } from "@/components/admin/PlatformRatesCard";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
+import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
@@ -444,6 +445,7 @@ export default function Admin() {
                 <StatementDownload admin />
               </div>
               <PlatformRatesCard />
+              <CodTrackingCard admin />
               <FeeInvoicesCard admin />
               <RazorpayPayoutsPanel />
               <VendorPayoutManagement isAdmin={isAdmin} />

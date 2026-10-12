@@ -283,7 +283,7 @@ export async function releaseDuePayouts(supabase: SupabaseClient): Promise<Relea
 
   const { data: due } = await supabase
     .from("vendor_orders")
-    .select("id, order_id, vendor_id, net_payable, rzp_transfer_id, rzp_transfer_kind, rzp_transfer_status, rzp_reversed_amount, orders(payment_method, payment_status)")
+    .select("id, order_id, vendor_id, net_payable, rzp_transfer_id, rzp_transfer_kind, rzp_transfer_status, rzp_reversed_amount, cod_received_at, orders(payment_method, payment_status)")
     .eq("status", "delivered")
     .is("payout_id", null)
     .lte("payout_eligible_on", today)
@@ -310,8 +310,11 @@ export async function releaseDuePayouts(supabase: SupabaseClient): Promise<Relea
         summary.skipped.push({ vendor_order_id: vo.id, reason: "open return request" });
         continue;
       }
-      if (order?.payment_status !== "paid") {
-        summary.skipped.push({ vendor_order_id: vo.id, reason: order?.payment_method === "cod" ? "COD cash not yet marked received" : "order not paid" });
+      // COD: this boutique's part is payable once its cash reached
+      // AllBoutiqs (Shiprocket remittance, or marked by an admin).
+      const codReceived = order?.payment_method === "cod" && vo.cod_received_at;
+      if (order?.payment_status !== "paid" && !codReceived) {
+        summary.skipped.push({ vendor_order_id: vo.id, reason: order?.payment_method === "cod" ? "COD cash not yet received from Shiprocket" : "order not paid" });
         continue;
       }
       const account = byVendor.get(vo.vendor_id);

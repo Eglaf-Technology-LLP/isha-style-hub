@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
       const { data: vendorOrders, error: voErr } = await supabase
         .from("vendor_orders")
-        .select("id, subtotal, shipping_cost, commission_amount, net_payable, payout_eligible_on, order:orders(payment_status)")
+        .select("id, subtotal, shipping_cost, commission_amount, net_payable, payout_eligible_on, cod_received_at, order:orders(payment_method, payment_status)")
         .eq("vendor_id", vendor.id)
         .eq("status", "delivered")
         .is("payout_id", null)
@@ -99,7 +99,9 @@ Deno.serve(async (req) => {
 
       const paid = (vendorOrders ?? []).filter((vo) => {
         const order = Array.isArray(vo.order) ? vo.order[0] : vo.order;
-        return (order as { payment_status?: string } | null)?.payment_status === "paid";
+        const o = order as { payment_method?: string; payment_status?: string } | null;
+        // COD: payable once this part's cash reached AllBoutiqs.
+        return o?.payment_status === "paid" || (o?.payment_method === "cod" && Boolean(vo.cod_received_at));
       });
       const onHold = paid.filter(
         (vo) => (vo.payout_eligible_on && vo.payout_eligible_on > todayIst) || vendorOrdersWithOpenReturns.has(vo.id),

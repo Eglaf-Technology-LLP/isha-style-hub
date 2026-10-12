@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock, Hourglass, Landmark, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Hourglass, Landmark, Loader2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +21,9 @@ interface PayoutOrder {
   rzp_released_at: string | null;
   rzp_settled_at: string | null;
   rzp_settlement_utr: string | null;
+  payment_method?: string;
+  payment_status?: string;
+  cod_received_at?: string | null;
 }
 
 interface VendorPayoutStagesProps {
@@ -113,11 +116,13 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
   const routeAmount = (o: PayoutOrder) => Number(o.rzp_transfer_amount ?? o.net_payable);
   const routeProcessing = sentViaRazorpay.filter((o) => !o.rzp_settled_at);
   const routeCredited = sentViaRazorpay.filter((o) => o.rzp_settled_at);
+  // Cash on delivery: nothing to pay until Shiprocket sends the cash on.
+  const codWaiting = (o: PayoutOrder) => o.payment_method === "cod" && !o.cod_received_at && o.payment_status !== "paid";
   const inWindow = unpaid
-    .filter((o) => o.payout_eligible_on! > today)
+    .filter((o) => o.payout_eligible_on! > today || codWaiting(o))
     .sort((a, b) => (a.payout_eligible_on! < b.payout_eligible_on! ? -1 : 1));
   const queued = unpaid
-    .filter((o) => o.payout_eligible_on! <= today)
+    .filter((o) => o.payout_eligible_on! <= today && !codWaiting(o))
     .sort((a, b) => (a.payout_eligible_on! < b.payout_eligible_on! ? -1 : 1));
   const processing = payouts.filter((p) => p.status === "pending" || p.status === "processing");
   const credited = payouts.filter((p) => p.status === "paid");
@@ -143,7 +148,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Stage icon={Hourglass} tone="muted" label="Waiting for return window" amount={sum(inWindow)} hint={`${inWindow.length} order(s)`} />
+            <Stage icon={Hourglass} tone="muted" label="Waiting for return window / COD cash" amount={sum(inWindow)} hint={`${inWindow.length} order(s)`} />
             <Stage icon={Clock} tone="amber" label="In queue for bank transfer" amount={sum(queued)} hint={`${queued.length} order(s)`} />
             <Stage
               icon={Loader2}
@@ -191,7 +196,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Hourglass className="h-4 w-4" /> Delivered - waiting for the return window
+            <Hourglass className="h-4 w-4" /> Delivered - waiting for the return window or COD cash
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -217,9 +222,15 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                       </TableCell>
                       <TableCell className="font-medium tabular-nums">{rupees(Number(o.net_payable))}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="gap-1">
-                          <CalendarClock className="h-3 w-3" /> {formatPayoutDate(o.payout_eligible_on!)}
-                        </Badge>
+                        {codWaiting(o) ? (
+                          <Badge variant="outline" className="gap-1">
+                            <Banknote className="h-3 w-3" /> After the COD cash reaches AllBoutiqs
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="gap-1">
+                            <CalendarClock className="h-3 w-3" /> {formatPayoutDate(o.payout_eligible_on!)}
+                          </Badge>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
