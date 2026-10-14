@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
-import { Search, User, Heart, Menu, X, Package, Gift } from "lucide-react";
+import { Search, User, Heart, Menu, X, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
@@ -123,13 +123,6 @@ export function Header() {
                   <Heart className="h-5 w-5" /> Wishlist
                 </Link>
                 <Link
-                  to="/rewards"
-                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <Gift className="h-5 w-5" /> Rewards
-                </Link>
-                <Link
                   to="/orders"
                   className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
                   onClick={() => setMobileMenuOpen(false)}
@@ -197,12 +190,6 @@ export function Header() {
               </Button>
             </Link>
 
-            <Link to="/rewards">
-              <Button variant="ghost" size="icon" className="hidden md:flex">
-                <Gift className="h-5 w-5" />
-              </Button>
-            </Link>
-
             <Link to="/orders">
               <Button variant="ghost" size="icon" className="hidden md:flex">
                 <Package className="h-5 w-5" />
@@ -228,9 +215,6 @@ export function Header() {
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
                       <Link to="/wishlist">My Wishlist</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link to="/rewards">Rewards</Link>
                     </DropdownMenuItem>
                     {vendor && (
                       <DropdownMenuItem asChild>
