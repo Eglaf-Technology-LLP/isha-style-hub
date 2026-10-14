@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import ProductDetail from "./pages/ProductDetail";
 import Category from "./pages/Category";
@@ -11,7 +11,6 @@ import Checkout from "./pages/Checkout";
 import OrderHistory from "./pages/OrderHistory";
 import Wishlist from "./pages/Wishlist";
 import Rewards from "./pages/Rewards";
-import Membership from "./pages/Membership";
 import Account from "./pages/Account";
 import SellWithUs from "./pages/SellWithUs";
 import VendorPending from "./pages/VendorPending";
@@ -37,7 +36,9 @@ const App = () => (
           <Route path="/orders" element={<OrderHistory />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/rewards" element={<Rewards />} />
-          <Route path="/membership" element={<Membership />} />
+          {/* Membership (AllBoutiqs Insider) is hidden from shoppers for now -
+              pages/Membership.tsx is kept for when it comes back. */}
+          <Route path="/membership" element={<Navigate to="/" replace />} />
           <Route path="/account" element={<Account />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/sell-with-us" element={<SellWithUs />} />
