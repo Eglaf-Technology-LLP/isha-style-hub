@@ -11,7 +11,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ShoppingCart, Minus, Plus, Trash2, ArrowRight } from "lucide-react";
-import { useCartStore } from "@/stores/cartStore";
+import { cartLineKey, useCartStore } from "@/stores/cartStore";
+import { customisationPrice, customisationSummary, inr } from "@/lib/customisation";
 import { CartShippingEstimate } from "@/components/CartShippingEstimate";
 
 export function CartDrawer() {
@@ -72,7 +73,7 @@ export function CartDrawer() {
                 <div className="space-y-4">
                   {items.map((item) => (
                     <div
-                      key={item.variantId}
+                      key={cartLineKey(item)}
                       className="flex gap-4 p-3 rounded-lg border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
                     >
                       <div className="w-20 h-24 bg-muted rounded-md overflow-hidden flex-shrink-0">
@@ -90,6 +91,14 @@ export function CartDrawer() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {item.selectedOptions.map(option => option.value).join(' • ')}
                         </p>
+                        {item.customisation && (
+                          <p className="text-xs mt-1">
+                            <Badge variant="secondary" className="mr-1 px-1.5 py-0 text-[10px]">Customised</Badge>
+                            <span className="text-muted-foreground">
+                              {customisationSummary(item.customisation)} (+{inr(customisationPrice(item.customisation))})
+                            </span>
+                          </p>
+                        )}
                         <p className="font-serif font-semibold text-primary mt-2">
                           ₹{parseFloat(item.price.amount).toFixed(0)}
                         </p>
@@ -100,7 +109,7 @@ export function CartDrawer() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeItem(item.variantId)}
+                          onClick={() => removeItem(cartLineKey(item))}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -110,7 +119,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                            onClick={() => updateQuantity(cartLineKey(item), item.quantity - 1)}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
@@ -119,7 +128,7 @@ export function CartDrawer() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                            onClick={() => updateQuantity(cartLineKey(item), item.quantity + 1)}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>

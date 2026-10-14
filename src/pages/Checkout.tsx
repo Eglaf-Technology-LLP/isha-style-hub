@@ -25,11 +25,12 @@ import {
   MapPin,
   CalendarClock,
 } from "lucide-react";
-import { useCartStore, CartItem } from "@/stores/cartStore";
+import { useCartStore, CartItem, cartLineKey } from "@/stores/cartStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
@@ -335,10 +336,13 @@ export default function Checkout() {
   // warehouse + courier to the customer. Saved on the order as the date shown.
   const [deliveryEta, setDeliveryEta] = useState<string | null>(null);
   const etaVendorItems = useMemo(() => {
-    const map = new Map<string, { productId: string; quantity: number }[]>();
+    const map = new Map<string, { productId: string; quantity: number; customised?: boolean }[]>();
     for (const item of items) {
       if (!item.vendorId) continue;
-      map.set(item.vendorId, [...(map.get(item.vendorId) ?? []), { productId: item.productId, quantity: item.quantity }]);
+      map.set(item.vendorId, [
+        ...(map.get(item.vendorId) ?? []),
+        { productId: item.productId, quantity: item.quantity, customised: !!item.customisation },
+      ]);
     }
     return map;
   }, [items]);
@@ -721,6 +725,18 @@ export default function Checkout() {
         vendor_id: item.vendorId,
         vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
         is_returnable: productMetaById.get(item.productId)?.is_returnable ?? true,
+        // Re-priced from the product by the server; a customised piece
+        // isn't returnable (enforce_order_item_customisation).
+        customisation: item.customisation
+          ? {
+              options: item.customisation.options.map((o) => ({ id: o.id })),
+              custom_size: item.customisation.custom_size
+                ? { measurements: item.customisation.custom_size.measurements }
+                : null,
+              note: item.customisation.note,
+              photo_path: item.customisation.photo_path,
+            }
+          : null,
       }));
 
       const { error: itemsError } = await supabase
@@ -1299,7 +1315,7 @@ export default function Checkout() {
                 {/* Cart Items */}
                 <div className="space-y-3 max-h-60 overflow-y-auto">
                   {items.map((item) => (
-                    <div key={item.variantId} className="flex gap-3">
+                    <div key={cartLineKey(item)} className="flex gap-3">
                       <div className="w-16 h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
                         {item.productImage && (
                           <img
@@ -1316,6 +1332,9 @@ export default function Checkout() {
                         <p className="text-xs text-muted-foreground">
                           Qty: {item.quantity}
                         </p>
+                        {item.customisation && (
+                          <CustomisationDetails customisation={item.customisation} className="my-1.5" />
+                        )}
                         <p className="text-sm font-semibold">
                           ₹{formatMoney(parseFloat(item.price.amount) * item.quantity)}
                         </p>

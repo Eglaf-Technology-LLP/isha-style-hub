@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 
@@ -57,10 +58,10 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("vendor_id, product_title, quantity, price")
+      .select("vendor_id, product_title, quantity, price, customisation")
       .eq("order_id", orderId);
 
-    const byVendor = new Map<string, { product_title: string; quantity: number; price: number }[]>();
+    const byVendor = new Map<string, { product_title: string; quantity: number; price: number; customisation?: unknown }[]>();
     (items ?? []).forEach((item) => {
       if (!item.vendor_id) return;
       const list = byVendor.get(item.vendor_id) ?? [];
@@ -73,9 +74,9 @@ const handler = async (req: Request): Promise<Response> => {
       ? await supabase.from("vendors").select("id, name, contact_email").in("id", vendorIds)
       : { data: [] as { id: string; name: string; contact_email: string | null }[] };
 
-    const itemsHtml = (list: { product_title: string; quantity: number; price: number }[]) =>
+    const itemsHtml = (list: { product_title: string; quantity: number; price: number; customisation?: unknown }[]) =>
       `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${list
-        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ₹${(i.price * i.quantity).toFixed(2)}</li>`)
+        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ₹${(i.price * i.quantity).toFixed(2)}${customisationHtml(i.customisation)}</li>`)
         .join("")}</ul>`;
 
     const vendorSends = (vendors ?? [])

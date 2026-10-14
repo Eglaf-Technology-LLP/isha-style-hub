@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import type { CustomisationChoice } from '@/lib/customisation';
 
 export interface CartItem {
   productId: string;
@@ -17,7 +18,16 @@ export interface CartItem {
     name: string;
     value: string;
   }>;
+  // A customised piece is its own cart line (never merged with the same
+  // variant): lineId identifies it, price.amount already includes the
+  // customisation, basePrice is the product's own price.
+  lineId?: string;
+  customisation?: CustomisationChoice | null;
+  basePrice?: string;
 }
+
+// The id cart actions use for a line.
+export const cartLineKey = (item: Pick<CartItem, 'lineId' | 'variantId'>) => item.lineId ?? item.variantId;
 
 interface CartStore {
   items: CartItem[];
@@ -25,8 +35,8 @@ interface CartStore {
   // Actions
   addItem: (item: CartItem) => void;
   addItems: (items: CartItem[]) => void;
-  updateQuantity: (variantId: string, quantity: number) => void;
-  removeItem: (variantId: string) => void;
+  updateQuantity: (lineKey: string, quantity: number) => void;
+  removeItem: (lineKey: string) => void;
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
@@ -39,12 +49,12 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (item) => {
         const { items } = get();
-        const existingItem = items.find(i => i.variantId === item.variantId);
+        const existingItem = items.find(i => cartLineKey(i) === cartLineKey(item));
 
         if (existingItem) {
           set({
             items: items.map(i =>
-              i.variantId === item.variantId
+              cartLineKey(i) === cartLineKey(item)
                 ? { ...i, quantity: i.quantity + item.quantity }
                 : i
             )
@@ -59,32 +69,32 @@ export const useCartStore = create<CartStore>()(
       addItems: (newItems) => {
         let items = get().items;
         for (const item of newItems) {
-          const existingItem = items.find((i) => i.variantId === item.variantId);
+          const existingItem = items.find((i) => cartLineKey(i) === cartLineKey(item));
           items = existingItem
             ? items.map((i) =>
-                i.variantId === item.variantId ? { ...i, quantity: i.quantity + item.quantity } : i,
+                cartLineKey(i) === cartLineKey(item) ? { ...i, quantity: i.quantity + item.quantity } : i,
               )
             : [...items, item];
         }
         set({ items });
       },
 
-      updateQuantity: (variantId, quantity) => {
+      updateQuantity: (lineKey, quantity) => {
         if (quantity <= 0) {
-          get().removeItem(variantId);
+          get().removeItem(lineKey);
           return;
         }
 
         set({
           items: get().items.map(item =>
-            item.variantId === variantId ? { ...item, quantity } : item
+            cartLineKey(item) === lineKey ? { ...item, quantity } : item
           )
         });
       },
 
-      removeItem: (variantId) => {
+      removeItem: (lineKey) => {
         set({
-          items: get().items.filter(item => item.variantId !== variantId)
+          items: get().items.filter(item => cartLineKey(item) !== lineKey)
         });
       },
 

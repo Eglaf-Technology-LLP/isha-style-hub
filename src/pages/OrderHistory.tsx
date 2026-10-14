@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { CustomisationDetails } from "@/components/CustomisationDetails";
+import type { CustomisationChoice } from "@/lib/customisation";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -46,6 +48,8 @@ interface OrderItem {
   vendor_order_id: string | null;
   is_returnable: boolean;
   image: string | null;
+  // Customised for the customer: no return or exchange.
+  customisation?: CustomisationChoice | null;
 }
 
 // Every field here is an internal fulfillment/grouping detail - never
@@ -161,7 +165,7 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
   const delivered = order.vendor_orders.filter((vo) => vo.status === "delivered");
   const open = delivered.filter((vo) => !vo.return_window_ends_on || vo.return_window_ends_on >= today);
   const openIds = new Set(open.map((vo) => vo.id));
-  const items = order.order_items.filter((i) => i.vendor_order_id && openIds.has(i.vendor_order_id));
+  const items = order.order_items.filter((i) => i.vendor_order_id && openIds.has(i.vendor_order_id) && !i.customisation);
   const deadlines = [...new Set(open.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d))].sort();
   const note =
     deadlines.length === 0
@@ -169,8 +173,9 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
       : deadlines.length === 1
         ? `Available until ${formatShortDate(deadlines[0])}`
         : `Available until ${formatShortDate(deadlines[0])} for some items, ${formatShortDate(deadlines[deadlines.length - 1])} for others`;
+  // (A customised piece never had a return window to close.)
   const closedOn =
-    items.length === 0
+    items.length === 0 && order.order_items.some((i) => !i.customisation)
       ? delivered.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d).sort().pop() ?? null
       : null;
   return { items, note, closedOn };
@@ -560,12 +565,17 @@ export default function OrderHistory() {
                                       <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
                                         Qty {item.quantity}
                                       </Badge>
-                                      {!item.is_returnable && (
+                                      {item.customisation ? (
+                                        <Badge variant="outline" className="text-xs px-2 py-0.5 font-normal text-muted-foreground">
+                                          Customised · no return
+                                        </Badge>
+                                      ) : !item.is_returnable && (
                                         <Badge variant="outline" className="text-xs px-2 py-0.5 font-normal text-muted-foreground">
                                           Non-refundable
                                         </Badge>
                                       )}
                                     </div>
+                                    {item.customisation && <CustomisationDetails customisation={item.customisation} className="mt-2" />}
                                   </div>
                                   <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
                                 </div>

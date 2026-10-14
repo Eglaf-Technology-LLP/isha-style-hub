@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import type { CustomisationChoice } from "@/lib/customisation";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ export interface OrderItem {
   sku: string | null;
   quantity: number;
   price: number;
+  customisation?: CustomisationChoice | null;
 }
 
 interface ShippingAddress {

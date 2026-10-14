@@ -38,6 +38,9 @@ import { VirtualTryOn } from "@/components/VirtualTryOn";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
+import { ProductCustomiser, buildCustomisation, emptyCustomiser, type CustomiserState } from "@/components/ProductCustomiser";
+import { customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -65,6 +68,8 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [customiser, setCustomiser] = useState<CustomiserState>(emptyCustomiser);
+  const { user } = useAuth();
 
   const addItem = useCartStore((state) => state.addItem);
   const { trackProductView } = useRecentlyViewed();
@@ -180,6 +185,9 @@ export default function ProductDetail() {
 
   // Get current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product?.price || 0;
+  const customisationSetup = useMemo(() => readSetup(product as any), [product]);
+  const customised = buildCustomisation(customisationSetup, customiser);
+  const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
   // Same rule OrderHistory applies after purchase: the product's own flag
   // AND the vendor's store-wide returns switch must both allow it.
@@ -211,6 +219,12 @@ export default function ProductDetail() {
       return false;
     }
 
+    if ("error" in customised) {
+      toast.error(customised.error);
+      return false;
+    }
+    const customisation = customised.choice;
+
     const variantId = selectedVariant?.id || `${product.id}-${selectedSize || 'default'}-${selectedColor || 'default'}`;
     const variantTitle = [selectedSize, selectedColor].filter(Boolean).join(" / ") || "Default";
     const selectedOptions = [];
@@ -225,12 +239,17 @@ export default function ProductDetail() {
       variantId,
       variantTitle,
       price: {
-        amount: currentPrice.toString(),
+        amount: (currentPrice + (customisation ? customisationPrice(customisation) : 0)).toString(),
         currencyCode: "INR",
       },
       quantity,
       selectedOptions,
+      // A customised piece is its own cart line, priced with its customisation.
+      ...(customisation
+        ? { lineId: crypto.randomUUID(), customisation, basePrice: currentPrice.toString() }
+        : {}),
     });
+    if (customisation) setCustomiser(emptyCustomiser);
 
     return true;
   };
@@ -241,6 +260,7 @@ export default function ProductDetail() {
     const details = [product.name];
     if (selectedSize) details.push(`Size: ${selectedSize}`);
     if (selectedColor) details.push(`Color: ${selectedColor}`);
+    if ("choice" in customised && customised.choice) details.push(`Customised: ${customisationSummary(customised.choice)}`);
     details.push(`Qty: ${quantity}`);
 
     toast.success("Added to cart!", {
@@ -381,6 +401,11 @@ export default function ProductDetail() {
               <span className="text-3xl font-serif font-bold text-primary">
                 ₹{currentPrice.toFixed(0)}
               </span>
+              {customisationExtra > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  + {inr(customisationExtra)} customisation = <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
+                </span>
+              )}
               {hasDiscount && !selectedVariant && (
                 <span className="text-xl text-muted-foreground line-through">
                   ₹{product.compare_at_price?.toFixed(0)}
@@ -458,6 +483,14 @@ export default function ProductDetail() {
                 </div>
               </div>
             </div>
+
+            <ProductCustomiser
+              setup={customisationSetup}
+              basePrice={currentPrice}
+              value={customiser}
+              onChange={setCustomiser}
+              userId={user?.id ?? null}
+            />
 
             {/* Actions */}
             <div className="flex flex-col gap-3">

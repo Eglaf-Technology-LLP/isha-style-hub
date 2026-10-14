@@ -59,6 +59,14 @@ import { toast } from "sonner";
 import type { AiContentStatus } from "@/lib/aiContent";
 import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
 import { ProductVideoField } from "@/components/ProductVideoField";
+import {
+  CustomisationEditor,
+  customisationFormFrom,
+  customisationPayload,
+  emptyCustomisationForm,
+  type CustomisationForm,
+} from "@/components/CustomisationEditor";
+import { readSetup } from "@/lib/customisation";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -111,6 +119,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customisation, setCustomisation] = useState<CustomisationForm>(emptyCustomisationForm);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
@@ -137,6 +146,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       video_url: null,
       video_is_primary: false,
     });
+    setCustomisation(emptyCustomisationForm);
     setProductImages([]);
     setImagePreviews([]);
     setProductVariants([]);
@@ -179,7 +189,16 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       toast.error("AI imagery needs at least one original product photo for verification");
       return null;
     }
-    return { ...productForm, ai_original_photo_paths: needsOriginals ? productForm.ai_original_photo_paths : [] };
+    const custom = customisationPayload(customisation);
+    if ("error" in custom) {
+      toast.error(custom.error);
+      return null;
+    }
+    return {
+      ...productForm,
+      ai_original_photo_paths: needsOriginals ? productForm.ai_original_photo_paths : [],
+      ...custom.value,
+    };
   };
 
   const handleAddProduct = async () => {
@@ -242,6 +261,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       video_url: product.video_url ?? null,
       video_is_primary: product.video_is_primary ?? false,
     });
+    setCustomisation(customisationFormFrom(readSetup(product)));
     setProductImages([]);
     setImagePreviews([]);
     setProductVariants(product.variants || []);
@@ -525,6 +545,13 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           onCheckedChange={(checked) => setProductForm((prev) => ({ ...prev, cod_available: checked }))}
         />
       </div>
+
+      <CustomisationEditor
+        idPrefix={isEdit ? "edit-cz" : "add-cz"}
+        value={customisation}
+        onChange={setCustomisation}
+        note="The boutique sets this when listing; changing it here overrides their choice."
+      />
 
       <ProductVideoField
         folder="products"

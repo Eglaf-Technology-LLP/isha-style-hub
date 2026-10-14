@@ -1,3 +1,4 @@
+import { customisationSummary } from "../_shared/customisation.ts";
 import {
   corsHeaders,
   jsonResponse,
@@ -148,7 +149,7 @@ Deno.serve(async (req) => {
     // ---------- lines ----------
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")
-      .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price")
+      .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
       .eq("vendor_order_id", vendorOrder.id)
       .order("created_at");
     if (itemsErr) throw itemsErr;
@@ -184,7 +185,9 @@ Deno.serve(async (req) => {
       lines.push({
         line_no: idx + 1,
         order_item_id: item.id,
-        description: item.variant_title ? `${item.product_title} (${item.variant_title})` : item.product_title,
+        description:
+          (item.variant_title ? `${item.product_title} (${item.variant_title})` : item.product_title) +
+          (item.customisation ? ` - Customised: ${customisationSummary(item.customisation)}` : ""),
         hsn_code: hsn.code,
         size: item.size,
         color: item.color,

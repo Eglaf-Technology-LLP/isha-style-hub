@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,6 +33,7 @@ function ItemsList({ vo }: { vo: WhVendorOrder }) {
             </span>
           )}
           {i.sku && <div className="font-mono text-muted-foreground">SKU {i.sku}</div>}
+          {i.customisation && <CustomisationDetails customisation={i.customisation} showPrices={false} className="mt-1" />}
         </div>
       ))}
     </div>

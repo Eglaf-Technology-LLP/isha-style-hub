@@ -20,6 +20,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import {
+  CustomisationEditor,
+  customisationFormFrom,
+  customisationPayload,
+  emptyCustomisationForm,
+  type CustomisationForm,
+} from "@/components/CustomisationEditor";
+import type { CustomisationOption } from "@/lib/customisation";
 import { useCategories } from "@/hooks/useCategories";
 import {
   ProductVariant,
@@ -61,6 +69,10 @@ export interface VendorProductRow {
   cod_available?: boolean;
   prep_days?: number | null;
   made_to_order?: boolean;
+  customisable?: boolean;
+  customisation_options?: unknown;
+  custom_size_price?: number | null;
+  customisation_days?: number | null;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
   video_url?: string | null;
@@ -115,6 +127,7 @@ export function VendorProductDialog({
   const [aiContentStatus, setAiContentStatus] = useState<AiContentStatus | null>(null);
   const [originalPhotos, setOriginalPhotos] = useState<string[]>([]);
   const [video, setVideo] = useState<{ videoUrl: string | null; isPrimary: boolean }>({ videoUrl: null, isPrimary: false });
+  const [customisation, setCustomisation] = useState<CustomisationForm>(emptyCustomisationForm);
   const needsOriginals = !!aiContentStatus && aiContentStatus !== "none";
   const [saving, setSaving] = useState(false);
 
@@ -148,6 +161,14 @@ export function VendorProductDialog({
       setAiContentStatus(product.ai_content_status ?? null);
       setOriginalPhotos(product.ai_original_photo_paths || []);
       setVideo({ videoUrl: product.video_url ?? null, isPrimary: product.video_is_primary ?? false });
+      setCustomisation(
+        customisationFormFrom({
+          customisable: product.customisable,
+          custom_size_price: product.custom_size_price,
+          customisation_options: (Array.isArray(product.customisation_options) ? product.customisation_options : []) as CustomisationOption[],
+          customisation_days: product.customisation_days,
+        }),
+      );
     } else {
       setForm({ ...empty });
       setImages([]);
@@ -156,6 +177,7 @@ export function VendorProductDialog({
       setAiContentStatus(null);
       setOriginalPhotos([]);
       setVideo({ videoUrl: null, isPrimary: false });
+      setCustomisation(emptyCustomisationForm);
     }
   }, [open, product]);
 
@@ -169,6 +191,8 @@ export function VendorProductDialog({
     if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
     if (needsOriginals && originalPhotos.length === 0)
       return toast.error("AI imagery needs at least one original product photo for verification");
+    const custom = customisationPayload(customisation);
+    if ("error" in custom) return toast.error(custom.error);
 
     setSaving(true);
     try {
@@ -195,6 +219,7 @@ export function VendorProductDialog({
         prep_days:
           form.prep_days.trim() === "" ? null : Math.min(90, Math.max(0, Math.round(Number(form.prep_days) || 0))),
         made_to_order: form.made_to_order,
+        ...custom.value,
         ai_content_status: aiContentStatus,
         // Cleared on "No AI" - originals only belong with an AI declaration.
         ai_original_photo_paths: needsOriginals ? originalPhotos : [],
@@ -494,6 +519,13 @@ export function VendorProductDialog({
               </p>
             </div>
           </div>
+
+          <CustomisationEditor
+            idPrefix="vp-cz"
+            value={customisation}
+            onChange={setCustomisation}
+            note="AllBoutiqs may also change this."
+          />
         </div>
 
         <DialogFooter>

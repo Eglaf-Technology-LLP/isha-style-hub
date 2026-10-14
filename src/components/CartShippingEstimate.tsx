@@ -22,11 +22,12 @@ interface VendorShippingGroup {
 // estimated. Shared with Checkout.
 export async function fetchCartDeliveryDate(
   pin: string,
-  vendorItemsMap: Map<string, { productId: string; quantity: number }[]>,
+  vendorItemsMap: Map<string, { productId: string; quantity: number; customised?: boolean }[]>,
 ): Promise<string | null> {
   const groups = [...vendorItemsMap.entries()].map(([vendorId, items]) => ({
     vendor_id: vendorId,
-    items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+    // A customised piece takes its extra making days.
+    items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity, customised: !!i.customised })),
   }));
   if (groups.length === 0) return null;
   const { data } = await invokeEdgeFunction<{ available: boolean; estimated_delivery_date?: string | null }>(

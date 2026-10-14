@@ -1037,6 +1037,8 @@ export type Database = {
         Row: {
           color: string | null
           created_at: string
+          customisation: Json | null
+          customisation_price: number
           id: string
           is_returnable: boolean
           order_id: string
@@ -1055,6 +1057,8 @@ export type Database = {
         Insert: {
           color?: string | null
           created_at?: string
+          customisation?: Json | null
+          customisation_price?: number
           id?: string
           is_returnable?: boolean
           order_id: string
@@ -1073,6 +1077,8 @@ export type Database = {
         Update: {
           color?: string | null
           created_at?: string
+          customisation?: Json | null
+          customisation_price?: number
           id?: string
           is_returnable?: boolean
           order_id?: string
@@ -1578,6 +1584,10 @@ export type Database = {
           compare_at_price: number | null
           country_of_origin: string
           created_at: string
+          custom_size_price: number | null
+          customisable: boolean
+          customisation_days: number | null
+          customisation_options: Json
           description: string | null
           height_cm: number | null
           id: string
@@ -1614,6 +1624,10 @@ export type Database = {
           compare_at_price?: number | null
           country_of_origin?: string
           created_at?: string
+          custom_size_price?: number | null
+          customisable?: boolean
+          customisation_days?: number | null
+          customisation_options?: Json
           description?: string | null
           height_cm?: number | null
           id?: string
@@ -1650,6 +1664,10 @@ export type Database = {
           compare_at_price?: number | null
           country_of_origin?: string
           created_at?: string
+          custom_size_price?: number | null
+          customisable?: boolean
+          customisation_days?: number | null
+          customisation_options?: Json
           description?: string | null
           height_cm?: number | null
           id?: string
@@ -3349,6 +3367,10 @@ export type Database = {
         Returns: boolean
       }
       can_operate_warehouse: { Args: { _user_id: string }; Returns: boolean }
+      can_view_customisation_photo: {
+        Args: { _path: string }
+        Returns: boolean
+      }
       cancel_pending_order: { Args: { _order_id: string }; Returns: undefined }
       claim_email_otp_attempt: {
         Args: { _id: string; _max_attempts: number }

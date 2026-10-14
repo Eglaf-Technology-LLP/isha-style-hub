@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { CustomisationOption } from "@/lib/customisation";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
@@ -72,6 +73,14 @@ export interface Product {
   // Cash on Delivery allowed for this product (set by the boutique,
   // changeable by admins). Checkout offers COD only if every item allows it.
   cod_available: boolean;
+  prep_days?: number | null;
+  made_to_order?: boolean;
+  // Customisation (made to measure / extra options, each priced) - see
+  // src/lib/customisation.ts.
+  customisable?: boolean;
+  customisation_options?: unknown;
+  custom_size_price?: number | null;
+  customisation_days?: number | null;
   ai_content_status: string | null;
   ai_original_photo_paths: string[];
   video_url: string | null;
@@ -131,6 +140,12 @@ export interface ProductFormData {
   net_quantity?: string;
   is_returnable?: boolean;
   cod_available?: boolean;
+  prep_days?: number | null;
+  made_to_order?: boolean;
+  customisable?: boolean;
+  customisation_options?: CustomisationOption[];
+  custom_size_price?: number | null;
+  customisation_days?: number | null;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
   video_url?: string | null;
@@ -224,6 +239,16 @@ export async function insertProductRecord(
       specifications: (productData.specifications ?? []) as unknown as Json,
       is_returnable: productData.is_returnable ?? true,
       cod_available: productData.cod_available ?? true,
+      ...(productData.prep_days !== undefined ? { prep_days: productData.prep_days } : {}),
+      ...(productData.made_to_order !== undefined ? { made_to_order: productData.made_to_order } : {}),
+      ...(productData.customisable !== undefined
+        ? {
+            customisable: productData.customisable,
+            customisation_options: (productData.customisation_options ?? []) as unknown as Json,
+            custom_size_price: productData.custom_size_price ?? null,
+            customisation_days: productData.customisation_days ?? null,
+          }
+        : {}),
       ai_content_status: productData.ai_content_status ?? null,
       ai_original_photo_paths: productData.ai_original_photo_paths ?? [],
       video_url: productData.video_url ?? null,
@@ -311,6 +336,14 @@ export async function applyProductUpdate(
   if (productData.net_quantity !== undefined) updateData.net_quantity = productData.net_quantity;
   if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
   if (productData.cod_available !== undefined) updateData.cod_available = productData.cod_available;
+  if (productData.prep_days !== undefined) updateData.prep_days = productData.prep_days;
+  if (productData.made_to_order !== undefined) updateData.made_to_order = productData.made_to_order;
+  if (productData.customisable !== undefined) {
+    updateData.customisable = productData.customisable;
+    updateData.customisation_options = (productData.customisation_options ?? []) as unknown as Json;
+    updateData.custom_size_price = productData.custom_size_price ?? null;
+    updateData.customisation_days = productData.customisation_days ?? null;
+  }
   if (productData.ai_content_status !== undefined) updateData.ai_content_status = productData.ai_content_status;
   if (productData.ai_original_photo_paths !== undefined) updateData.ai_original_photo_paths = productData.ai_original_photo_paths;
   if (productData.video_url !== undefined) updateData.video_url = productData.video_url;

@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { CustomisationDetails } from "@/components/CustomisationDetails";
+import type { CustomisationChoice } from "@/lib/customisation";
 import { Link, useNavigate } from "react-router-dom";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
@@ -169,6 +171,8 @@ interface VendorOrderItem {
   sku: string | null;
   quantity: number;
   price: number;
+  // What the customer asked for, if they customised it (make it from this).
+  customisation: CustomisationChoice | null;
 }
 
 interface PayoutAccountForm {
@@ -321,7 +325,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
+            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, customisable, customisation_options, custom_size_price, customisation_days, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -398,7 +402,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -1065,6 +1069,9 @@ export default function VendorDashboard() {
                                         <div className="font-mono text-muted-foreground">SKU: {item.sku}</div>
                                       ) : (
                                         <div className="text-destructive">No SKU set</div>
+                                      )}
+                                      {item.customisation && (
+                                        <CustomisationDetails customisation={item.customisation} className="mt-1 min-w-[220px]" />
                                       )}
                                     </div>
                                   ))}

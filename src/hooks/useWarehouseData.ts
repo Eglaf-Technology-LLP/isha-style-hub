@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CustomisationChoice } from "@/lib/customisation";
 import { supabase } from "@/integrations/supabase/client";
 
 // Everything the warehouse screens work from: boutique parcels coming in and
@@ -15,6 +16,8 @@ export interface WhItem {
   sku: string | null;
   quantity: number;
   price: number;
+  // Customised for the customer - QC checks the piece against this.
+  customisation?: CustomisationChoice | null;
 }
 
 export interface WhShipment {
@@ -234,7 +237,7 @@ export function useWarehouseData(enabled: boolean) {
       const [{ data: itemRows }, { data: vendorRows }] = await Promise.all([
         supabase
           .from("order_items")
-          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price")
+          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
           .in("order_id", orderIds),
         vendorIds.length
           ? supabase.from("vendors").select("id, name").in("id", vendorIds)
