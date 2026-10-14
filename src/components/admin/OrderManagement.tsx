@@ -55,13 +55,13 @@ interface OrderManagementProps {
 }
 
 export function OrderManagement({ isAdmin }: OrderManagementProps) {
-  const { orders, loading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
+  const { orders, unpaidOrders, loading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusTab, setStatusTab] = useState<
-    "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled"
+    "all" | "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" | "unpaid"
   >("all");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending" | "failed" | "refunded">("all");
   const { lastSeenAt, markSeen } = useListSeenTracking("orders_admin");
@@ -78,6 +78,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     { key: "shipped", label: "Shipped" },
     { key: "delivered", label: "Delivered" },
     { key: "cancelled", label: "Cancelled" },
+    // Online checkouts whose payment never went through - not orders, so
+    // kept out of every other tab and count.
+    { key: "unpaid", label: "Payment not completed" },
   ];
   // "All Orders" stays an honest live total - it's the count of everything,
   // not a notification. Every other tab's number is "how many changed into
@@ -87,6 +90,8 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
   const statusCounts = Object.fromEntries(
     STATUS_TABS.map((t) => {
       if (t.key === "all") return [t.key, orders.length];
+      // Live: checkouts still waiting for payment (not yet released).
+      if (t.key === "unpaid") return [t.key, unpaidOrders.filter((o) => o.order_status !== "cancelled").length];
       const seenAt = lastSeenAt(t.key);
       const count = orders.filter(
         (o) => o.order_status === t.key && (!seenAt || new Date(o.updated_at) > new Date(seenAt)),
@@ -95,8 +100,8 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     }),
   ) as Record<typeof statusTab, number>;
 
-  const visibleOrders = orders.filter((o) => {
-    if (statusTab !== "all" && o.order_status !== statusTab) return false;
+  const visibleOrders = (statusTab === "unpaid" ? unpaidOrders : orders).filter((o) => {
+    if (statusTab !== "all" && statusTab !== "unpaid" && o.order_status !== statusTab) return false;
     if (paymentFilter !== "all" && o.payment_status !== paymentFilter) return false;
     if (vendorFilter && !o.order_items?.some((i) => i.vendor_id === vendorFilter)) return false;
     if (searchQuery.trim()) {
@@ -251,6 +256,14 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
       </div>
 
       <CardContent className="p-0">
+        {statusTab === "unpaid" && (
+          <p className="mx-4 mt-4 rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            Online checkouts where the payment didn't go through. They aren't orders: boutiques, the warehouse and the
+            customer's order list don't show them, and each one is released automatically - stock put back - once
+            Razorpay confirms no payment came in (straight away when the customer closes the payment window, or after 30
+            minutes).
+          </p>
+        )}
         {visibleOrders.length === 0 ? (
           <div className="text-center py-12">
             <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

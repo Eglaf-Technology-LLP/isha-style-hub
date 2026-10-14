@@ -132,6 +132,34 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Order not found");
     }
 
+    // The order-placed email: only once the order is really placed (Cash on
+    // Delivery, or the online payment went through), and only once -
+    // checkout, payment verification and the database may all ask for it.
+    let claimedConfirmation = false;
+    if (type === "confirmation") {
+      const placed = order.payment_method === "cod" || ["paid", "refunded"].includes(order.payment_status);
+      if (!placed) {
+        return new Response(JSON.stringify({ skipped: "payment not completed" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      const { data: claimed } = await supabase
+        .from("orders")
+        .update({ confirmation_email_sent_at: new Date().toISOString() })
+        .eq("id", orderId)
+        .is("confirmation_email_sent_at", null)
+        .select("id")
+        .maybeSingle();
+      if (!claimed) {
+        return new Response(JSON.stringify({ skipped: "already sent" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      claimedConfirmation = true;
+    }
+
     const { data: allItems } = await supabase
       .from("order_items")
       .select("*")
@@ -369,7 +397,16 @@ const handler = async (req: Request): Promise<Response> => {
       ctaUrl: cta.url,
     });
 
-    const emailResult = await sendEmail(order.customer_email, subject, emailHtml);
+    let emailResult;
+    try {
+      emailResult = await sendEmail(order.customer_email, subject, emailHtml);
+    } catch (sendErr) {
+      // Not sent - let a later request try again.
+      if (claimedConfirmation) {
+        await supabase.from("orders").update({ confirmation_email_sent_at: null }).eq("id", orderId);
+      }
+      throw sendErr;
+    }
 
     return new Response(
       JSON.stringify({ success: true, ...emailResult }),

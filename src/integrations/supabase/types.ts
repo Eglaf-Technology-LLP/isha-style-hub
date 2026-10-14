@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   graphql_public: {
     Tables: {
@@ -1132,6 +1132,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          confirmation_email_sent_at: string | null
           created_at: string
           customer_email: string
           customer_name: string
@@ -1153,9 +1154,11 @@ export type Database = {
           total: number
           updated_at: string
           user_id: string | null
+          vendor_email_sent_at: string | null
           warehouse_id: string | null
         }
         Insert: {
+          confirmation_email_sent_at?: string | null
           created_at?: string
           customer_email: string
           customer_name: string
@@ -1177,9 +1180,11 @@ export type Database = {
           total: number
           updated_at?: string
           user_id?: string | null
+          vendor_email_sent_at?: string | null
           warehouse_id?: string | null
         }
         Update: {
+          confirmation_email_sent_at?: string | null
           created_at?: string
           customer_email?: string
           customer_name?: string
@@ -1201,6 +1206,7 @@ export type Database = {
           total?: number
           updated_at?: string
           user_id?: string | null
+          vendor_email_sent_at?: string | null
           warehouse_id?: string | null
         }
         Relationships: [
@@ -3296,6 +3302,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abandon_checkout: { Args: { _order_id: string }; Returns: boolean }
       add_business_days: { Args: { _d: string; _n: number }; Returns: string }
       add_warehouse_working_days: {
         Args: { _d: string; _n: number }
@@ -3330,6 +3337,10 @@ export type Database = {
       }
       admin_user_ids: { Args: never; Returns: string[] }
       admin_user_ids_and_warehouse: { Args: never; Returns: string[] }
+      announce_vendor_order: {
+        Args: { _vendor_order_id: string }
+        Returns: undefined
+      }
       apply_shipment_cod: { Args: { _shipment_id: string }; Returns: undefined }
       assert_warehouse_operator: { Args: never; Returns: undefined }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
@@ -3483,6 +3494,11 @@ export type Database = {
       }
       order_contains_vendor_sale: {
         Args: { _order_id: string; _user_id: string }
+        Returns: boolean
+      }
+      order_id_is_placed: { Args: { _order_id: string }; Returns: boolean }
+      order_is_placed: {
+        Args: { _payment_method: string; _payment_status: string }
         Returns: boolean
       }
       order_ref: { Args: { _order_id: string }; Returns: string }

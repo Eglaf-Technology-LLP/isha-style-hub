@@ -29,6 +29,7 @@ import { useCartStore, CartItem } from "@/stores/cartStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
@@ -566,6 +567,14 @@ export default function Checkout() {
     }
   };
 
+  // An online checkout the customer didn't pay for isn't an order: once
+  // Razorpay confirms nothing came through, the server cancels it quietly and
+  // puts the stock back. The cart is untouched, so they can simply try again.
+  const releaseUnpaidCheckout = async (unpaidOrderId: string) => {
+    const { data } = await invokeEdgeFunction<{ status: string }>("release-unpaid-orders", { order_id: unpaidOrderId });
+    return data?.status ?? null;
+  };
+
   const placeOrder = async () => {
     if (!user) {
       toast.error("Please sign in to place your order");
@@ -578,6 +587,9 @@ export default function Checkout() {
     }
 
     setIsPlacingOrder(true);
+    // Set once an online order is saved, so a failure before payment can
+    // release it.
+    let unpaidOnlineOrderId: string | null = null;
     try {
       // Order id is still generated client-side (not read back after
       // insert) - simplest to keep one insert shape rather than a
@@ -765,6 +777,7 @@ export default function Checkout() {
         });
 
       if (paymentError) throw paymentError;
+      if (paymentMethod === "razorpay") unpaidOnlineOrderId = newOrderId;
 
       // Save this address for next time (skipped if it's an unedited reuse
       // of one already saved) - independent of payment method/outcome,
@@ -860,14 +873,29 @@ export default function Checkout() {
           setIsPlacingOrder(false);
         },
         modal: {
-          ondismiss: () => {
-            toast.error("Payment cancelled. Your order is saved - you can try paying again.");
+          ondismiss: async () => {
+            const status = await releaseUnpaidCheckout(newOrderId);
+            if (status === "paid") {
+              // Razorpay took the payment after all (the window closed first).
+              await sendConfirmationEmail(newOrderId);
+              await sendVendorOrderEmail(newOrderId);
+              clearCart();
+              setOrderId(newOrderId);
+              setOrderPlaced(true);
+              toast.success("Payment successful!");
+            } else if (status === "processing") {
+              toast.info("Your payment is still being confirmed by your bank. We'll place the order as soon as it goes through.");
+            } else {
+              toast.error("Payment not completed, so no order was placed. Your cart is saved - you can try again.");
+            }
             setIsPlacingOrder(false);
           },
         },
       });
     } catch (error: any) {
       console.error("Error placing order:", error);
+      // The payment window never opened - don't leave the saved order behind.
+      if (unpaidOnlineOrderId) await releaseUnpaidCheckout(unpaidOnlineOrderId);
       toast.error(error.message || "Failed to place order");
       setIsPlacingOrder(false);
     }

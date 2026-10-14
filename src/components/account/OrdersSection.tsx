@@ -118,6 +118,8 @@ export function OrdersSection() {
         .from("orders")
         .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount")
         .eq("user_id", user.id)
+        // An online checkout that was never paid isn't an order.
+        .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
         .order("created_at", { ascending: false })
         .limit(10);
 

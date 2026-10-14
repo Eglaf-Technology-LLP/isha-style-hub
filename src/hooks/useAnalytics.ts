@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfDay, startOfWeek, startOfMonth, subDays, format, parseISO } from "date-fns";
 
+// Cash on Delivery, or an online payment that went through.
+const PLACED_ORDERS = "payment_method.eq.cod,payment_status.in.(paid,refunded)";
+
 export interface DailySales {
   date: string;
   revenue: number;
@@ -71,10 +74,12 @@ export function useAnalytics(
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      // Fetch orders within date range
+      // Fetch orders within date range (an online checkout that was never
+      // paid isn't an order)
       const { data: orders, error: ordersError } = await supabase
         .from("orders")
         .select("*")
+        .or(PLACED_ORDERS)
         .gte("created_at", dateFilter.toISOString());
 
       if (ordersError) throw ordersError;
@@ -83,18 +88,21 @@ export function useAnalytics(
       const { data: previousOrders, error: prevError } = await supabase
         .from("orders")
         .select("*")
+        .or(PLACED_ORDERS)
         .gte("created_at", previousPeriodStart.toISOString())
         .lt("created_at", dateFilter.toISOString());
 
       if (prevError) throw prevError;
 
       // Fetch order items for top products
-      const { data: orderItems, error: itemsError } = await supabase
+      const { data: allOrderItems, error: itemsError } = await supabase
         .from("order_items")
         .select("*")
         .gte("created_at", dateFilter.toISOString());
 
       if (itemsError) throw itemsError;
+      const placedIds = new Set((orders ?? []).map((o) => o.id));
+      const orderItems = (allOrderItems ?? []).filter((i) => placedIds.has(i.order_id));
 
       // Fetch categories
       const { data: categories } = await supabase

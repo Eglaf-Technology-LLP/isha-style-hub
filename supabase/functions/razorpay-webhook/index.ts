@@ -106,22 +106,25 @@ Deno.serve(async (req) => {
         // checkout. This only matters when that call never fired (browser
         // closed right after paying) - the order would otherwise stay
         // "pending" forever despite Razorpay actually holding the money.
-        // Guarded to only ever transition FROM 'pending', so a late/
-        // out-of-order failed event can never downgrade an already-paid
-        // order, and an already-reconciled order is never touched twice.
+        // Guarded so a late/out-of-order failed event can never downgrade an
+        // already-paid order, and an already-reconciled order is never
+        // touched twice. A capture also lifts "failed": the customer can
+        // retry inside the same Razorpay window after a failed attempt.
         if (paymentEntity?.id && paymentEntity?.order_id) {
           const newStatus = event === "payment.captured" ? "paid" : "failed";
+          const fromStatuses = newStatus === "paid" ? ["pending", "failed"] : ["pending"];
           const { data: order } = await supabase
             .from("orders")
-            .select("id, payment_status")
+            .select("id, payment_status, order_status")
             .eq("razorpay_order_id", paymentEntity.order_id)
             .maybeSingle();
-          if (order?.payment_status === "pending") {
+          const lateCapture = newStatus === "paid" && order?.order_status === "cancelled";
+          if (order && fromStatuses.includes(order.payment_status)) {
             await supabase
               .from("orders")
               .update({ payment_status: newStatus, razorpay_payment_id: paymentEntity.id })
               .eq("id", order.id)
-              .eq("payment_status", "pending");
+              .in("payment_status", fromStatuses);
             await supabase
               .from("payments")
               .update({
@@ -131,9 +134,19 @@ Deno.serve(async (req) => {
                 gateway_tax: typeof paymentEntity.tax === "number" ? paymentEntity.tax / 100 : null,
               })
               .eq("order_id", order.id)
-              .eq("payment_status", "pending");
+              .in("payment_status", fromStatuses);
             resolvedOrderId = order.id;
-            if (newStatus === "paid") {
+            if (lateCapture) {
+              // The checkout was already released as unpaid (stock put back)
+              // when this payment came through - the money has to go back.
+              await notifyAdmins(
+                supabase,
+                "late_payment_refund",
+                "Payment received for a released checkout - refund it",
+                `Order #${order.id.slice(0, 8)} was released as unpaid, then Razorpay captured ₹${(Number(paymentEntity.amount) / 100).toFixed(2)} for it. Refund it from Payments.`,
+                "/admin?tab=payments",
+              );
+            } else if (newStatus === "paid") {
               await createHeldTransfers(supabase, order.id, paymentEntity.id).catch((e) =>
                 console.error("createHeldTransfers (webhook) error", e),
               );

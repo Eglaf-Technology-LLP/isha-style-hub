@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -51,9 +51,17 @@ export interface Order {
   order_items?: OrderItem[];
 }
 
+// A real order: Cash on Delivery, or its online payment went through. An
+// online checkout that was never paid is kept apart (unpaidOrders) - it's
+// released by the server and isn't counted anywhere.
+export const isPlacedOrder = (o: Pick<Order, "payment_method" | "payment_status">) =>
+  o.payment_method === "cod" || o.payment_status === "paid" || o.payment_status === "refunded";
+
 export function useOrders(isAdmin: boolean = false) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [allOrders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const orders = useMemo(() => allOrders.filter(isPlacedOrder), [allOrders]);
+  const unpaidOrders = useMemo(() => allOrders.filter((o) => !isPlacedOrder(o)), [allOrders]);
 
   useEffect(() => {
     fetchOrders();
@@ -88,7 +96,7 @@ export function useOrders(isAdmin: boolean = false) {
 
       if (error) throw error;
 
-      setOrders(orders.map(o => 
+      setOrders((prev) => prev.map(o =>
         o.id === orderId ? { ...o, order_status: status } : o
       ));
       toast.success('Order status updated!');
@@ -109,7 +117,7 @@ export function useOrders(isAdmin: boolean = false) {
 
       if (error) throw error;
 
-      setOrders(orders.map(o => 
+      setOrders((prev) => prev.map(o =>
         o.id === orderId ? { ...o, payment_status: status } : o
       ));
       toast.success('Payment status updated!');
@@ -123,6 +131,7 @@ export function useOrders(isAdmin: boolean = false) {
 
   return {
     orders,
+    unpaidOrders,
     loading,
     updateOrderStatus,
     updatePaymentStatus,

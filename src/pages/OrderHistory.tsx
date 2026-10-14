@@ -211,6 +211,8 @@ export default function OrderHistory() {
         .from("orders")
         .select("*")
         .eq("user_id", session.user.id)
+        // An online checkout that was never paid isn't an order.
+        .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
         .order("created_at", { ascending: false });
 
       if (ordersError) throw ordersError;

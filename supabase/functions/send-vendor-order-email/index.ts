@@ -27,10 +27,33 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, customer_name, total, payment_method")
+      .select("id, customer_name, total, payment_method, payment_status")
       .eq("id", orderId)
       .single();
     if (orderError || !order) throw new Error("Order not found");
+
+    // Only for a placed order (Cash on Delivery, or the online payment went
+    // through), and only once - checkout and the database may both ask.
+    const placed = order.payment_method === "cod" || ["paid", "refunded"].includes(order.payment_status);
+    if (!placed) {
+      return new Response(JSON.stringify({ skipped: "payment not completed" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: claimed } = await supabase
+      .from("orders")
+      .update({ vendor_email_sent_at: new Date().toISOString() })
+      .eq("id", orderId)
+      .is("vendor_email_sent_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) {
+      return new Response(JSON.stringify({ skipped: "already sent" }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { data: items } = await supabase
       .from("order_items")
