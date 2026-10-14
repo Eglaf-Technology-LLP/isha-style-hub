@@ -66,7 +66,7 @@ import {
   emptyCustomisationForm,
   type CustomisationForm,
 } from "@/components/CustomisationEditor";
-import { readSetup } from "@/lib/customisation";
+import { CUSTOMISATION_ENABLED, readSetup } from "@/lib/customisation";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -189,7 +189,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       toast.error("AI imagery needs at least one original product photo for verification");
       return null;
     }
-    const custom = customisationPayload(customisation);
+    // While customisation is hidden its fields are left untouched.
+    const custom = CUSTOMISATION_ENABLED ? customisationPayload(customisation) : { value: {} };
     if ("error" in custom) {
       toast.error(custom.error);
       return null;
@@ -546,12 +547,14 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         />
       </div>
 
-      <CustomisationEditor
-        idPrefix={isEdit ? "edit-cz" : "add-cz"}
-        value={customisation}
-        onChange={setCustomisation}
-        note="The boutique sets this when listing; changing it here overrides their choice."
-      />
+      {CUSTOMISATION_ENABLED && (
+        <CustomisationEditor
+          idPrefix={isEdit ? "edit-cz" : "add-cz"}
+          value={customisation}
+          onChange={setCustomisation}
+          note="The boutique sets this when listing; changing it here overrides their choice."
+        />
+      )}
 
       <ProductVideoField
         folder="products"

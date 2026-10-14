@@ -27,7 +27,7 @@ import {
   emptyCustomisationForm,
   type CustomisationForm,
 } from "@/components/CustomisationEditor";
-import type { CustomisationOption } from "@/lib/customisation";
+import { CUSTOMISATION_ENABLED, type CustomisationOption } from "@/lib/customisation";
 import { useCategories } from "@/hooks/useCategories";
 import {
   ProductVariant,
@@ -191,7 +191,8 @@ export function VendorProductDialog({
     if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
     if (needsOriginals && originalPhotos.length === 0)
       return toast.error("AI imagery needs at least one original product photo for verification");
-    const custom = customisationPayload(customisation);
+    // While customisation is hidden its fields are left untouched.
+    const custom = CUSTOMISATION_ENABLED ? customisationPayload(customisation) : { value: {} };
     if ("error" in custom) return toast.error(custom.error);
 
     setSaving(true);
@@ -520,12 +521,14 @@ export function VendorProductDialog({
             </div>
           </div>
 
-          <CustomisationEditor
-            idPrefix="vp-cz"
-            value={customisation}
-            onChange={setCustomisation}
-            note="AllBoutiqs may also change this."
-          />
+          {CUSTOMISATION_ENABLED && (
+            <CustomisationEditor
+              idPrefix="vp-cz"
+              value={customisation}
+              onChange={setCustomisation}
+              note="AllBoutiqs may also change this."
+            />
+          )}
         </div>
 
         <DialogFooter>

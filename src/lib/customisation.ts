@@ -4,6 +4,11 @@
 // the server (enforce_order_item_customisation) - see migration
 // 20261015110000_product_customisation.sql.
 
+// Hidden for now (2026-10-15) - the whole feature is built and kept, just
+// switched off in the storefront and the product forms. Set to true to bring
+// it back.
+export const CUSTOMISATION_ENABLED = false;
+
 export interface CustomisationOption {
   id: string;
   label: string;

@@ -39,7 +39,7 @@ import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { ProductCustomiser, buildCustomisation, emptyCustomiser, type CustomiserState } from "@/components/ProductCustomiser";
-import { customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
+import { CUSTOMISATION_ENABLED, customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function ProductDetail() {
@@ -185,7 +185,8 @@ export default function ProductDetail() {
 
   // Get current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product?.price || 0;
-  const customisationSetup = useMemo(() => readSetup(product as any), [product]);
+  // (Off while customisation is hidden - nothing to customise, no panel.)
+  const customisationSetup = useMemo(() => readSetup(CUSTOMISATION_ENABLED ? (product as any) : null), [product]);
   const customised = buildCustomisation(customisationSetup, customiser);
   const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
