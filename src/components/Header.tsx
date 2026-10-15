@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import logo from "@/assets/logo.png";
 import { Search, User, Heart, Menu, X, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,46 @@ export function Header() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
   };
+
+  // Staff see only their own area (STAFF_ONLY_MODE): no shop links.
+  if (STAFF_ONLY_MODE && user && (isAdmin || vendor)) {
+    const home = isAdmin ? "/admin" : "/vendor";
+    return (
+      <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <Link to={home} aria-label="AllBoutiqs">
+              <img src={logo} alt="AllBoutiqs" className="h-12 w-auto object-contain" />
+            </Link>
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Account">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {vendor && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/vendor">Vendor Dashboard</Link>
+                    </DropdownMenuItem>
+                  )}
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin">Admin Panel</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>Sign Out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">

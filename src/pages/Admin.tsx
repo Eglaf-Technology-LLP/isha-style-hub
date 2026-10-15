@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -208,12 +209,15 @@ export default function Admin() {
                   Warehouse
                 </Button>
               </Link>
-              <Link to="/">
-                <Button variant="ghost" size="sm">
-                  <Eye className="h-4 w-4 mr-2" />
-                  View Store
-                </Button>
-              </Link>
+              {/* Hidden while staff only see their own area. */}
+              {!STAFF_ONLY_MODE && (
+                <Link to="/">
+                  <Button variant="ghost" size="sm">
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Store
+                  </Button>
+                </Link>
+              )}
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

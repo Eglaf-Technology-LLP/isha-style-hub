@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import type { CustomisationChoice } from "@/lib/customisation";
 import { Link, useNavigate } from "react-router-dom";
@@ -587,11 +588,14 @@ export default function VendorDashboard() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Link to={`/store/${vendor.slug}`}>
-              <Button variant="outline" size="sm">
-                <Eye className="h-4 w-4 mr-2" /> View storefront
-              </Button>
-            </Link>
+            {/* Hidden while boutiques only see their own area. */}
+            {!STAFF_ONLY_MODE && (
+              <Link to={`/store/${vendor.slug}`}>
+                <Button variant="outline" size="sm">
+                  <Eye className="h-4 w-4 mr-2" /> View storefront
+                </Button>
+              </Link>
+            )}
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
               Store settings
             </Button>

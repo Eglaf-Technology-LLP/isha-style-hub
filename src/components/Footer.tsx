@@ -1,10 +1,26 @@
 import { Link } from "react-router-dom";
+import { STAFF_ONLY_MODE } from "@/lib/staffMode";
+import { useStaffRole } from "@/hooks/useStaffRole";
 import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, MessageCircle } from "lucide-react";
 import { COMPANY, telHref } from "@/lib/company";
 import { Separator } from "@/components/ui/separator";
 import logo from "@/assets/logo-white.png";
 
 export function Footer() {
+  const { role } = useStaffRole();
+  if (STAFF_ONLY_MODE && (role === "admin" || role === "vendor")) {
+    return (
+      <footer className="bg-secondary text-secondary-foreground">
+        <div className="container mx-auto px-4 py-6 flex flex-wrap items-center justify-between gap-3 text-sm text-secondary-foreground/80">
+          <span>© {new Date().getFullYear()} {COMPANY.legalName}</span>
+          <span>
+            Help: <a href={`mailto:${COMPANY.supportEmail}`} className="underline">{COMPANY.supportEmail}</a> ·{" "}
+            <a href={telHref(COMPANY.supportPhone)} className="underline">{COMPANY.supportPhone}</a>
+          </span>
+        </div>
+      </footer>
+    );
+  }
   return (
     <footer className="bg-secondary text-secondary-foreground">
       <div className="container mx-auto px-4 py-12">

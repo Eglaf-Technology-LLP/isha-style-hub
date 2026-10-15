@@ -18,6 +18,7 @@ import StorePage from "./pages/StorePage";
 import Warehouse from "./pages/Warehouse";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
+import { StaffOnlyGate } from "./components/StaffOnlyGate";
 
 const queryClient = new QueryClient();
 
@@ -27,30 +28,32 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/product/:handle" element={<ProductDetail />} />
-          <Route path="/category/:slug" element={<Category />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/orders" element={<OrderHistory />} />
-          <Route path="/wishlist" element={<Wishlist />} />
-          {/* Rewards and membership (AllBoutiqs Insider) are hidden from
-              shoppers for now - pages/Rewards.tsx and pages/Membership.tsx are
-              kept for when they come back. */}
-          <Route path="/rewards" element={<Navigate to="/" replace />} />
-          <Route path="/membership" element={<Navigate to="/" replace />} />
-          <Route path="/account" element={<Account />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/sell-with-us" element={<SellWithUs />} />
-          <Route path="/vendor/pending" element={<VendorPending />} />
-          <Route path="/vendor" element={<VendorDashboard />} />
-          <Route path="/store/:slug" element={<StorePage />} />
-          <Route path="/warehouse" element={<Warehouse />} />
+        <StaffOnlyGate>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/product/:handle" element={<ProductDetail />} />
+            <Route path="/category/:slug" element={<Category />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/orders" element={<OrderHistory />} />
+            <Route path="/wishlist" element={<Wishlist />} />
+            {/* Rewards and membership (AllBoutiqs Insider) are hidden from
+                shoppers for now - pages/Rewards.tsx and pages/Membership.tsx are
+                kept for when they come back. */}
+            <Route path="/rewards" element={<Navigate to="/" replace />} />
+            <Route path="/membership" element={<Navigate to="/" replace />} />
+            <Route path="/account" element={<Account />} />
+            <Route path="/admin" element={<Admin />} />
+            <Route path="/sell-with-us" element={<SellWithUs />} />
+            <Route path="/vendor/pending" element={<VendorPending />} />
+            <Route path="/vendor" element={<VendorDashboard />} />
+            <Route path="/store/:slug" element={<StorePage />} />
+            <Route path="/warehouse" element={<Warehouse />} />
 
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        <CompareDrawer />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <CompareDrawer />
+        </StaffOnlyGate>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
