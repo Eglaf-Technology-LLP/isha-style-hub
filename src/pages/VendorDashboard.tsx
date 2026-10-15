@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import type { CustomisationChoice } from "@/lib/customisation";
@@ -260,7 +261,13 @@ export default function VendorDashboard() {
       if (error) throw error;
       setHasPayoutAccount(true);
 
-      // Register the bank account for payouts (RazorpayX) and start the ₹1 check.
+      // Register the bank account for payouts (RazorpayX) and start the ₹1
+      // check - paused while RazorpayX payouts are off.
+      if (!RAZORPAYX_PAYOUTS_ENABLED) {
+        await refreshVendor();
+        toast.success("Payout details saved");
+        return;
+      }
       const { data: reg, errorMessage } = await invokeEdgeFunction<{ status: string; error: string | null }>(
         "razorpayx-payouts",
         { action: "register", vendor_id: vendor.id },
@@ -1365,11 +1372,20 @@ export default function VendorDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <BankVerificationStatus check={bankCheck} />
-                <p className="text-xs text-muted-foreground">
-                  Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
-                  only to verify your account and pay you.
-                </p>
+                {RAZORPAYX_PAYOUTS_ENABLED ? (
+                  <>
+                    <BankVerificationStatus check={bankCheck} />
+                    <p className="text-xs text-muted-foreground">
+                      Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
+                      only to verify your account and pay you.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    AllBoutiqs pays you by bank transfer to this account on every payout day, for orders whose
+                    return/exchange window has closed.
+                  </p>
+                )}
                 <Button onClick={savePayoutAccount} disabled={payoutSaving}>
                   {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save payout details

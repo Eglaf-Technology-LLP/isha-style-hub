@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -186,7 +187,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Prepare ready payouts
           </Button>
-          {pendingCount > 0 && (
+          {RAZORPAYX_PAYOUTS_ENABLED && pendingCount > 0 && (
             <Button size="sm" onClick={() => sendViaRazorpayX("all")} disabled={sending}>
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
               Send all via RazorpayX
@@ -256,9 +257,11 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                     <TableCell>
                       {p.status === "pending" && (
                         <div className="flex flex-wrap gap-1">
-                          <Button size="sm" onClick={() => sendViaRazorpayX([p.id])} disabled={sending}>
-                            <Send className="h-4 w-4 mr-1" /> Send via RazorpayX
-                          </Button>
+                          {RAZORPAYX_PAYOUTS_ENABLED && (
+                            <Button size="sm" onClick={() => sendViaRazorpayX([p.id])} disabled={sending}>
+                              <Send className="h-4 w-4 mr-1" /> Send via RazorpayX
+                            </Button>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => setMarkingPayout(p)}>
                             <CheckCircle2 className="h-4 w-4 mr-1" /> Mark credited
                           </Button>

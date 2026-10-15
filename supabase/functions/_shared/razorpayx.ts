@@ -90,6 +90,11 @@ export async function registerVendorAccount(supabase: SupabaseClient, vendorId: 
     const r = await onboardVendor(supabase, vendorId);
     return { rail, status: r.razorpay_status, error: r.razorpay_error };
   }
+  // Paused (manual payouts): nothing is sent to RazorpayX.
+  if (rail === "manual") {
+    const { data: a } = await supabase.from("vendor_payout_accounts").select("rzpx_status, rzpx_error").eq("vendor_id", vendorId).maybeSingle();
+    return { rail, status: a?.rzpx_status ?? "not_started", error: a?.rzpx_error ?? null };
+  }
 
   const [{ data: acct }, { data: vendor }] = await Promise.all([
     supabase.from("vendor_payout_accounts").select("*").eq("vendor_id", vendorId).maybeSingle(),

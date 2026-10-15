@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -451,7 +452,8 @@ export default function Admin() {
               <PlatformRatesCard />
               <CodTrackingCard admin />
               <FeeInvoicesCard admin />
-              <RazorpayXPanel />
+              {/* RazorpayX payouts paused until the account number is in. */}
+              {RAZORPAYX_PAYOUTS_ENABLED && <RazorpayXPanel />}
               <VendorPayoutManagement isAdmin={isAdmin} />
             </div>
           </TabsContent>
