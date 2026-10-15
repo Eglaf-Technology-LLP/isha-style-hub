@@ -19,6 +19,11 @@ export interface AdminVendorPayout {
   orderCount: number;
   bankLast4: string | null;
   failureReason: string | null;
+  // RazorpayX: how it was sent and where it is.
+  method: string;
+  rzpxStatus: string | null;
+  rzpxError: string | null;
+  rzpxMode: string | null;
 }
 
 const unwrapOne = <T,>(value: T | T[] | null | undefined): T | null =>
@@ -67,6 +72,10 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
           orderCount: p.order_count,
           bankLast4: p.bank_account_last4,
           failureReason: p.failure_reason,
+          method: p.method,
+          rzpxStatus: p.rzpx_status,
+          rzpxError: p.rzpx_error,
+          rzpxMode: p.rzpx_mode,
         })),
       );
     } catch (error) {
@@ -139,5 +148,32 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
     return true;
   };
 
-  return { payouts, loading, generating, generatePayouts, markPaid, markFailed, refetch: fetchPayouts };
+  // RazorpayX: sends pending payouts (each order re-checked first - only
+  // those whose return/exchange window has closed go).
+  const [sending, setSending] = useState(false);
+  const sendViaRazorpayX = async (payoutIds: string[] | "all") => {
+    setSending(true);
+    const { data, errorMessage } = await invokeEdgeFunction<{
+      results: { payout_id: string; ok: boolean; amount?: number; status?: string; error?: string }[];
+    }>("razorpayx-payouts", payoutIds === "all" ? { action: "send", all: true } : { action: "send", payout_ids: payoutIds });
+    setSending(false);
+    if (errorMessage) {
+      toast.error(errorMessage);
+      return;
+    }
+    const results = data?.results ?? [];
+    const sent = results.filter((r) => r.ok && (r.amount ?? 0) > 0);
+    const failed = results.filter((r) => !r.ok);
+    if (sent.length) toast.success(`Sent ${sent.length} payout${sent.length > 1 ? "s" : ""} via RazorpayX`);
+    if (failed.length) {
+      toast.error(`${failed.length} payout${failed.length > 1 ? "s" : ""} not sent`, {
+        description: [...new Set(failed.map((f) => f.error))].join(" • "),
+        duration: 10000,
+      });
+    }
+    if (!results.length) toast.info("No payouts waiting to be sent");
+    await fetchPayouts();
+  };
+
+  return { payouts, loading, generating, generatePayouts, markPaid, markFailed, sending, sendViaRazorpayX, refetch: fetchPayouts };
 }

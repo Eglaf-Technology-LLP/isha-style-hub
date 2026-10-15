@@ -142,8 +142,9 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
             <Landmark className="h-5 w-5" /> Your money
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Payouts are weekly: an order is ready 24 hours after delivery (or once its return window ends, if
-            longer), and everything ready by Tuesday 11:59 PM is paid on Wednesday. You get an email at every step.
+            Payouts are weekly: an order is ready once its return/exchange window has closed (and at least 24 hours
+            after delivery), and everything ready by Tuesday 11:59 PM is paid on Wednesday. You get an email at every
+            step.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

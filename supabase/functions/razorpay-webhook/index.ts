@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse, serviceClient, errorMessage } from "../_shared/auth.ts";
+import { applyPayoutEntity, applyValidation } from "../_shared/razorpayx.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 import { links } from "../_shared/notify.ts";
@@ -35,9 +36,17 @@ Deno.serve(async (req) => {
   // text before any JSON parsing, or the recomputed HMAC won't match.
   const rawBody = await req.text();
   const signature = req.headers.get("x-razorpay-signature");
-  const secret = Deno.env.get("RAZORPAY_WEBHOOK_SECRET");
+  // RazorpayX (payouts) webhooks may be set up with their own secret.
+  const secrets = [Deno.env.get("RAZORPAY_WEBHOOK_SECRET"), Deno.env.get("RAZORPAYX_WEBHOOK_SECRET")].filter(Boolean) as string[];
+  let signed = false;
+  for (const secret of secrets) {
+    if (signature && (await verifySignature(rawBody, signature, secret))) {
+      signed = true;
+      break;
+    }
+  }
 
-  if (!secret || !signature || !(await verifySignature(rawBody, signature, secret))) {
+  if (!signed) {
     console.error("razorpay-webhook: missing/invalid signature");
     // 400, not 500 - a bad signature will never become valid on retry.
     return jsonResponse({ error: "Invalid signature" }, 400);
@@ -326,6 +335,28 @@ Deno.serve(async (req) => {
           if (disputeErr) throw disputeErr;
         }
         await logEvent(disputeEntity?.id);
+        break;
+      }
+
+      // RazorpayX: boutique payouts and bank-account checks.
+      case "payout.processed":
+      case "payout.reversed":
+      case "payout.failed":
+      case "payout.rejected":
+      case "payout.queued":
+      case "payout.pending":
+      case "payout.initiated":
+      case "payout.updated": {
+        const payoutEntity = payload.payload?.payout?.entity;
+        await applyPayoutEntity(supabase, payoutEntity);
+        await logEvent(payoutEntity?.id);
+        break;
+      }
+      case "fund_account.validation.completed":
+      case "fund_account.validation.failed": {
+        const validation = payload.payload?.["fund_account.validation"]?.entity ?? payload.payload?.fund_account_validation?.entity;
+        if (validation) await applyValidation(supabase, validation);
+        await logEvent(validation?.id);
         break;
       }
 

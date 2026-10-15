@@ -75,7 +75,7 @@ import { VendorPayoutStages } from "@/components/vendor/VendorPayoutStages";
 import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatusBadge";
 import { formatPayoutDate } from "@/lib/payoutDates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { RazorpayPayoutStatus } from "@/components/vendor/RazorpayPayoutStatus";
+import { BankVerificationStatus, type BankCheck } from "@/components/vendor/BankVerificationStatus";
 import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
@@ -185,13 +185,6 @@ interface PayoutAccountForm {
   legal_business_name: string;
 }
 
-// Server-managed Razorpay linked-account state (read-only for boutiques).
-interface RazorpayPayoutState {
-  razorpay_status: string;
-  razorpay_error: string | null;
-  razorpay_requirements: { description?: string; reason_code?: string }[] | null;
-}
-
 const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp"];
 
 export default function VendorDashboard() {
@@ -229,7 +222,7 @@ export default function VendorDashboard() {
     pan: "",
     legal_business_name: "",
   });
-  const [razorpayState, setRazorpayState] = useState<RazorpayPayoutState | null>(null);
+  const [bankCheck, setBankCheck] = useState<BankCheck | null>(null);
   const [payoutSaving, setPayoutSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -265,25 +258,19 @@ export default function VendorDashboard() {
       if (error) throw error;
       setHasPayoutAccount(true);
 
-      // Create/update the Razorpay account that payouts are sent through.
-      const { data: rzp, errorMessage } = await invokeEdgeFunction<RazorpayPayoutState>("razorpay-route-onboard", {
-        vendor_id: vendor.id,
-      });
+      // Register the bank account for payouts (RazorpayX) and start the ₹1 check.
+      const { data: reg, errorMessage } = await invokeEdgeFunction<{ status: string; error: string | null }>(
+        "razorpayx-payouts",
+        { action: "register", vendor_id: vendor.id },
+      );
       await refreshVendor();
-      if (errorMessage || rzp?.razorpay_error) {
-        setRazorpayState((prev) => ({
-          razorpay_status: rzp?.razorpay_status ?? prev?.razorpay_status ?? "failed",
-          razorpay_error: rzp?.razorpay_error ?? errorMessage ?? null,
-          razorpay_requirements: prev?.razorpay_requirements ?? null,
-        }));
-        toast.error(`Saved, but Razorpay couldn't set up payouts: ${rzp?.razorpay_error ?? errorMessage}`);
+      setBankCheck({ status: reg?.status ?? "not_started", error: reg?.error ?? errorMessage ?? null });
+      if (errorMessage) {
+        toast.error(`Saved, but we couldn't register the account for payouts yet: ${errorMessage}`);
+      } else if (reg?.status === "verified") {
+        toast.success("Payout details saved - bank account verified");
       } else {
-        setRazorpayState({
-          razorpay_status: rzp?.razorpay_status ?? "created",
-          razorpay_error: null,
-          razorpay_requirements: (rzp as any)?.requirements ?? null,
-        });
-        toast.success("Payout details saved - Razorpay is verifying your bank account");
+        toast.success("Payout details saved - we'll check the bank account before your first payout");
       }
     } catch (e: any) {
       toast.error(e.message || "Failed to save payout details");
@@ -338,7 +325,7 @@ export default function VendorDashboard() {
           .order("created_at", { ascending: false }),
         supabase
           .from("vendor_payout_accounts")
-          .select("account_holder_name, bank_account_number, bank_ifsc, bank_name, business_type, pan, legal_business_name, razorpay_status, razorpay_error, razorpay_requirements")
+          .select("account_holder_name, bank_account_number, bank_ifsc, bank_name, business_type, pan, legal_business_name, rzpx_status, rzpx_error")
           .eq("vendor_id", vendor.id)
           .maybeSingle(),
       ]);
@@ -362,11 +349,7 @@ export default function VendorDashboard() {
           pan: pa.pan ?? "",
           legal_business_name: pa.legal_business_name ?? "",
         });
-        setRazorpayState({
-          razorpay_status: pa.razorpay_status,
-          razorpay_error: pa.razorpay_error,
-          razorpay_requirements: pa.razorpay_requirements,
-        });
+        setBankCheck({ status: pa.rzpx_status, error: pa.rzpx_error });
       }
       setHasPayoutAccount(!!payoutRes.data);
 
@@ -1369,7 +1352,7 @@ export default function VendorDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <RazorpayPayoutStatus state={razorpayState} />
+                <BankVerificationStatus check={bankCheck} />
                 <p className="text-xs text-muted-foreground">
                   Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
                   only to verify your account and pay you.

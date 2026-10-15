@@ -6,7 +6,26 @@ import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 // 20261007100000_razorpay_route_payouts.sql for the overall flow.
 
 const RZP = "https://api.razorpay.com";
-const OPEN_RETURN_STATUSES = ["pending", "approved", "picked_up", "pickup_failed"];
+
+// Why a delivered boutique order can't be paid yet (vendor_order_payout_blocker).
+export const BLOCKER_REASON: Record<string, string> = {
+  paid: "already paid",
+  not_delivered: "not delivered yet",
+  return_window_open: "return/exchange window still open",
+  open_return: "a return or exchange is still open",
+  not_due: "not due until its payout date",
+  payment_pending: "online payment not received",
+  cod_cash_pending: "COD cash not yet received from Shiprocket",
+  nothing_to_pay: "nothing left to pay",
+  not_found: "order not found",
+};
+
+export async function payoutBlockers(supabase: SupabaseClient, ids: string[]): Promise<Map<string, string | null>> {
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase.rpc("vendor_order_payout_blockers", { _vendor_order_ids: ids });
+  if (error) throw error;
+  return new Map((data ?? []).map((r: { vendor_order_id: string; blocker: string | null }) => [r.vendor_order_id, r.blocker]));
+}
 
 export async function rzp(method: string, path: string, body?: unknown, idempotencyKey?: string): Promise<any> {
   const id = Deno.env.get("RAZORPAY_KEY_ID");
@@ -205,6 +224,10 @@ const usable = (a: PayableAccount | undefined | null) =>
 // On payment capture: move each boutique's share into its linked account,
 // held until we release it after delivery + the return window.
 export async function createHeldTransfers(supabase: SupabaseClient, orderId: string, rzpPaymentId: string) {
+  // Route only (on the RazorpayX rail the money stays in AllBoutiqs' account
+  // until payout day).
+  const { data: rail } = await supabase.from("platform_settings").select("payout_rail").eq("id", true).maybeSingle();
+  if ((rail?.payout_rail ?? "razorpayx") !== "razorpay_route") return;
   const { data: vos } = await supabase
     .from("vendor_orders")
     .select("id, vendor_id, net_payable, status")
@@ -290,12 +313,9 @@ export async function releaseDuePayouts(supabase: SupabaseClient): Promise<Relea
     .or("rzp_transfer_status.is.null,rzp_transfer_status.eq.held,rzp_transfer_status.eq.failed");
 
   if (due?.length) {
-    const { data: openReturns } = await supabase.from("return_requests").select("items").in("status", OPEN_RETURN_STATUSES);
-    const itemIds = (openReturns ?? []).flatMap((r) => ((r.items as any[]) ?? []).map((i) => i.order_item_id).filter(Boolean));
-    const { data: openItems } = itemIds.length
-      ? await supabase.from("order_items").select("vendor_order_id").in("id", itemIds)
-      : { data: [] as { vendor_order_id: string | null }[] };
-    const withOpenReturn = new Set((openItems ?? []).map((i) => i.vendor_order_id));
+    // Checked now, at the moment of paying: return/exchange window closed,
+    // no return open, payment/COD cash in (vendor_order_payout_blocker).
+    const blockers = await payoutBlockers(supabase, due.map((d) => d.id));
 
     const { data: accounts } = await supabase
       .from("vendor_payout_accounts")
@@ -306,15 +326,9 @@ export async function releaseDuePayouts(supabase: SupabaseClient): Promise<Relea
     for (const vo of due as any[]) {
       const order = Array.isArray(vo.orders) ? vo.orders[0] : vo.orders;
       const amount = Math.max(0, Number(vo.net_payable) - Number(vo.rzp_reversed_amount ?? 0));
-      if (withOpenReturn.has(vo.id)) {
-        summary.skipped.push({ vendor_order_id: vo.id, reason: "open return request" });
-        continue;
-      }
-      // COD: this boutique's part is payable once its cash reached
-      // AllBoutiqs (Shiprocket remittance, or marked by an admin).
-      const codReceived = order?.payment_method === "cod" && vo.cod_received_at;
-      if (order?.payment_status !== "paid" && !codReceived) {
-        summary.skipped.push({ vendor_order_id: vo.id, reason: order?.payment_method === "cod" ? "COD cash not yet received from Shiprocket" : "order not paid" });
+      const blocker = blockers.get(vo.id);
+      if (blocker) {
+        summary.skipped.push({ vendor_order_id: vo.id, reason: BLOCKER_REASON[blocker] ?? blocker });
         continue;
       }
       const account = byVendor.get(vo.vendor_id);

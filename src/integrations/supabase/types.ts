@@ -1398,6 +1398,8 @@ export type Database = {
           default_prep_days: number
           id: boolean
           launch_date: string | null
+          payout_auto_send: boolean
+          payout_rail: string
           payout_settlement_days: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
@@ -1415,6 +1417,8 @@ export type Database = {
           default_prep_days?: number
           id?: boolean
           launch_date?: string | null
+          payout_auto_send?: boolean
+          payout_rail?: string
           payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
@@ -1432,6 +1436,8 @@ export type Database = {
           default_prep_days?: number
           id?: boolean
           launch_date?: string | null
+          payout_auto_send?: boolean
+          payout_rail?: string
           payout_settlement_days?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
@@ -2870,6 +2876,14 @@ export type Database = {
           razorpay_requirements: Json | null
           razorpay_status: string
           razorpay_synced_at: string | null
+          rzpx_contact_id: string | null
+          rzpx_error: string | null
+          rzpx_fund_account_id: string | null
+          rzpx_name_approved_by: string | null
+          rzpx_registered_name: string | null
+          rzpx_status: string
+          rzpx_validation_id: string | null
+          rzpx_verified_at: string | null
           updated_at: string
           vendor_id: string
         }
@@ -2889,6 +2903,14 @@ export type Database = {
           razorpay_requirements?: Json | null
           razorpay_status?: string
           razorpay_synced_at?: string | null
+          rzpx_contact_id?: string | null
+          rzpx_error?: string | null
+          rzpx_fund_account_id?: string | null
+          rzpx_name_approved_by?: string | null
+          rzpx_registered_name?: string | null
+          rzpx_status?: string
+          rzpx_validation_id?: string | null
+          rzpx_verified_at?: string | null
           updated_at?: string
           vendor_id: string
         }
@@ -2908,6 +2930,14 @@ export type Database = {
           razorpay_requirements?: Json | null
           razorpay_status?: string
           razorpay_synced_at?: string | null
+          rzpx_contact_id?: string | null
+          rzpx_error?: string | null
+          rzpx_fund_account_id?: string | null
+          rzpx_name_approved_by?: string | null
+          rzpx_registered_name?: string | null
+          rzpx_status?: string
+          rzpx_validation_id?: string | null
+          rzpx_verified_at?: string | null
           updated_at?: string
           vendor_id?: string
         }
@@ -2930,12 +2960,22 @@ export type Database = {
           failure_reason: string | null
           gross_sales: number
           id: string
+          method: string
           net_payable: number
           order_count: number
           paid_at: string | null
           payment_reference: string | null
+          payout_date: string | null
           period_end: string
           period_start: string
+          rzpx_error: string | null
+          rzpx_fees: number | null
+          rzpx_mode: string | null
+          rzpx_payout_id: string | null
+          rzpx_status: string | null
+          rzpx_tax: number | null
+          sent_at: string | null
+          sent_by: string | null
           status: string
           updated_at: string
           vendor_id: string
@@ -2949,12 +2989,22 @@ export type Database = {
           failure_reason?: string | null
           gross_sales?: number
           id?: string
+          method?: string
           net_payable?: number
           order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
+          payout_date?: string | null
           period_end: string
           period_start: string
+          rzpx_error?: string | null
+          rzpx_fees?: number | null
+          rzpx_mode?: string | null
+          rzpx_payout_id?: string | null
+          rzpx_status?: string | null
+          rzpx_tax?: number | null
+          sent_at?: string | null
+          sent_by?: string | null
           status?: string
           updated_at?: string
           vendor_id: string
@@ -2968,12 +3018,22 @@ export type Database = {
           failure_reason?: string | null
           gross_sales?: number
           id?: string
+          method?: string
           net_payable?: number
           order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
+          payout_date?: string | null
           period_end?: string
           period_start?: string
+          rzpx_error?: string | null
+          rzpx_fees?: number | null
+          rzpx_mode?: string | null
+          rzpx_payout_id?: string | null
+          rzpx_status?: string | null
+          rzpx_tax?: number | null
+          sent_at?: string | null
+          sent_by?: string | null
           status?: string
           updated_at?: string
           vendor_id?: string
@@ -3524,6 +3584,17 @@ export type Database = {
         Returns: boolean
       }
       order_ref: { Args: { _order_id: string }; Returns: string }
+      prepare_vendor_payouts: {
+        Args: { _payout_date?: string }
+        Returns: {
+          net_payable: number
+          order_count: number
+          payout_id: string
+          skipped_reason: string
+          vendor_id: string
+          vendor_name: string
+        }[]
+      }
       process_vendor_payout_queue: { Args: never; Returns: undefined }
       rates_on: {
         Args: { _at: string }
@@ -3555,6 +3626,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      recheck_vendor_payout: { Args: { _payout_id: string }; Returns: number }
       record_cod_received: {
         Args: {
           _received_at: string
@@ -3625,13 +3697,40 @@ export type Database = {
         Args: { _vendor_order_id: string }
         Returns: Json
       }
+      vendor_order_payout_blocker: {
+        Args: { _vendor_order_id: string }
+        Returns: string
+      }
+      vendor_order_payout_blockers: {
+        Args: { _vendor_order_ids: string[] }
+        Returns: {
+          blocker: string
+          vendor_order_id: string
+        }[]
+      }
       vendor_order_payout_date: {
         Args: { _delivered_at: string; _vendor_order_id: string }
+        Returns: string
+      }
+      vendor_order_payout_date_for: {
+        Args: {
+          _delivered_at: string
+          _vendor_order_id: string
+          _window_end: string
+        }
         Returns: string
       }
       vendor_order_payout_hold_days: {
         Args: { _vendor_order_id: string }
         Returns: number
+      }
+      vendor_order_window_end: {
+        Args: {
+          _delivered_at: string
+          _vendor_order_id: string
+          _window_end: string
+        }
+        Returns: string
       }
       vendor_payout_account_link: { Args: never; Returns: string }
       vendor_required_documents: {

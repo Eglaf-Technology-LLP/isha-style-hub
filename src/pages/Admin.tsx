@@ -66,7 +66,7 @@ import { SettlementLedger } from "@/components/admin/SettlementLedger";
 import { CancelledOrdersManagement } from "@/components/admin/CancelledOrdersManagement";
 import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagement";
 import { ReviewModeration } from "@/components/admin/ReviewModeration";
-import { RazorpayPayoutsPanel } from "@/components/admin/RazorpayPayoutsPanel";
+import { RazorpayXPanel } from "@/components/admin/RazorpayXPanel";
 import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
 import { useUrlTab } from "@/hooks/useDeepLink";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -447,7 +447,7 @@ export default function Admin() {
               <PlatformRatesCard />
               <CodTrackingCard admin />
               <FeeInvoicesCard admin />
-              <RazorpayPayoutsPanel />
+              <RazorpayXPanel />
               <VendorPayoutManagement isAdmin={isAdmin} />
             </div>
           </TabsContent>

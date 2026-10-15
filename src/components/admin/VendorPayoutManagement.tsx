@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle, Send } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminVendorPayouts, AdminVendorPayout } from "@/hooks/useAdminVendorPayouts";
 import { format } from "date-fns";
@@ -33,8 +33,8 @@ const statusClass: Record<string, string> = {
   failed: "bg-red-100 text-red-800",
 };
 const statusLabel: Record<string, string> = {
-  pending: "Processing",
-  processing: "Processing",
+  pending: "Ready to send",
+  processing: "Sending",
   paid: "Credited",
   failed: "Declined",
 };
@@ -62,7 +62,8 @@ interface VendorPayoutManagementProps {
 // a run, do the actual bank transfer yourself outside the app, record the
 // reference here so the vendor has something to reconcile against.
 export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps) {
-  const { payouts, loading, generating, generatePayouts, markPaid, markFailed } = useAdminVendorPayouts(isAdmin);
+  const { payouts, loading, generating, generatePayouts, markPaid, markFailed, sending, sendViaRazorpayX } =
+    useAdminVendorPayouts(isAdmin);
   const [markingPayout, setMarkingPayout] = useState<AdminVendorPayout | null>(null);
   const [decliningPayout, setDecliningPayout] = useState<AdminVendorPayout | null>(null);
   const [transfer, setTransfer] = useState<TransferDetails | null | undefined>(undefined);
@@ -179,12 +180,18 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {pendingCount > 0 && <Badge variant="destructive">{pendingCount} Pending</Badge>}
-          <Button size="sm" onClick={generatePayouts} disabled={generating}>
+        <div className="flex flex-wrap items-center gap-2">
+          {pendingCount > 0 && <Badge variant="destructive">{pendingCount} ready to send</Badge>}
+          <Button size="sm" variant="outline" onClick={generatePayouts} disabled={generating}>
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Generate This Week's Payouts
+            Prepare ready payouts
           </Button>
+          {pendingCount > 0 && (
+            <Button size="sm" onClick={() => sendViaRazorpayX("all")} disabled={sending}>
+              {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Send all via RazorpayX
+            </Button>
+          )}
         </div>
       </div>
 
@@ -233,13 +240,25 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                       {p.status === "failed" && p.failureReason && (
                         <div className="text-xs text-destructive mt-1 max-w-[220px]">{p.failureReason}</div>
                       )}
+                      {p.method === "razorpayx" && p.status === "processing" && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          RazorpayX · {p.rzpxStatus ?? "sent"}
+                          {p.rzpxMode ? ` · ${p.rzpxMode}` : ""}
+                        </div>
+                      )}
+                      {p.status === "pending" && p.rzpxError && (
+                        <div className="text-xs text-destructive mt-1 max-w-[220px]">{p.rzpxError}</div>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground font-mono text-xs">
                       {p.paymentReference || "—"}
                     </TableCell>
                     <TableCell>
                       {p.status === "pending" && (
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
+                          <Button size="sm" onClick={() => sendViaRazorpayX([p.id])} disabled={sending}>
+                            <Send className="h-4 w-4 mr-1" /> Send via RazorpayX
+                          </Button>
                           <Button size="sm" variant="outline" onClick={() => setMarkingPayout(p)}>
                             <CheckCircle2 className="h-4 w-4 mr-1" /> Mark credited
                           </Button>
