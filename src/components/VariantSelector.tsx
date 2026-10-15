@@ -8,6 +8,9 @@ interface VariantSelectorProps {
   onSelect: (value: string) => void;
   type?: "size" | "color";
   colorMap?: Record<string, string>;
+  // Shown when this choice is required but missing (e.g. "Please select a size").
+  error?: string | null;
+  id?: string;
 }
 
 // Common color mapping for fashion products
@@ -66,6 +69,8 @@ export function VariantSelector({
   onSelect,
   type = "size",
   colorMap = defaultColorMap,
+  error,
+  id,
 }: VariantSelectorProps) {
   if (options.length === 0) return null;
 
@@ -83,9 +88,15 @@ export function VariantSelector({
   };
 
   return (
-    <div className="space-y-3">
+    <div
+      id={id}
+      className={cn("w-full space-y-3", error && "rounded-lg ring-2 ring-destructive/60 ring-offset-4 ring-offset-background")}
+      aria-invalid={error ? true : undefined}
+    >
       <div className="flex items-center justify-between">
-        <label className="font-medium">{label}</label>
+        <label className="font-medium">
+          {label} <span className="text-destructive">*</span>
+        </label>
         {selected && (
           <span className="text-sm text-muted-foreground capitalize">
             {selected}
@@ -145,6 +156,11 @@ export function VariantSelector({
           );
         })}
       </div>
+      {error && (
+        <p className="text-sm font-medium text-destructive" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -68,6 +68,8 @@ export default function ProductDetail() {
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  // Required choices the customer left out when adding to cart (shown together).
+  const [missingChoices, setMissingChoices] = useState<("size" | "color")[]>([]);
   const [customiser, setCustomiser] = useState<CustomiserState>(emptyCustomiser);
   const { user } = useAuth();
 
@@ -183,6 +185,44 @@ export default function ProductDetail() {
     };
   }, [product, selectedSize, selectedColor]);
 
+  // One size and one color are always chosen: on opening a product, the
+  // first variant in stock (else the first); changing one keeps the pair a
+  // real variant (another color in that size, or another size in that color).
+  const variantList = Array.isArray(product?.variants) ? (product!.variants as ProductVariant[]) : [];
+  const sizeOf = (v: ProductVariant) => v.options?.size || v.options?.Size || null;
+  const colorOf = (v: ProductVariant) => v.options?.color || v.options?.Color || null;
+  useEffect(() => {
+    if (!product) return;
+    setMissingChoices([]);
+    if (variantList.length > 0) {
+      const pick = variantList.find((v) => (v.stock ?? 0) > 0) ?? variantList[0];
+      setSelectedSize(sizeOf(pick));
+      setSelectedColor(colorOf(pick));
+    } else {
+      const obj = product.variants as unknown as { sizes?: string[]; colors?: string[] } | null;
+      setSelectedSize(obj?.sizes?.[0] ?? null);
+      setSelectedColor(obj?.colors?.[0] ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+
+  const chooseSize = (size: string) => {
+    setSelectedSize(size);
+    setMissingChoices((m) => m.filter((x) => x !== "size"));
+    if (variantList.length && selectedColor && !variantList.some((v) => sizeOf(v) === size && colorOf(v) === selectedColor)) {
+      const alt = variantList.find((v) => sizeOf(v) === size && (v.stock ?? 0) > 0) ?? variantList.find((v) => sizeOf(v) === size);
+      setSelectedColor(alt ? colorOf(alt) : null);
+    }
+  };
+  const chooseColor = (color: string) => {
+    setSelectedColor(color);
+    setMissingChoices((m) => m.filter((x) => x !== "color"));
+    if (variantList.length && selectedSize && !variantList.some((v) => colorOf(v) === color && sizeOf(v) === selectedSize)) {
+      const alt = variantList.find((v) => colorOf(v) === color && (v.stock ?? 0) > 0) ?? variantList.find((v) => colorOf(v) === color);
+      setSelectedSize(alt ? sizeOf(alt) : null);
+    }
+  };
+
   // Get current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product?.price || 0;
   // (Off while customisation is hidden - nothing to customise, no panel.)
@@ -211,12 +251,22 @@ export default function ProductDetail() {
       toast.error("Product not available");
       return false;
     }
-    if (availableSizes.length > 0 && !selectedSize) {
-      toast.error("Please select a size");
-      return false;
+    // Size and color are required wherever the product has them - every
+    // missing one is flagged at once, not one prompt at a time.
+    const missing: ("size" | "color")[] = [
+      ...(availableSizes.length > 0 && !selectedSize ? (["size"] as const) : []),
+      ...(availableColors.length > 0 && !selectedColor ? (["color"] as const) : []),
+    ];
+    if (missing.length === 0 && variantList.length > 0 && !selectedVariant) {
+      // The chosen pair isn't a variant of this product.
+      missing.push(...(availableSizes.length ? (["size"] as const) : []), ...(availableColors.length ? (["color"] as const) : []));
     }
-    if (availableColors.length > 0 && !selectedColor) {
-      toast.error("Please select a color");
+    if (missing.length > 0) {
+      setMissingChoices(missing);
+      toast.error(
+        missing.length === 2 ? "Please select a size and a color" : missing[0] === "size" ? "Please select a size" : "Please select a color",
+      );
+      document.getElementById(`choose-${missing[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return false;
     }
 
@@ -430,8 +480,10 @@ export default function ProductDetail() {
                 label="Color"
                 options={availableColors}
                 selected={selectedColor}
-                onSelect={setSelectedColor}
+                onSelect={chooseColor}
                 type="color"
+                id="choose-color"
+                error={missingChoices.includes("color") ? "Please select a color" : null}
               />
             )}
 
@@ -443,8 +495,10 @@ export default function ProductDetail() {
                     label="Size"
                     options={availableSizes}
                     selected={selectedSize}
-                    onSelect={setSelectedSize}
+                    onSelect={chooseSize}
                     type="size"
+                    id="choose-size"
+                    error={missingChoices.includes("size") ? "Please select a size" : null}
                   />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -452,7 +506,7 @@ export default function ProductDetail() {
                   <SizeRecommender
                     productId={product.id}
                     availableSizes={availableSizes}
-                    onSizeRecommended={setSelectedSize}
+                    onSizeRecommended={chooseSize}
                   />
                 </div>
               </div>
