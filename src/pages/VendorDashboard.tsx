@@ -68,7 +68,8 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
-import { ExternalLink, XCircle } from "lucide-react";
+import { ExternalLink, Ruler, XCircle } from "lucide-react";
+import { VendorSizeCharts } from "@/components/vendor/VendorSizeCharts";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import type { AiContentStatus } from "@/lib/aiContent";
@@ -605,7 +606,7 @@ export default function VendorDashboard() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-4xl grid-cols-7">
+          <TabsList className="grid w-full max-w-5xl grid-cols-8">
             <TabsTrigger value="dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -626,6 +627,10 @@ export default function VendorDashboard() {
             <TabsTrigger value="products" className="flex items-center gap-1">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Products</span>
+            </TabsTrigger>
+            <TabsTrigger value="size-charts" className="flex items-center gap-1">
+              <Ruler className="h-4 w-4" />
+              <span className="hidden sm:inline">Size charts</span>
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-1">
               <ShoppingCart className="h-4 w-4" />
@@ -902,6 +907,10 @@ export default function VendorDashboard() {
           </TabsContent>
 
           {/* Orders Tab */}
+          <TabsContent value="size-charts">
+            <VendorSizeCharts vendorId={vendor.id} />
+          </TabsContent>
+
           <TabsContent value="orders">
             <Card>
               <CardHeader>

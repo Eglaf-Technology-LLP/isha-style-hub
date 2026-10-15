@@ -502,7 +502,7 @@ export default function ProductDetail() {
                   />
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <SizeGuideModal categoryId={product.category_id} />
+                  <SizeGuideModal categoryId={product.category_id} vendorId={product.vendor_id} />
                   <SizeRecommender
                     productId={product.id}
                     availableSizes={availableSizes}

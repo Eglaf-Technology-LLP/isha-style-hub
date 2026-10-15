@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { SizeChartTemplateButton } from "@/components/admin/SizeChartTemplateDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -356,6 +357,7 @@ export function CategoryManagement() {
                       })()}
                     </div>
                     <div className="flex items-center gap-1">
+                      <SizeChartTemplateButton categoryId={category.id} categoryName={category.name} />
                       <Dialog
                         open={editingCategory?.id === category.id}
                         onOpenChange={(open) => {

@@ -2341,6 +2341,7 @@ export type Database = {
           measurements: Json
           name: string
           sizes: Json
+          unit: string
           updated_at: string
         }
         Insert: {
@@ -2350,6 +2351,7 @@ export type Database = {
           measurements?: Json
           name: string
           sizes?: Json
+          unit?: string
           updated_at?: string
         }
         Update: {
@@ -2359,6 +2361,7 @@ export type Database = {
           measurements?: Json
           name?: string
           sizes?: Json
+          unit?: string
           updated_at?: string
         }
         Relationships: [
@@ -3076,6 +3079,48 @@ export type Database = {
             foreignKeyName: "vendor_quality_tags_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: true
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_size_charts: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          values: Json
+          vendor_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          values?: Json
+          vendor_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          values?: Json
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_size_charts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_size_charts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
