@@ -35,6 +35,7 @@ import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
+import { AI_SIZE_FINDER_ENABLED, VIRTUAL_TRY_ON_ENABLED } from "@/lib/aiFeatures";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
@@ -503,11 +504,13 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <SizeGuideModal categoryId={product.category_id} vendorId={product.vendor_id} />
-                  <SizeRecommender
-                    productId={product.id}
-                    availableSizes={availableSizes}
-                    onSizeRecommended={chooseSize}
-                  />
+                  {AI_SIZE_FINDER_ENABLED && (
+                    <SizeRecommender
+                      productId={product.id}
+                      availableSizes={availableSizes}
+                      onSizeRecommended={chooseSize}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -580,11 +583,13 @@ export default function ProductDetail() {
               </div>
             </div>
 
-            {/* Virtual Try-On */}
-            <VirtualTryOn
-              productName={product.name}
-              productImageUrl={product.images?.[0]}
-            />
+            {/* Virtual Try-On (hidden for now - src/lib/aiFeatures.ts) */}
+            {VIRTUAL_TRY_ON_ENABLED && (
+              <VirtualTryOn
+                productName={product.name}
+                productImageUrl={product.images?.[0]}
+              />
+            )}
 
 
             {/* Stock Notification for Out of Stock */}
