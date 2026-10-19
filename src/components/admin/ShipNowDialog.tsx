@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption, ShipDestination } from "@/hooks/useShipments";
+import { formatWeightKg } from "@/lib/weight";
 
 interface ShipNowDialogProps {
   vendorOrderId: string;
@@ -20,7 +21,7 @@ interface ShipNowDialogProps {
   checkServiceability: (
     vendorOrderId: string,
     returnRequestId?: string,
-  ) => Promise<{ couriers: CourierOption[]; isCod: boolean; destination?: ShipDestination } | null>;
+  ) => Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; destination?: ShipDestination } | null>;
   shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null, returnRequestId?: string) => Promise<boolean>;
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
@@ -45,6 +46,7 @@ export function ShipNowDialog({
   const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
   const [isCod, setIsCod] = useState(false);
   const [destination, setDestination] = useState<ShipDestination | null>(null);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
 
@@ -59,6 +61,7 @@ export function ShipNowDialog({
       setCouriers(result.couriers);
       setIsCod(result.isCod);
       setDestination(result.destination ?? null);
+      setWeightKg(result.weightKg ?? null);
       setSelectedCourierId(result.couriers[0]?.courierId ?? null);
     } else {
       setOpen(false);
@@ -111,6 +114,15 @@ export function ShipNowDialog({
                 Ships to <span className="font-medium">{destination.name}</span>
                 {destination.city ? `, ${destination.city}` : ""} ({destination.pincode}). We check it there and send
                 it on to the customer{returnRequestId ? "" : " together with the rest of their order"}.
+              </p>
+            )}
+            {weightKg != null && (
+              <p className="text-sm -mt-2">
+                Parcel weight for these rates: <span className="font-medium">{formatWeightKg(weightKg)}</span>
+                <span className="block text-xs text-muted-foreground">
+                  From each product's weight × quantity (300 g where a product has none). Wrong? Correct the product's
+                  weight first - the fare depends on it.
+                </span>
               </p>
             )}
             <p className="text-xs text-muted-foreground -mt-2">

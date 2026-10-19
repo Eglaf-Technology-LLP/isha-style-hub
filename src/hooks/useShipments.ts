@@ -83,10 +83,12 @@ export function useShipments(vendorOrderIds: string[]) {
   const checkServiceability = async (
     vendorOrderId: string,
     returnRequestId?: string,
-  ): Promise<{ couriers: CourierOption[]; isCod: boolean; destination?: ShipDestination } | null> => {
+  ): Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; destination?: ShipDestination } | null> => {
     const { data, errorMessage: msg } = await invokeEdgeFunction<{
       couriers: CourierOption[];
       isCod: boolean;
+      // The parcel weight these fares are for (from the products' weights).
+      weightKg?: number;
       destination?: ShipDestination;
     }>("shiprocket-check-serviceability", { vendor_order_id: vendorOrderId, return_request_id: returnRequestId });
     if (msg) {

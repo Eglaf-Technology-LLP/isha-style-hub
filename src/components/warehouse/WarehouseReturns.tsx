@@ -322,7 +322,7 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
                           title={`Send back to ${sb.vendor_name}`}
                           description="From the warehouse to the boutique's pickup address."
                           loadRates={async () => {
-                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean }>("parcel_rates", { send_back_id: sb.id });
+                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number }>("parcel_rates", { send_back_id: sb.id });
                             return res && res.couriers ? res : null;
                           }}
                           onBook={async (courierId, etd) => {

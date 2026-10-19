@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WeightInput } from "@/components/WeightInput";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -362,34 +363,45 @@ export function VendorProductDialog({
               Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
             </Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <Input
-                type="number"
-                min="0"
-                placeholder="Weight (g)"
-                value={form.weight_grams}
-                onChange={(e) => set("weight_grams", e.target.value)}
-              />
-              <Input
-                type="number"
-                min="0"
-                placeholder="Length (cm)"
-                value={form.length_cm}
-                onChange={(e) => set("length_cm", e.target.value)}
-              />
-              <Input
-                type="number"
-                min="0"
-                placeholder="Breadth (cm)"
-                value={form.breadth_cm}
-                onChange={(e) => set("breadth_cm", e.target.value)}
-              />
-              <Input
-                type="number"
-                min="0"
-                placeholder="Height (cm)"
-                value={form.height_cm}
-                onChange={(e) => set("height_cm", e.target.value)}
-              />
+              <div className="space-y-1 col-span-2 sm:col-span-1">
+                <Label htmlFor="vp-weight" className="text-xs">Weight (one piece, packed)</Label>
+                <WeightInput
+                  id="vp-weight"
+                  grams={form.weight_grams ? Number(form.weight_grams) : null}
+                  onChange={(g) => set("weight_grams", g == null ? "" : String(g))}
+                  warnAboveGrams={10000}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="vp-length" className="text-xs">Length (cm)</Label>
+                <Input
+                  id="vp-length"
+                  type="number"
+                  min="0"
+                  value={form.length_cm}
+                  onChange={(e) => set("length_cm", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="vp-breadth" className="text-xs">Breadth (cm)</Label>
+                <Input
+                  id="vp-breadth"
+                  type="number"
+                  min="0"
+                  value={form.breadth_cm}
+                  onChange={(e) => set("breadth_cm", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="vp-height" className="text-xs">Height (cm)</Label>
+                <Input
+                  id="vp-height"
+                  type="number"
+                  min="0"
+                  value={form.height_cm}
+                  onChange={(e) => set("height_cm", e.target.value)}
+                />
+              </div>
             </div>
           </div>
 

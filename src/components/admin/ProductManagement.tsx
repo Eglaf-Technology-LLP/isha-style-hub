@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { WeightInput } from "@/components/WeightInput";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -439,55 +440,61 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         <Label className="text-sm text-muted-foreground">
           Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
         </Label>
-        <div className="grid grid-cols-4 gap-2">
-          <Input
-            type="number"
-            min="0"
-            placeholder="Weight (g)"
-            value={productForm.weight_grams ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                weight_grams: e.target.value ? parseInt(e.target.value) : null,
-              }))
-            }
-          />
-          <Input
-            type="number"
-            min="0"
-            placeholder="Length (cm)"
-            value={productForm.length_cm ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                length_cm: e.target.value ? parseFloat(e.target.value) : null,
-              }))
-            }
-          />
-          <Input
-            type="number"
-            min="0"
-            placeholder="Breadth (cm)"
-            value={productForm.breadth_cm ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                breadth_cm: e.target.value ? parseFloat(e.target.value) : null,
-              }))
-            }
-          />
-          <Input
-            type="number"
-            min="0"
-            placeholder="Height (cm)"
-            value={productForm.height_cm ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                height_cm: e.target.value ? parseFloat(e.target.value) : null,
-              }))
-            }
-          />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="space-y-1 col-span-2 sm:col-span-1">
+            <Label htmlFor={isEdit ? "edit-weight" : "add-weight"} className="text-xs">Weight (one piece, packed)</Label>
+            <WeightInput
+              id={isEdit ? "edit-weight" : "add-weight"}
+              grams={productForm.weight_grams ?? null}
+              onChange={(g) => setProductForm((prev) => ({ ...prev, weight_grams: g }))}
+              warnAboveGrams={10000}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={isEdit ? "edit-length" : "add-length"} className="text-xs">Length (cm)</Label>
+            <Input
+              id={isEdit ? "edit-length" : "add-length"}
+              type="number"
+              min="0"
+              value={productForm.length_cm ?? ""}
+              onChange={(e) =>
+                setProductForm((prev) => ({
+                  ...prev,
+                  length_cm: e.target.value ? parseFloat(e.target.value) : null,
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={isEdit ? "edit-breadth" : "add-breadth"} className="text-xs">Breadth (cm)</Label>
+            <Input
+              id={isEdit ? "edit-breadth" : "add-breadth"}
+              type="number"
+              min="0"
+              value={productForm.breadth_cm ?? ""}
+              onChange={(e) =>
+                setProductForm((prev) => ({
+                  ...prev,
+                  breadth_cm: e.target.value ? parseFloat(e.target.value) : null,
+                }))
+              }
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor={isEdit ? "edit-height" : "add-height"} className="text-xs">Height (cm)</Label>
+            <Input
+              id={isEdit ? "edit-height" : "add-height"}
+              type="number"
+              min="0"
+              value={productForm.height_cm ?? ""}
+              onChange={(e) =>
+                setProductForm((prev) => ({
+                  ...prev,
+                  height_cm: e.target.value ? parseFloat(e.target.value) : null,
+                }))
+              }
+            />
+          </div>
         </div>
       </div>
 

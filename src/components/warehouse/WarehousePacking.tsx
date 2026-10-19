@@ -17,6 +17,7 @@ import {
   vendorOrderStatusLabel,
 } from "@/lib/warehouse";
 import { CourierPickerDialog } from "./CourierPickerDialog";
+import { formatWeightKg } from "@/lib/weight";
 import { PackParcelDialog } from "./PackParcelDialog";
 import { PackingSlipButton, PackingSlipData } from "./PackingSlip";
 import { PromptDialog } from "./PromptDialog";
@@ -93,7 +94,7 @@ function slipFor(
 }
 
 const ratesLoader = (dispatchId: string) => async () => {
-  const res = await runAction<{ couriers: CourierOption[]; isCod: boolean }>("parcel_rates", { dispatch_id: dispatchId });
+  const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number }>("parcel_rates", { dispatch_id: dispatchId });
   return res && res.couriers ? res : null;
 };
 
@@ -116,7 +117,7 @@ function PackedParcel({
     <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm font-medium">
-          {dispatch.purpose === "order" ? "Packed parcel" : purposeLabels[dispatch.purpose]} · {dispatch.weight_kg} kg ·{" "}
+          {dispatch.purpose === "order" ? "Packed parcel" : purposeLabels[dispatch.purpose]} · {formatWeightKg(dispatch.weight_kg)} ·{" "}
           {dispatch.length_cm}×{dispatch.breadth_cm}×{dispatch.height_cm} cm
         </p>
         <Badge variant="outline">Not booked yet</Badge>
@@ -429,7 +430,7 @@ export function DispatchedTab({ data, isAdmin, warehouse }: WarehouseViewProps) 
                       <TableCell className="text-xs">
                         {purposeLabels[d.purpose]}
                         <div className="text-muted-foreground">
-                          {d.weight_kg} kg · {formatShortDate(d.packed_at)}
+                          {formatWeightKg(d.weight_kg)} · {formatShortDate(d.packed_at)}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, Printer } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { formatWeightKg } from "@/lib/weight";
 
 export interface PackingSlipData {
   title: string; // "Packing slip", "Exchange replacement", ...
@@ -85,7 +86,7 @@ export function packingSlipHtml(d: PackingSlipData, autoPrint = false): string {
     <div class="box"><h2>From</h2>${d.warehouse ? `<strong>${esc(d.warehouse.name)}</strong><br>${addressLines(d.warehouse.address)}` : "AllBoutiqs"}</div>
     <div class="box"><h2>Payment</h2>
       ${d.codAmount != null ? `<div class="pay cod">Cash on Delivery<br>Collect &#8377;${esc(Math.round(d.codAmount).toLocaleString("en-IN"))}</div>` : `<div class="pay">Prepaid<br><span class="muted">Nothing to collect</span></div>`}
-      <div class="muted" style="margin-top:8px">Parcel: ${d.parcel.weightKg} kg &middot; ${d.parcel.lengthCm}&times;${d.parcel.breadthCm}&times;${d.parcel.heightCm} cm</div>
+      <div class="muted" style="margin-top:8px">Parcel: ${esc(formatWeightKg(d.parcel.weightKg))} &middot; ${d.parcel.lengthCm}&times;${d.parcel.breadthCm}&times;${d.parcel.heightCm} cm</div>
       ${d.courier?.awb ? `<div class="muted">${esc(d.courier.name ?? "Courier")} &middot; AWB ${esc(d.courier.awb)}</div>` : ""}
     </div>
   </div>

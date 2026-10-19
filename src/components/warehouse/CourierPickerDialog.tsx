@@ -13,13 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
+import { formatWeightKg } from "@/lib/weight";
 
 interface CourierPickerDialogProps {
   triggerLabel: string;
   title: string;
   description: string;
   disabled?: boolean;
-  loadRates: () => Promise<{ couriers: CourierOption[]; isCod: boolean } | null>;
+  loadRates: () => Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number } | null>;
   onBook: (courierId: number, etd: string | null) => Promise<boolean>;
 }
 
@@ -32,6 +33,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
   const [booking, setBooking] = useState(false);
   const [couriers, setCouriers] = useState<CourierOption[]>([]);
   const [isCod, setIsCod] = useState(false);
+  const [weightKg, setWeightKg] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
 
   const openDialog = async () => {
@@ -45,6 +47,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
     }
     setCouriers(result.couriers);
     setIsCod(result.isCod);
+    setWeightKg(result.weightKg ?? null);
     setSelected(result.couriers.find((c) => c.recommended)?.courierId ?? result.couriers[0]?.courierId ?? null);
   };
 
@@ -73,6 +76,12 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
           </div>
         ) : (
           <>
+            {weightKg != null && (
+              <p className="text-sm -mt-2">
+                Parcel weight for these rates: <span className="font-medium">{formatWeightKg(weightKg)}</span>
+                <span className="block text-xs text-muted-foreground">Wrong? Cancel and fix it with Edit size first.</span>
+              </p>
+            )}
             <p className="text-xs text-muted-foreground -mt-2">
               {isCod
                 ? "Cash on Delivery - rates include the courier's COD charge. The courier collects the amount on the packing slip."

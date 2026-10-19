@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WeightInput } from "@/components/WeightInput";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -33,14 +34,17 @@ interface PackParcelDialogProps {
 export function PackParcelDialog({ triggerLabel, title, description, initial, variant = "default", onSubmit }: PackParcelDialogProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Weight is kept in grams on screen (with a g / kg choice) and sent as kg.
+  const [weightGrams, setWeightGrams] = useState<number | null>(
+    initial?.weightKg != null ? Math.round(Number(initial.weightKg) * 1000) : null,
+  );
   const [form, setForm] = useState({
-    weightKg: String(initial?.weightKg ?? ""),
     lengthCm: String(initial?.lengthCm ?? ""),
     breadthCm: String(initial?.breadthCm ?? ""),
     heightCm: String(initial?.heightCm ?? ""),
   });
   const values = {
-    weightKg: Number(form.weightKg),
+    weightKg: (weightGrams ?? 0) / 1000,
     lengthCm: Number(form.lengthCm),
     breadthCm: Number(form.breadthCm),
     heightCm: Number(form.heightCm),
@@ -81,7 +85,10 @@ export function PackParcelDialog({ triggerLabel, title, description, initial, va
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          {field("weightKg", "Weight (kg)", "0.01")}
+          <div className="space-y-1.5 col-span-2">
+            <Label htmlFor="pp-weight">Weight of the packed parcel</Label>
+            <WeightInput id="pp-weight" grams={weightGrams} onChange={setWeightGrams} warnAboveGrams={30000} />
+          </div>
           {field("lengthCm", "Length (cm)", "1")}
           {field("breadthCm", "Breadth (cm)", "1")}
           {field("heightCm", "Height (cm)", "1")}
