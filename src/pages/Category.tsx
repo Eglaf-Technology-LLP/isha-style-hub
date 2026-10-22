@@ -1,273 +1,112 @@
-import { useParams } from "react-router-dom";
-import { useEffect, useState, useMemo } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ChevronRight } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { ProductCard } from "@/components/ProductCard";
-import { ProductCardSkeleton } from "@/components/ProductCardSkeleton";
-import { FeaturesSection } from "@/components/FeaturesSection";
-import { ProductFilters, FilterState } from "@/components/ProductFilters";
-import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
-import { useProducts, Product, ProductVariant } from "@/hooks/useProducts";
-import { useCategories } from "@/hooks/useCategories";
-import { shuffleArray } from "@/lib/shuffleArray";
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-}
+import { useStoreBoutiques, useStoreCategories, useStoreProducts } from "@/hooks/useStorefront";
+import { ProductListing } from "@/components/storefront/listing/ProductListing";
+import { SmartImage } from "@/components/storefront/SmartImage";
+import { cn } from "@/lib/utils";
 
 export default function Category() {
   const { slug } = useParams<{ slug: string }>();
-  const [category, setCategory] = useState<Category | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { products, loading: productsLoading } = useProducts();
-  const { categories } = useCategories();
+  const [params] = useSearchParams();
+  const { data: products = [], isLoading } = useStoreProducts();
+  const { data: categories = [], isLoading: categoriesLoading } = useStoreCategories();
+  const { data: boutiques = [] } = useStoreBoutiques();
 
-  // Randomized once per fetch (not re-shuffled on every filter/search
-  // tweak - only when the underlying product list itself changes), same
-  // "don't show the same fixed lineup every visit" fix as the homepage's
-  // Featured Products. Only actually visible under the default "Best
-  // Selling" sort - Newest/Price/Name are explicit user choices and stay
-  // exactly as deterministic as picking them implies.
-  const shuffledProducts = useMemo(() => shuffleArray(products), [products]);
+  const isAll = !slug || slug === "all";
+  const category = isAll ? null : categories.find((c) => c.slug === slug) ?? null;
+  const notFound = !isAll && !categoriesLoading && !category;
 
-  const isAllProducts = slug === "all" || !slug;
+  const search = params.get("search") ?? params.get("q") ?? "";
+  const boutiqueId = params.get("boutique");
+  const boutique = boutiqueId && !boutiqueId.includes(",") ? boutiques.find((b) => b.id === boutiqueId) : null;
 
-  const defaultFilters: FilterState = {
-    search: "",
-    priceRange: [0, 50000],
-    categories: [],
-    sizes: [],
-    colors: [],
-    brands: [],
-    inStock: false,
-    sortBy: "popular",
-  };
-
-  // Filter state
-  const [filters, setFilters] = useState<FilterState>(defaultFilters);
-
-  // Reset filters when navigating to a different category
-  useEffect(() => {
-    setFilters(defaultFilters);
-  }, [slug]);
-
-  // Get products scoped to the current category
-  const categoryProducts = useMemo(() => {
-    if (isAllProducts) return products;
-    return products.filter((p) => p.category_id === category?.id);
-  }, [products, isAllProducts, category]);
-
-  // Extract available sizes, colors and brands (vendors) from category-scoped products only
-  const { availableSizes, availableColors, availableBrands, maxPrice } = useMemo(() => {
-    const sizes = new Set<string>();
-    const colors = new Set<string>();
-    const brands = new Map<string, string>();
-    let max = 0;
-
-    categoryProducts.forEach((product) => {
-      if (product.price > max) max = product.price;
-      if (product.vendor_id && product.vendor?.name) {
-        brands.set(product.vendor_id, product.vendor.name);
-      }
-      if (product.variants) {
-        if (Array.isArray(product.variants)) {
-          product.variants.forEach((variant: ProductVariant) => {
-            if (variant.options?.size) sizes.add(variant.options.size);
-            if (variant.options?.Size) sizes.add(variant.options.Size);
-            if (variant.options?.color) colors.add(variant.options.color);
-            if (variant.options?.Color) colors.add(variant.options.Color);
-          });
-        } else {
-          const variantObj = product.variants as unknown as { sizes?: string[]; colors?: string[] };
-          if (variantObj.sizes) variantObj.sizes.forEach(s => sizes.add(s));
-          if (variantObj.colors) variantObj.colors.forEach(c => colors.add(c));
-        }
-      }
-    });
-
-    return {
-      availableSizes: Array.from(sizes),
-      availableColors: Array.from(colors),
-      availableBrands: Array.from(brands.entries())
-        .map(([id, name]) => ({ id, name }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-      maxPrice: Math.ceil(max / 1000) * 1000 || 50000,
-    };
-  }, [categoryProducts]);
-
-  useEffect(() => {
-    async function fetchCategory() {
-      if (!slug || slug === "all") {
-        setCategory(null);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("categories")
-          .select("*")
-          .eq("slug", slug)
-          .single();
-
-        if (error) throw error;
-        setCategory(data);
-      } catch (error) {
-        console.error("Error fetching category:", error);
-        setCategory(null);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchCategory();
-  }, [slug]);
-
-  // Filter products based on category and filters
-  const filteredProducts = useMemo(() => {
-    return shuffledProducts
-      .filter((p) => {
-        // On a specific category page (e.g. /category/lehenga), the
-        // page's own category is always included so the page never
-        // shows an empty grid; checking other categories in the
-        // sidebar broadens the view instead of ANDing to zero results.
-        if (isAllProducts && filters.categories.length === 0) return true;
-        const allowed = new Set(
-          [...(isAllProducts ? [] : [category?.id]), ...filters.categories].filter(Boolean)
-        );
-        if (allowed.size === 0) return true;
-        return !!p.category_id && allowed.has(p.category_id);
-      })
-      .filter((p) => p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1])
-      .filter((p) => {
-        if (filters.search) {
-          return p.name.toLowerCase().includes(filters.search.toLowerCase());
-        }
-        return true;
-      })
-      .filter((p) => {
-        if (filters.inStock) {
-          return p.stock_quantity > 0;
-        }
-        return true;
-      })
-      .filter((p) => {
-        if (filters.brands.length > 0) {
-          return p.vendor_id ? filters.brands.includes(p.vendor_id) : false;
-        }
-        return true;
-      })
-      .filter((p) => {
-        if (filters.sizes.length === 0) return true;
-        return (p.variants || []).some((v) => {
-          const size = v.options?.size || v.options?.Size;
-          return size && filters.sizes.includes(size);
-        });
-      })
-      .filter((p) => {
-        if (filters.colors.length === 0) return true;
-        return (p.variants || []).some((v) => {
-          const color = v.options?.color || v.options?.Color;
-          return color && filters.colors.includes(color);
-        });
-      })
-      .sort((a, b) => {
-        switch (filters.sortBy) {
-          case "popular":
-            // No real "best selling" data to sort by - this is the default
-            // view, so it stays in the random order shuffledProducts
-            // already put it in (Array.sort is stable, so a 0 here leaves
-            // that order untouched) rather than a fake heuristic.
-            return 0;
-          case "price-low":
-            return a.price - b.price;
-          case "price-high":
-            return b.price - a.price;
-          case "name":
-            return a.name.localeCompare(b.name);
-          case "newest":
-          default:
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        }
-      });
-  }, [shuffledProducts, isAllProducts, category, filters]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex justify-center items-center py-40">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-        <Footer />
-      </div>
-    );
-  }
+  const title = search
+    ? `“${search}”`
+    : category?.name ?? (params.get("sale") === "1" ? "The Sale" : params.get("sort") === "newest" ? "New In" : "Shop All");
+  const eyebrow = search ? "Search results" : category ? "Collection" : "AllBoutiqs";
+  const description = search
+    ? "Pieces matching your search, from every boutique."
+    : category?.description ||
+      (category
+        ? `${category.name} from India's finest independent boutiques.`
+        : "Every piece from every boutique on AllBoutiqs, in one place.");
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
-      {/* Category Hero */}
-      <section className="bg-gradient-to-r from-primary/10 to-accent py-12 md:py-16">
-        <div className="container mx-auto px-4 text-center">
-          <span className="text-xs uppercase tracking-[0.2em] text-primary font-medium">
-            {isAllProducts ? "Full Collection" : "Curated Collection"}
-          </span>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold tracking-tight mt-2 mb-4">
-            {category?.name || "All Products"}
-          </h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            {category?.description || "Explore our complete collection"}
-          </p>
-        </div>
-      </section>
-
-      {/* Filters and Products */}
-      <div className="container mx-auto px-4 py-8">
-        <ProductFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-          availableSizes={availableSizes}
-          availableColors={availableColors}
-          availableBrands={availableBrands}
-          maxPrice={maxPrice}
-        />
-
-        {/* Products Grid */}
-        <main className="mt-6">
-          {productsLoading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <ProductCardSkeleton key={i} />
-              ))}
+      <main>
+        <section className="relative overflow-hidden border-b border-border bg-ivory">
+          {category?.image_url && (
+            <div className="absolute inset-y-0 right-0 hidden w-[42%] md:block">
+              <SmartImage src={category.image_url} alt={category.name} width={1000} className="h-full w-full object-cover" fallback={null} />
+              <div className="absolute inset-0 bg-gradient-to-r from-ivory via-ivory/20 to-transparent" />
             </div>
-          ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-muted-foreground">No products found matching your criteria</p>
-            </div>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground mb-4">
-                {filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+          )}
+          <div className="store-container relative py-10 md:py-16">
+            <nav aria-label="Breadcrumb" className="mb-6 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Link to="/" className="hover:text-foreground">
+                Home
+              </Link>
+              <ChevronRight className="h-3 w-3" />
+              {category || search ? (
+                <>
+                  <Link to="/category/all" className="hover:text-foreground">
+                    Shop
+                  </Link>
+                  <ChevronRight className="h-3 w-3" />
+                  <span className="text-foreground">{category?.name ?? "Search"}</span>
+                </>
+              ) : (
+                <span className="text-foreground">Shop</span>
+              )}
+            </nav>
+            <p className="eyebrow text-gold">{eyebrow}</p>
+            <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-[1.05] md:text-6xl">
+              {notFound ? "Collection not found" : title}
+              {boutique && <em className="block text-2xl text-primary md:text-3xl">by {boutique.name}</em>}
+            </h1>
+            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+              {notFound ? "This collection may have moved. Explore everything instead." : description}
+            </p>
+          </div>
+          {categories.length > 0 && (
+            <div className="store-container relative">
+              <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-6 sm:mx-0 sm:px-0">
+                <CategoryPill to="/category/all" label="All" active={isAll && !search} />
+                {categories.map((c) => (
+                  <CategoryPill key={c.id} to={`/category/${c.slug}`} label={c.name} active={c.slug === slug} />
                 ))}
               </div>
-            </>
+            </div>
           )}
-        </main>
-      </div>
+        </section>
 
-      <FeaturesSection />
+        <ProductListing
+          products={notFound ? [] : products}
+          loading={isLoading || categoriesLoading}
+          categories={categories}
+          boutiques={boutiques}
+          scopeCategoryId={category?.id ?? null}
+          emptyText={search ? `Nothing matches “${search}” yet - try another word.` : undefined}
+        />
+      </main>
       <Footer />
     </div>
+  );
+}
+
+function CategoryPill({ to, label, active }: { to: string; label: string; active: boolean }) {
+  return (
+    <Link
+      to={to}
+      className={cn(
+        "shrink-0 border px-4 py-2 text-[11px] font-medium uppercase tracking-[0.18em] transition-colors",
+        active ? "border-primary bg-primary text-primary-foreground" : "border-foreground/15 bg-background hover:border-primary hover:text-primary",
+      )}
+    >
+      {label}
+    </Link>
   );
 }

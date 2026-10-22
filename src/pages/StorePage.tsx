@@ -3,14 +3,14 @@ import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ProductCard } from "@/components/ProductCard";
 import { supabase } from "@/integrations/supabase/client";
-import { Product, mapDbVariant } from "@/hooks/useProducts";
-import { Loader2, Store, Truck, RotateCcw, Star, ShieldCheck } from "lucide-react";
+import { Loader2, RotateCcw, ShieldCheck, Star, Truck } from "lucide-react";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
+import { useStoreBoutiques, useStoreCategories, useStoreProducts } from "@/hooks/useStorefront";
+import { ProductListing } from "@/components/storefront/listing/ProductListing";
+import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
+import { formatINR } from "@/lib/format";
 
 interface StoreVendor {
   id: string;
@@ -34,8 +34,10 @@ export default function StorePage() {
   const { shippingCharged } = useCustomerShipping();
   const { slug } = useParams<{ slug: string }>();
   const [vendor, setVendor] = useState<StoreVendor | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const { data: allProducts = [], isLoading: productsLoading } = useStoreProducts();
+  const { data: categories = [] } = useStoreCategories();
+  const { data: boutiques = [] } = useStoreBoutiques();
 
   useEffect(() => {
     async function load() {
@@ -50,32 +52,8 @@ export default function StorePage() {
           .eq("slug", slug)
           .eq("status", "approved")
           .maybeSingle();
-
         if (error) throw error;
-        if (!v) {
-          setVendor(null);
-          return;
-        }
-        setVendor(v as StoreVendor);
-
-        const { data: prods } = await supabase
-          .from("products")
-          .select("*, product_variants(*)")
-          .eq("vendor_id", v.id)
-          .eq("is_active", true)
-          .eq("approval_status", "approved")
-          .order("created_at", { ascending: false });
-
-        setProducts(
-          (prods || []).map((p: any) => ({
-            ...p,
-            images: (p.images as string[]) || [],
-            variants: (p.product_variants || []).map(mapDbVariant),
-            // Every product on this page belongs to the same vendor - no
-            // need for a redundant join, the page already has it loaded.
-            vendor: { name: v.name },
-          }))
-        );
+        setVendor((v as StoreVendor) ?? null);
       } catch (e) {
         console.error("store load error:", e);
       } finally {
@@ -84,6 +62,8 @@ export default function StorePage() {
     }
     load();
   }, [slug]);
+
+  const products = vendor ? allProducts.filter((p) => p.vendor_id === vendor.id) : [];
 
   if (loading) {
     return (
@@ -101,13 +81,15 @@ export default function StorePage() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-24 text-center space-y-4">
-          <h1 className="text-3xl font-serif font-bold">Store not found</h1>
-          <p className="text-muted-foreground">
-            This store may be inactive or awaiting approval.
-          </p>
-          <Link to="/">
-            <Button>Back to home</Button>
+        <div className="store-container py-28 text-center">
+          <p className="eyebrow text-gold">Boutique</p>
+          <h1 className="mt-3 font-serif text-4xl">Boutique not found</h1>
+          <p className="mt-3 text-muted-foreground">This boutique may be inactive or awaiting approval.</p>
+          <Link
+            to="/boutiques"
+            className="mt-8 inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
+          >
+            See all boutiques
           </Link>
         </div>
         <Footer />
@@ -118,107 +100,78 @@ export default function StorePage() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
-      <div className="relative h-40 md:h-56 bg-secondary/40 overflow-hidden">
-        {vendor.banner_url && (
-          <img
-            src={vendor.banner_url}
-            alt={`${vendor.name} store banner`}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        )}
-      </div>
-
-      <div className="container mx-auto px-4">
-        <div className="-mt-10 md:-mt-12 relative flex flex-wrap items-end gap-4 pb-6">
-          <div className="h-20 w-20 md:h-24 md:w-24 rounded-xl bg-card border border-border flex items-center justify-center overflow-hidden shadow-sm">
-            {vendor.logo_url ? (
-              <img
-                src={vendor.logo_url}
-                alt={`${vendor.name} logo`}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <Store className="h-8 w-8 text-primary" />
-            )}
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl md:text-3xl font-serif font-bold">
-                {vendor.name}
-              </h1>
-              {vendor.is_verified && <VerifiedBoutiqueBadge />}
-              {vendor.is_founding && <FoundingBoutiqueBadge />}
-              {vendor.is_trusted && (
-                <Badge variant="secondary" className="gap-1">
-                  <ShieldCheck className="h-3 w-3" /> Trusted partner
-                </Badge>
-              )}
-              {!!vendor.rating && (
-                <Badge variant="outline" className="gap-1">
-                  <Star className="h-3 w-3 fill-current" /> {vendor.rating}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground font-mono mt-1">Boutique code: {vendor.boutique_code}</p>
-            {vendor.description && (
-              <p className="text-muted-foreground mt-1 max-w-2xl">
-                {vendor.description}
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid sm:grid-cols-2 gap-4 pb-8">
-          <div className="flex items-start gap-3 rounded-lg border border-border p-4">
-            <Truck className="h-5 w-5 text-primary mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium">Shipping</p>
-              <p className="text-muted-foreground">
-                {!shippingCharged ? (
-                  "Free shipping on all orders"
-                ) : (
-                  <>
-                    Flat ₹{Number(vendor.shipping_flat_rate).toFixed(0)} per order
-                    {vendor.free_shipping_threshold
-                      ? ` · Free above ₹${Number(vendor.free_shipping_threshold).toFixed(0)}`
-                      : ""}
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3 rounded-lg border border-border p-4">
-            <RotateCcw className="h-5 w-5 text-primary mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium">Returns</p>
-              <p className="text-muted-foreground">
-                {vendor.return_policy ||
-                  `${vendor.return_window_days}-day return window`}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <section className="pb-16">
-          <h2 className="text-xl font-serif font-bold mb-6">
-            Products ({products.length})
-          </h2>
-          {products.length === 0 ? (
-            <p className="text-muted-foreground py-12 text-center">
-              This store has no live products yet.
-            </p>
+      <main>
+        {/* Banner */}
+        <section className="relative h-56 overflow-hidden bg-maroon-deep md:h-80">
+          {vendor.banner_url ? (
+            <img src={vendor.banner_url} alt={`${vendor.name} banner`} className="h-full w-full object-cover" />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <BrandPlaceholder tone="dark" />
           )}
+          <div className="absolute inset-0 bg-gradient-to-t from-ink/60 to-transparent" />
         </section>
-      </div>
 
+        <section className="border-b border-border bg-ivory">
+          <div className="store-container">
+            <div className="relative -mt-14 flex flex-col gap-6 pb-10 md:-mt-16 md:flex-row md:items-end md:gap-8">
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-ivory bg-background shadow-md md:h-32 md:w-32">
+                {vendor.logo_url ? (
+                  <img src={vendor.logo_url} alt={`${vendor.name} logo`} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="font-serif text-5xl text-primary">{vendor.name.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="eyebrow text-gold">Boutique · {vendor.boutique_code}</p>
+                <h1 className="mt-2 font-serif text-4xl leading-tight md:text-5xl">{vendor.name}</h1>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {vendor.is_verified && <VerifiedBoutiqueBadge />}
+                  {vendor.is_founding && <FoundingBoutiqueBadge />}
+                  {vendor.is_trusted && (
+                    <span className="inline-flex items-center gap-1 border border-gold/40 px-2 py-0.5 text-[11px] uppercase tracking-[0.15em]">
+                      <ShieldCheck className="h-3 w-3 text-gold" /> Trusted partner
+                    </span>
+                  )}
+                  {!!vendor.rating && (
+                    <span className="inline-flex items-center gap-1 text-sm">
+                      <Star className="h-3.5 w-3.5 fill-gold text-gold" /> {vendor.rating}
+                    </span>
+                  )}
+                </div>
+                {vendor.description && <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">{vendor.description}</p>}
+              </div>
+              <div className="grid gap-3 text-sm md:w-80">
+                <div className="flex items-start gap-3">
+                  <Truck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                  <span className="text-muted-foreground">
+                    {!shippingCharged
+                      ? "Free shipping on every order"
+                      : `Shipping ${formatINR(vendor.shipping_flat_rate)}${vendor.free_shipping_threshold ? ` · free above ${formatINR(vendor.free_shipping_threshold)}` : ""}`}
+                  </span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                  <span className="text-muted-foreground">{vendor.return_policy || `${vendor.return_window_days}-day returns & exchanges`}</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                  <span className="text-muted-foreground">Quality-checked by AllBoutiqs before it ships</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <ProductListing
+          products={products}
+          loading={productsLoading}
+          categories={categories}
+          boutiques={boutiques}
+          scopeCategoryId={null}
+          hideBoutiques
+          emptyText={`${vendor.name} hasn't listed any pieces yet.`}
+        />
+      </main>
       <Footer />
     </div>
   );
