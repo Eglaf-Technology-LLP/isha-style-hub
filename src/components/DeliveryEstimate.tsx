@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Loader2, Truck, CircleX } from "lucide-react";
+import { Loader2, Truck, CircleX, MapPin } from "lucide-react";
 import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
@@ -76,30 +74,39 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
   }, [defaultAddress]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Input
-          placeholder="Enter pincode"
+    <div className="space-y-2.5">
+      <form
+        className="flex h-11 items-center border border-foreground/20 focus-within:border-foreground"
+        onSubmit={(e) => {
+          e.preventDefault();
+          check(pincode);
+        }}
+      >
+        <MapPin className="ml-3 h-4 w-4 shrink-0 text-muted-foreground" />
+        <input
+          inputMode="numeric"
+          autoComplete="postal-code"
+          aria-label="Delivery pincode"
+          placeholder="Enter delivery pincode"
           value={pincode}
           onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          className="w-32 h-9"
+          className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground"
         />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => check(pincode)}
+        <button
+          type="submit"
           disabled={checking || pincode.length !== 6}
+          className="h-full px-4 text-[11px] font-medium uppercase tracking-[0.2em] text-primary disabled:text-muted-foreground"
         >
           {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : "Check"}
-        </Button>
-      </div>
+        </button>
+      </form>
       {result &&
         (result.available && result.etaLabel ? (
-          <p className="text-sm text-green-700 flex items-center gap-1.5">
-            <Truck className="h-4 w-4" /> Get it by {result.etaLabel}
+          <p className="flex items-center gap-2 text-sm text-emerald-700">
+            <Truck className="h-4 w-4" /> Get it by <strong className="font-medium">{result.etaLabel}</strong>
           </p>
         ) : (
-          <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <CircleX className="h-4 w-4" /> Not deliverable to this pincode
           </p>
         ))}

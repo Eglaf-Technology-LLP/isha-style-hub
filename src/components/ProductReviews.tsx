@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Star, ThumbsUp, Trash2, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useProductReviews, ReviewFormData } from "@/hooks/useProductReviews";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -26,8 +24,8 @@ function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: {
   size?: "sm" | "md" | "lg";
 }) {
   const sizeClasses = {
-    sm: "h-3 w-3",
-    md: "h-5 w-5",
+    sm: "h-3.5 w-3.5",
+    md: "h-4 w-4",
     lg: "h-6 w-6",
   };
 
@@ -48,8 +46,8 @@ function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: {
             className={cn(
               sizeClasses[size],
               star <= rating
-                ? "fill-yellow-400 text-yellow-400"
-                : "text-muted-foreground"
+                ? "fill-gold text-gold"
+                : "text-foreground/20"
             )}
           />
         </button>
@@ -101,179 +99,201 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
   };
 
   if (loading) {
-    return <div className="animate-pulse h-48 bg-muted rounded-lg" />;
+    return <div className="h-48 animate-pulse bg-ivory" />;
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-semibold">Customer Reviews</h2>
+    <div className="grid gap-12 lg:grid-cols-[320px_1fr] lg:gap-20">
+      {/* Summary */}
+      <div>
+        <p className="eyebrow text-gold">Reviews</p>
+        <h2 className="mt-3 font-serif text-3xl leading-tight md:text-[2.6rem]">
+          Customer <em className="font-normal text-primary">reviews</em>
+        </h2>
 
-      {/* Summary Section */}
-      <div className="grid md:grid-cols-2 gap-6 p-6 bg-muted/30 rounded-lg">
-        <div className="flex flex-col items-center justify-center">
-          <div className="text-4xl font-bold">{averageRating.toFixed(1)}</div>
-          <StarRating rating={Math.round(averageRating)} readonly size="lg" />
-          <div className="text-sm text-muted-foreground mt-1">
-            Based on {reviews.length} review{reviews.length !== 1 ? "s" : ""}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          {[5, 4, 3, 2, 1].map((star) => (
-            <div key={star} className="flex items-center gap-2">
-              <span className="text-sm w-3">{star}</span>
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-              <Progress
-                value={reviews.length ? (distribution[star as keyof typeof distribution] / reviews.length) * 100 : 0}
-                className="h-2 flex-1"
-              />
-              <span className="text-sm text-muted-foreground w-8">
-                {distribution[star as keyof typeof distribution]}
-              </span>
+        {reviews.length > 0 && (
+          <>
+            <div className="mt-8 flex items-end gap-4">
+              <span className="font-serif text-6xl leading-none">{averageRating.toFixed(1)}</span>
+              <div className="pb-1">
+                <StarRating rating={Math.round(averageRating)} readonly size="md" />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Based on {reviews.length} review{reviews.length !== 1 ? "s" : ""}
+                </p>
+              </div>
             </div>
-          ))}
-        </div>
+
+            <div className="mt-6 space-y-2">
+              {[5, 4, 3, 2, 1].map((star) => {
+                const count = distribution[star as keyof typeof distribution];
+                return (
+                  <div key={star} className="flex items-center gap-3 text-xs">
+                    <span className="w-8 tabular-nums text-muted-foreground">{star} ★</span>
+                    <div className="h-1 flex-1 bg-foreground/10">
+                      <div className="h-1 bg-gold" style={{ width: `${(count / reviews.length) * 100}%` }} />
+                    </div>
+                    <span className="w-6 text-right tabular-nums text-muted-foreground">{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {user && !userReview && !showForm && (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="mt-8 h-12 w-full border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
+          >
+            Write a review
+          </button>
+        )}
+        {!user && (
+          <Link
+            to="/account"
+            className="mt-8 flex h-12 w-full items-center justify-center border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
+          >
+            Sign in to write a review
+          </Link>
+        )}
       </div>
 
-      {/* Write Review Button/Form */}
-      {user && !userReview && (
-        <div className="border rounded-lg p-4">
-          {!showForm ? (
-            <Button onClick={() => setShowForm(true)}>Write a Review</Button>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Your Rating</label>
-                <StarRating
-                  rating={formData.rating}
-                  onRatingChange={(rating) => setFormData({ ...formData, rating })}
-                  size="lg"
-                />
-              </div>
+      <div className="min-w-0">
+        {/* Write Review Form */}
+        {user && !userReview && showForm && (
+          <form onSubmit={handleSubmit} className="mb-10 space-y-5 border border-border bg-ivory p-6">
+            <p className="font-serif text-2xl">Your review</p>
+            <div>
+              <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.2em]">Your rating</label>
+              <StarRating
+                rating={formData.rating}
+                onRatingChange={(rating) => setFormData({ ...formData, rating })}
+                size="lg"
+              />
+            </div>
 
-              <div>
-                <label className="text-sm font-medium">Title (optional)</label>
-                <Input
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Summarize your experience"
-                />
-              </div>
+            <div>
+              <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.2em]">Title (optional)</label>
+              <Input
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Summarize your experience"
+                className="rounded-none bg-background"
+              />
+            </div>
 
-              <div>
-                <label className="text-sm font-medium">Review (optional)</label>
-                <Textarea
-                  value={formData.review_text}
-                  onChange={(e) => setFormData({ ...formData, review_text: e.target.value })}
-                  placeholder="Tell others about your experience"
-                  rows={4}
-                />
-              </div>
+            <div>
+              <label className="mb-2 block text-[12px] font-medium uppercase tracking-[0.2em]">Review (optional)</label>
+              <Textarea
+                value={formData.review_text}
+                onChange={(e) => setFormData({ ...formData, review_text: e.target.value })}
+                placeholder="Tell others about the fit, fabric and finish"
+                rows={4}
+                className="rounded-none bg-background"
+              />
+            </div>
 
-              <div>
-                <label className="text-sm font-medium">Photos (optional)</label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Share how it looks after it arrived or when you wore it - up to {MAX_REVIEW_PHOTOS} photos.
-                  {photosNeedApproval && " Photos appear once our team approves them."}
-                </p>
-                <ImageDropzone
-                  folder="vendor-uploads"
-                  value={photoUrls}
-                  onChange={setPhotoUrls}
-                  maxFiles={MAX_REVIEW_PHOTOS}
-                  uploadFile={(file) => uploadUserFile(file, "reviews")}
-                />
-              </div>
+            <div>
+              <label className="mb-1 block text-[12px] font-medium uppercase tracking-[0.2em]">Photos (optional)</label>
+              <p className="mb-2 text-xs text-muted-foreground">
+                Share how it looks after it arrived or when you wore it - up to {MAX_REVIEW_PHOTOS} photos.
+                {photosNeedApproval && " Photos appear once our team approves them."}
+              </p>
+              <ImageDropzone
+                folder="vendor-uploads"
+                value={photoUrls}
+                onChange={setPhotoUrls}
+                maxFiles={MAX_REVIEW_PHOTOS}
+                uploadFile={(file) => uploadUserFile(file, "reviews")}
+              />
+            </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" disabled={submitting}>
-                  {submitting ? "Submitting..." : "Submit Review"}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="h-12 bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground disabled:opacity-60"
+              >
+                {submitting ? "Submitting…" : "Submit review"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="h-12 px-6 text-[11px] font-medium uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
 
-      {!user && (
-        <p className="text-muted-foreground text-sm">Please login to write a review</p>
-      )}
-
-      {/* Reviews List */}
-      <div className="space-y-4">
+        {/* Reviews List */}
         {reviews.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">
-            No reviews yet. Be the first to review this product!
-          </p>
+          <div className="flex flex-col items-center justify-center border border-dashed border-foreground/15 px-6 py-14 text-center">
+            <p className="font-serif text-2xl">No reviews yet</p>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+              Bought this piece? Be the first to tell others about the fit, fabric and finish.
+            </p>
+          </div>
         ) : (
-          reviews.map((review) => (
-            <div key={review.id} className="border rounded-lg p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarFallback>U</AvatarFallback>
-                  </Avatar>
+          <ul className="divide-y divide-border border-y border-border">
+            {reviews.map((review) => (
+              <li key={review.id} className="py-7">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <StarRating rating={review.rating} readonly size="sm" />
-                    {review.title && (
-                      <h4 className="font-medium">{review.title}</h4>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(review.created_at), "MMM d, yyyy")}
-                      {review.is_verified_purchase && (
-                        <span className="ml-2 text-green-600">✓ Verified Purchase</span>
-                      )}
+                    {review.title && <h4 className="mt-2 font-serif text-xl">{review.title}</h4>}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {format(new Date(review.created_at), "d MMM yyyy")}
+                      {review.is_verified_purchase && <span className="ml-3 text-emerald-700">✓ Verified purchase</span>}
                     </p>
                   </div>
-                </div>
 
-                {user && review.user_id === user.id && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(review.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                )}
-              </div>
-
-              {review.review_text && (
-                <p className="text-muted-foreground">{review.review_text}</p>
-              )}
-
-              {review.review_images?.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {review.review_images.map((img) => (
-                    <a
-                      key={img.id}
-                      href={img.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="relative block h-20 w-20 overflow-hidden rounded-md border border-border"
+                  {user && review.user_id === user.id && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(review.id)}
+                      className="p-2 text-muted-foreground hover:text-destructive"
+                      aria-label="Delete your review"
                     >
-                      <img src={img.url} alt="Customer photo" loading="lazy" className="h-full w-full object-cover" />
-                      {img.status === "pending" && (
-                        <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-foreground/70 py-0.5 text-[10px] text-background">
-                          <Clock className="h-3 w-3" /> Awaiting approval
-                        </span>
-                      )}
-                    </a>
-                  ))}
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-              )}
 
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="gap-1">
+                {review.review_text && (
+                  <p className="mt-3 text-[15px] leading-relaxed text-foreground/80">{review.review_text}</p>
+                )}
+
+                {review.review_images?.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {review.review_images.map((img) => (
+                      <a
+                        key={img.id}
+                        href={img.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative block h-24 w-20 overflow-hidden bg-ivory"
+                      >
+                        <img src={img.url} alt="Customer photo" loading="lazy" className="h-full w-full object-cover" />
+                        {img.status === "pending" && (
+                          <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-foreground/70 py-0.5 text-[10px] text-background">
+                            <Clock className="h-3 w-3" /> Awaiting approval
+                          </span>
+                        )}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                <button type="button" className="mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
                   <ThumbsUp className="h-3 w-3" />
                   Helpful ({review.helpful_count})
-                </Button>
-              </div>
-            </div>
-          ))
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

@@ -55,7 +55,8 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
       productName: product.name,
       productImage: product.images[0] || null,
       vendorId: product.vendor_id ?? null,
-      variantId: variant ? variant.id : `${product.id}-default`,
+      // Same id the product page gives an option-less piece, so the two merge.
+      variantId: variant ? variant.id : `${product.id}-default-default`,
       variantTitle: [size, color].filter(Boolean).join(" / ") || "Default",
       price: { amount: String(variant?.price || product.price), currencyCode: "INR" },
       quantity: 1,

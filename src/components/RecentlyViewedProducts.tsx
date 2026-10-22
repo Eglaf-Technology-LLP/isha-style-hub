@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
+import { useStoreProducts } from "@/hooks/useStorefront";
 import { SectionHeading } from "@/components/storefront/SectionHeading";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
@@ -9,8 +10,16 @@ import { formatINR } from "@/lib/format";
 // "Recently viewed" row - only shown once the shopper has looked at something.
 export function RecentlyViewedProducts({ excludeProductId }: { excludeProductId?: string } = {}) {
   const { recentlyViewed, loading, clearRecentlyViewed } = useRecentlyViewed();
-  const items = recentlyViewed.filter((i) => i.product_id !== excludeProductId).slice(0, 10);
-  if (loading || items.length === 0) return null;
+  const { data: catalogue, isLoading: catalogueLoading } = useStoreProducts();
+  // Items saved without their details (older guest entries) are filled in
+  // from the catalogue; pieces no longer on sale are left out.
+  const byId = new Map((catalogue ?? []).map((p) => [p.id, p]));
+  const items = recentlyViewed
+    .filter((i) => i.product_id !== excludeProductId)
+    .map((i) => ({ ...i, product: i.product ?? byId.get(i.product_id) }))
+    .filter((i) => !!i.product)
+    .slice(0, 10);
+  if (loading || catalogueLoading || items.length === 0) return null;
 
   return (
     <section className="py-14 md:py-20">

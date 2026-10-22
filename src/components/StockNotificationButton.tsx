@@ -50,7 +50,7 @@ export function StockNotificationButton({ productId, productName }: StockNotific
     return (
       <Button
         variant="outline"
-        className="w-full border-primary/50 text-primary hover:bg-primary/10"
+        className="h-12 w-full rounded-none border-primary/50 text-[11px] font-medium uppercase tracking-[0.2em] text-primary hover:bg-primary/5 hover:text-primary"
         onClick={handleUnsubscribe}
         disabled={isSubmitting}
       >
@@ -67,9 +67,9 @@ export function StockNotificationButton({ productId, productName }: StockNotific
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className="h-12 w-full rounded-none border-foreground text-[11px] font-medium uppercase tracking-[0.2em] hover:bg-foreground hover:text-background">
           <Bell className="h-4 w-4 mr-2" />
-          Notify Me When Available
+          Notify me when it's back
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,9 +52,12 @@ export function SocialShareButtons({ url, title, description }: SocialShareButto
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="lg" variant="outline">
-          <Share2 className="h-5 w-5" />
-        </Button>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <Share2 className="h-4 w-4" /> Share
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={() => handleShare("whatsapp")} className="cursor-pointer">

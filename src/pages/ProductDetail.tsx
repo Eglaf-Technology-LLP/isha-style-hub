@@ -1,36 +1,40 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
+  ArrowRight,
+  Banknote,
+  ChevronRight,
   Minus,
   Plus,
-  ShoppingBag,
-  Zap,
-  Truck,
   RotateCcw,
-  Banknote,
   Scissors,
+  ShieldCheck,
+  Star,
+  Truck,
 } from "lucide-react";
 import { COMPANY } from "@/lib/company";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore } from "@/stores/cartStore";
+import { useUiStore } from "@/stores/uiStore";
 import { toast } from "sonner";
 import { Product, ProductVariant, mapDbVariant } from "@/hooks/useProducts";
+import { useStoreBoutiques } from "@/hooks/useStorefront";
 import { ProductMediaGallery } from "@/components/ProductMediaGallery";
-import { VariantSelector } from "@/components/VariantSelector";
+import { OptionPicker } from "@/components/storefront/product/OptionPicker";
+import { sortSizes } from "@/components/storefront/listing/useListing";
 import { WishlistButton } from "@/components/WishlistButton";
 import { ProductReviews } from "@/components/ProductReviews";
 import { SizeGuideModal } from "@/components/SizeGuideModal";
 import { SizeRecommender } from "@/components/SizeRecommender";
 import { RelatedProducts } from "@/components/RelatedProducts";
 import { CompleteTheLook } from "@/components/CompleteTheLook";
+import { RecentlyViewedProducts } from "@/components/RecentlyViewedProducts";
 import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
@@ -42,6 +46,8 @@ import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { ProductCustomiser, buildCustomisation, emptyCustomiser, type CustomiserState } from "@/components/ProductCustomiser";
 import { CUSTOMISATION_ENABLED, customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
 import { useAuth } from "@/hooks/useAuth";
+import { discountPercent, formatINR } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -76,13 +82,57 @@ export default function ProductDetail() {
 
   const addItem = useCartStore((state) => state.addItem);
   const { trackProductView } = useRecentlyViewed();
+  const setBagOpen = useUiStore((s) => s.setBagOpen);
+  const { data: boutiques = [] } = useStoreBoutiques();
 
-  // Track product view
+  // Star rating next to the title (the full reviews are further down).
+  const { data: ratingSummary } = useQuery({
+    queryKey: ["product-rating", handle],
+    enabled: !!handle,
+    queryFn: async () => {
+      const { data } = await supabase.from("product_reviews").select("rating").eq("product_id", handle!);
+      const rows = data || [];
+      return { count: rows.length, avg: rows.length ? rows.reduce((sum, r) => sum + r.rating, 0) / rows.length : 0 };
+    },
+  });
+
+  // Phones: an add-to-bag bar appears once the main buttons scroll away.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [showStickyBar, setShowStickyBar] = useState(false);
   useEffect(() => {
-    if (handle) {
-      trackProductView(handle);
+    const el = actionsRef.current;
+    if (!el) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      setShowStickyBar(el.getBoundingClientRect().bottom < 0);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      cancelAnimationFrame(frame);
+    };
+  }, [loading, product?.id]);
+
+  // Track product view - with the name/photo/price, which a guest's
+  // on-device "recently viewed" list has no other way to show.
+  useEffect(() => {
+    if (product && product.id === handle) {
+      trackProductView(product.id, {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        compare_at_price: product.compare_at_price,
+        images: product.images,
+      });
     }
-  }, [handle, trackProductView]);
+  }, [product, handle, trackProductView]);
 
   useEffect(() => {
     async function loadProduct() {
@@ -315,9 +365,10 @@ export default function ProductDetail() {
     if ("choice" in customised && customised.choice) details.push(`Customised: ${customisationSummary(customised.choice)}`);
     details.push(`Qty: ${quantity}`);
 
-    toast.success("Added to cart!", {
+    toast.success("Added to your bag", {
       description: details.join(" • "),
       position: "top-center",
+      action: { label: "View bag", onClick: () => setBagOpen(true) },
     });
   };
 
@@ -333,25 +384,29 @@ export default function ProductDetail() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-            <Skeleton className="rounded-lg aspect-[3/4]" />
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <Skeleton className="h-3 w-1/3" />
-                <Skeleton className="h-9 w-4/5" />
+        <main className="store-container pb-20 pt-6 md:pt-10">
+          <Skeleton className="mb-8 h-3 w-56 rounded-none" />
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-14 xl:gap-20">
+            <div className="flex gap-4">
+              <div className="hidden w-[76px] flex-col gap-3 lg:flex">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="aspect-[3/4] w-full rounded-none" />
+                ))}
               </div>
-              <Skeleton className="h-8 w-1/4" />
-              <Skeleton className="h-px w-full" />
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-16" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                </div>
+              <Skeleton className="aspect-[3/4] flex-1 rounded-none" />
+            </div>
+            <div className="space-y-5">
+              <Skeleton className="h-3 w-32 rounded-none" />
+              <Skeleton className="h-10 w-4/5 rounded-none" />
+              <Skeleton className="h-7 w-32 rounded-none" />
+              <Skeleton className="h-px w-full rounded-none" />
+              <div className="flex gap-2.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-11 w-14 rounded-none" />
+                ))}
               </div>
-              <Skeleton className="h-12 w-full rounded-md" />
+              <Skeleton className="h-12 w-full rounded-none" />
+              <Skeleton className="h-12 w-full rounded-none" />
             </div>
           </div>
         </main>
@@ -364,429 +419,436 @@ export default function ProductDetail() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-20 text-center">
-          <h1 className="text-2xl font-bold mb-4">Product not found</h1>
-          <Link to="/">
-            <Button>Back to Home</Button>
-          </Link>
-        </div>
+        <main className="store-container py-28 text-center">
+          <p className="eyebrow text-gold">AllBoutiqs</p>
+          <h1 className="mt-3 font-serif text-4xl md:text-5xl">This piece isn't available</h1>
+          <p className="mx-auto mt-3 max-w-md text-muted-foreground">
+            It may have sold out or been taken down by the boutique. There's plenty more to discover.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              to="/category/all"
+              className="inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-primary/90"
+            >
+              Shop all
+            </Link>
+            <Link
+              to="/"
+              className="inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
+            >
+              Back to home
+            </Link>
+          </div>
+        </main>
         <Footer />
       </div>
     );
   }
 
-  const hasDiscount =
-    product.compare_at_price && product.compare_at_price > product.price;
+  // MRP is shown whenever it's above the price being charged right now.
+  const mrp = product.compare_at_price && product.compare_at_price > currentPrice ? product.compare_at_price : null;
+  const off = discountPercent(currentPrice, product.compare_at_price);
+  const soldOut = currentStock <= 0;
+  const madeToOrder = !!(product as any).made_to_order;
+  const prepDays = (product as any).prep_days ?? (vendorInfo as any)?.default_prep_days ?? 2;
+  const boutique = product.vendor_id ? boutiques.find((b) => b.id === product.vendor_id) : undefined;
+
+  // Sizes/colours with nothing in stock (for the chosen colour, where there is
+  // one) - shown crossed out but still selectable for "notify me".
+  const unavailableSizes = new Set<string>();
+  const unavailableColors = new Set<string>();
+  if (variantList.length > 0) {
+    for (const s of availableSizes) {
+      const pool = variantList.filter((v) => sizeOf(v) === s);
+      const inColour = selectedColor ? pool.filter((v) => colorOf(v) === selectedColor) : [];
+      if (!(inColour.length ? inColour : pool).some((v) => (v.stock ?? 0) > 0)) unavailableSizes.add(s);
+    }
+    for (const c of availableColors) {
+      if (!variantList.some((v) => colorOf(v) === c && (v.stock ?? 0) > 0)) unavailableColors.add(c);
+    }
+  }
+
+  const vendorAddress = vendorInfo?.address?.address_line1
+    ? `${vendorInfo.address.address_line1}${vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, ${vendorInfo.address.city}, ${vendorInfo.address.state} - ${vendorInfo.address.pincode}, ${vendorInfo.address.country || "India"}`
+    : null;
+
+  const shippingTitle = !shippingCharged || vendorInfo?.free_shipping_threshold != null ? "Free delivery" : "Shipping";
+  const shippingText = !shippingCharged
+    ? "On all orders"
+    : vendorInfo?.free_shipping_threshold != null
+      ? `On orders above ${formatINR(vendorInfo.free_shipping_threshold)}`
+      : vendorInfo?.shipping_flat_rate
+        ? `${formatINR(vendorInfo.shipping_flat_rate)} flat rate`
+        : "Calculated at checkout";
+
+  const services = [
+    { icon: Truck, title: shippingTitle, text: shippingText },
+    isRefundable
+      ? { icon: RotateCcw, title: "Easy returns", text: `${vendorInfo?.return_window_days ?? 7}-day return policy` }
+      : { icon: RotateCcw, title: "Non-refundable", text: "Not eligible for return & refund - exchange only" },
+    codAvailable
+      ? { icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }
+      : { icon: Banknote, title: "Prepaid only", text: "Cash on Delivery isn't available for this product - pay online at checkout" },
+    { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      {/* Breadcrumb */}
-      <div className="container mx-auto px-4 py-4">
-        <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/" className="hover:text-primary">
-            Home
-          </Link>
-          <span>/</span>
-          {category ? (
-            <>
-              <Link
-                to={`/category/${category.slug}`}
-                className="hover:text-primary"
-              >
-                {category.name}
-              </Link>
-              <span>/</span>
-            </>
-          ) : null}
-          <span className="text-foreground">{product.name}</span>
-        </nav>
-      </div>
+      <main>
+        <div className="store-container pb-14 pt-5 md:pb-20 md:pt-8">
+          {/* Breadcrumb */}
+          <nav aria-label="Breadcrumb" className="mb-5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:mb-8">
+            <Link to="/" className="shrink-0 hover:text-foreground">
+              Home
+            </Link>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            {category ? (
+              <>
+                <Link to={`/category/${category.slug}`} className="shrink-0 hover:text-foreground">
+                  {category.name}
+                </Link>
+                <ChevronRight className="h-3 w-3 shrink-0" />
+              </>
+            ) : null}
+            <span className="truncate text-foreground">{product.name}</span>
+          </nav>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Product media: optional approved video + image album */}
-          <ProductMediaGallery
-            images={galleryImages}
-            productName={product.name}
-            video={
-              product.video_url && product.video_status === "approved"
-                ? { url: product.video_url, isPrimary: product.video_is_primary }
-                : null
-            }
-          />
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-14 xl:gap-20">
+            {/* Product media: optional approved video + image album */}
+            <ProductMediaGallery
+              images={galleryImages}
+              productName={product.name}
+              video={
+                product.video_url && product.video_status === "approved"
+                  ? { url: product.video_url, isPrimary: product.video_is_primary }
+                  : null
+              }
+            />
 
-          {/* Product Info */}
-          <div className="space-y-6">
-            {/* Brand & Title */}
-            <div>
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {/* Product Info */}
+            <div className="min-w-0 lg:max-w-[560px]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 {vendorInfo ? (
-                  <Link
-                    to={`/store/${vendorInfo.slug}`}
-                    className="text-sm text-muted-foreground uppercase tracking-wide hover:text-primary transition-colors"
-                  >
-                    Sold by {vendorInfo.name}
+                  <Link to={`/store/${vendorInfo.slug}`} className="eyebrow text-gold transition-colors hover:text-primary">
+                    {vendorInfo.name}
                   </Link>
                 ) : (
-                  <p className="text-sm text-muted-foreground uppercase tracking-wide">
-                    AllBoutiqs
-                  </p>
+                  <span className="eyebrow text-gold">AllBoutiqs</span>
                 )}
                 {vendorInfo?.is_verified && <VerifiedBoutiqueBadge size="sm" />}
                 {vendorInfo?.is_founding && <FoundingBoutiqueBadge size="sm" />}
                 {vendorInfo?.is_trusted && (
-                  <Badge variant="secondary" className="text-xs">
-                    Trusted partner
-                  </Badge>
+                  <span className="inline-flex items-center gap-1 border border-gold/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em]">
+                    <ShieldCheck className="h-3 w-3 text-gold" /> Trusted partner
+                  </span>
                 )}
               </div>
-              <h1 className="text-3xl md:text-4xl font-serif font-bold">
-                {product.name}
-              </h1>
-            </div>
 
+              <h1 className="mt-3 font-serif text-[2rem] leading-[1.1] tracking-tight md:text-[2.6rem]">{product.name}</h1>
 
-            {/* Price */}
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl font-serif font-bold text-primary">
-                ₹{currentPrice.toFixed(0)}
-              </span>
+              {!!ratingSummary?.count && (
+                <a href="#reviews" className="mt-3 inline-flex items-center gap-2 text-sm hover:text-primary">
+                  <span className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star key={n} className={cn("h-3.5 w-3.5", n <= Math.round(ratingSummary.avg) ? "fill-gold text-gold" : "text-foreground/20")} />
+                    ))}
+                  </span>
+                  {ratingSummary.avg.toFixed(1)}
+                  <span className="text-muted-foreground underline-offset-4 hover:underline">
+                    ({ratingSummary.count} review{ratingSummary.count === 1 ? "" : "s"})
+                  </span>
+                </a>
+              )}
+
+              {/* Price */}
+              <div className="mt-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-2xl font-medium tracking-tight">{formatINR(currentPrice)}</span>
+                {mrp && <span className="text-base text-muted-foreground line-through">{formatINR(mrp)}</span>}
+                {off && <span className="text-sm font-medium text-primary">{off}% off</span>}
+              </div>
               {customisationExtra > 0 && (
-                <span className="text-sm text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   + {inr(customisationExtra)} customisation = <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
-                </span>
+                </p>
               )}
-              {hasDiscount && !selectedVariant && (
-                <span className="text-xl text-muted-foreground line-through">
-                  ₹{product.compare_at_price?.toFixed(0)}
-                </span>
-              )}
-              {currentStock <= 0 && (
-                <Badge variant="secondary">Out of Stock</Badge>
-              )}
-              {currentStock > 0 && currentStock <= 5 && (
-                <Badge variant="destructive">
-                  Only {currentStock} left!
-                </Badge>
-              )}
-            </div>
+              <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</p>
 
-            <Separator />
+              {(madeToOrder || soldOut || currentStock <= 5) && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {madeToOrder && (
+                    <span className="inline-flex items-center gap-1.5 border border-gold/40 bg-ivory px-3 py-1.5 text-[11px] uppercase tracking-[0.16em]">
+                      <Scissors className="h-3.5 w-3.5 text-gold" /> Made to order · ships in {prepDays} days
+                    </span>
+                  )}
+                  {soldOut && (
+                    <span className="inline-flex items-center bg-foreground px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-background">Sold out</span>
+                  )}
+                  {!soldOut && currentStock <= 5 && (
+                    <span className="inline-flex items-center border border-primary/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-primary">
+                      Only {currentStock} left
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {/* Color Selection */}
-            {availableColors.length > 0 && (
-              <VariantSelector
-                label="Color"
-                options={availableColors}
-                selected={selectedColor}
-                onSelect={chooseColor}
-                type="color"
-                id="choose-color"
-                error={missingChoices.includes("color") ? "Please select a color" : null}
-              />
-            )}
+              <div className="my-7 h-px bg-border" />
 
-            {/* Size Selection with Size Guide */}
-            {availableSizes.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <VariantSelector
-                    label="Size"
-                    options={availableSizes}
-                    selected={selectedSize}
-                    onSelect={chooseSize}
-                    type="size"
-                    id="choose-size"
-                    error={missingChoices.includes("size") ? "Please select a size" : null}
+              <div className="space-y-7">
+                <OptionPicker
+                  id="choose-color"
+                  label="Colour"
+                  type="color"
+                  options={availableColors}
+                  selected={selectedColor}
+                  onSelect={chooseColor}
+                  unavailable={unavailableColors}
+                  error={missingChoices.includes("color") ? "Please select a colour" : null}
+                />
+                <OptionPicker
+                  id="choose-size"
+                  label="Size"
+                  type="size"
+                  options={sortSizes(availableSizes)}
+                  selected={selectedSize}
+                  onSelect={chooseSize}
+                  unavailable={unavailableSizes}
+                  error={missingChoices.includes("size") ? "Please select a size" : null}
+                  aside={
+                    <div className="flex items-center gap-3 [&_button]:text-xs [&_button]:uppercase [&_button]:tracking-[0.16em] [&_button]:text-muted-foreground hover:[&_button]:text-foreground">
+                      <SizeGuideModal categoryId={product.category_id} vendorId={product.vendor_id} />
+                      {AI_SIZE_FINDER_ENABLED && (
+                        <SizeRecommender productId={product.id} availableSizes={availableSizes} onSizeRecommended={chooseSize} />
+                      )}
+                    </div>
+                  }
+                />
+              </div>
+
+              <div className={cn(CUSTOMISATION_ENABLED && "mt-7")}>
+                <ProductCustomiser
+                  setup={customisationSetup}
+                  basePrice={currentPrice}
+                  value={customiser}
+                  onChange={setCustomiser}
+                  userId={user?.id ?? null}
+                />
+              </div>
+
+              {/* Actions */}
+              <div ref={actionsRef} className="mt-8 space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex h-12 shrink-0 items-center border border-foreground/20">
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                      className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
+                      disabled={quantity <= 1}
+                      aria-label="Decrease quantity"
+                    >
+                      <Minus className="h-3.5 w-3.5" />
+                    </button>
+                    <span className="w-8 text-center text-sm tabular-nums" aria-live="polite">
+                      {quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
+                      className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
+                      disabled={soldOut || quantity >= currentStock}
+                      aria-label="Increase quantity"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddToCart}
+                    disabled={soldOut}
+                    className="h-12 flex-1 bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                  >
+                    {soldOut ? "Sold out" : "Add to bag"}
+                  </button>
+                  <WishlistButton
+                    productId={product.id}
+                    className="h-12 w-12 shrink-0 rounded-none border border-foreground/20 bg-transparent shadow-none backdrop-blur-none hover:border-foreground hover:bg-transparent hover:shadow-none"
                   />
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <SizeGuideModal categoryId={product.category_id} vendorId={product.vendor_id} />
-                  {AI_SIZE_FINDER_ENABLED && (
-                    <SizeRecommender
-                      productId={product.id}
-                      availableSizes={availableSizes}
-                      onSizeRecommended={chooseSize}
-                    />
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Quantity */}
-            <div className="space-y-3">
-              <label className="font-medium">Quantity</label>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center border border-border rounded-lg">
+                {!soldOut && (
                   <button
-                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                    className="p-3 hover:bg-muted transition-colors"
+                    type="button"
+                    onClick={handleBuyNow}
+                    className="h-12 w-full border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
                   >
-                    <Minus className="h-4 w-4" />
+                    Buy it now
                   </button>
-                  <span className="w-12 text-center font-medium">{quantity}</span>
-                  <button
-                    onClick={() =>
-                      setQuantity((prev) =>
-                        Math.min(currentStock, prev + 1)
-                      )
-                    }
-                    className="p-3 hover:bg-muted transition-colors"
-                    disabled={currentStock <= 0}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
+                )}
+                {/* Stock Notification for Out of Stock */}
+                {soldOut && <StockNotificationButton productId={product.id} productName={product.name} />}
               </div>
-            </div>
 
-            <ProductCustomiser
-              setup={customisationSetup}
-              basePrice={currentPrice}
-              value={customiser}
-              onChange={setCustomiser}
-              userId={user?.id ?? null}
-            />
-
-            {/* Actions */}
-            <div className="flex flex-col gap-3">
-              <div className="flex gap-3">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={handleAddToCart}
-                  disabled={currentStock <= 0}
-                >
-                  <ShoppingBag className="h-5 w-5 mr-2" />
-                  {currentStock > 0 ? "Add to Cart" : "Out of Stock"}
-                </Button>
-                <Button
-                  size="lg"
-                  className="flex-1"
-                  onClick={handleBuyNow}
-                  disabled={currentStock <= 0}
-                >
-                  <Zap className="h-5 w-5 mr-2" />
-                  Shop Now
-                </Button>
+              <div className="mt-5 flex items-center justify-between gap-4">
+                <SocialShareButtons
+                  url={`${window.location.origin}${location.pathname}`}
+                  title={product.name}
+                  description={product.description || undefined}
+                />
+                <span className="text-xs text-muted-foreground">Code: {product.sku || product.id.slice(0, 8)}</span>
               </div>
-              <div className="flex gap-3">
-              <WishlistButton productId={product.id} />
-              <SocialShareButtons
-                url={`${window.location.origin}${location.pathname}`}
-                title={product.name}
-                description={product.description || undefined}
-              />
-              </div>
-            </div>
 
-            {/* Virtual Try-On (hidden for now - src/lib/aiFeatures.ts) */}
-            {VIRTUAL_TRY_ON_ENABLED && (
-              <VirtualTryOn
-                productName={product.name}
-                productImageUrl={product.images?.[0]}
-              />
-            )}
-
-
-            {/* Stock Notification for Out of Stock */}
-            {currentStock <= 0 && (
-              <StockNotificationButton productId={product.id} productName={product.name} />
-            )}
-
-            {/* Delivery Info */}
-            <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Truck className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">
-                    {!shippingCharged || vendorInfo?.free_shipping_threshold != null
-                      ? "Free Delivery"
-                      : "Shipping"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {!shippingCharged
-                      ? "On all orders"
-                      : vendorInfo?.free_shipping_threshold != null
-                      ? `On orders above ₹${vendorInfo.free_shipping_threshold}`
-                      : vendorInfo?.shipping_flat_rate
-                        ? `₹${vendorInfo.shipping_flat_rate} flat rate`
-                        : "Calculated at checkout"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <RotateCcw className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  {isRefundable ? (
-                    <>
-                      <p className="font-medium">Easy Returns</p>
-                      <p className="text-sm text-muted-foreground">
-                        {vendorInfo?.return_window_days ?? 7}-day return policy
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="font-medium">Non-refundable</p>
-                      <p className="text-sm text-muted-foreground">
-                        Not eligible for return & refund - exchange only
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Banknote className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{codAvailable ? "Cash on Delivery available" : "Prepaid only"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {codAvailable
-                      ? "Pay in cash when it arrives, or pay online"
-                      : "Cash on Delivery isn't available for this product - pay online at checkout"}
-                  </p>
-                </div>
-              </div>
-              {(product as any).made_to_order && (
-                <div className="flex items-center gap-3 pt-1 border-t border-border/60">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <Scissors className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">
-                      Made to order: ships in {(product as any).prep_days ?? (vendorInfo as any)?.default_prep_days ?? 2} days
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Made for you after you order - the delivery date below includes this time.
-                    </p>
-                  </div>
+              {/* Virtual Try-On (hidden for now - src/lib/aiFeatures.ts) */}
+              {VIRTUAL_TRY_ON_ENABLED && (
+                <div className="mt-6">
+                  <VirtualTryOn productName={product.name} productImageUrl={product.images?.[0]} />
                 </div>
               )}
-              {product.vendor_id && (
-                <div className="pt-1 border-t border-border/60">
-                  <p className="text-sm font-medium mb-2">Check delivery date</p>
-                  <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} />
-                </div>
-              )}
-            </div>
 
-            {/* Product Details Tabs */}
-            <Tabs defaultValue="description" className="mt-8">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="description">Description</TabsTrigger>
-                <TabsTrigger value="details">Details</TabsTrigger>
-              </TabsList>
-              <TabsContent value="description" className="mt-4">
-                <p className="text-muted-foreground">
-                  {product.description || "No description available."}
-                </p>
-              </TabsContent>
-              <TabsContent value="details" className="mt-4 space-y-6">
-                <ul className="space-y-2 text-muted-foreground">
-                  {vendorInfo && (
-                    <li>
-                      <span className="font-medium text-foreground">Returns:</span>{" "}
-                      {isRefundable ? `${vendorInfo.return_window_days}-day window` : "Non-refundable (exchange only)"}
+              {/* Delivery + services */}
+              <div className="mt-8 border border-border">
+                {product.vendor_id && (
+                  <div className="border-b border-border p-5">
+                    <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.2em]">Check delivery date</p>
+                    <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} />
+                    {madeToOrder && (
+                      <p className="mt-2.5 text-xs text-muted-foreground">
+                        Made for you after you order - the delivery date includes the {prepDays} days it takes.
+                      </p>
+                    )}
+                  </div>
+                )}
+                <ul className="grid sm:grid-cols-2">
+                  {services.map(({ icon: Icon, title, text }, i) => (
+                    <li
+                      key={title}
+                      className={cn(
+                        "flex gap-3 p-5",
+                        i > 0 && "border-t border-border",
+                        i === 1 && "sm:border-l sm:border-t-0",
+                        i === 3 && "sm:border-l",
+                      )}
+                    >
+                      <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.5} />
+                      <div>
+                        <p className="text-sm font-medium">{title}</p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{text}</p>
+                      </div>
                     </li>
-                  )}
-                  <li>
-                    <span className="font-medium text-foreground">
-                      Availability:
-                    </span>{" "}
-                    {product.stock_quantity > 0
-                      ? `In Stock (${product.stock_quantity} available)`
-                      : "Out of Stock"}
-                  </li>
+                  ))}
                 </ul>
+              </div>
 
-                {product.specifications.length > 0 && (
-                  <div>
-                    <h3 className="font-medium text-foreground mb-3">Product Details</h3>
+              {/* Details */}
+              <Accordion type="multiple" defaultValue={["description"]} className="mt-8 border-t border-border">
+                <AccordionItem value="description" className="border-border">
+                  <AccordionTrigger className="py-5 text-[12px] font-medium uppercase tracking-[0.2em] hover:no-underline">
+                    Description
+                  </AccordionTrigger>
+                  <AccordionContent className="whitespace-pre-line pb-6 text-[15px] leading-relaxed text-foreground/80">
+                    {product.description || "No description available."}
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="details" className="border-border">
+                  <AccordionTrigger className="py-5 text-[12px] font-medium uppercase tracking-[0.2em] hover:no-underline">
+                    Product details
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6">
                     <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
                       {product.specifications.map((spec, i) => (
                         <div key={i}>
-                          <dt className="text-sm font-medium text-foreground">{spec.label}</dt>
-                          <dd className="text-sm text-muted-foreground">{spec.value || "-"}</dd>
+                          <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{spec.label}</dt>
+                          <dd className="mt-0.5 text-sm">{spec.value || "-"}</dd>
                         </div>
                       ))}
+                      <div>
+                        <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Availability</dt>
+                        <dd className="mt-0.5 text-sm">
+                          {product.stock_quantity > 0 ? `In stock (${product.stock_quantity} available)` : "Out of stock"}
+                        </dd>
+                      </div>
+                      {vendorInfo && (
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Returns</dt>
+                          <dd className="mt-0.5 text-sm">
+                            {isRefundable ? `${vendorInfo.return_window_days}-day window` : "Non-refundable (exchange only)"}
+                          </dd>
+                        </div>
+                      )}
+                      {madeToOrder && (
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Made to order</dt>
+                          <dd className="mt-0.5 text-sm">Ships in {prepDays} days</dd>
+                        </div>
+                      )}
                     </dl>
-                  </div>
-                )}
+                  </AccordionContent>
+                </AccordionItem>
 
-                <div>
-                  <h3 className="font-medium text-foreground mb-3">Product Information</h3>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    <li>
-                      <span className="font-medium text-foreground">Product Code:</span>{" "}
-                      {product.sku || product.id.slice(0, 8)}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">MRP:</span>{" "}
-                      ₹{(product.compare_at_price ?? product.price).toFixed(2)} inclusive of all taxes
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Sold By:</span>{" "}
-                      {vendorInfo ? (
-                        <Link to={`/store/${vendorInfo.slug}`} className="hover:text-primary transition-colors">
-                          {vendorInfo.name}
-                        </Link>
-                      ) : (
-                        "AllBoutiqs"
-                      )}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Marketed By / Manufactured By:</span>{" "}
-                      {vendorInfo?.name || "AllBoutiqs"}
-                      {vendorInfo?.address && (
-                        <>
-                          , {vendorInfo.address.address_line1}
-                          {vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, {vendorInfo.address.city}, {vendorInfo.address.state} - {vendorInfo.address.pincode}, {vendorInfo.address.country || "India"}
-                        </>
-                      )}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Net Quantity:</span> {product.net_quantity}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Country of Origin:</span> {product.country_of_origin}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Customer Care Address:</span>{" "}
-                      {vendorInfo ? (
-                        <>
-                          {vendorInfo.address?.address_line1 && (
-                            <>
-                              {vendorInfo.address.address_line1}
-                              {vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, {vendorInfo.address.city}, {vendorInfo.address.state} - {vendorInfo.address.pincode}, {vendorInfo.address.country || "India"}.{" "}
-                            </>
-                          )}
-                          {vendorInfo.contact_phone && `Ph: ${vendorInfo.contact_phone}. `}
-                          {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
-                        </>
-                      ) : (
-                        `${COMPANY.supportEmail} · ${COMPANY.supportPhone}`
-                      )}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">AllBoutiqs Customer Care:</span>{" "}
-                      {COMPANY.supportEmail} · {COMPANY.supportPhone} · WhatsApp {COMPANY.whatsapp}
-                    </li>
-                    <li>
-                      <span className="font-medium text-foreground">Commodity:</span>{" "}
-                      {category?.name || "Fashion"}
-                    </li>
-                  </ul>
-                </div>
-              </TabsContent>
-            </Tabs>
+                <AccordionItem value="legal" className="border-border">
+                  <AccordionTrigger className="py-5 text-[12px] font-medium uppercase tracking-[0.2em] hover:no-underline">
+                    Seller & product information
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-6">
+                    <dl className="space-y-3 text-sm">
+                      <InfoRow label="Product code">{product.sku || product.id.slice(0, 8)}</InfoRow>
+                      <InfoRow label="MRP">{formatINR(product.compare_at_price ?? product.price)} inclusive of all taxes</InfoRow>
+                      <InfoRow label="Sold by">
+                        {vendorInfo ? (
+                          <Link to={`/store/${vendorInfo.slug}`} className="underline-offset-4 hover:text-primary hover:underline">
+                            {vendorInfo.name}
+                          </Link>
+                        ) : (
+                          "AllBoutiqs"
+                        )}
+                      </InfoRow>
+                      <InfoRow label="Marketed / manufactured by">
+                        {vendorInfo?.name || "AllBoutiqs"}
+                        {vendorAddress && `, ${vendorAddress}`}
+                      </InfoRow>
+                      <InfoRow label="Net quantity">{product.net_quantity}</InfoRow>
+                      <InfoRow label="Country of origin">{product.country_of_origin}</InfoRow>
+                      <InfoRow label="Customer care address">
+                        {vendorInfo ? (
+                          <>
+                            {vendorAddress && `${vendorAddress}. `}
+                            {vendorInfo.contact_phone && `Ph: ${vendorInfo.contact_phone}. `}
+                            {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
+                          </>
+                        ) : (
+                          `${COMPANY.supportEmail} · ${COMPANY.supportPhone}`
+                        )}
+                      </InfoRow>
+                      <InfoRow label="AllBoutiqs customer care">
+                        {COMPANY.supportEmail} · {COMPANY.supportPhone} · WhatsApp {COMPANY.whatsapp}
+                      </InfoRow>
+                      <InfoRow label="Commodity">{category?.name || "Fashion"}</InfoRow>
+                    </dl>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
+              {/* The boutique */}
+              {vendorInfo && (
+                <Link to={`/store/${vendorInfo.slug}`} className="group mt-8 flex items-center gap-4 bg-ivory p-5">
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gold/30 bg-background">
+                    {boutique?.logo_url ? (
+                      <img src={boutique.logo_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="font-serif text-2xl text-primary">{vendorInfo.name.charAt(0).toUpperCase()}</span>
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="eyebrow block text-muted-foreground">Sold by</span>
+                    <span className="mt-1 block font-serif text-xl leading-tight group-hover:text-primary">{vendorInfo.name}</span>
+                    {boutique?.description && (
+                      <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{boutique.description}</span>
+                    )}
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
@@ -794,16 +856,64 @@ export default function ProductDetail() {
         <CompleteTheLook productId={product.id} />
 
         {/* Product Reviews Section */}
-        <ProductReviews productId={product.id} />
+        <section id="reviews" className="scroll-mt-32 border-t border-border py-14 md:py-20">
+          <div className="store-container">
+            <ProductReviews productId={product.id} />
+          </div>
+        </section>
 
-        {/* Related Products Section */}
-        <RelatedProducts 
-          currentProductId={product.id} 
-          categoryId={product.category_id} 
+        <RelatedProducts
+          currentProductId={product.id}
+          categoryId={product.category_id}
+          categorySlug={category?.slug}
+          vendor={vendorInfo && product.vendor_id ? { id: product.vendor_id, name: vendorInfo.name, slug: vendorInfo.slug } : null}
         />
+
+        <div className="border-t border-border">
+          <RecentlyViewedProducts excludeProductId={product.id} />
+        </div>
       </main>
 
       <Footer />
+
+      {/* Phones: add-to-bag bar once the main buttons scroll away */}
+      <div
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-ivory/95 backdrop-blur-md transition-transform duration-300 lg:hidden",
+          showStickyBar ? "translate-y-0" : "translate-y-full",
+        )}
+        aria-hidden={!showStickyBar}
+      >
+        <div className="store-container flex items-center gap-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm">{product.name}</p>
+            <p className="text-sm font-medium">
+              {formatINR(currentPrice)}
+              {[selectedSize, selectedColor].filter(Boolean).length > 0 && (
+                <span className="ml-2 font-normal text-muted-foreground">{[selectedSize, selectedColor].filter(Boolean).join(" / ")}</span>
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={soldOut}
+            tabIndex={showStickyBar ? 0 : -1}
+            className="h-12 shrink-0 bg-primary px-7 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+          >
+            {soldOut ? "Sold out" : "Add to bag"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[180px_1fr] sm:gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd>{children}</dd>
     </div>
   );
 }

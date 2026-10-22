@@ -74,8 +74,22 @@ const SWATCHES: Record<string, string> = {
   "pastel blue": "#c7dcef",
 };
 
+// Blend a #rrggbb colour towards white (amount > 0) or black (amount < 0).
+function shade(hex: string, amount: number): string {
+  const target = amount > 0 ? 255 : 0;
+  const k = Math.abs(amount);
+  const mix = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - k) + target * k);
+  return `#${[1, 3, 5].map((i) => mix(i).toString(16).padStart(2, "0")).join("")}`;
+}
+
 export function swatchColor(name: string): string | null {
-  return SWATCHES[name.trim().toLowerCase()] ?? null;
+  const key = name.trim().toLowerCase();
+  if (SWATCHES[key]) return SWATCHES[key];
+  // "Light Blue", "Dark Green", "Pale Pink", "Deep Red"…
+  const m = key.match(/^(light|pale|dark|deep)[\s-]+(.+)$/);
+  const base = m ? SWATCHES[m[2]] : undefined;
+  if (!m || !base) return null;
+  return shade(base, m[1] === "light" || m[1] === "pale" ? 0.45 : -0.4);
 }
 
 // For colours like "Multicolor" / "Multi" a soft rainbow ring.
