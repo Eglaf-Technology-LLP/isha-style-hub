@@ -94,6 +94,13 @@ All colors MUST be HSL.
     --tracking-normal: 0em;
 
     --spacing: 0.25rem;
+
+    /* Storefront accents - same maroon/cream theme, with antique gold for
+       fine rules and marks, a lighter ivory surface and deep bands. */
+    --gold: 36 42% 50%;
+    --ivory: 40 45% 98%;
+    --ink: 24 18% 9%;
+    --maroon-deep: 10 60% 19%;
   }
 
   .dark {
@@ -191,5 +198,55 @@ All colors MUST be HSL.
   .focus-flash {
     animation: none;
     background-color: hsl(var(--primary) / 0.12);
+  }
+}
+
+/* ---------- Storefront ---------- */
+@layer components {
+  /* Small spaced capitals above headings ("NEW IN", "THE EDIT"). */
+  .eyebrow {
+    @apply font-sans text-[11px] font-medium uppercase tracking-[0.28em];
+  }
+  /* Wide page frame used by every storefront section. */
+  .store-container {
+    @apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-10;
+  }
+  /* Underline that draws in on hover. */
+  .link-draw {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 0.35s ease;
+  }
+  .link-draw:hover,
+  .link-draw[aria-current="page"] {
+    background-size: 100% 1px;
+  }
+  /* Indian arch (jharokha) frame for category imagery. */
+  .arch {
+    border-radius: 999px 999px 0.25rem 0.25rem;
+  }
+  /* Fine ornamental lattice used behind placeholders and dark bands. */
+  .pattern-jaal {
+    background-color: hsl(var(--ivory));
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%237a2e22' stroke-opacity='0.09' stroke-width='1'%3E%3Cpath d='M28 4c6 8 6 16 0 24c-6-8-6-16 0-24zM28 28c6 8 6 16 0 24c-6-8-6-16 0-24zM4 28c8-6 16-6 24 0c-8 6-16 6-24 0zM28 28c8-6 16-6 24 0c-8 6-16 6-24 0z'/%3E%3Ccircle cx='28' cy='28' r='2'/%3E%3Ccircle cx='0' cy='0' r='2'/%3E%3Ccircle cx='56' cy='0' r='2'/%3E%3Ccircle cx='0' cy='56' r='2'/%3E%3Ccircle cx='56' cy='56' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .pattern-jaal-dark {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23e8c98f' stroke-opacity='0.12' stroke-width='1'%3E%3Cpath d='M28 4c6 8 6 16 0 24c-6-8-6-16 0-24zM28 28c6 8 6 16 0 24c-6-8-6-16 0-24zM4 28c8-6 16-6 24 0c-8 6-16 6-24 0zM28 28c8-6 16-6 24 0c-8 6-16 6-24 0z'/%3E%3Ccircle cx='28' cy='28' r='2'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ken-burns,
+  .animate-marquee,
+  .animate-fade-up {
+    animation: none !important;
   }
 }

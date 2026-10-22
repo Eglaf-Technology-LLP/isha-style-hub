@@ -47,6 +47,12 @@ export default {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
   			},
+  			// Storefront accents (see src/index.css): antique gold for fine
+  			// lines and marks, ivory surfaces, deep maroon/ink bands.
+  			gold: 'hsl(var(--gold))',
+  			ivory: 'hsl(var(--ivory))',
+  			ink: 'hsl(var(--ink))',
+  			'maroon-deep': 'hsl(var(--maroon-deep))',
   			sidebar: {
   				DEFAULT: 'hsl(var(--sidebar-background))',
   				foreground: 'hsl(var(--sidebar-foreground))',
@@ -64,6 +70,26 @@ export default {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		keyframes: {
+  			'ken-burns': {
+  				from: { transform: 'scale(1.08)' },
+  				to: { transform: 'scale(1)' }
+  			},
+  			'fade-up': {
+  				from: { opacity: '0', transform: 'translateY(18px)' },
+  				to: { opacity: '1', transform: 'translateY(0)' }
+  			},
+  			'fade-in': {
+  				from: { opacity: '0' },
+  				to: { opacity: '1' }
+  			},
+  			marquee: {
+  				from: { transform: 'translateX(0)' },
+  				to: { transform: 'translateX(-50%)' }
+  			},
+  			'slide-progress': {
+  				from: { transform: 'scaleX(0)' },
+  				to: { transform: 'scaleX(1)' }
+  			},
   			'accordion-down': {
   				from: {
   					height: '0'
@@ -83,7 +109,12 @@ export default {
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'ken-burns': 'ken-burns 9s ease-out both',
+  			'fade-up': 'fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both',
+  			'fade-in': 'fade-in 0.5s ease-out both',
+  			marquee: 'marquee 40s linear infinite',
+  			'slide-progress': 'slide-progress linear both'
   		},
   		boxShadow: {
   			'2xs': 'var(--shadow-2xs)',
