@@ -34,7 +34,7 @@ export function CompleteTheLook({ productId }: CompleteTheLookProps) {
           .select("*, product_variants(*), vendor:vendors(name, slug)")
           .in("id", ids);
 
-        const typed: StoreProduct[] = (prods || []).map((p: any) => ({
+        const typed: StoreProduct[] = (prods || []).map((p) => ({
           ...p,
           images: (p.images as string[]) || [],
           variants: (p.product_variants || []).map(mapDbVariant),

@@ -1,16 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { deliveryDateLabel, fetchCartDeliveryDate } from "@/components/CartShippingEstimate";
 import { useNavigate } from "react-router-dom";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   ShoppingBag,
   Truck,
@@ -20,10 +14,13 @@ import {
   X,
   Loader2,
   CheckCircle,
-  ArrowLeft,
   LogIn,
   MapPin,
   CalendarClock,
+  Lock,
+  ShieldCheck,
+  Package,
+  type LucideIcon,
 } from "lucide-react";
 import { useCartStore, CartItem, cartLineKey } from "@/stores/cartStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
@@ -39,6 +36,10 @@ import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
+import { CheckoutShell } from "@/components/storefront/checkout/CheckoutShell";
+import { SmartImage } from "@/components/storefront/SmartImage";
+import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
+import { cn } from "@/lib/utils";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -919,219 +920,238 @@ export default function Checkout() {
 
   if (orderPlaced) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-16">
-          <div className="max-w-md mx-auto text-center">
-            <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6" />
-            <h1 className="text-3xl font-serif font-bold mb-4">Order Placed!</h1>
-            <p className="text-muted-foreground mb-2">
+      <CheckoutShell step={2}>
+        <div className="store-container py-16 md:py-24">
+          <div className="mx-auto max-w-lg text-center">
+            <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-ivory">
+              <CheckCircle className="h-9 w-9 text-gold" strokeWidth={1.5} />
+            </span>
+            <p className="eyebrow mt-8 text-gold">Thank you</p>
+            <h1 className="mt-3 font-serif text-4xl leading-tight md:text-5xl">
+              Your order is <em className="font-normal text-primary">placed</em>
+            </h1>
+            <p className="mt-4 text-muted-foreground">
               Thank you for your order. We'll send you a confirmation email shortly.
             </p>
-            <p className="text-sm text-muted-foreground mb-8">
-              Order ID: <span className="font-mono font-medium">{orderId?.slice(0, 8)}</span>
+            <p className="mt-6 inline-flex items-center gap-2 border border-border bg-ivory px-4 py-2 text-sm">
+              Order ID <span className="font-mono font-medium">{orderId?.slice(0, 8)}</span>
             </p>
-            <div className="flex flex-col gap-3">
-              <Link to="/">
-                <Button className="w-full">Continue Shopping</Button>
+            <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link
+                to="/orders"
+                className="inline-flex h-12 items-center justify-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
+              >
+                Track your order
+              </Link>
+              <Link
+                to="/"
+                className="inline-flex h-12 items-center justify-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
+              >
+                Continue shopping
               </Link>
             </div>
           </div>
-        </main>
-        <Footer />
-      </div>
+        </div>
+      </CheckoutShell>
     );
   }
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-16 flex justify-center">
+      <CheckoutShell step={1}>
+        <div className="flex justify-center py-40">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </main>
-        <Footer />
-      </div>
+        </div>
+      </CheckoutShell>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto">
-            <CardContent className="pt-8 pb-8">
-              <div className="text-center mb-6">
-                <LogIn className="h-16 w-16 text-primary mx-auto mb-6" />
-                <h1 className="text-2xl font-serif font-bold mb-3">
-                  Sign in to complete your order
-                </h1>
-                <p className="text-muted-foreground">
-                  Create an account or sign in to check out - we'll save your
-                  details so you don't have to re-enter them next time.
-                </p>
-              </div>
+      <CheckoutShell step={1}>
+        <div className="store-container py-14 md:py-20">
+          <div className="mx-auto max-w-md border border-border bg-ivory p-8 md:p-10">
+            <div className="mb-8 text-center">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-gold/40 bg-background">
+                <LogIn className="h-6 w-6 text-gold" strokeWidth={1.5} />
+              </span>
+              <h1 className="mt-6 font-serif text-3xl leading-tight">Sign in to complete your order</h1>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Create an account or sign in to check out - we'll save your
+                details so you don't have to re-enter them next time.
+              </p>
+            </div>
+            <div className="[&_button[type=submit]]:h-12 [&_button[type=submit]]:rounded-none [&_button[type=submit]]:text-[11px] [&_button[type=submit]]:uppercase [&_button[type=submit]]:tracking-[0.22em] [&_input]:rounded-none">
               <InlineSignInForm />
-              <Button
-                variant="outline"
-                className="w-full mt-3"
-                onClick={() => navigate("/")}
-              >
-                Continue Shopping
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-        <Footer />
-      </div>
+            </div>
+            <button
+              type="button"
+              className="mt-3 h-12 w-full border border-foreground/20 text-[11px] font-medium uppercase tracking-[0.22em] hover:border-foreground"
+              onClick={() => navigate("/")}
+            >
+              Continue shopping
+            </button>
+          </div>
+        </div>
+      </CheckoutShell>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-16">
-          <div className="max-w-md mx-auto text-center">
-            <ShoppingBag className="h-20 w-20 text-muted-foreground mx-auto mb-6" />
-            <h1 className="text-3xl font-serif font-bold mb-4">Your cart is empty</h1>
-            <p className="text-muted-foreground mb-8">
-              Add some items to your cart to checkout.
-            </p>
-            <Link to="/">
-              <Button>Start Shopping</Button>
-            </Link>
-          </div>
-        </main>
-        <Footer />
-      </div>
+      <CheckoutShell step={0}>
+        <div className="store-container py-20 text-center md:py-28">
+          <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-ivory">
+            <ShoppingBag className="h-8 w-8 text-gold" strokeWidth={1.5} />
+          </span>
+          <h1 className="mt-8 font-serif text-4xl">Your bag is empty</h1>
+          <p className="mx-auto mt-3 max-w-sm text-muted-foreground">
+            Add a few pieces to your bag to check out.
+          </p>
+          <Link
+            to="/category/all"
+            className="mt-8 inline-flex h-12 items-center bg-primary px-10 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
+          >
+            Start shopping
+          </Link>
+        </div>
+      </CheckoutShell>
     );
   }
 
+  const itemCount = items.reduce((n, item) => n + item.quantity, 0);
+  const placeOrderLabel = isPlacingOrder
+    ? paymentMethod === "razorpay"
+      ? "Processing payment…"
+      : "Placing order…"
+    : paymentMethod === "razorpay"
+      ? `Pay ₹${formatMoney(total)}`
+      : `Place order · ₹${formatMoney(total)}`;
+
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-
-      <main className="container mx-auto px-4 py-8">
-        <Link to="/" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary mb-6">
-          <ArrowLeft className="h-4 w-4" />
-          Continue Shopping
-        </Link>
-
-        <h1 className="text-3xl md:text-4xl font-serif font-bold mb-8">Checkout</h1>
-
-        <div className="grid lg:grid-cols-3 gap-8">
+    <CheckoutShell
+      step={1}
+      bottomBar={
+        // Phones: total + place order, always in reach
+        <div className="store-container flex items-center gap-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Total</p>
+            <p className="font-serif text-xl leading-tight">₹{formatMoney(total)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={placeOrder}
+            disabled={isPlacingOrder}
+            className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:opacity-70"
+          >
+            {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isPlacingOrder ? "Please wait…" : paymentMethod === "razorpay" ? "Pay now" : "Place order"}
+          </button>
+        </div>
+      }
+    >
+      <div className="store-container pb-16 pt-8 md:pt-12 lg:pb-20">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-16 xl:gap-20">
           {/* Left Column - Forms */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Saved Addresses */}
-            {savedAddresses.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" />
-                    Deliver to
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <RadioGroup value={selectedAddressId} onValueChange={handleAddressPick} className="space-y-2">
-                    {savedAddresses.map((address) => (
-                      <Label
-                        key={address.id}
-                        htmlFor={`addr-${address.id}`}
-                        className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50"
-                      >
-                        <RadioGroupItem value={address.id} id={`addr-${address.id}`} className="mt-1" />
-                        <div className="text-sm">
-                          <p className="font-medium">
-                            {address.full_name}
-                            {address.label && (
-                              <span className="ml-2 text-xs text-muted-foreground">
-                                ({address.label})
-                              </span>
-                            )}
-                          </p>
-                          <p className="text-muted-foreground">
-                            {address.address_line_1}, {address.city}, {address.state} - {address.pincode}
-                          </p>
-                        </div>
-                      </Label>
-                    ))}
-                    <Label
-                      htmlFor="addr-new"
-                      className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50"
-                    >
-                      <RadioGroupItem value="new" id="addr-new" />
-                      <span className="text-sm font-medium">Enter a new address</span>
-                    </Label>
-                  </RadioGroup>
-                </CardContent>
-              </Card>
-            )}
-
+          <div className="min-w-0 space-y-12">
             {/* Customer Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingBag className="h-5 w-5" />
-                  Customer Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
+            <CheckoutSection number={1} title="Contact">
+              <div className="space-y-5">
+                <Field label="Full name" htmlFor="name" required>
                   <Input
                     id="name"
                     placeholder="Enter your full name"
+                    autoComplete="name"
+                    className={fieldClass}
                     value={customerInfo.name}
                     onChange={(e) =>
                       setCustomerInfo((prev) => ({ ...prev, name: e.target.value }))
                     }
                   />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
+                </Field>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="Email" htmlFor="email" required>
                     <Input
                       id="email"
                       type="email"
                       placeholder="your@email.com"
+                      autoComplete="email"
+                      className={fieldClass}
                       value={customerInfo.email}
                       onChange={(e) =>
                         setCustomerInfo((prev) => ({ ...prev, email: e.target.value }))
                       }
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
+                  </Field>
+                  <Field label="Phone number" htmlFor="phone" required>
                     <Input
                       id="phone"
                       type="tel"
                       placeholder="10-digit mobile number"
+                      autoComplete="tel"
+                      className={fieldClass}
                       value={customerInfo.phone}
                       onChange={(e) =>
                         setCustomerInfo((prev) => ({ ...prev, phone: e.target.value }))
                       }
                     />
-                  </div>
+                  </Field>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CheckoutSection>
 
             {/* Shipping Address */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Truck className="h-5 w-5" />
-                  Shipping Address
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="address1">Address Line 1 *</Label>
+            <CheckoutSection number={2} title="Delivery address">
+              {/* Saved Addresses */}
+              {savedAddresses.length > 0 && (
+                <RadioGroup value={selectedAddressId} onValueChange={handleAddressPick} className="mb-8 grid gap-3 sm:grid-cols-2">
+                  {savedAddresses.map((address) => (
+                    <Label
+                      key={address.id}
+                      htmlFor={`addr-${address.id}`}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 border p-4 font-normal transition-colors",
+                        selectedAddressId === address.id ? "border-foreground bg-ivory" : "border-border hover:border-foreground/40",
+                      )}
+                    >
+                      <RadioGroupItem value={address.id} id={`addr-${address.id}`} className="mt-0.5" />
+                      <div className="min-w-0 text-sm">
+                        <p className="font-medium">
+                          {address.full_name}
+                          {address.label && (
+                            <span className="ml-2 border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                              {address.label}
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-1 leading-relaxed text-muted-foreground">
+                          {address.address_line_1}, {address.city}, {address.state} - {address.pincode}
+                        </p>
+                      </div>
+                    </Label>
+                  ))}
+                  <Label
+                    htmlFor="addr-new"
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 border border-dashed p-4 font-normal transition-colors",
+                      selectedAddressId === "new" ? "border-foreground bg-ivory" : "border-foreground/25 hover:border-foreground/50",
+                    )}
+                  >
+                    <RadioGroupItem value="new" id="addr-new" />
+                    <span className="inline-flex items-center gap-2 text-sm font-medium">
+                      <MapPin className="h-4 w-4 text-gold" /> Deliver to a new address
+                    </span>
+                  </Label>
+                </RadioGroup>
+              )}
+
+              <div className="space-y-5">
+                <Field label="Address line 1" htmlFor="address1" required>
                   <Input
                     id="address1"
                     placeholder="House/Flat number, Street name"
+                    autoComplete="address-line1"
+                    className={fieldClass}
                     value={shippingAddress.address_line1}
                     onChange={(e) =>
                       setShippingAddress((prev) => ({
@@ -1140,12 +1160,13 @@ export default function Checkout() {
                       }))
                     }
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address2">Address Line 2</Label>
+                </Field>
+                <Field label="Address line 2" htmlFor="address2">
                   <Input
                     id="address2"
                     placeholder="Landmark, Area (Optional)"
+                    autoComplete="address-line2"
+                    className={fieldClass}
                     value={shippingAddress.address_line2}
                     onChange={(e) =>
                       setShippingAddress((prev) => ({
@@ -1154,35 +1175,38 @@ export default function Checkout() {
                       }))
                     }
                   />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">City *</Label>
+                </Field>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="City" htmlFor="city" required>
                     <Input
                       id="city"
                       placeholder="City"
+                      autoComplete="address-level2"
+                      className={fieldClass}
                       value={shippingAddress.city}
                       onChange={(e) =>
                         setShippingAddress((prev) => ({ ...prev, city: e.target.value }))
                       }
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">State *</Label>
+                  </Field>
+                  <Field label="State" htmlFor="state" required>
                     <StateSelect
                       id="state"
+                      className={fieldClass}
                       value={shippingAddress.state}
                       onChange={(state) => setShippingAddress((prev) => ({ ...prev, state }))}
                     />
-                  </div>
+                  </Field>
                 </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="pincode">Pincode *</Label>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="Pincode" htmlFor="pincode" required>
                     <Input
                       id="pincode"
                       placeholder="6-digit pincode"
+                      inputMode="numeric"
+                      autoComplete="postal-code"
                       maxLength={6}
+                      className={fieldClass}
                       value={shippingAddress.pincode}
                       onChange={(e) =>
                         setShippingAddress((prev) => ({
@@ -1191,303 +1215,343 @@ export default function Checkout() {
                         }))
                       }
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
+                  </Field>
+                  <Field label="Country" htmlFor="country">
                     <Input
                       id="country"
+                      className={fieldClass}
                       value={shippingAddress.country}
                       disabled
                     />
-                  </div>
+                  </Field>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </CheckoutSection>
 
             {/* Payment Method */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Payment Method
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <RadioGroup
-                  value={paymentChoice}
-                  onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
-                  className="space-y-3"
-                >
-                  {!codDisabledByVendor && (
-                    <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                      <RadioGroupItem value="cod" id="cod" />
-                      <Label
-                        htmlFor="cod"
-                        className="flex items-center gap-3 cursor-pointer flex-1"
-                      >
-                        <Banknote className="h-5 w-5 text-primary" />
-                        <div>
-                          <p className="font-medium">Cash on Delivery</p>
-                          <p className="text-sm text-muted-foreground">
-                            Pay when your order arrives
-                          </p>
-                        </div>
-                      </Label>
-                    </div>
-                  )}
-                  {codUnavailableReason && (
-                    <p className={`text-sm ${belowOnlineMinimum ? "text-destructive" : "text-muted-foreground"}`}>
-                      {codUnavailableReason}{" "}
-                      {belowOnlineMinimum
-                        ? `This order is also below the ₹${MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.`
-                        : "Please pay online."}
-                    </p>
-                  )}
-                  <div
-                    className={`flex items-center space-x-3 p-4 border border-border rounded-lg ${
-                      belowOnlineMinimum ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-muted/50"
-                    }`}
-                  >
-                    <RadioGroupItem value="razorpay" id="razorpay" disabled={belowOnlineMinimum} />
-                    <Label
-                      htmlFor="razorpay"
-                      className={`flex items-center gap-3 flex-1 ${belowOnlineMinimum ? "" : "cursor-pointer"}`}
-                    >
-                      <CreditCard className="h-5 w-5 text-primary" />
-                      <div>
-                        <p className="font-medium">Pay Online</p>
-                        <p className="text-sm text-muted-foreground">
-                          {belowOnlineMinimum
-                            ? `Not available below ₹${MIN_ONLINE_PAYMENT_AMOUNT} - use Cash on Delivery`
-                            : "Card, UPI or netbanking — pick your method at checkout"}
-                        </p>
-                      </div>
-                    </Label>
-                  </div>
-                  {emiAvailable && (
-                    <div className="flex items-center space-x-3 p-4 border border-border rounded-lg cursor-pointer hover:bg-muted/50">
-                      <RadioGroupItem value="emi" id="emi" />
-                      <Label htmlFor="emi" className="flex items-center gap-3 cursor-pointer flex-1">
-                        <CalendarClock className="h-5 w-5 text-primary" />
-                        <div>
-                          <p className="font-medium">Pay in EMI</p>
-                          <p className="text-sm text-muted-foreground">
-                            {[
-                              emiMethods?.card && "Credit/debit card EMI",
-                              emiMethods?.cardless && "cardless EMI",
-                              emiMethods?.paylater && "Pay Later",
-                            ]
-                              .filter(Boolean)
-                              .join(", ")}{" "}
-                            - choose your plan and tenure on the next step
-                          </p>
-                        </div>
-                      </Label>
-                    </div>
-                  )}
-                </RadioGroup>
-              </CardContent>
-            </Card>
+            <CheckoutSection number={3} title="Payment">
+              <RadioGroup
+                value={paymentChoice}
+                onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
+                className="space-y-3"
+              >
+                {!codDisabledByVendor && (
+                  <PaymentOption
+                    value="cod"
+                    selected={paymentChoice === "cod"}
+                    icon={Banknote}
+                    title="Cash on Delivery"
+                    text="Pay when your order arrives"
+                  />
+                )}
+                {codUnavailableReason && (
+                  <p className={cn("text-sm", belowOnlineMinimum ? "text-destructive" : "text-muted-foreground")}>
+                    {codUnavailableReason}{" "}
+                    {belowOnlineMinimum
+                      ? `This order is also below the ₹${MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.`
+                      : "Please pay online."}
+                  </p>
+                )}
+                <PaymentOption
+                  value="razorpay"
+                  selected={paymentChoice === "razorpay"}
+                  disabled={belowOnlineMinimum}
+                  icon={CreditCard}
+                  title="Pay online"
+                  text={
+                    belowOnlineMinimum
+                      ? `Not available below ₹${MIN_ONLINE_PAYMENT_AMOUNT} - use Cash on Delivery`
+                      : "Card, UPI or netbanking — pick your method at checkout"
+                  }
+                  extra={
+                    !belowOnlineMinimum && (
+                      <span className="hidden gap-1.5 sm:flex">
+                        {["UPI", "Cards", "Netbanking"].map((m) => (
+                          <span key={m} className="border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                            {m}
+                          </span>
+                        ))}
+                      </span>
+                    )
+                  }
+                />
+                {emiAvailable && (
+                  <PaymentOption
+                    value="emi"
+                    selected={paymentChoice === "emi"}
+                    icon={CalendarClock}
+                    title="Pay in EMI"
+                    text={`${[
+                      emiMethods?.card && "Credit/debit card EMI",
+                      emiMethods?.cardless && "cardless EMI",
+                      emiMethods?.paylater && "Pay Later",
+                    ]
+                      .filter(Boolean)
+                      .join(", ")} - choose your plan and tenure on the next step`}
+                  />
+                )}
+              </RadioGroup>
+            </CheckoutSection>
 
             {/* Order Notes */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Notes (Optional)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  placeholder="Any special instructions for your order..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </CardContent>
-            </Card>
+            <CheckoutSection number={4} title="Order notes" hint="Optional">
+              <Textarea
+                placeholder="Any special instructions for your order..."
+                className="rounded-none border-foreground/20 bg-background focus-visible:border-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+              />
+            </CheckoutSection>
           </div>
 
           {/* Right Column - Order Summary */}
-          <div className="space-y-6">
-            <Card className="sticky top-4">
-              <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          <aside className="min-w-0">
+            <div className="border border-border bg-ivory lg:sticky lg:top-6">
+              <div className="flex items-baseline justify-between border-b border-border px-6 py-5">
+                <h2 className="font-serif text-2xl">Order summary</h2>
+                <span className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                  {itemCount} {itemCount === 1 ? "piece" : "pieces"}
+                </span>
+              </div>
+
+              <div className="space-y-6 p-6">
                 {/* Cart Items */}
-                <div className="space-y-3 max-h-60 overflow-y-auto">
+                <ul className="no-scrollbar max-h-80 space-y-5 overflow-y-auto">
                   {items.map((item) => (
-                    <div key={cartLineKey(item)} className="flex gap-3">
-                      <div className="w-16 h-16 bg-muted rounded-md overflow-hidden flex-shrink-0">
-                        {item.productImage && (
-                          <img
-                            src={item.productImage}
-                            alt={item.productName}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
+                    <li key={cartLineKey(item)} className="flex gap-4">
+                      <div className="relative h-24 w-[72px] shrink-0 overflow-hidden bg-background">
+                        <SmartImage
+                          src={item.productImage}
+                          alt={item.productName}
+                          width={160}
+                          className="h-full w-full object-cover"
+                          fallback={<BrandPlaceholder className="[&_img]:h-5" />}
+                        />
+                        <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-foreground px-1 text-[10px] text-background">
+                          {item.quantity}
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-medium text-sm truncate">
+                      <div className="min-w-0 flex-1">
+                        <Link to={`/product/${item.productId}`} className="line-clamp-2 text-sm hover:text-primary">
                           {item.productName}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Qty: {item.quantity}
+                        </Link>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.variantTitle && item.variantTitle !== "Default" ? `${item.variantTitle} · ` : ""}Qty: {item.quantity}
                         </p>
                         {item.customisation && (
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
                         )}
-                        <p className="text-sm font-semibold">
+                        <p className="mt-1 text-sm font-medium">
                           ₹{formatMoney(parseFloat(item.price.amount) * item.quantity)}
                         </p>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
-
-                <Separator />
+                </ul>
 
                 {/* Discount Code Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-primary" />
-                    <Label className="text-sm font-medium">Apply Coupon or Gift Card</Label>
-                  </div>
-                  
+                <div className="border-t border-border pt-6">
+                  <p className="mb-3 flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.2em]">
+                    <Tag className="h-3.5 w-3.5 text-gold" />
+                    Coupon or gift card
+                  </p>
+
                   {appliedDiscount ? (
-                    <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 text-primary" />
-                          <div>
-                            <span className="font-semibold text-primary">
-                              {appliedDiscount.code}
-                            </span>
-                            <Badge variant="secondary" className="ml-2 text-xs">
-                              {appliedDiscount.discount_type === "percentage"
-                                ? `${appliedDiscount.discount_value}% OFF`
-                                : `₹${appliedDiscount.discount_value} OFF`}
-                            </Badge>
-                          </div>
+                    <div className="border border-primary/25 bg-background p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-medium text-primary">{appliedDiscount.code}</span>
+                          <span className="bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-primary">
+                            {appliedDiscount.discount_type === "percentage"
+                              ? `${appliedDiscount.discount_value}% off`
+                              : `₹${appliedDiscount.discount_value} off`}
+                          </span>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        <button
+                          type="button"
                           onClick={removeDiscount}
+                          className="p-1 text-muted-foreground hover:text-destructive"
+                          aria-label="Remove coupon"
                         >
                           <X className="h-4 w-4" />
-                        </Button>
+                        </button>
                       </div>
-                      <p className="text-xs text-primary/70 mt-1">
+                      <p className="mt-1.5 text-xs text-primary/80">
                         You're saving ₹{formatMoney(discountAmount)} on this order!
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Enter discount code"
-                          value={discountCode}
-                          onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                          onKeyDown={(e) => e.key === "Enter" && validateDiscountCode()}
-                          className="flex-1"
-                        />
-                        <Button
-                          variant="secondary"
-                          onClick={validateDiscountCode}
-                          disabled={isValidatingDiscount || !discountCode.trim()}
-                        >
-                          {isValidatingDiscount ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "Apply"
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Have a coupon code or gift card? Enter it above to save on your order.
-                      </p>
+                    <div className="flex h-12 border border-foreground/20 bg-background focus-within:border-foreground">
+                      <input
+                        aria-label="Coupon or gift card code"
+                        placeholder="Enter code"
+                        value={discountCode}
+                        onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === "Enter" && validateDiscountCode()}
+                        className="min-w-0 flex-1 bg-transparent px-4 text-sm uppercase tracking-[0.1em] outline-none placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground"
+                      />
+                      <button
+                        type="button"
+                        onClick={validateDiscountCode}
+                        disabled={isValidatingDiscount || !discountCode.trim()}
+                        className="px-5 text-[11px] font-medium uppercase tracking-[0.2em] text-primary disabled:text-muted-foreground"
+                      >
+                        {isValidatingDiscount ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                      </button>
                     </div>
                   )}
                 </div>
 
-                <Separator />
-
                 {/* Price Breakdown */}
-                <div className="space-y-2 text-sm">
+                <dl className="space-y-2.5 border-t border-border pt-6 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{formatMoney(subtotal)}</span>
+                    <dt className="text-muted-foreground">Subtotal</dt>
+                    <dd>₹{formatMoney(subtotal)}</dd>
                   </div>
                   {appliedDiscount && (
                     <div className="flex justify-between text-primary">
-                      <span>Discount</span>
-                      <span>-₹{formatMoney(discountAmount)}</span>
+                      <dt>Discount</dt>
+                      <dd>-₹{formatMoney(discountAmount)}</dd>
                     </div>
                   )}
                   {vendorGroups.map((group) => (
-                    <div className="flex justify-between" key={group.vendorId ?? "platform"}>
-                      <span className="text-muted-foreground">
+                    <div className="flex justify-between gap-4" key={group.vendorId ?? "platform"}>
+                      <dt className="text-muted-foreground">
                         Shipping{group.vendorName ? ` — ${group.vendorName}` : ""}
-                      </span>
-                      <span>
+                      </dt>
+                      <dd className="shrink-0">
                         {group.shippingCost === 0 ? (
-                          <span className="text-primary font-medium">FREE</span>
+                          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-700">Free</span>
                         ) : (
                           `₹${group.shippingCost}`
                         )}
-                      </span>
+                      </dd>
                     </div>
                   ))}
-                </div>
+                </dl>
 
-                <Separator />
-
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span className="text-primary">₹{formatMoney(total)}</span>
+                <div className="flex items-baseline justify-between border-t border-foreground/80 pt-5">
+                  <span className="text-[12px] font-medium uppercase tracking-[0.2em]">Total</span>
+                  <span className="font-serif text-3xl">₹{formatMoney(total)}</span>
                 </div>
+                <p className="-mt-4 text-right text-xs text-muted-foreground">Inclusive of all taxes</p>
 
                 {deliveryEta && (
-                  <p className="text-sm text-green-700 font-medium">
+                  <p className="flex items-center gap-2 border border-emerald-700/20 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
+                    <Truck className="h-4 w-4 shrink-0" />
                     Estimated delivery by {deliveryDateLabel(deliveryEta)}
                   </p>
                 )}
 
-                <Button
-                  className="w-full"
-                  size="lg"
+                <button
+                  type="button"
                   onClick={placeOrder}
                   disabled={isPlacingOrder}
+                  className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
                 >
-                  {isPlacingOrder ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {paymentMethod === "razorpay" ? "Processing payment..." : "Placing Order..."}
-                    </>
-                  ) : paymentMethod === "razorpay" ? (
-                    `Pay ₹${formatMoney(total)}`
-                  ) : (
-                    `Place Order • ₹${formatMoney(total)}`
-                  )}
-                </Button>
+                  {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {placeOrderLabel}
+                </button>
 
                 {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
                   const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;
                   const threshold = info ? info.free_shipping_threshold : PLATFORM_SHIPPING.threshold;
                   if (threshold === null) return null;
                   return (
-                    <p className="text-xs text-center text-muted-foreground">
+                    <p className="text-center text-xs text-muted-foreground">
                       Add ₹{formatMoney(threshold - vendorGroups[0].subtotal)} more for free shipping
                     </p>
                   );
                 })()}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
 
-      <Footer />
+                <ul className="grid grid-cols-3 gap-2 border-t border-border pt-5 text-center text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  <li className="flex flex-col items-center gap-1.5">
+                    <Lock className="h-4 w-4 text-gold" strokeWidth={1.5} />
+                    Secure payment
+                  </li>
+                  <li className="flex flex-col items-center gap-1.5">
+                    <ShieldCheck className="h-4 w-4 text-gold" strokeWidth={1.5} />
+                    Verified boutiques
+                  </li>
+                  <li className="flex flex-col items-center gap-1.5">
+                    <Package className="h-4 w-4 text-gold" strokeWidth={1.5} />
+                    Quality-checked
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+    </CheckoutShell>
+  );
+}
+
+const fieldClass =
+  "h-12 rounded-none border-foreground/20 bg-background focus:ring-0 focus:ring-offset-0 focus-visible:border-foreground focus-visible:ring-0 focus-visible:ring-offset-0";
+
+function CheckoutSection({ number, title, hint, children }: { number: number; title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <div className="mb-6 flex items-center gap-4 border-b border-border pb-4">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/50 font-serif text-sm text-gold">
+          {number}
+        </span>
+        <h2 className="font-serif text-2xl md:text-[1.75rem]">{title}</h2>
+        {hint && <span className="ml-auto text-xs uppercase tracking-[0.16em] text-muted-foreground">{hint}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, htmlFor, required, children }: { label: string; htmlFor: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor} className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+        {required && <span className="text-primary"> *</span>}
+      </Label>
+      {children}
     </div>
+  );
+}
+
+function PaymentOption({
+  value,
+  selected,
+  disabled,
+  icon: Icon,
+  title,
+  text,
+  extra,
+}: {
+  value: string;
+  selected: boolean;
+  disabled?: boolean;
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <Label
+      htmlFor={value}
+      className={cn(
+        "flex items-center gap-4 border p-4 font-normal transition-colors md:p-5",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        selected ? "border-foreground bg-ivory" : "border-border hover:border-foreground/40",
+      )}
+    >
+      <RadioGroupItem value={value} id={value} disabled={disabled} />
+      <Icon className="h-5 w-5 shrink-0 text-gold" strokeWidth={1.5} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium">{title}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{text}</span>
+      </span>
+      {extra}
+    </Label>
   );
 }

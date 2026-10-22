@@ -69,6 +69,7 @@ export default function ProductDetail() {
     contact_phone: string | null;
     shipping_flat_rate: number;
     free_shipping_threshold: number | null;
+    default_prep_days?: number | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const { shippingCharged } = useCustomerShipping();
@@ -449,8 +450,8 @@ export default function ProductDetail() {
   const mrp = product.compare_at_price && product.compare_at_price > currentPrice ? product.compare_at_price : null;
   const off = discountPercent(currentPrice, product.compare_at_price);
   const soldOut = currentStock <= 0;
-  const madeToOrder = !!(product as any).made_to_order;
-  const prepDays = (product as any).prep_days ?? (vendorInfo as any)?.default_prep_days ?? 2;
+  const madeToOrder = !!product.made_to_order;
+  const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
   const boutique = product.vendor_id ? boutiques.find((b) => b.id === product.vendor_id) : undefined;
 
   // Sizes/colours with nothing in stock (for the chosen colour, where there is
