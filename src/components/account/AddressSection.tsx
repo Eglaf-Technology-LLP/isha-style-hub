@@ -1,10 +1,7 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +15,8 @@ import { useSavedAddresses, AddressFormData, SavedAddress } from "@/hooks/useSav
 import { toast } from "sonner";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
+import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
+import { cn } from "@/lib/utils";
 
 export function AddressSection() {
   const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useSavedAddresses();
@@ -102,180 +101,194 @@ export function AddressSection() {
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Saved Addresses</CardTitle>
-          <CardDescription>
-            Manage your shipping addresses for faster checkout
-          </CardDescription>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Address
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingAddress ? "Edit Address" : "Add New Address"}</DialogTitle>
-              <DialogDescription>
-                {editingAddress ? "Update your address details" : "Add a new shipping address"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="label">Address Label (e.g., Home, Office)</Label>
-                <Input
-                  id="label"
-                  value={formData.label}
-                  onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                  placeholder="Home"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="full_name">Full Name *</Label>
-                <Input
-                  id="full_name"
-                  value={formData.full_name}
-                  onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                  placeholder="John Doe"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  placeholder="+91 9876543210"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="address_line_1">Address Line 1 *</Label>
-                <Input
-                  id="address_line_1"
-                  value={formData.address_line_1}
-                  onChange={(e) => setFormData({ ...formData, address_line_1: e.target.value })}
-                  placeholder="House/Flat No., Building Name"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="address_line_2">Address Line 2</Label>
-                <Input
-                  id="address_line_2"
-                  value={formData.address_line_2}
-                  onChange={(e) => setFormData({ ...formData, address_line_2: e.target.value })}
-                  placeholder="Street, Area, Landmark"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+    <div>
+      <AccountSectionTitle
+        title="Saved addresses"
+        text="Manage your shipping addresses for faster checkout"
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex h-11 shrink-0 items-center gap-2 border border-foreground px-5 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
+              >
+                <Plus className="h-4 w-4" />
+                Add address
+              </button>
+            </DialogTrigger>
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-none bg-ivory sm:rounded-none">
+              <DialogHeader>
+                <DialogTitle className="font-serif text-2xl font-normal">{editingAddress ? "Edit address" : "Add a new address"}</DialogTitle>
+                <DialogDescription>
+                  {editingAddress ? "Update your address details" : "Add a new shipping address"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="city">City *</Label>
+                  <Label htmlFor="label" className={accountLabelClass}>Address label (e.g., Home, Office)</Label>
                   <Input
-                    id="city"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="Mumbai"
+                    id="label"
+                    value={formData.label}
+                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
+                    placeholder="Home"
+                    className={accountFieldClass}
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="state">State *</Label>
-                  <StateSelect
-                    id="state"
-                    value={formData.state}
-                    onChange={(state) => setFormData({ ...formData, state })}
+                  <Label htmlFor="full_name" className={accountLabelClass}>Full name *</Label>
+                  <Input
+                    id="full_name"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    placeholder="John Doe"
+                    className={accountFieldClass}
                   />
                 </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="pincode">Pincode *</Label>
-                <Input
-                  id="pincode"
-                  value={formData.pincode}
-                  onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                  placeholder="400001"
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="is_default"
-                  checked={formData.is_default}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked as boolean })}
-                />
-                <Label htmlFor="is_default">Set as default address</Label>
-              </div>
-              <Button onClick={handleSubmit} className="w-full">
-                {editingAddress ? "Update Address" : "Save Address"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        {addresses.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No saved addresses yet</p>
-            <p className="text-sm">Add an address for faster checkout</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {addresses.map((address) => (
-              <Card key={address.id} className={address.is_default ? "border-primary" : ""}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {address.label && (
-                        <Badge variant="secondary">{address.label}</Badge>
-                      )}
-                      {address.is_default && (
-                        <Badge className="bg-primary/10 text-primary">
-                          <Star className="h-3 w-3 mr-1" />
-                          Default
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(address)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(address.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone" className={accountLabelClass}>Phone number *</Label>
+                  <Input
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="+91 9876543210"
+                    className={accountFieldClass}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address_line_1" className={accountLabelClass}>Address line 1 *</Label>
+                  <Input
+                    id="address_line_1"
+                    value={formData.address_line_1}
+                    onChange={(e) => setFormData({ ...formData, address_line_1: e.target.value })}
+                    placeholder="House/Flat No., Building Name"
+                    className={accountFieldClass}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="address_line_2" className={accountLabelClass}>Address line 2</Label>
+                  <Input
+                    id="address_line_2"
+                    value={formData.address_line_2}
+                    onChange={(e) => setFormData({ ...formData, address_line_2: e.target.value })}
+                    placeholder="Street, Area, Landmark"
+                    className={accountFieldClass}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="city" className={accountLabelClass}>City *</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      placeholder="Mumbai"
+                      className={accountFieldClass}
+                    />
                   </div>
-                  <div className="text-sm space-y-1">
-                    <p className="font-medium">{address.full_name}</p>
-                    <p className="text-muted-foreground">{address.phone}</p>
-                    <p className="text-muted-foreground">
-                      {address.address_line_1}
-                      {address.address_line_2 && `, ${address.address_line_2}`}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {address.city}, {address.state} - {address.pincode}
-                    </p>
+                  <div className="grid gap-2">
+                    <Label htmlFor="state" className={accountLabelClass}>State *</Label>
+                    <StateSelect
+                      id="state"
+                      value={formData.state}
+                      onChange={(state) => setFormData({ ...formData, state })}
+                      className={accountFieldClass}
+                    />
                   </div>
-                  {!address.is_default && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => setDefaultAddress(address.id)}
-                    >
-                      Set as Default
-                    </Button>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="pincode" className={accountLabelClass}>Pincode *</Label>
+                  <Input
+                    id="pincode"
+                    value={formData.pincode}
+                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                    placeholder="400001"
+                    className={accountFieldClass}
+                  />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="is_default"
+                    checked={formData.is_default}
+                    onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked as boolean })}
+                  />
+                  <Label htmlFor="is_default">Set as default address</Label>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  className="h-12 w-full bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep"
+                >
+                  {editingAddress ? "Update address" : "Save address"}
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        }
+      />
+
+      {addresses.length === 0 ? (
+        <div className="border border-dashed border-foreground/15 px-6 py-14 text-center">
+          <MapPin className="mx-auto mb-4 h-8 w-8 text-gold" strokeWidth={1.5} />
+          <p className="font-serif text-2xl">No saved addresses yet</p>
+          <p className="mt-2 text-sm text-muted-foreground">Add an address for faster checkout</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {addresses.map((address) => (
+            <div
+              key={address.id}
+              className={cn("flex flex-col border p-5", address.is_default ? "border-foreground bg-ivory" : "border-border")}
+            >
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {address.label && (
+                    <span className="border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]">
+                      {address.label}
+                    </span>
                   )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                  {address.is_default && (
+                    <span className="inline-flex items-center gap-1 bg-primary px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-primary-foreground">
+                      <Star className="h-3 w-3" />
+                      Default
+                    </span>
+                  )}
+                </div>
+                <div className="-mr-2 -mt-1 flex">
+                  <button type="button" onClick={() => handleEdit(address)} className="p-2 text-muted-foreground hover:text-foreground" aria-label="Edit address">
+                    <Edit className="h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={() => handleDelete(address.id)} className="p-2 text-muted-foreground hover:text-destructive" aria-label="Delete address">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 space-y-1 text-sm">
+                <p className="font-medium">{address.full_name}</p>
+                <p className="text-muted-foreground">{address.phone}</p>
+                <p className="text-muted-foreground">
+                  {address.address_line_1}
+                  {address.address_line_2 && `, ${address.address_line_2}`}
+                </p>
+                <p className="text-muted-foreground">
+                  {address.city}, {address.state} - {address.pincode}
+                </p>
+              </div>
+              {!address.is_default && (
+                <button
+                  type="button"
+                  className="mt-4 self-start text-[11px] font-medium uppercase tracking-[0.18em] text-primary underline-offset-4 hover:underline"
+                  onClick={() => setDefaultAddress(address.id)}
+                >
+                  Set as default
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

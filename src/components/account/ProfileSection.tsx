@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,6 +6,7 @@ import { Loader2, Camera, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
 
 interface Profile {
   full_name: string | null;
@@ -130,96 +129,100 @@ export function ProfileSection() {
     .toUpperCase() || user?.email?.[0].toUpperCase() || "U";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Profile Information</CardTitle>
-        <CardDescription>
-          Update your personal details and contact information
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Avatar */}
-        <div className="flex items-center gap-6">
-          <div className="relative">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={profile.avatar_url || undefined} />
-              <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
-            </Avatar>
-            <label
-              htmlFor="avatar-upload"
-              className="absolute bottom-0 right-0 p-2 bg-primary text-primary-foreground rounded-full cursor-pointer hover:bg-primary/90 transition-colors"
-            >
-              <Camera className="h-4 w-4" />
-              <input
-                id="avatar-upload"
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarUpload}
-              />
-            </label>
-          </div>
-          <div>
-            <p className="font-medium">{profile.full_name || "Set your name"}</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-          </div>
+    <div className="grid gap-10 lg:grid-cols-[260px_1fr] lg:gap-16">
+      {/* Avatar */}
+      <div className="flex items-center gap-5 lg:flex-col lg:items-start">
+        <div className="relative">
+          <Avatar className="h-24 w-24 border border-gold/40 lg:h-32 lg:w-32">
+            <AvatarImage src={profile.avatar_url || undefined} className="object-cover" />
+            <AvatarFallback className="bg-ivory font-serif text-3xl text-primary">{initials}</AvatarFallback>
+          </Avatar>
+          <label
+            htmlFor="avatar-upload"
+            className="absolute bottom-1 right-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-maroon-deep"
+            aria-label="Change photo"
+          >
+            <Camera className="h-4 w-4" />
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+            />
+          </label>
         </div>
+        <div className="min-w-0">
+          <p className="font-serif text-2xl leading-tight">{profile.full_name || "Set your name"}</p>
+          <p className="mt-1 break-all text-sm text-muted-foreground">{user?.email}</p>
+        </div>
+      </div>
+
+      <div>
+        <AccountSectionTitle title="Profile information" text="Update your personal details and contact information" />
 
         {nameMissing && (
-          <p className="rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm">
+          <p className="mb-6 border border-gold/40 bg-ivory px-4 py-3 text-sm">
             Add your full name to finish setting up your account. Boutiques and couriers use it for your orders, and it
             appears on your invoices.
           </p>
         )}
 
         {/* Form */}
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="full_name">Full Name</Label>
+            <Label htmlFor="full_name" className={accountLabelClass}>Full name</Label>
             <Input
               id="full_name"
               value={profile.full_name || ""}
               onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
               placeholder="Enter your full name"
               autoFocus={nameMissing}
+              className={accountFieldClass}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className={accountLabelClass}>Email</Label>
             <Input
               id="email"
               value={user?.email || ""}
               disabled
-              className="bg-muted"
+              className={accountFieldClass}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="phone" className={accountLabelClass}>Phone number</Label>
             <Input
               id="phone"
               value={profile.phone || ""}
               onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
               placeholder="+91 9876543210"
+              className={accountFieldClass}
             />
           </div>
         </div>
 
-        <Button onClick={handleSave} disabled={saving}>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="mt-8 inline-flex h-12 items-center gap-2 bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
+        >
           {saving ? (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
               Saving...
             </>
           ) : (
             <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+              <Save className="h-4 w-4" />
+              Save changes
             </>
           )}
-        </Button>
-      </CardContent>
-    </Card>
+        </button>
+      </div>
+    </div>
   );
 }

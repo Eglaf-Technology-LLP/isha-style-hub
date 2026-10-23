@@ -1,8 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Accordion,
   AccordionContent,
@@ -20,6 +17,7 @@ import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
+import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -194,226 +192,211 @@ export function OrdersSection() {
 
   return (
     <>
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>
-            Your last 10 orders. View all orders for complete history.
-          </CardDescription>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/orders">
-            View All
-            <ExternalLink className="h-4 w-4 ml-2" />
+    <div>
+      <AccountSectionTitle
+        title="Recent orders"
+        text="Your last 10 orders. View all orders for complete history."
+        action={
+          <Link
+            to="/orders"
+            className="inline-flex h-11 shrink-0 items-center gap-2 border border-foreground px-5 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
+          >
+            View all orders
+            <ExternalLink className="h-3.5 w-3.5" />
           </Link>
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {orders.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <ShoppingBag className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No orders yet</p>
-            <p className="text-sm">Start shopping to see your orders here!</p>
-            <Button asChild className="mt-4">
-              <Link to="/">Start Shopping</Link>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
-              const itemsByVendorOrder = new Map<string, OrderItem[]>();
-              for (const item of order.order_items) {
-                const key = item.vendor_order_id ?? "";
-                itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
-              }
-              const shipmentGroups = [...itemsByVendorOrder.entries()]
-                .map(([vendorOrderId, groupItems]) => ({
-                  vendorOrderId,
-                  items: groupItems,
-                  vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
-                }))
-                .filter((g) => g.vendorOrder);
-              const showGroupLabels = shipmentGroups.length > 1;
+        }
+      />
+      {orders.length === 0 ? (
+        <div className="border border-dashed border-foreground/15 px-6 py-14 text-center">
+          <ShoppingBag className="mx-auto mb-4 h-8 w-8 text-gold" strokeWidth={1.5} />
+          <p className="font-serif text-2xl">No orders yet</p>
+          <p className="mt-2 text-sm text-muted-foreground">Start shopping to see your orders here!</p>
+          <Link
+            to="/category/all"
+            className="mt-6 inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
+          >
+            Start shopping
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {orders.map((order) => {
+            const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
+            const itemsByVendorOrder = new Map<string, OrderItem[]>();
+            for (const item of order.order_items) {
+              const key = item.vendor_order_id ?? "";
+              itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
+            }
+            const shipmentGroups = [...itemsByVendorOrder.entries()]
+              .map(([vendorOrderId, groupItems]) => ({
+                vendorOrderId,
+                items: groupItems,
+                vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
+              }))
+              .filter((g) => g.vendorOrder);
+            const showGroupLabels = shipmentGroups.length > 1;
 
-              const hasCancellableItems = order.vendor_orders.some(
-                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
-              );
+            const hasCancellableItems = order.vendor_orders.some(
+              (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
+            );
 
-              return (
-              <Card key={order.id}>
-                <CardContent className="pt-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                    <div>
-                      <p className="font-medium">
-                        Order #{order.id.slice(0, 8).toUpperCase()}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {format(new Date(order.created_at), "PPP")}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
-                        <Badge className={`${shipmentStatusColors[shipmentGroups[0].vendorOrder.status] || "bg-muted"} text-[10px] px-1.5 py-0`}>
-                          {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
-                            shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
-                        </Badge>
-                      )}
-                      {hasCancellableItems && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
-                          onClick={() => setCancellingOrder(order)}
-                        >
-                          <Ban className="h-3 w-3" />
-                          Cancel Order
-                        </Button>
-                      )}
-                      {!hasCancellableItems && order.vendor_orders.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => setReorderingOrder(order)}
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          Reorder
-                        </Button>
-                      )}
-                    </div>
+            return (
+            <article key={order.id} className="border border-border">
+              <div className="flex flex-col gap-3 border-b border-border bg-ivory px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-8">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Order</p>
+                    <p className="font-mono text-sm">#{order.id.slice(0, 8).toUpperCase()}</p>
                   </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
+                    <p className="text-sm">{format(new Date(order.created_at), "d MMM yyyy")}</p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
+                    <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
+                      {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
+                        shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                    </StatusPill>
+                  )}
+                  {hasCancellableItems && (
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
+                      onClick={() => setCancellingOrder(order)}
+                    >
+                      <Ban className="h-3 w-3" />
+                      Cancel order
+                    </button>
+                  )}
+                  {!hasCancellableItems && order.vendor_orders.length > 0 && (
+                    <button
+                      type="button"
+                      className="inline-flex h-8 items-center gap-1.5 border border-foreground/20 px-3 text-[10px] font-medium uppercase tracking-[0.14em] hover:border-foreground"
+                      onClick={() => setReorderingOrder(order)}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Reorder
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                  <Accordion type="single" collapsible className="w-full">
-                    <AccordionItem value="items" className="border-b-0">
-                      <AccordionTrigger className="hover:no-underline py-2">
-                        <span className="text-sm">
-                          {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""} • ₹{order.total.toFixed(0)}
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-3">
-                          {shipmentGroups.map((group, i) => (
-                            <div key={group.vendorOrderId || i} className={showGroupLabels ? "border border-border rounded-lg p-2 space-y-2" : "space-y-2"}>
-                              {showGroupLabels && (
-                                <p className="text-[10px] font-medium text-muted-foreground">
-                                  Part {i + 1} of {shipmentGroups.length}
+              <Accordion type="single" collapsible className="w-full px-5">
+                <AccordionItem value="items" className="border-b-0">
+                  <AccordionTrigger className="py-4 hover:no-underline">
+                    <span className="text-sm">
+                      {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""} · <span className="font-medium">₹{order.total.toFixed(0)}</span>
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-4">
+                      {shipmentGroups.map((group, i) => (
+                        <div key={group.vendorOrderId || i} className={showGroupLabels ? "space-y-3 border border-border p-3" : "space-y-3"}>
+                          {showGroupLabels && (
+                            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                              Part {i + 1} of {shipmentGroups.length}
+                            </p>
+                          )}
+                          {group.items.map((item) => (
+                            <div key={item.id} className="flex items-start gap-3 text-sm">
+                              {item.image ? (
+                                <img src={item.image} alt="" className="h-16 w-12 shrink-0 object-cover" />
+                              ) : (
+                                <div className="h-16 w-12 shrink-0 bg-ivory" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate">{item.product_title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {[item.size && `Size ${item.size}`, item.color, `Qty ${item.quantity}`].filter(Boolean).join(" · ")}
                                 </p>
-                              )}
-                              {group.items.map((item) => (
-                                <div key={item.id} className="flex items-start gap-2 text-sm">
-                                  {item.image ? (
-                                    <img src={item.image} alt="" className="h-9 w-9 rounded object-cover shrink-0" />
-                                  ) : (
-                                    <div className="h-9 w-9 rounded bg-muted shrink-0" />
-                                  )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium truncate">{item.product_title}</p>
-                                    <div className="flex flex-wrap items-center gap-1 mt-1">
-                                      {item.size && (
-                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                                          Size {item.size}
-                                        </Badge>
-                                      )}
-                                      {item.color && (
-                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                                          {item.color}
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                                        Qty {item.quantity}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <span className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
-                                </div>
-                              ))}
-                              {group.vendorOrder && (
-                                <>
-                                  <OrderStatusTimeline
-                                    compact
-                                    timeline={buildOrderTimeline({
-                                      vendorOrderStatus: group.vendorOrder.status,
-                                      vendorOrderUpdatedAt: group.vendorOrder.updated_at,
-                                      orderPlacedAt: order.created_at,
-                                      shipment: group.vendorOrder.shipment,
-                                    })}
-                                  />
-                                  <InvoiceDownloadButton
-                                    vendorOrderId={group.vendorOrderId}
-                                    paymentStatus={order.payment_status}
-                                    vendorOrderStatus={group.vendorOrder?.status}
-                                  />
-                                </>
-                              )}
+                              </div>
+                              <span className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
                             </div>
                           ))}
+                          {group.vendorOrder && (
+                            <>
+                              <OrderStatusTimeline
+                                compact
+                                timeline={buildOrderTimeline({
+                                  vendorOrderStatus: group.vendorOrder.status,
+                                  vendorOrderUpdatedAt: group.vendorOrder.updated_at,
+                                  orderPlacedAt: order.created_at,
+                                  shipment: group.vendorOrder.shipment,
+                                })}
+                              />
+                              <InvoiceDownloadButton
+                                vendorOrderId={group.vendorOrderId}
+                                paymentStatus={order.payment_status}
+                                vendorOrderStatus={group.vendorOrder?.status}
+                              />
+                            </>
+                          )}
                         </div>
-                        {order.discount_amount > 0 && (
-                          <div className="pt-3 border-t mt-2 flex justify-between text-xs">
-                            <span className="text-muted-foreground">
-                              Discount applied{order.discount_code && ` (${order.discount_code})`}
-                            </span>
-                            <span className="text-primary">-₹{order.discount_amount.toFixed(2)}</span>
-                          </div>
-                        )}
-                        {/* Return/Exchange status */}
-                        {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
-                          <div className="pt-3 border-t space-y-2 mt-2">
-                            <p className="text-xs font-medium text-muted-foreground">Return / Exchange</p>
-                            {returnsByOrder[order.id].map((rr) => {
-                              const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
-                              const exchangeTargets = rr.request_type === "exchange"
-                                ? (rr.items || [])
-                                    .map((item) => item.exchange_to ?? (rr.exchange_details ? { size: rr.exchange_details.new_size ?? null, color: rr.exchange_details.new_color ?? null } : null))
-                                    .filter((t): t is { size: string | null; color: string | null } => !!t && !!(t.size || t.color))
-                                    .map((t) => [t.size, t.color].filter(Boolean).join("/"))
-                                : [];
-                              return (
-                                <div key={rr.id} className="flex items-center justify-between gap-2 text-xs">
-                                  <div className="flex items-center gap-1.5">
-                                    {rr.request_type === "return" ? (
-                                      <RotateCcw className="h-3 w-3 text-muted-foreground" />
-                                    ) : (
-                                      <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                    <span className="font-medium">
-                                      {rr.request_type === "return" ? "Return" : "Exchange"}
-                                    </span>
-                                    {exchangeTargets.length > 0 && (
-                                      <span className="text-muted-foreground">→ {exchangeTargets.join(", ")}</span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Badge className={`${statusInfo.className} text-[10px] px-1.5 py-0`}>{statusInfo.label}</Badge>
-                                    {rr.status === "pending" && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 text-[10px] px-1.5 text-destructive hover:text-destructive"
-                                        onClick={() => cancelReturnRequest(rr.id)}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
-                </CardContent>
-              </Card>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                      ))}
+                    </div>
+                    {order.discount_amount > 0 && (
+                      <div className="mt-3 flex justify-between border-t border-border pt-3 text-xs">
+                        <span className="text-muted-foreground">
+                          Discount applied{order.discount_code && ` (${order.discount_code})`}
+                        </span>
+                        <span className="text-primary">-₹{order.discount_amount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {/* Return/Exchange status */}
+                    {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
+                      <div className="mt-3 space-y-2 border-t border-border pt-3">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">Return / Exchange</p>
+                        {returnsByOrder[order.id].map((rr) => {
+                          const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
+                          const exchangeTargets = rr.request_type === "exchange"
+                            ? (rr.items || [])
+                                .map((item) => item.exchange_to ?? (rr.exchange_details ? { size: rr.exchange_details.new_size ?? null, color: rr.exchange_details.new_color ?? null } : null))
+                                .filter((t): t is { size: string | null; color: string | null } => !!t && !!(t.size || t.color))
+                                .map((t) => [t.size, t.color].filter(Boolean).join("/"))
+                            : [];
+                          return (
+                            <div key={rr.id} className="flex items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-1.5">
+                                {rr.request_type === "return" ? (
+                                  <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                                ) : (
+                                  <ArrowLeftRight className="h-3 w-3 text-muted-foreground" />
+                                )}
+                                <span className="font-medium">
+                                  {rr.request_type === "return" ? "Return" : "Exchange"}
+                                </span>
+                                {exchangeTargets.length > 0 && (
+                                  <span className="text-muted-foreground">→ {exchangeTargets.join(", ")}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <StatusPill className={statusInfo.className}>{statusInfo.label}</StatusPill>
+                                {rr.status === "pending" && (
+                                  <button
+                                    type="button"
+                                    className="px-1.5 text-[10px] uppercase tracking-[0.12em] text-destructive hover:underline"
+                                    onClick={() => cancelReturnRequest(rr.id)}
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
     {cancellingOrder && (
       <OrderCancellationDialog
         items={cancellingOrder.order_items

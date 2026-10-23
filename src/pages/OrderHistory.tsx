@@ -1,22 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import type { CustomisationChoice } from "@/lib/customisation";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, ArrowLeft, RotateCcw, ArrowLeftRight, Ban, RefreshCw } from "lucide-react";
+import { Loader2, Package, ShoppingBag, RotateCcw, ArrowLeftRight, Ban, RefreshCw, Heart, User, Truck } from "lucide-react";
 import { format } from "date-fns";
-import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
@@ -28,6 +24,7 @@ import { buildOrderTimeline, buildWarehouseOrderTimeline, ShipmentTimestamps } f
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { formatShortDate, istToday } from "@/lib/warehouse";
+import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -182,7 +179,6 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
 }
 
 export default function OrderHistory() {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -359,23 +355,11 @@ export default function OrderHistory() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <CardTitle>Sign in to view your orders</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground text-center">
-                Please sign in to access your order history and track your purchases.
-              </p>
-              <InlineSignInForm />
-              <Button variant="outline" onClick={() => navigate("/")} className="w-full">
-                Continue Shopping
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <SignInCard
+          icon={Package}
+          title="Sign in to view your orders"
+          text="Please sign in to access your order history and track your purchases."
+        />
         <Footer />
       </div>
     );
@@ -385,199 +369,218 @@ export default function OrderHistory() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-serif font-bold">Order History</h1>
-            <p className="text-muted-foreground">Track and manage your orders</p>
-          </div>
-        </div>
+      <main>
+        <AccountHero
+          crumb="My orders"
+          eyebrow="Order history"
+          title="Your"
+          accent="orders"
+          subtitle="Track and manage your orders"
+          actions={
+            <>
+              <AccountAction to="/account" icon={User}>
+                My account
+              </AccountAction>
+              <AccountAction to="/wishlist" icon={Heart}>
+                Wishlist
+              </AccountAction>
+            </>
+          }
+        />
 
-        {orders.length === 0 ? (
-          <Card className="max-w-md mx-auto">
-            <CardContent className="text-center py-12">
-              <ShoppingBag className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <h2 className="text-xl font-semibold mb-2">No orders yet</h2>
-              <p className="text-muted-foreground mb-6">
+        <div className="store-container pb-24 pt-10 md:pt-14">
+          {orders.length === 0 ? (
+            <div className="mx-auto max-w-lg border border-dashed border-foreground/15 px-6 py-16 text-center">
+              <ShoppingBag className="mx-auto mb-4 h-8 w-8 text-gold" strokeWidth={1.5} />
+              <h2 className="font-serif text-3xl">No orders yet</h2>
+              <p className="mt-2 text-muted-foreground">
                 Start shopping to see your orders here!
               </p>
-              <Button asChild>
-                <Link to="/">Start Shopping</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
-              const itemsByVendorOrder = new Map<string, OrderItem[]>();
-              for (const item of order.order_items) {
-                const key = item.vendor_order_id ?? "";
-                itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
-              }
-              const shipmentGroups = [...itemsByVendorOrder.entries()]
-                .map(([vendorOrderId, groupItems]) => ({
-                  vendorOrderId,
-                  items: groupItems,
-                  vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
-                }))
-                .filter((g) => g.vendorOrder);
-              // Warehouse route: the customer gets AllBoutiqs' own parcel(s),
-              // so one timeline for the whole order instead of one per part.
-              const viaWarehouse = order.fulfilment_route === "warehouse";
-              const warehouseTimeline = viaWarehouse
-                ? buildWarehouseOrderTimeline({
-                    orderPlacedAt: order.created_at,
-                    orderEstimatedDeliveryDate: order.estimated_delivery_date,
-                    parts: order.vendor_orders.map((vo) => ({
-                      status: vo.status,
-                      updated_at: vo.updated_at,
-                      arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
-                      parcel: vo.parcel,
-                    })),
-                  })
-                : null;
-              const warehouseParcels = viaWarehouse
-                ? [...new Map(order.vendor_orders.filter((vo) => vo.parcel?.awb_code).map((vo) => [vo.parcel!.awb_code, vo.parcel!])).values()]
-                : [];
-              const headerStatusLabel = warehouseTimeline
-                ? warehouseTimeline.kind === "progress"
-                  ? warehouseTimeline.stages.find((s) => s.state === "current")?.label ?? "Delivered"
-                  : warehouseTimeline.kind === "cancelled"
-                    ? "Cancelled"
-                    : "Delivery unsuccessful"
-                : null;
-              const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
+              <Link
+                to="/category/all"
+                className="mt-8 inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
+              >
+                Start shopping
+              </Link>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-5xl space-y-5">
+              {orders.map((order) => {
+                const vendorOrderById = new Map(order.vendor_orders.map((vo) => [vo.id, vo]));
+                const itemsByVendorOrder = new Map<string, OrderItem[]>();
+                for (const item of order.order_items) {
+                  const key = item.vendor_order_id ?? "";
+                  itemsByVendorOrder.set(key, [...(itemsByVendorOrder.get(key) ?? []), item]);
+                }
+                const shipmentGroups = [...itemsByVendorOrder.entries()]
+                  .map(([vendorOrderId, groupItems]) => ({
+                    vendorOrderId,
+                    items: groupItems,
+                    vendorOrder: vendorOrderById.get(vendorOrderId) ?? null,
+                  }))
+                  .filter((g) => g.vendorOrder);
+                // Warehouse route: the customer gets AllBoutiqs' own parcel(s),
+                // so one timeline for the whole order instead of one per part.
+                const viaWarehouse = order.fulfilment_route === "warehouse";
+                const warehouseTimeline = viaWarehouse
+                  ? buildWarehouseOrderTimeline({
+                      orderPlacedAt: order.created_at,
+                      orderEstimatedDeliveryDate: order.estimated_delivery_date,
+                      parts: order.vendor_orders.map((vo) => ({
+                        status: vo.status,
+                        updated_at: vo.updated_at,
+                        arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
+                        parcel: vo.parcel,
+                      })),
+                    })
+                  : null;
+                const warehouseParcels = viaWarehouse
+                  ? [...new Map(order.vendor_orders.filter((vo) => vo.parcel?.awb_code).map((vo) => [vo.parcel!.awb_code, vo.parcel!])).values()]
+                  : [];
+                const headerStatusLabel = warehouseTimeline
+                  ? warehouseTimeline.kind === "progress"
+                    ? warehouseTimeline.stages.find((s) => s.state === "current")?.label ?? "Delivered"
+                    : warehouseTimeline.kind === "cancelled"
+                      ? "Cancelled"
+                      : "Delivery unsuccessful"
+                  : null;
+                const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
 
-              const hasCancellableItems = order.vendor_orders.some(
-                // Warehouse route: a part already in the warehouse's booked
-                // parcel can only come back as a return.
-                (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status) && !vo.parcel,
-              );
-              const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
-              const paymentDisplay = paymentStatusDisplay(order);
-              const returnWindow = returnWindowFor(order);
+                const hasCancellableItems = order.vendor_orders.some(
+                  // Warehouse route: a part already in the warehouse's booked
+                  // parcel can only come back as a return.
+                  (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status) && !vo.parcel,
+                );
+                const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
+                const paymentDisplay = paymentStatusDisplay(order);
+                const returnWindow = returnWindowFor(order);
+                // A glance at what's inside, before the order is opened.
+                const previews = order.order_items.slice(0, 4);
 
-              return (
-              <Card key={order.id} data-focus-id={order.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-lg">
-                        Order #{order.id.slice(0, 8).toUpperCase()}
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Placed on {format(new Date(order.created_at), "PPP 'at' p")}
-                      </p>
+                return (
+                <article key={order.id} data-focus-id={order.id} className="border border-border">
+                  <header className="flex flex-col gap-4 border-b border-border bg-ivory px-5 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:flex sm:gap-10">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Order</p>
+                        <p className="font-mono text-sm">#{order.id.slice(0, 8).toUpperCase()}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
+                        <p className="text-sm">{format(new Date(order.created_at), "d MMM yyyy, p")}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total</p>
+                        <p className="text-sm font-medium">₹{order.total.toFixed(2)}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {headerStatusLabel && (
-                        <Badge className={warehouseTimeline?.kind === "progress" ? "bg-indigo-100 text-indigo-800" : "bg-muted"}>
+                        <StatusPill className={warehouseTimeline?.kind === "progress" ? "bg-indigo-100 text-indigo-800" : "bg-muted"}>
                           {headerStatusLabel}
-                        </Badge>
+                        </StatusPill>
                       )}
                       {!viaWarehouse && shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
-                        <Badge className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status] || "bg-muted"}>
+                        <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
                           {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
                             shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
-                        </Badge>
+                        </StatusPill>
                       )}
-                      <Badge className={paymentDisplay.className}>{paymentDisplay.label}</Badge>
+                      <StatusPill className={paymentDisplay.className}>{paymentDisplay.label}</StatusPill>
                       {hasCancellableItems && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs gap-1 text-destructive hover:text-destructive"
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                           onClick={() => setCancellingOrder(order)}
                         >
-                          <Ban className="h-3.5 w-3.5" />
-                          Cancel Order
-                        </Button>
+                          <Ban className="h-3 w-3" />
+                          Cancel order
+                        </button>
                       )}
                       {!hasCancellableItems && order.vendor_orders.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 text-xs gap-1"
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1.5 border border-foreground/20 px-3 text-[10px] font-medium uppercase tracking-[0.14em] hover:border-foreground"
                           onClick={() => setReorderingOrder(order)}
                         >
-                          <RefreshCw className="h-3.5 w-3.5" />
+                          <RefreshCw className="h-3 w-3" />
                           Reorder
-                        </Button>
+                        </button>
                       )}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
+                  </header>
+
                   <Accordion
                     type="single"
                     collapsible
-                    className="w-full"
+                    className="w-full px-5 md:px-6"
                     value={openOrders[order.id] ?? ""}
                     onValueChange={(v) => setOpenOrders((prev) => ({ ...prev, [order.id]: v }))}
                   >
                     <AccordionItem value="items" className="border-b-0">
-                      <AccordionTrigger className="hover:no-underline py-2">
-                        <span className="text-sm">
-                          {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""} • Total: ₹{order.total.toFixed(2)}
+                      <AccordionTrigger className="gap-4 py-4 hover:no-underline">
+                        <span className="flex min-w-0 items-center gap-4">
+                          <span className="flex shrink-0 -space-x-3">
+                            {previews.map((item) =>
+                              item.image ? (
+                                <img key={item.id} src={item.image} alt="" className="h-14 w-11 border-2 border-background object-cover" />
+                              ) : (
+                                <span key={item.id} className="h-14 w-11 border-2 border-background bg-ivory" />
+                              ),
+                            )}
+                          </span>
+                          <span className="text-left text-sm">
+                            {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""}
+                            <span className="block text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Details & tracking</span>
+                          </span>
                         </span>
                       </AccordionTrigger>
                       <AccordionContent>
-                        <div className="space-y-5 pt-2">
+                        <div className="space-y-6 pt-2">
                           {shipmentGroups.map((group, i) => (
-                            <div key={group.vendorOrderId || i} className={showGroupLabels ? "border border-border rounded-lg p-3 space-y-3" : "space-y-3"}>
+                            <div key={group.vendorOrderId || i} className={showGroupLabels ? "space-y-4 border border-border p-4" : "space-y-4"}>
                               {showGroupLabels && (
-                                <p className="text-xs font-medium text-muted-foreground">
+                                <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                                   Part {i + 1} of {shipmentGroups.length}
                                 </p>
                               )}
                               {group.items.map((item) => (
                                 <div
                                   key={item.id}
-                                  className="flex items-start gap-3 border-b border-border pb-3 last:border-0"
+                                  className="flex items-start gap-4 border-b border-border pb-4 last:border-0"
                                 >
                                   {item.image ? (
-                                    <img src={item.image} alt="" className="h-14 w-14 rounded-md object-cover shrink-0" />
+                                    <img src={item.image} alt="" className="h-24 w-[72px] shrink-0 object-cover" />
                                   ) : (
-                                    <div className="h-14 w-14 rounded-md bg-muted shrink-0" />
+                                    <div className="h-24 w-[72px] shrink-0 bg-ivory" />
                                   )}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-medium">{item.product_title}</p>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                      {item.variant_title && (
-                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
-                                          {item.variant_title}
-                                        </Badge>
-                                      )}
-                                      {item.size && (
-                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
-                                          Size {item.size}
-                                        </Badge>
-                                      )}
-                                      {item.color && (
-                                        <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
-                                          {item.color}
-                                        </Badge>
-                                      )}
-                                      <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal">
-                                        Qty {item.quantity}
-                                      </Badge>
-                                      {item.customisation ? (
-                                        <Badge variant="outline" className="text-xs px-2 py-0.5 font-normal text-muted-foreground">
-                                          Customised · no return
-                                        </Badge>
-                                      ) : !item.is_returnable && (
-                                        <Badge variant="outline" className="text-xs px-2 py-0.5 font-normal text-muted-foreground">
-                                          Non-refundable
-                                        </Badge>
-                                      )}
-                                    </div>
+                                  <div className="min-w-0 flex-1">
+                                    <Link to={`/product/${item.product_id}`} className="hover:text-primary">
+                                      {item.product_title}
+                                    </Link>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {[
+                                        // "M / White" repeats the size and colour below.
+                                        !item.size && !item.color && item.variant_title,
+                                        item.size && `Size ${item.size}`,
+                                        item.color,
+                                        `Qty ${item.quantity}`,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(" · ")}
+                                    </p>
+                                    {item.customisation ? (
+                                      <span className="mt-2 inline-block border border-border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                                        Customised · no return
+                                      </span>
+                                    ) : !item.is_returnable && (
+                                      <span className="mt-2 inline-block border border-border px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                                        Non-refundable
+                                      </span>
+                                    )}
                                     {item.customisation && <CustomisationDetails customisation={item.customisation} className="mt-2" />}
                                   </div>
-                                  <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>
+                                  <p className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
                                 </div>
                               ))}
                               {group.vendorOrder && viaWarehouse && (
@@ -588,7 +591,7 @@ export default function OrderHistory() {
                                 />
                               )}
                               {group.vendorOrder && !viaWarehouse && (
-                                <div className="pt-1 space-y-2">
+                                <div className="space-y-3 bg-ivory p-4">
                                   <OrderStatusTimeline
                                     timeline={buildOrderTimeline({
                                       vendorOrderStatus: group.vendorOrder.status,
@@ -597,27 +600,28 @@ export default function OrderHistory() {
                                       shipment: group.vendorOrder.shipment,
                                     })}
                                   />
-                                  {group.vendorOrder.shipment?.awb_code ? (
-                                    <a
-                                      href={`https://shiprocket.co/tracking/${group.vendorOrder.shipment.awb_code}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-xs text-primary hover:underline inline-block"
-                                    >
-                                      {group.vendorOrder.shipment.courier_name
-                                        ? `${group.vendorOrder.shipment.courier_name} • `
-                                        : ""}
-                                      Track shipment
-                                    </a>
-                                  ) : (
-                                    group.vendorOrder.tracking_number && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {group.vendorOrder.carrier ? `${group.vendorOrder.carrier} • ` : ""}
-                                        {group.vendorOrder.tracking_number}
-                                      </span>
-                                    )
-                                  )}
-                                  <div>
+                                  <div className="flex flex-wrap items-center justify-between gap-3">
+                                    {group.vendorOrder.shipment?.awb_code ? (
+                                      <a
+                                        href={`https://shiprocket.co/tracking/${group.vendorOrder.shipment.awb_code}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-primary hover:underline"
+                                      >
+                                        <Truck className="h-3.5 w-3.5" />
+                                        {group.vendorOrder.shipment.courier_name
+                                          ? `${group.vendorOrder.shipment.courier_name} • `
+                                          : ""}
+                                        Track shipment
+                                      </a>
+                                    ) : (
+                                      group.vendorOrder.tracking_number && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {group.vendorOrder.carrier ? `${group.vendorOrder.carrier} • ` : ""}
+                                          {group.vendorOrder.tracking_number}
+                                        </span>
+                                      )
+                                    )}
                                     <InvoiceDownloadButton
                                       vendorOrderId={group.vendorOrderId}
                                       paymentStatus={order.payment_status}
@@ -630,7 +634,7 @@ export default function OrderHistory() {
                           ))}
 
                           {warehouseTimeline && (
-                            <div className="pt-1 space-y-2">
+                            <div className="space-y-3 bg-ivory p-4">
                               <OrderStatusTimeline timeline={warehouseTimeline} />
                               {warehouseParcels.map((parcel) => (
                                 <a
@@ -638,8 +642,9 @@ export default function OrderHistory() {
                                   href={`https://shiprocket.co/tracking/${parcel.awb_code}`}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="text-xs text-primary hover:underline block"
+                                  className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.16em] text-primary hover:underline"
                                 >
+                                  <Truck className="h-3.5 w-3.5" />
                                   {parcel.courier_name ? `${parcel.courier_name} • ` : ""}
                                   Track {warehouseParcels.length > 1 ? "parcel" : "shipment"}
                                 </a>
@@ -647,47 +652,49 @@ export default function OrderHistory() {
                             </div>
                           )}
 
-                          <div className="pt-3 space-y-1 text-sm border-t">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Subtotal</span>
-                              <span>₹{order.subtotal.toFixed(2)}</span>
+                          <div className="grid gap-6 border-t border-border pt-5 md:grid-cols-2 md:gap-10">
+                            <div>
+                              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.18em]">Shipping address</p>
+                              <p className="text-sm leading-relaxed text-muted-foreground">
+                                {order.customer_name}<br />
+                                {order.shipping_address.address_line1}
+                                {order.shipping_address.address_line2 && <>, {order.shipping_address.address_line2}</>}<br />
+                                {order.shipping_address.city}, {order.shipping_address.state} - {order.shipping_address.pincode}
+                              </p>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Shipping</span>
-                              <span>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : "Free"}</span>
-                            </div>
-                            {order.discount_amount > 0 && (
-                              <div className="flex justify-between text-primary">
-                                <span>
-                                  Discount{order.discount_code && ` (${order.discount_code})`}
-                                </span>
-                                <span>-₹{order.discount_amount.toFixed(2)}</span>
+                            <dl className="space-y-1.5 text-sm">
+                              <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Subtotal</dt>
+                                <dd>₹{order.subtotal.toFixed(2)}</dd>
                               </div>
-                            )}
-                            <div className="flex justify-between font-semibold pt-2 border-t">
-                              <span>Total</span>
-                              <span>₹{order.total.toFixed(2)}</span>
-                            </div>
+                              <div className="flex justify-between">
+                                <dt className="text-muted-foreground">Shipping</dt>
+                                <dd>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : "Free"}</dd>
+                              </div>
+                              {order.discount_amount > 0 && (
+                                <div className="flex justify-between text-primary">
+                                  <dt>
+                                    Discount{order.discount_code && ` (${order.discount_code})`}
+                                  </dt>
+                                  <dd>-₹{order.discount_amount.toFixed(2)}</dd>
+                                </div>
+                              )}
+                              <div className="flex justify-between border-t border-border pt-2 font-medium">
+                                <dt>Total</dt>
+                                <dd>₹{order.total.toFixed(2)}</dd>
+                              </div>
+                            </dl>
                           </div>
 
-                          <div className="pt-4 border-t">
-                            <p className="text-sm font-medium mb-1">Shipping Address</p>
-                            <p className="text-sm text-muted-foreground">
-                              {order.customer_name}<br />
-                              {order.shipping_address.address_line1}
-                              {order.shipping_address.address_line2 && <>, {order.shipping_address.address_line2}</>}<br />
-                              {order.shipping_address.city}, {order.shipping_address.state} - {order.shipping_address.pincode}
-                            </p>
-                          </div>
                           {/* Return/Exchange Requests for this order */}
                           {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
-                            <div className="pt-4 border-t space-y-2">
-                              <p className="text-sm font-medium">Return / Exchange Requests</p>
+                            <div className="space-y-2 border-t border-border pt-5">
+                              <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Return / exchange requests</p>
                               {returnsByOrder[order.id].map((rr) => {
                                 const statusInfo = returnStatusConfig[rr.status] || returnStatusConfig.pending;
                                 return (
-                                  <div key={rr.id} className="p-3 bg-muted rounded-lg text-sm space-y-2">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div key={rr.id} className="space-y-2 bg-ivory p-4 text-sm">
+                                    <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
                                       <div className="flex items-center gap-2">
                                         {rr.request_type === "return" ? (
                                           <RotateCcw className="h-4 w-4 text-muted-foreground" />
@@ -698,27 +705,26 @@ export default function OrderHistory() {
                                           {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
                                         </span>
                                         <span className="text-muted-foreground">
-                                          {format(new Date(rr.created_at), "MMM d, yyyy")}
+                                          {format(new Date(rr.created_at), "d MMM yyyy")}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         {!!rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
-                                          <span className="text-xs text-green-700 font-medium">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
+                                          <span className="text-xs font-medium text-emerald-700">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
                                         )}
-                                        <Badge className={statusInfo.className}>{statusInfo.label}</Badge>
+                                        <StatusPill className={statusInfo.className}>{statusInfo.label}</StatusPill>
                                         {rr.status === "pending" && (
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 text-xs text-destructive hover:text-destructive"
+                                          <button
+                                            type="button"
+                                            className="px-1.5 text-[10px] uppercase tracking-[0.12em] text-destructive hover:underline"
                                             onClick={() => cancelReturnRequest(rr.id)}
                                           >
                                             Cancel
-                                          </Button>
+                                          </button>
                                         )}
                                       </div>
                                     </div>
-                                    <div className="space-y-1.5 pt-1 border-t border-border/60">
+                                    <div className="space-y-1.5 border-t border-border/60 pt-2">
                                       {(rr.items || []).map((item, idx) => {
                                         const exchangeTo =
                                           item.exchange_to ??
@@ -731,10 +737,10 @@ export default function OrderHistory() {
                                               <img
                                                 src={returnItemPhotos(item)[0]}
                                                 alt=""
-                                                className="h-8 w-8 rounded object-cover border border-border shrink-0"
+                                                className="h-8 w-8 shrink-0 border border-border object-cover"
                                               />
                                             ) : (
-                                              <div className="h-8 w-8 rounded bg-background shrink-0" />
+                                              <div className="h-8 w-8 shrink-0 bg-background" />
                                             )}
                                             <span className="font-medium">{item.product_title}</span>
                                             {returnItemPhotos(item).length > 1 && (
@@ -764,18 +770,17 @@ export default function OrderHistory() {
                               RefundHistory querying refunds directly, but there's no order-level
                               flag to gate on for that case without an extra query per order. */}
                           {order.payment_status === "refunded" && (
-                            <div className="pt-4 border-t space-y-2">
-                              <p className="text-sm font-medium">Refunds</p>
+                            <div className="space-y-2 border-t border-border pt-5">
+                              <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Refunds</p>
                               <RefundHistory orderId={order.id} />
                             </div>
                           )}
 
                           {returnWindow.items.length > 0 ? (
-                            <div className="pt-4 border-t space-y-1.5">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="gap-2"
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-5">
+                              <button
+                                type="button"
+                                className="inline-flex h-11 items-center gap-2 border border-foreground px-5 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
                                 onClick={() => {
                                   setReturnOrderId(order.id);
                                   setReturnOrderItems(returnWindow.items);
@@ -792,12 +797,12 @@ export default function OrderHistory() {
                                     Exchange
                                   </>
                                 )}
-                              </Button>
+                              </button>
                               {returnWindow.note && <p className="text-xs text-muted-foreground">{returnWindow.note}</p>}
                             </div>
                           ) : (
                             returnWindow.closedOn && (
-                              <p className="pt-4 border-t text-xs text-muted-foreground">
+                              <p className="border-t border-border pt-5 text-xs text-muted-foreground">
                                 Return / exchange window closed on {formatShortDate(returnWindow.closedOn)}
                               </p>
                             )
@@ -806,13 +811,13 @@ export default function OrderHistory() {
                       </AccordionContent>
                     </AccordionItem>
                   </Accordion>
-                </CardContent>
-              </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                </article>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
 
       {returnOrderId && (
         <ReturnRequestForm

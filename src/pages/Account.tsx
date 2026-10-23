@@ -1,21 +1,31 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2, User, MapPin, Package, ArrowLeft } from "lucide-react";
+import { Heart, Loader2, LogOut, MapPin, Package, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { AddressSection } from "@/components/account/AddressSection";
 import { OrdersSection } from "@/components/account/OrdersSection";
+import { AccountAction, AccountHero, SignInCard } from "@/components/storefront/account/AccountKit";
+import { cn } from "@/lib/utils";
+
+const TABS = [
+  { value: "profile", label: "Profile", icon: User },
+  { value: "addresses", label: "Addresses", icon: MapPin },
+  { value: "orders", label: "Recent orders", icon: Package },
+] as const;
+type Tab = (typeof TABS)[number]["value"];
 
 export default function Account() {
   const navigate = useNavigate();
-  const { user, loading, isAuthenticated } = useAuth();
-  const [activeTab, setActiveTab] = useState("profile");
+  const [params] = useSearchParams();
+  const { user, loading, isAuthenticated, signOut } = useAuth();
+  // ?tab=addresses / ?tab=orders opens that tab directly.
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const t = params.get("tab");
+    return TABS.some((x) => x.value === t) ? (t as Tab) : "profile";
+  });
 
   if (loading) {
     return (
@@ -33,23 +43,11 @@ export default function Account() {
     return (
       <div className="min-h-screen bg-background">
         <Header />
-        <div className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <CardTitle>Sign in to access your account</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground text-center">
-                Please sign in to manage your profile, addresses, and view your orders.
-              </p>
-              <InlineSignInForm />
-              <Button variant="outline" onClick={() => navigate("/")} className="w-full">
-                Continue Shopping
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+        <SignInCard
+          icon={User}
+          title="Sign in to your account"
+          text="Please sign in to manage your profile, addresses, and view your orders."
+        />
         <Footer />
       </div>
     );
@@ -59,46 +57,61 @@ export default function Account() {
     <div className="min-h-screen bg-background">
       <Header />
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-3xl font-serif font-bold">My Account</h1>
-            <p className="text-muted-foreground">{user?.email}</p>
+      <main>
+        <AccountHero
+          crumb="My account"
+          eyebrow="My account"
+          title="Your"
+          accent="account"
+          subtitle={user?.email}
+          actions={
+            <>
+              <AccountAction to="/orders" icon={Package}>
+                My orders
+              </AccountAction>
+              <AccountAction to="/wishlist" icon={Heart}>
+                Wishlist
+              </AccountAction>
+              <AccountAction
+                icon={LogOut}
+                onClick={async () => {
+                  await signOut();
+                  navigate("/");
+                }}
+              >
+                Sign out
+              </AccountAction>
+            </>
+          }
+        />
+
+        <div className="store-container pb-24 pt-8 md:pt-10">
+          <div role="tablist" aria-label="Account sections" className="no-scrollbar -mx-4 mb-10 flex gap-8 overflow-x-auto border-b border-border px-4 sm:mx-0 sm:px-0">
+            {TABS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === value}
+                onClick={() => setActiveTab(value)}
+                className={cn(
+                  "-mb-px flex h-12 shrink-0 items-center gap-2 border-b-2 text-[12px] font-medium uppercase tracking-[0.2em] transition-colors",
+                  activeTab === value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div role="tabpanel" className="max-w-5xl">
+            {activeTab === "profile" && <ProfileSection />}
+            {activeTab === "addresses" && <AddressSection />}
+            {activeTab === "orders" && <OrdersSection />}
           </div>
         </div>
-
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md">
-            <TabsTrigger value="profile" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span className="hidden sm:inline">Profile</span>
-            </TabsTrigger>
-            <TabsTrigger value="addresses" className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Addresses</span>
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              <span className="hidden sm:inline">Orders</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="profile">
-            <ProfileSection />
-          </TabsContent>
-
-          <TabsContent value="addresses">
-            <AddressSection />
-          </TabsContent>
-
-          <TabsContent value="orders">
-            <OrdersSection />
-          </TabsContent>
-        </Tabs>
-      </div>
+      </main>
 
       <Footer />
     </div>
