@@ -1,25 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useVendor, type PersonDetails, type ApplicationDocument } from "@/hooks/useVendor";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
+import { cn } from "@/lib/utils";
 import {
   Store,
   TrendingUp,
@@ -93,12 +86,15 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border p-4 sm:p-5 space-y-4">
-      <div>
-        <h3 className="font-semibold flex items-center gap-2">
-          <Icon className="h-4 w-4 text-primary" /> {title}
-        </h3>
-        {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
+    <section className="space-y-5 border-b border-border pb-10 last-of-type:border-0">
+      <div className="flex items-start gap-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/50 text-gold">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div>
+          <h3 className="font-serif text-2xl leading-tight">{title}</h3>
+          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        </div>
       </div>
       {children}
     </section>
@@ -125,13 +121,13 @@ function TextField({
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "id">) {
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id} className={accountLabelClass}>{label}</Label>
       <Input
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={!!error}
-        className={error ? "border-destructive" : undefined}
+        className={cn(accountFieldClass, error && "border-destructive")}
         {...rest}
       />
       <FieldError message={error} />
@@ -163,19 +159,17 @@ function DocumentUpload({
   return (
     <div
       id={id}
-      className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-md border p-3 ${
-        error ? "border-destructive" : file ? "border-primary/40 bg-primary/5" : "border-border"
+      className={`flex flex-col gap-3 border p-4 sm:flex-row sm:items-center ${
+        error ? "border-destructive" : file ? "border-gold/60 bg-ivory" : "border-border bg-background"
       }`}
     >
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium flex items-center gap-2 flex-wrap">
-          {file ? <CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> : <FileText className="h-4 w-4 text-muted-foreground shrink-0" />}
+          {file ? <CheckCircle2 className="h-4 w-4 text-gold shrink-0" /> : <FileText className="h-4 w-4 text-muted-foreground shrink-0" />}
           {label}
-          {optional ? (
-            <Badge variant="outline" className="text-[10px] font-normal">Optional</Badge>
-          ) : (
-            <Badge variant="secondary" className="text-[10px] font-normal">Required</Badge>
-          )}
+          <span className="border border-border px-1.5 py-0.5 text-[9px] font-normal uppercase tracking-[0.14em] text-muted-foreground">
+            {optional ? "Optional" : "Required"}
+          </span>
         </p>
         {file ? (
           <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -202,13 +196,22 @@ function DocumentUpload({
         }}
       />
       <div className="flex gap-2 shrink-0">
-        <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
-          <Upload className="h-3.5 w-3.5 mr-1.5" /> {file ? "Replace" : "Upload PDF"}
-        </Button>
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          className="inline-flex h-10 items-center gap-1.5 border border-foreground px-4 text-[10px] font-medium uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
+        >
+          <Upload className="h-3.5 w-3.5" /> {file ? "Replace" : "Upload PDF"}
+        </button>
         {file && (
-          <Button type="button" variant="ghost" size="sm" aria-label={`Remove ${label}`} onClick={() => onChange(null, null)}>
+          <button
+            type="button"
+            aria-label={`Remove ${label}`}
+            onClick={() => onChange(null, null)}
+            className="flex h-10 w-10 items-center justify-center text-muted-foreground hover:text-destructive"
+          >
             <X className="h-3.5 w-3.5" />
-          </Button>
+          </button>
         )}
       </div>
     </div>
@@ -311,38 +314,6 @@ export default function SellWithUs() {
       replace: true,
     });
     return null;
-  }
-
-  // Not signed in → prompt
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <Store className="h-16 w-16 mx-auto text-primary mb-4" />
-              <CardTitle>Sign in to start selling</CardTitle>
-              <CardDescription>
-                Create an account or sign in, then submit your store application to
-                join AllBoutiqs as a vendor.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <InlineSignInForm />
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => navigate("/")}
-              >
-                Continue Shopping
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-        <Footer />
-      </div>
-    );
   }
 
   const businessDocs = constitution ? DOCUMENTS_BY_CONSTITUTION[constitution] : [];
@@ -487,51 +458,127 @@ export default function SellWithUs() {
       <Header />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-primary/10 via-background to-secondary/30 border-b border-border">
-        <div className="container mx-auto px-4 py-16 text-center max-w-3xl">
-          <span className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-4">
-            <Store className="h-4 w-4" /> Marketplace Vendor Program
-          </span>
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">
-            Sell your brand Across India
+      <section className="relative overflow-hidden bg-maroon-deep pattern-jaal-dark text-ivory">
+        <div className="store-container relative py-20 text-center md:py-28">
+          <p className="eyebrow text-gold">Marketplace vendor program</p>
+          <h1 className="mx-auto mt-5 max-w-3xl font-serif text-4xl leading-[1.08] md:text-6xl">
+            Sell your brand <em className="font-normal text-gold">across India</em>
           </h1>
-          <p className="text-lg text-muted-foreground mb-8">
+          <p className="mx-auto mt-6 max-w-2xl text-[15px] leading-relaxed text-ivory/75 md:text-lg">
             Open your own storefront on AllBoutiqs. Keep full control of your
             products, pricing, shipping and returns — we bring the customers.
           </p>
-          <Button size="lg" onClick={() => document.getElementById("apply")?.scrollIntoView({ behavior: "smooth" })}>
-            Start your application <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => document.getElementById("apply")?.scrollIntoView({ behavior: "smooth" })}
+              className="inline-flex h-12 items-center gap-2 bg-ivory px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground transition-colors hover:bg-gold hover:text-ivory"
+            >
+              Start your application <ArrowRight className="h-4 w-4" />
+            </button>
+            <Link
+              to="/vendor"
+              className="inline-flex h-12 items-center border border-ivory/40 px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-ivory transition-colors hover:border-ivory"
+            >
+              Boutique login
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* Benefits */}
-      <section className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {benefits.map((b) => (
-            <Card key={b.title} className="h-full">
-              <CardHeader>
-                <b.icon className="h-8 w-8 text-primary mb-2" />
-                <CardTitle className="text-lg">{b.title}</CardTitle>
-                <CardDescription>{b.desc}</CardDescription>
-              </CardHeader>
-            </Card>
+      <section className="border-b border-border">
+        <div className="store-container grid grid-cols-1 divide-y divide-border sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4">
+          {benefits.map((b, i) => (
+            <div
+              key={b.title}
+              className={cn(
+                "py-10 sm:px-8 lg:py-14",
+                i % 2 === 1 && "sm:border-l sm:border-border",
+                i >= 2 && "sm:border-t lg:border-t-0",
+                i === 2 && "lg:border-l",
+              )}
+            >
+              <b.icon className="h-7 w-7 text-gold" strokeWidth={1.5} />
+              <h2 className="mt-5 font-serif text-2xl leading-tight">{b.title}</h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{b.desc}</p>
+            </div>
           ))}
         </div>
       </section>
 
+      {/* How it works */}
+      <section className="bg-ivory">
+        <div className="store-container py-16 md:py-20">
+          <p className="eyebrow text-center text-gold">How it works</p>
+          <h2 className="mt-3 text-center font-serif text-3xl md:text-[2.6rem]">
+            Three steps to <em className="font-normal text-primary">your storefront</em>
+          </h2>
+          <ol className="mx-auto mt-12 grid max-w-5xl gap-10 md:grid-cols-3 md:gap-8">
+            {[
+              ["Apply", "Tell us about your business and upload your documents in the form below."],
+              ["Get verified", "Our team reviews applications within 1–2 business days."],
+              ["Start selling", "List your pieces from your own dashboard. A new store's products are approved by our team before they go live."],
+            ].map(([title, text], i) => (
+              <li key={title} className="text-center">
+                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-gold/50 bg-background font-serif text-xl text-gold">
+                  {i + 1}
+                </span>
+                <h3 className="mt-5 font-serif text-2xl">{title}</h3>
+                <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">{text}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
       {/* Application form */}
-      <section id="apply" className="container mx-auto px-4 py-12">
-        <Card className="max-w-3xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl font-serif">Seller registration</CardTitle>
-            <CardDescription>
-              Tell us about your business. Our team reviews applications within 1–2 business days. Fields marked * are
-              required.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+      <section id="apply" className="scroll-mt-24">
+        <div className="store-container grid gap-10 py-16 md:py-20 lg:grid-cols-[320px_1fr] lg:gap-16">
+          <aside>
+            <div className="lg:sticky lg:top-32">
+              <p className="eyebrow text-gold">Apply</p>
+              <h2 className="mt-3 font-serif text-4xl leading-tight">Seller registration</h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Tell us about your business. Our team reviews applications within 1–2 business days. Fields marked * are
+                required.
+              </p>
+              <div className="mt-8 border border-border bg-ivory p-6">
+                <p className="text-[11px] font-medium uppercase tracking-[0.2em]">Keep these ready</p>
+                <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+                  {[
+                    "PAN and GST number of the business",
+                    "Authorized person's details and Aadhaar card",
+                    "Business documents as PDFs, up to 10 MB each",
+                    "Bank account details and a bank proof PDF",
+                  ].map((t) => (
+                    <li key={t} className="flex gap-2.5">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </aside>
+
+          <div className="min-w-0">
+          {!user ? (
+            <div className="mx-auto max-w-md border border-border bg-ivory p-8 text-center md:p-10">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-gold/40 bg-background">
+                <Store className="h-6 w-6 text-gold" strokeWidth={1.5} />
+              </span>
+              <h3 className="mt-6 font-serif text-3xl leading-tight">Sign in to start selling</h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Create an account or sign in, then submit your store application to
+                join AllBoutiqs as a vendor.
+              </p>
+              <div className="mt-8 [&_button[type=submit]]:h-12 [&_button[type=submit]]:rounded-none [&_button[type=submit]]:text-[11px] [&_button[type=submit]]:uppercase [&_button[type=submit]]:tracking-[0.22em] [&_input]:rounded-none">
+                <InlineSignInForm />
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-10" noValidate>
               <FormSection icon={Store} title="Your store">
                 <TextField
                   id="name"
@@ -545,13 +592,14 @@ export default function SellWithUs() {
                   error={errors.name}
                 />
                 <div className="space-y-2">
-                  <Label htmlFor="description">Store description</Label>
+                  <Label className={accountLabelClass} htmlFor="description">Store description</Label>
                   <Textarea
                     id="description"
                     placeholder="What do you sell? What makes your brand special?"
                     value={form.description}
                     onChange={(e) => set("description", e.target.value)}
                     rows={3}
+                    className="rounded-none border-foreground/20 bg-background focus-visible:border-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
                 </div>
               </FormSection>
@@ -571,8 +619,8 @@ export default function SellWithUs() {
                     <Label
                       key={c.value}
                       htmlFor={`constitution-${c.value}`}
-                      className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer font-normal transition-colors ${
-                        constitution === c.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"
+                      className={`flex cursor-pointer items-start gap-3 border p-4 font-normal transition-colors ${
+                        constitution === c.value ? "border-foreground bg-ivory" : "border-border hover:border-foreground/40"
                       }`}
                     >
                       <RadioGroupItem value={c.value} id={`constitution-${c.value}`} className="mt-0.5" />
@@ -710,7 +758,7 @@ export default function SellWithUs() {
                   <span>The authorized person is also our day-to-day contact person</span>
                 </label>
                 {!contactSame && (
-                  <div className="space-y-3 rounded-md bg-muted/40 p-3">
+                  <div className="space-y-4 bg-ivory p-5">
                     <p className="text-sm font-medium">Contact person *</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {(
@@ -759,7 +807,7 @@ export default function SellWithUs() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground rounded-md bg-muted/40 p-3">
+                  <p className="bg-ivory p-4 text-sm text-muted-foreground">
                     Select your business constitution above to see the documents you need.
                   </p>
                 )}
@@ -770,7 +818,7 @@ export default function SellWithUs() {
                 title="Bank details *"
                 description="Where your payouts are sent."
               >
-                <p className="text-xs rounded-md border border-primary/30 bg-primary/5 p-3">
+                <p className="border border-gold/40 bg-ivory p-4 text-xs leading-relaxed">
                   The bank account must be held in the name of the seller business (a proprietor may use their own
                   account) and must match the legal business details above.
                 </p>
@@ -831,7 +879,7 @@ export default function SellWithUs() {
                   </p>
                 )}
                 <div className="space-y-2">
-                  <Label>Bank proof *</Label>
+                  <Label className={accountLabelClass}>Bank proof *</Label>
                   <RadioGroup
                     id="bank_proof_type"
                     value={bank.proof_type}
@@ -862,28 +910,31 @@ export default function SellWithUs() {
               <FormSection icon={MapPin} title="Business address" description="Also used as your courier pickup address.">
                 <Input
                   id="address_line1"
+                  className={accountFieldClass}
                   placeholder="Address line 1"
                   value={form.address_line1}
                   onChange={(e) => set("address_line1", e.target.value)}
                 />
                 <Input
+                  className={accountFieldClass}
                   placeholder="Address line 2 (optional)"
                   value={form.address_line2}
                   onChange={(e) => set("address_line2", e.target.value)}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
-                  <StateSelect value={form.state} onChange={(v) => set("state", v)} />
-                  <Input placeholder="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                  <Input className={accountFieldClass} placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
+                  <StateSelect className={accountFieldClass} value={form.state} onChange={(v) => set("state", v)} />
+                  <Input className={accountFieldClass} placeholder="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
                 </div>
               </FormSection>
 
               <FormSection icon={Wallet} title="Shipping & returns">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="shipping_flat_rate">Flat shipping (₹)</Label>
+                    <Label className={accountLabelClass} htmlFor="shipping_flat_rate">Flat shipping (₹)</Label>
                     <Input
                       id="shipping_flat_rate"
+                      className={accountFieldClass}
                       type="number"
                       min={0}
                       value={form.shipping_flat_rate}
@@ -891,9 +942,10 @@ export default function SellWithUs() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="free_shipping_threshold">Free over (₹)</Label>
+                    <Label className={accountLabelClass} htmlFor="free_shipping_threshold">Free over (₹)</Label>
                     <Input
                       id="free_shipping_threshold"
+                      className={accountFieldClass}
                       type="number"
                       min={0}
                       value={form.free_shipping_threshold}
@@ -901,9 +953,10 @@ export default function SellWithUs() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="return_window_days">Return window (days)</Label>
+                    <Label className={accountLabelClass} htmlFor="return_window_days">Return window (days)</Label>
                     <Input
                       id="return_window_days"
+                      className={accountFieldClass}
                       type="number"
                       min={0}
                       value={form.return_window_days}
@@ -912,10 +965,11 @@ export default function SellWithUs() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="return_policy">Return policy</Label>
+                  <Label className={accountLabelClass} htmlFor="return_policy">Return policy</Label>
                   <Textarea
                     id="return_policy"
                     rows={2}
+                    className="rounded-none border-foreground/20 bg-background focus-visible:border-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                     value={form.return_policy}
                     onChange={(e) => set("return_policy", e.target.value)}
                   />
@@ -931,13 +985,18 @@ export default function SellWithUs() {
                 </p>
               </div>
 
-              <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
+              >
+                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {progress ?? "Submit application"}
-              </Button>
+              </button>
             </form>
-          </CardContent>
-        </Card>
+          )}
+          </div>
+        </div>
       </section>
 
       <Footer />
