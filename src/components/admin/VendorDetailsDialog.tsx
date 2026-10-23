@@ -137,7 +137,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.name.trim()) return toast.error("Store name is required");
+    if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
     setSaving(true);
     try {
       const newAddress = {
@@ -286,7 +286,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
             <section className="space-y-4">
               <h4 className="font-medium">Business Details</h4>
               <div className="space-y-2">
-                <Label htmlFor="vd-name">Store name</Label>
+                <Label htmlFor="vd-name">Boutique / Brand Name</Label>
                 <Input id="vd-name" value={form.name} onChange={(e) => set("name", e.target.value)} />
               </div>
               <div className="space-y-2">
@@ -438,7 +438,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
               <h4 className="font-medium mb-3 flex items-center gap-2">
                 <FileCheck2 className="h-4 w-4" /> Registration &amp; KYC
               </h4>
-              <VendorKycSection vendorId={vendor.id} />
+              <VendorKycSection vendorId={vendor.id} brandName={vendor.name} />
             </section>
 
             <Separator />
@@ -458,7 +458,12 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   <Field label="Account Number" value={<span className="font-mono">{payoutAccount.bank_account_number}</span>} />
                   <Field label="IFSC" value={<span className="font-mono">{payoutAccount.bank_ifsc}</span>} />
                   <Field label="Bank" value={payoutAccount.bank_name} />
-                  <Field label="Business Type" value={<span className="capitalize">{payoutAccount.business_type.replace(/_/g, " ")}</span>} />
+                  <Field
+                    label="Business Type"
+                    value={
+                      payoutAccount.business_type === "huf" ? "HUF" : <span className="capitalize">{payoutAccount.business_type.replace(/_/g, " ")}</span>
+                    }
+                  />
                   {payoutAccount.razorpay_account_id && (
                     <Field label="Razorpay Account" value={payoutAccount.razorpay_account_id} />
                   )}

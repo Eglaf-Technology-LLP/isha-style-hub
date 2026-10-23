@@ -188,7 +188,7 @@ interface PayoutAccountForm {
   legal_business_name: string;
 }
 
-const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp"];
+const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp", "huf"];
 
 export default function VendorDashboard() {
   const { vendor, loading, refresh: refreshVendor } = useVendor();
@@ -1365,8 +1365,8 @@ export default function VendorDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       {BUSINESS_TYPES.map((t) => (
-                        <SelectItem key={t} value={t} className="capitalize">
-                          {t.replace("_", " ")}
+                        <SelectItem key={t} value={t} className={t === "huf" ? "" : "capitalize"}>
+                          {t === "huf" ? "HUF" : t.replace("_", " ")}
                         </SelectItem>
                       ))}
                     </SelectContent>

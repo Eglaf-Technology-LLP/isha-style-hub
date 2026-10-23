@@ -156,8 +156,9 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                 <div className="space-y-0.5">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Sold by</p>
                   <p className="text-sm font-semibold">{invoice.seller_legal_name ?? invoice.seller_name}</p>
-                  {invoice.seller_legal_name && invoice.seller_legal_name !== invoice.seller_name && (
-                    <p className="text-muted-foreground">Trading as {invoice.seller_name}</p>
+                  {/* Seller = Legal Business Name (+ GSTIN below); the Boutique / Brand Name is printed too. */}
+                  {invoice.seller_legal_name && (
+                    <p className="text-muted-foreground">Boutique / Brand Name: {invoice.seller_name}</p>
                   )}
                   {addressLines(invoice.seller_address).map((l) => (
                     <p key={l}>{l}</p>

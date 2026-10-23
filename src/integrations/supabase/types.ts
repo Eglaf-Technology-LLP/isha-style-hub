@@ -2515,6 +2515,8 @@ export type Database = {
           authorized_mobile: string
           authorized_name: string
           bank_proof_type: string
+          brand_legal_declared_at: string | null
+          brand_same_as_legal: boolean
           business_constitution: string
           business_email: string
           contact_designation: string | null
@@ -2523,12 +2525,14 @@ export type Database = {
           contact_name: string | null
           contact_same_as_authorized: boolean
           gstin: string | null
+          instagram_url: string | null
           legal_business_name: string
           pan: string
           primary_mobile: string
           submitted_at: string
           updated_at: string
           vendor_id: string
+          website_url: string | null
         }
         Insert: {
           alternate_mobile: string
@@ -2537,6 +2541,8 @@ export type Database = {
           authorized_mobile: string
           authorized_name: string
           bank_proof_type: string
+          brand_legal_declared_at?: string | null
+          brand_same_as_legal?: boolean
           business_constitution: string
           business_email: string
           contact_designation?: string | null
@@ -2545,12 +2551,14 @@ export type Database = {
           contact_name?: string | null
           contact_same_as_authorized?: boolean
           gstin?: string | null
+          instagram_url?: string | null
           legal_business_name: string
           pan: string
           primary_mobile: string
           submitted_at?: string
           updated_at?: string
           vendor_id: string
+          website_url?: string | null
         }
         Update: {
           alternate_mobile?: string
@@ -2559,6 +2567,8 @@ export type Database = {
           authorized_mobile?: string
           authorized_name?: string
           bank_proof_type?: string
+          brand_legal_declared_at?: string | null
+          brand_same_as_legal?: boolean
           business_constitution?: string
           business_email?: string
           contact_designation?: string | null
@@ -2567,12 +2577,14 @@ export type Database = {
           contact_name?: string | null
           contact_same_as_authorized?: boolean
           gstin?: string | null
+          instagram_url?: string | null
           legal_business_name?: string
           pan?: string
           primary_mobile?: string
           submitted_at?: string
           updated_at?: string
           vendor_id?: string
+          website_url?: string | null
         }
         Relationships: [
           {

@@ -30,10 +30,23 @@ import {
   MapPin,
   Upload,
   X,
+  Instagram,
+  Globe,
+  Mail,
+  MessageCircle,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
+import { COMPANY, telHref } from "@/lib/company";
 import {
   ACCOUNT_RE,
+  ADDRESS_LINE1_MIN,
+  BRAND_LEGAL_DECLARATION,
+  PIN_RE,
+  cleanMobileInput,
+  instagramProblem,
+  normalizeInstagram,
+  normalizeWebsite,
   BANK_PROOF_TYPES,
   CONSTITUTIONS,
   DOCUMENTS_BY_CONSTITUTION,
@@ -232,6 +245,8 @@ export default function SellWithUs() {
     name: "",
     description: "",
     legal_business_name: "",
+    instagram_url: "",
+    website_url: "",
     pan: "",
     gstin: "",
     primary_mobile: "",
@@ -249,6 +264,9 @@ export default function SellWithUs() {
       "7-day easy returns. Items must be unused with original tags and packaging intact.",
   });
   const [constitution, setConstitution] = useState<BusinessConstitution | null>(null);
+  // Boutique / Brand Name vs Legal Business Name (Part 7, 3.1-3.2).
+  const [brandSame, setBrandSame] = useState(true);
+  const [brandDeclared, setBrandDeclared] = useState(false);
   const [authorized, setAuthorized] = useState<PersonDetails>(EMPTY_PERSON);
   const [contactSame, setContactSame] = useState(true);
   const [contact, setContact] = useState<PersonDetails>(EMPTY_PERSON);
@@ -324,8 +342,9 @@ export default function SellWithUs() {
     // Drop files that don't belong to the new checklist.
     const keep = new Set<DocumentType>([...DOCUMENTS_BY_CONSTITUTION[value].map((d) => d.type), "bank_proof"]);
     setFiles((f) => Object.fromEntries(Object.entries(f).filter(([t]) => keep.has(t as DocumentType))));
-    if (value === "proprietorship" && !authorized.designation) {
-      setAuthorized((a) => ({ ...a, designation: "Proprietor" }));
+    const defaultDesignation = { proprietorship: "Proprietor", huf: "Karta" }[value as string];
+    if (defaultDesignation && (!authorized.designation || ["Proprietor", "Karta"].includes(authorized.designation))) {
+      setAuthorized((a) => ({ ...a, designation: defaultDesignation }));
     }
   };
 
@@ -348,9 +367,17 @@ export default function SellWithUs() {
     const e: Record<string, string> = {};
     const pan = form.pan.trim().toUpperCase();
     const gstin = form.gstin.trim().toUpperCase();
-    if (!form.name.trim()) e.name = "Enter your store name";
-    if (!constitution) e.constitution = "Select your business constitution";
-    if (!form.legal_business_name.trim()) e.legal_business_name = "Enter your legal business name";
+    if (!form.name.trim()) e.name = "Enter your Boutique / Brand Name";
+    if (!brandSame) {
+      if (!form.legal_business_name.trim()) e.legal_business_name = "Enter your Legal Business Name (as on GST / PAN)";
+      if (!brandDeclared) e.brand_declaration = "Tick this declaration to continue";
+    }
+    const instagram = instagramProblem(form.instagram_url);
+    if (instagram) e.instagram_url = instagram;
+    if (form.website_url.trim() && !normalizeWebsite(form.website_url)) {
+      e.website_url = "Enter a valid website link (e.g. https://www.yourboutique.com), or leave it empty";
+    }
+    if (!constitution) e.constitution = "Select your business type";
     if (!PAN_RE.test(pan)) e.pan = "Enter a valid PAN (e.g. ABCDE1234F)";
     if (!GSTIN_RE.test(gstin)) e.gstin = "Enter a valid 15-character GST number";
     else if (PAN_RE.test(pan) && gstin.slice(2, 12) !== pan)
@@ -381,6 +408,13 @@ export default function SellWithUs() {
     if (!bank.bank_name.trim()) e.bank_name = "Enter the bank name";
     if (!bank.proof_type) e.bank_proof_type = "Choose the type of bank proof";
     if (!files.bank_proof) e.doc_bank_proof = "Upload your bank proof as a PDF";
+
+    if (form.address_line1.trim().length < ADDRESS_LINE1_MIN) {
+      e.address_line1 = `Address line 1 needs at least ${ADDRESS_LINE1_MIN} characters`;
+    }
+    if (!form.city.trim()) e.city = "Enter your city";
+    if (!form.state.trim()) e.state = "Select your state";
+    if (!PIN_RE.test(form.pincode.trim())) e.pincode = "Enter a 6-digit PIN code";
     return e;
   };
 
@@ -417,7 +451,11 @@ export default function SellWithUs() {
         return_window_days: Number(form.return_window_days) || 7,
         return_policy: form.return_policy.trim(),
         business_constitution: constitution!,
-        legal_business_name: form.legal_business_name.trim(),
+        brand_same_as_legal: brandSame,
+        brand_legal_declaration: !brandSame && brandDeclared,
+        legal_business_name: brandSame ? form.name.trim() : form.legal_business_name.trim(),
+        instagram_url: normalizeInstagram(form.instagram_url) ?? form.instagram_url.trim(),
+        website_url: form.website_url.trim() ? (normalizeWebsite(form.website_url) ?? form.website_url.trim()) : "",
         pan: form.pan.trim().toUpperCase(),
         gstin: form.gstin.trim().toUpperCase(),
         primary_mobile: form.primary_mobile,
@@ -446,12 +484,13 @@ export default function SellWithUs() {
     navigate("/vendor/pending");
   };
 
+  const legalName = brandSame ? form.name : form.legal_business_name;
   const holderMismatch =
     constitution &&
     constitution !== "proprietorship" &&
     bank.account_holder_name.trim() &&
-    form.legal_business_name.trim() &&
-    !sameName(bank.account_holder_name, form.legal_business_name);
+    legalName.trim() &&
+    !sameName(bank.account_holder_name, legalName);
 
   return (
     <div className="min-h-screen bg-background">
@@ -579,10 +618,10 @@ export default function SellWithUs() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-10" noValidate>
-              <FormSection icon={Store} title="Your store">
+              <FormSection icon={Store} title="Your boutique">
                 <TextField
                   id="name"
-                  label="Store name *"
+                  label="Boutique / Brand Name *"
                   placeholder="e.g. Anaya Ethnic Wear"
                   value={form.name}
                   onChange={(v) => {
@@ -591,8 +630,146 @@ export default function SellWithUs() {
                   }}
                   error={errors.name}
                 />
+                <RadioGroup
+                  value={brandSame ? "same" : "different"}
+                  onValueChange={(v) => {
+                    setBrandSame(v === "same");
+                    clearError("legal_business_name");
+                    clearError("brand_declaration");
+                  }}
+                  className="space-y-2"
+                  aria-label="Is your Boutique / Brand Name the same as your Legal Business Name?"
+                >
+                  {(
+                    [
+                      ["same", "My Boutique / Brand Name is the same as my Legal Business Name."],
+                      ["different", "My Boutique / Brand Name is different from my Legal Business Name."],
+                    ] as const
+                  ).map(([value, text]) => (
+                    <Label
+                      key={value}
+                      htmlFor={`brand-${value}`}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 border p-4 text-sm font-normal leading-relaxed transition-colors",
+                        (brandSame ? "same" : "different") === value ? "border-foreground bg-ivory" : "border-border hover:border-foreground/40",
+                      )}
+                    >
+                      <RadioGroupItem value={value} id={`brand-${value}`} className="mt-0.5" />
+                      {text}
+                    </Label>
+                  ))}
+                </RadioGroup>
+                {!brandSame && (
+                  <div className="space-y-4 bg-ivory p-5">
+                    <TextField
+                      id="brand_name_again"
+                      label="Boutique / Brand Name *"
+                      value={form.name}
+                      onChange={(v) => {
+                        set("name", v);
+                        clearError("name");
+                      }}
+                    />
+                    <div className="space-y-2">
+                      <TextField
+                        id="legal_business_name"
+                        label="Legal Business Name * (as on GST / PAN)"
+                        value={form.legal_business_name}
+                        onChange={(v) => {
+                          set("legal_business_name", v);
+                          clearError("legal_business_name");
+                        }}
+                        error={errors.legal_business_name}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Proprietorship, Partnership Firm, LLP, Private Limited Company or HUF.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label id="brand_declaration" className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
+                        <Checkbox
+                          checked={brandDeclared}
+                          onCheckedChange={(v) => {
+                            setBrandDeclared(v === true);
+                            clearError("brand_declaration");
+                          }}
+                          aria-invalid={!!errors.brand_declaration}
+                          className="mt-0.5"
+                        />
+                        <span>{BRAND_LEGAL_DECLARATION} *</span>
+                      </label>
+                      <FieldError message={errors.brand_declaration} />
+                      <p className="text-xs text-muted-foreground">
+                        Example: Boutique / Brand Name "Rangreza Studio" · Legal Business Name "Meera Textiles"
+                        (Proprietorship).
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram_url" className={accountLabelClass}>
+                      Instagram Profile Link *
+                    </Label>
+                    <div className="relative">
+                      <Instagram className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="instagram_url"
+                        type="url"
+                        inputMode="url"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="https://www.instagram.com/yourboutique"
+                        value={form.instagram_url}
+                        onChange={(e) => {
+                          set("instagram_url", e.target.value);
+                          clearError("instagram_url");
+                        }}
+                        onBlur={() => {
+                          const url = normalizeInstagram(form.instagram_url);
+                          if (url) set("instagram_url", url);
+                          else if (form.instagram_url.trim()) setErrors((er) => ({ ...er, instagram_url: instagramProblem(form.instagram_url)! }));
+                        }}
+                        aria-invalid={!!errors.instagram_url}
+                        aria-describedby="instagram_help"
+                        className={cn(accountFieldClass, "pl-10", errors.instagram_url && "border-destructive")}
+                      />
+                    </div>
+                    <FieldError message={errors.instagram_url} />
+                    <p id="instagram_help" className="text-xs leading-relaxed text-muted-foreground">
+                      Paste your full Instagram profile link, not just your username. Open Instagram → Go to your
+                      profile (your home page) → Tap Share Profile (the button beside Edit Profile) → Copy link → Paste
+                      it here
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website_url" className={accountLabelClass}>
+                      Website Link (optional)
+                    </Label>
+                    <div className="relative">
+                      <Globe className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="website_url"
+                        type="url"
+                        inputMode="url"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        placeholder="https://www.yourboutique.com"
+                        value={form.website_url}
+                        onChange={(e) => {
+                          set("website_url", e.target.value);
+                          clearError("website_url");
+                        }}
+                        aria-invalid={!!errors.website_url}
+                        className={cn(accountFieldClass, "pl-10", errors.website_url && "border-destructive")}
+                      />
+                    </div>
+                    <FieldError message={errors.website_url} />
+                    <p className="text-xs text-muted-foreground">If you have a website, paste the link here.</p>
+                  </div>
+                </div>
                 <div className="space-y-2">
-                  <Label className={accountLabelClass} htmlFor="description">Store description</Label>
+                  <Label className={accountLabelClass} htmlFor="description">Boutique description</Label>
                   <Textarea
                     id="description"
                     placeholder="What do you sell? What makes your brand special?"
@@ -606,7 +783,7 @@ export default function SellWithUs() {
 
               <FormSection
                 icon={Building2}
-                title="Business constitution *"
+                title="Business type *"
                 description="Select one. The documents you need to upload depend on this."
               >
                 <RadioGroup
@@ -635,16 +812,6 @@ export default function SellWithUs() {
               </FormSection>
 
               <FormSection icon={IdCard} title="Business identification & contact">
-                <TextField
-                  id="legal_business_name"
-                  label="Legal business name * (as on PAN / GST)"
-                  value={form.legal_business_name}
-                  onChange={(v) => {
-                    set("legal_business_name", v);
-                    clearError("legal_business_name");
-                  }}
-                  error={errors.legal_business_name}
-                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <TextField
                     id="pan"
@@ -679,10 +846,10 @@ export default function SellWithUs() {
                     label="Primary / permanent mobile *"
                     type="tel"
                     inputMode="tel"
-                    placeholder="98765 43210"
+                    placeholder="9876543210"
                     value={form.primary_mobile}
                     onChange={(v) => {
-                      set("primary_mobile", v);
+                      set("primary_mobile", cleanMobileInput(v));
                       clearError("primary_mobile");
                     }}
                     error={errors.primary_mobile}
@@ -692,10 +859,10 @@ export default function SellWithUs() {
                     label="Alternative mobile *"
                     type="tel"
                     inputMode="tel"
-                    placeholder="91234 56789"
+                    placeholder="9123456789"
                     value={form.alternate_mobile}
                     onChange={(v) => {
-                      set("alternate_mobile", v);
+                      set("alternate_mobile", cleanMobileInput(v));
                       clearError("alternate_mobile");
                     }}
                     error={errors.alternate_mobile}
@@ -721,7 +888,9 @@ export default function SellWithUs() {
                 description={
                   constitution === "proprietorship"
                     ? "Usually the proprietor. Their Aadhaar card is uploaded under Documents."
-                    : "The partner, director or signatory who can act for the business. Their Aadhaar card is uploaded under Documents."
+                    : constitution === "huf"
+                      ? "The Karta of the HUF. Their Aadhaar card is uploaded under Documents."
+                      : "The partner, director or signatory who can act for the business. Their Aadhaar card is uploaded under Documents."
                 }
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -738,10 +907,20 @@ export default function SellWithUs() {
                       id={`auth_${key}`}
                       label={label}
                       type={type}
-                      placeholder={key === "designation" ? (constitution === "proprietorship" ? "Proprietor" : "e.g. Partner, Director") : undefined}
+                      placeholder={
+                        key === "designation"
+                          ? constitution === "proprietorship"
+                            ? "Proprietor"
+                            : constitution === "huf"
+                              ? "Karta"
+                              : "e.g. Partner, Director"
+                          : key === "mobile"
+                            ? "10-digit mobile"
+                            : undefined
+                      }
                       value={authorized[key]}
                       onChange={(v) => {
-                        setAuthorized((a) => ({ ...a, [key]: v }));
+                        setAuthorized((a) => ({ ...a, [key]: key === "mobile" ? cleanMobileInput(v) : v }));
                         clearError(`auth_${key}`);
                       }}
                       error={errors[`auth_${key}`]}
@@ -776,7 +955,7 @@ export default function SellWithUs() {
                           type={type}
                           value={contact[key]}
                           onChange={(v) => {
-                            setContact((c) => ({ ...c, [key]: v }));
+                            setContact((c) => ({ ...c, [key]: key === "mobile" ? cleanMobileInput(v) : v }));
                             clearError(`contact_${key}`);
                           }}
                           error={errors[`contact_${key}`]}
@@ -790,7 +969,7 @@ export default function SellWithUs() {
               <FormSection
                 icon={FileText}
                 title="Documents *"
-                description="Upload each document as a PDF (up to 10 MB). The list matches your business constitution."
+                description="Upload each document as a PDF (up to 10 MB). The list matches your business type."
               >
                 {constitution ? (
                   <div className="space-y-2">
@@ -808,7 +987,7 @@ export default function SellWithUs() {
                   </div>
                 ) : (
                   <p className="bg-ivory p-4 text-sm text-muted-foreground">
-                    Select your business constitution above to see the documents you need.
+                    Select your business type above to see the documents you need.
                   </p>
                 )}
               </FormSection>
@@ -879,7 +1058,7 @@ export default function SellWithUs() {
                   </p>
                 )}
                 <div className="space-y-2">
-                  <Label className={accountLabelClass}>Bank proof *</Label>
+                  <Label className={accountLabelClass}>Bank Proof (select any one) *</Label>
                   <RadioGroup
                     id="bank_proof_type"
                     value={bank.proof_type}
@@ -907,24 +1086,65 @@ export default function SellWithUs() {
                 />
               </FormSection>
 
-              <FormSection icon={MapPin} title="Business address" description="Also used as your courier pickup address.">
-                <Input
-                  id="address_line1"
-                  className={accountFieldClass}
-                  placeholder="Address line 1"
-                  value={form.address_line1}
-                  onChange={(e) => set("address_line1", e.target.value)}
-                />
-                <Input
-                  className={accountFieldClass}
-                  placeholder="Address line 2 (optional)"
+              <FormSection icon={MapPin} title="Business address *" description="Also used as your courier pickup address.">
+                <div className="space-y-2">
+                  <TextField
+                    id="address_line1"
+                    label="Address line 1 *"
+                    placeholder="Shop / building number, street, area"
+                    value={form.address_line1}
+                    onChange={(v) => {
+                      set("address_line1", v);
+                      clearError("address_line1");
+                    }}
+                    error={errors.address_line1}
+                  />
+                  <p className="text-xs text-muted-foreground">Minimum {ADDRESS_LINE1_MIN} characters</p>
+                </div>
+                <TextField
+                  id="address_line2"
+                  label="Address line 2 (optional)"
                   value={form.address_line2}
-                  onChange={(e) => set("address_line2", e.target.value)}
+                  onChange={(v) => set("address_line2", v)}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input className={accountFieldClass} placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
-                  <StateSelect className={accountFieldClass} value={form.state} onChange={(v) => set("state", v)} />
-                  <Input className={accountFieldClass} placeholder="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                  <TextField
+                    id="city"
+                    label="City *"
+                    value={form.city}
+                    onChange={(v) => {
+                      set("city", v);
+                      clearError("city");
+                    }}
+                    error={errors.city}
+                  />
+                  <div className="space-y-2">
+                    <Label htmlFor="state" className={accountLabelClass}>State *</Label>
+                    <StateSelect
+                      id="state"
+                      className={accountFieldClass}
+                      value={form.state}
+                      invalid={!!errors.state}
+                      onChange={(v) => {
+                        set("state", v);
+                        clearError("state");
+                      }}
+                    />
+                    <FieldError message={errors.state} />
+                  </div>
+                  <TextField
+                    id="pincode"
+                    label="PIN code *"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6 digits"
+                    value={form.pincode}
+                    onChange={(v) => {
+                      set("pincode", v.replace(/\D/g, "").slice(0, 6));
+                      clearError("pincode");
+                    }}
+                    error={errors.pincode}
+                  />
                 </div>
               </FormSection>
 
@@ -993,6 +1213,41 @@ export default function SellWithUs() {
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {progress ?? "Submit application"}
               </button>
+
+              <aside aria-label="Need help?" className="border border-gold/40 bg-ivory p-5 text-sm">
+                <p className="font-serif text-lg">Need help?</p>
+                <ul className="mt-3 grid gap-2 sm:grid-cols-3 sm:gap-4">
+                  <li className="flex items-start gap-2">
+                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    <span>
+                      Email{" "}
+                      <a href={`mailto:${COMPANY.supportEmail}`} className="font-medium underline-offset-4 hover:underline">
+                        {COMPANY.supportEmail}
+                      </a>
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    <span>
+                      WhatsApp{" "}
+                      <a href={COMPANY.whatsappUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline-offset-4 hover:underline">
+                        {COMPANY.whatsapp}
+                      </a>{" "}
+                      <span className="text-muted-foreground">(messages only)</span>
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Phone className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    <span>
+                      Call{" "}
+                      <a href={telHref(COMPANY.supportPhone)} className="font-medium underline-offset-4 hover:underline">
+                        {COMPANY.supportPhone}
+                      </a>{" "}
+                      <span className="text-muted-foreground">(12:00 PM – 8:00 PM)</span>
+                    </span>
+                  </li>
+                </ul>
+              </aside>
             </form>
           )}
           </div>

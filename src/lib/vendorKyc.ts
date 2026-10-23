@@ -1,9 +1,11 @@
 // Seller registration rules shared by the application form and the admin
 // review. The server repeats every check in submit_vendor_application
-// (supabase/migrations/20261010130000_vendor_registration_kyc.sql) - keep
-// the document lists in sync with vendor_required_documents().
+// (supabase/migrations/20261024100000_seller_form_part7.sql) - keep the
+// document lists in sync with vendor_required_documents() and the field
+// rules with normalize_indian_mobile / normalize_instagram_profile /
+// normalize_website_url.
 
-export type BusinessConstitution = "proprietorship" | "partnership" | "llp" | "private_limited";
+export type BusinessConstitution = "proprietorship" | "partnership" | "llp" | "private_limited" | "huf";
 
 export const CONSTITUTIONS: { value: BusinessConstitution; label: string; description: string }[] = [
   { value: "proprietorship", label: "Proprietorship", description: "Business owned and operated by one proprietor." },
@@ -14,6 +16,7 @@ export const CONSTITUTIONS: { value: BusinessConstitution; label: string; descri
     label: "Private Limited Company",
     description: "Company incorporated as a private limited company.",
   },
+  { value: "huf", label: "HUF (Hindu Undivided Family)", description: "Family business run by the Karta." },
 ];
 
 export type DocumentType =
@@ -33,36 +36,42 @@ export interface DocumentRequirement {
   optional?: boolean;
 }
 
-const AUTHORIZED_AADHAAR: DocumentRequirement = { type: "aadhaar_card", label: "Authorized Person Aadhaar Card" };
 const GST: DocumentRequirement = { type: "gst_certificate", label: "GST Registration Certificate" };
+const MSME: DocumentRequirement = { type: "msme_certificate", label: "MSME / Udyam Certificate", optional: true };
 
-// Business documents per constitution (bank proof is asked for in the bank
-// section, for every constitution).
+// Business documents per business type, as listed in Developer Corrections
+// Part 7 (bank proof is asked for in the bank section, for every type).
 export const DOCUMENTS_BY_CONSTITUTION: Record<BusinessConstitution, DocumentRequirement[]> = {
   proprietorship: [
+    GST,
     { type: "pan_card", label: "Proprietor PAN Card" },
     { type: "aadhaar_card", label: "Proprietor Aadhaar Card" },
-    GST,
-    { type: "msme_certificate", label: "MSME Certificate", optional: true },
+    MSME,
   ],
   partnership: [
-    { type: "pan_card", label: "PAN Card (firm)" },
     GST,
+    { type: "pan_card", label: "Firm PAN Card" },
+    { type: "aadhaar_card", label: "Authorised Partner Aadhaar Card" },
     { type: "partnership_deed", label: "Partnership Deed" },
-    { type: "rof_certificate", label: "ROF (Register of Firms) Certificate" },
-    AUTHORIZED_AADHAAR,
+    { type: "rof_certificate", label: "Registration of Firm (ROF) Certificate", optional: true },
   ],
   llp: [
-    { type: "pan_card", label: "PAN Card (LLP)" },
     GST,
-    { type: "llp_incorporation", label: "LLP Incorporation / Registration Document" },
-    AUTHORIZED_AADHAAR,
+    { type: "pan_card", label: "LLP PAN Card" },
+    { type: "aadhaar_card", label: "Designated Partner Aadhaar Card" },
+    { type: "llp_incorporation", label: "Certificate of Incorporation" },
   ],
   private_limited: [
-    { type: "pan_card", label: "PAN Card (company)" },
     GST,
-    { type: "company_incorporation", label: "Company Incorporation / Registration Document" },
-    AUTHORIZED_AADHAAR,
+    { type: "pan_card", label: "Company PAN Card" },
+    { type: "aadhaar_card", label: "Authorised Director Aadhaar Card" },
+    { type: "company_incorporation", label: "Certificate of Incorporation" },
+  ],
+  huf: [
+    { type: "pan_card", label: "HUF PAN Card" },
+    GST,
+    { type: "aadhaar_card", label: "Authorised Person (Karta) Aadhaar Card" },
+    MSME,
   ],
 };
 
@@ -93,13 +102,74 @@ export const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 export const ACCOUNT_RE = /^[0-9]{9,18}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// 10-digit Indian mobile, accepting +91 / 0 prefixes and spaces; null if invalid.
+// 10-digit Indian mobile, accepting +91 / 91 in front, spaces and leading
+// zeros (dropped - a leading 0 stops the call); null if invalid.
 export function normalizeMobile(raw: string): string | null {
   let digits = raw.replace(/\D/g, "");
-  if (digits.length === 12 && digits.startsWith("91")) digits = digits.slice(2);
-  else if (digits.length === 11 && digits.startsWith("0")) digits = digits.slice(1);
+  if (digits.length > 10 && digits.startsWith("91")) digits = digits.slice(2);
+  digits = digits.replace(/^0+/, "");
   return /^[6-9][0-9]{9}$/.test(digits) ? digits : null;
 }
+
+// What a mobile box keeps while typing: an optional "+91 " and at most 10
+// digits, with a leading 0 removed straight away.
+export function cleanMobileInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  const plus = raw.trim().startsWith("+");
+  if (plus && digits.length < 2) return `+${digits}`;
+  const hasPrefix = (plus || digits.length > 10) && digits.startsWith("91");
+  const local = (hasPrefix ? digits.slice(2) : digits).replace(/^0+/, "").slice(0, 10);
+  return hasPrefix ? `+91 ${local}` : local;
+}
+
+export const PIN_RE = /^[1-9][0-9]{5}$/;
+export const ADDRESS_LINE1_MIN = 10;
+
+// Instagram: only a profile link (instagram.com/<username>), stored as
+// https://www.instagram.com/<username>. Same rule as the server's
+// normalize_instagram_profile().
+const INSTAGRAM_RE = /^(?:https?:\/\/)?(?:www\.|m\.)?instagram\.com\/([A-Za-z0-9._]{1,30})\/?(?:\?\S*)?$/i;
+const INSTAGRAM_NOT_PROFILES = ["p", "reel", "reels", "stories", "explore", "tv", "accounts", "direct", "about", "legal", "developer", "web", "share"];
+
+export function normalizeInstagram(raw: string): string | null {
+  const m = raw.trim().match(INSTAGRAM_RE);
+  if (!m || INSTAGRAM_NOT_PROFILES.includes(m[1].toLowerCase())) return null;
+  return `https://www.instagram.com/${m[1].toLowerCase()}`;
+}
+
+// Why an Instagram entry isn't a profile link, in the seller's terms.
+export function instagramProblem(raw: string): string | null {
+  const text = raw.trim();
+  if (!text) return "Paste your Instagram profile link";
+  if (normalizeInstagram(text)) return null;
+  if (EMAIL_RE.test(text)) return "This is an email address. Paste your Instagram profile link instead.";
+  if (/instagram\.com\/(p|reels?|stories|tv)\//i.test(text)) {
+    return "This is a post, reel or story link. Paste your profile link instead (instagram.com/yourboutique).";
+  }
+  if (!/instagram\.com/i.test(text)) {
+    return "Paste the full link, not just your username - e.g. https://www.instagram.com/yourboutique";
+  }
+  return "Only your Instagram profile link is accepted - e.g. https://www.instagram.com/yourboutique";
+}
+
+// "@username" from a stored profile link.
+export const instagramHandle = (url: string | null | undefined) => {
+  const m = url?.match(INSTAGRAM_RE);
+  return m ? `@${m[1].toLowerCase()}` : null;
+};
+
+// Website (optional): https:// is added when missing. Same rule as the
+// server's normalize_website_url().
+export function normalizeWebsite(raw: string): string | null {
+  const text = raw.trim();
+  const url = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  return url.length <= 300 && /^https?:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+(:[0-9]+)?(\/\S*)?$/i.test(url) ? url : null;
+}
+
+// The tick shown when the Boutique / Brand Name differs from the Legal
+// Business Name (Developer Corrections Part 7, 3.2).
+export const BRAND_LEGAL_DECLARATION =
+  "I confirm that the Boutique / Brand Name stated above operates under, is owned by, or is associated with the Legal Business Name stated above (Proprietorship, Partnership Firm, LLP, Private Limited Company or HUF), and I am authorised to make this declaration.";
 
 // A PDF small enough to upload, or the reason it isn't.
 export function documentFileProblem(file: File): string | null {

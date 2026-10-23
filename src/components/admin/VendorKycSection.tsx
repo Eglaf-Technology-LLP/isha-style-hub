@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, CircleAlert, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import {
   BANK_PROOF_TYPES,
   DOCUMENTS_BY_CONSTITUTION,
   constitutionLabel,
   documentLabel,
+  instagramHandle,
   type BusinessConstitution,
 } from "@/lib/vendorKyc";
 
@@ -32,6 +32,37 @@ interface Kyc {
   contact_email: string | null;
   bank_proof_type: string;
   submitted_at: string;
+  brand_same_as_legal: boolean;
+  brand_legal_declared_at: string | null;
+  instagram_url: string | null;
+  website_url: string | null;
+}
+
+// 19-10-2026, 5:33 PM IST
+function istDateTime(iso: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+      .formatToParts(new Date(iso))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.day}-${parts.month}-${parts.year}, ${parts.hour}:${parts.minute} ${String(parts.dayPeriod).toUpperCase()} IST`;
+}
+
+function ExternalLinkValue({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline break-all">
+      {children}
+      <ExternalLink className="h-3 w-3 shrink-0" />
+    </a>
+  );
 }
 
 interface VendorDocument {
@@ -55,7 +86,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 // What the boutique submitted on the seller registration form: constitution,
 // identifiers, people, and the document checklist with each PDF openable
 // through a short-lived signed link (the bucket is private).
-export function VendorKycSection({ vendorId }: { vendorId: string }) {
+export function VendorKycSection({ vendorId, brandName }: { vendorId: string; brandName: string }) {
   const [loading, setLoading] = useState(true);
   const [kyc, setKyc] = useState<Kyc | null>(null);
   const [documents, setDocuments] = useState<VendorDocument[]>([]);
@@ -116,10 +147,47 @@ export function VendorKycSection({ vendorId }: { vendorId: string }) {
 
   return (
     <div className="space-y-5">
+      <div className="rounded-md border border-border p-3 space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Field label="Boutique / Brand Name" value={brandName} />
+          <Field label="Legal Business Name" value={kyc.legal_business_name} />
+        </div>
+        <Field
+          label="Brand name vs legal name"
+          value={
+            kyc.brand_same_as_legal
+              ? "Same - the Boutique / Brand Name is the Legal Business Name"
+              : "Different - the Boutique / Brand Name is not the Legal Business Name"
+          }
+        />
+        {!kyc.brand_same_as_legal && (
+          <p className="flex items-start gap-1.5 text-sm">
+            {kyc.brand_legal_declared_at ? (
+              <>
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                <span>
+                  Declaration ticked on {istDateTime(kyc.brand_legal_declared_at)}: the brand operates under, is owned by, or
+                  is associated with the legal business.
+                </span>
+              </>
+            ) : (
+              <>
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span>No declaration on file (applied before the declaration was asked for).</span>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <Field label="Business Constitution" value={constitutionLabel(kyc.business_constitution)} />
-        <Field label="Legal Business Name" value={kyc.legal_business_name} />
-        <Field label="Submitted" value={format(new Date(kyc.submitted_at), "MMM d, yyyy")} />
+        <Field label="Business Type" value={constitutionLabel(kyc.business_constitution)} />
+        <Field
+          label="Instagram"
+          value={kyc.instagram_url ? <ExternalLinkValue href={kyc.instagram_url}>{instagramHandle(kyc.instagram_url) ?? kyc.instagram_url}</ExternalLinkValue> : null}
+        />
+        <Field label="Website" value={kyc.website_url ? <ExternalLinkValue href={kyc.website_url}>{kyc.website_url.replace(/^https?:\/\//, "")}</ExternalLinkValue> : null} />
+        <Field label="Submitted" value={istDateTime(kyc.submitted_at)} />
         <Field label="PAN" value={<span className="font-mono">{kyc.pan}</span>} />
         <Field label="GST Number" value={kyc.gstin ? <span className="font-mono">{kyc.gstin}</span> : null} />
         <Field label="Official Business Email" value={kyc.business_email} />

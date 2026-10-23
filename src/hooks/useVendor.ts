@@ -61,7 +61,11 @@ export interface VendorApplicationInput {
   return_window_days: number;
   return_policy: string;
   business_constitution: BusinessConstitution;
+  brand_same_as_legal: boolean;
+  brand_legal_declaration: boolean;
   legal_business_name: string;
+  instagram_url: string;
+  website_url: string;
   pan: string;
   gstin: string;
   primary_mobile: string;

@@ -86,7 +86,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.name.trim()) return toast.error("Store name is required");
+    if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
 
     setSaving(true);
     try {
@@ -178,7 +178,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vs-name">Store name</Label>
+            <Label htmlFor="vs-name">Boutique / Brand Name</Label>
             <Input id="vs-name" value={form.name} onChange={(e) => set("name", e.target.value)} />
           </div>
 

@@ -12,7 +12,7 @@ import { parseBoolean, parseNumberOrNull } from "@/lib/excelImportExport";
 // same settings.
 export const VENDOR_COLUMNS = {
   vendorId: "Vendor ID (required)",
-  name: "Store Name (read-only)",
+  name: "Boutique / Brand Name (read-only)",
   slug: "Slug (read-only)",
   contactEmail: "Contact Email (read-only)",
   status: "Status (pending/approved/rejected/suspended)",
