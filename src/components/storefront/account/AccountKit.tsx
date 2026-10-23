@@ -95,9 +95,7 @@ export function SignInCard({ icon: Icon, title, text }: { icon: LucideIcon; titl
           <h1 className="mt-6 font-serif text-3xl leading-tight">{title}</h1>
           <p className="mt-3 text-sm text-muted-foreground">{text}</p>
         </div>
-        <div className="[&_button[type=submit]]:h-12 [&_button[type=submit]]:rounded-none [&_button[type=submit]]:text-[11px] [&_button[type=submit]]:uppercase [&_button[type=submit]]:tracking-[0.22em] [&_input]:rounded-none">
-          <InlineSignInForm />
-        </div>
+        <InlineSignInForm />
         <button
           type="button"
           className="mt-3 h-12 w-full border border-foreground/20 text-[11px] font-medium uppercase tracking-[0.22em] hover:border-foreground"

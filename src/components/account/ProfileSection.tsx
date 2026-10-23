@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
+import { userContact } from "@/lib/authIdentifier";
 
 interface Profile {
   full_name: string | null;
@@ -127,6 +128,7 @@ export function ProfileSection() {
     .map((n) => n[0])
     .join("")
     .toUpperCase() || user?.email?.[0].toUpperCase() || "U";
+  const contact = userContact(user);
 
   return (
     <div className="grid gap-10 lg:grid-cols-[260px_1fr] lg:gap-16">
@@ -154,7 +156,7 @@ export function ProfileSection() {
         </div>
         <div className="min-w-0">
           <p className="font-serif text-2xl leading-tight">{profile.full_name || "Set your name"}</p>
-          <p className="mt-1 break-all text-sm text-muted-foreground">{user?.email}</p>
+          <p className="mt-1 break-all text-sm text-muted-foreground">{contact}</p>
         </div>
       </div>
 
@@ -186,7 +188,7 @@ export function ProfileSection() {
             <Label htmlFor="email" className={accountLabelClass}>Email</Label>
             <Input
               id="email"
-              value={user?.email || ""}
+              value={user?.email || "Not added - see Sign-in & security"}
               disabled
               className={accountFieldClass}
             />

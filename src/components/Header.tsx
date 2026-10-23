@@ -25,13 +25,20 @@ import { SearchPanel } from "@/components/storefront/SearchPanel";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { COMPANY } from "@/lib/company";
+import { userContact } from "@/lib/authIdentifier";
+import { useHomePath } from "@/hooks/useHomePath";
+import { SignInSecurityDialog } from "@/components/auth/SignInSecurity";
 import { cn } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 type MenuKey = string | null;
 
-export function Header() {
+// variant "seller": the slim header for someone registering as a seller -
+// logo, seller help and their account only (no search, shop menus, bag or
+// wishlist).
+export function Header({ variant = "store" }: { variant?: "store" | "seller" }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<MenuKey>(null);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -40,6 +47,7 @@ export function Header() {
   const { vendor } = useVendor();
   const { isAdmin } = useAdmin();
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
+  const homePath = useHomePath();
 
   const { data: categories = [] } = useStoreCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
@@ -81,6 +89,52 @@ export function Header() {
   const hasSale = products.some((p) => p.compare_at_price && p.compare_at_price > p.price);
   const liveBoutiques = boutiques.filter((b) => products.some((p) => p.vendor_id === b.id));
 
+  if (variant === "seller") {
+    return (
+      <header className="sticky top-0 z-50 border-b border-border bg-ivory/95 backdrop-blur-md">
+        <div className="store-container flex h-16 items-center justify-between gap-3 md:h-[72px]">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link to={homePath} aria-label="AllBoutiqs - home" className="shrink-0">
+              <img src={logo} alt="AllBoutiqs" className="-my-3 h-[76px] w-auto object-contain" />
+            </Link>
+            <span aria-hidden className="hidden h-6 w-px bg-border sm:block" />
+            <span className="hidden text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground sm:block">
+              Seller registration
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <a
+              href={COMPANY.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Seller help on WhatsApp"
+              className="inline-flex h-10 items-center gap-2 px-2 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/80 transition-colors hover:text-primary sm:px-3"
+            >
+              <MessageCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Seller help</span>
+            </a>
+            {user && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Account">
+                    <User className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{userContact(user)}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={() => setSecurityOpen(true)}>Password &amp; sign-in</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleSignOut}>Sign Out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+        <SignInSecurityDialog open={securityOpen} onOpenChange={setSecurityOpen} />
+      </header>
+    );
+  }
+
   // Staff see only their own area (STAFF_ONLY_MODE): no shop links.
   if (STAFF_ONLY_MODE && user && (isAdmin || vendor)) {
     const home = isAdmin ? "/admin" : "/vendor";
@@ -106,7 +160,9 @@ export function Header() {
                     <User className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{userContact(user)}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
                   {vendor && (
                     <DropdownMenuItem asChild>
                       <Link to="/vendor">Vendor Dashboard</Link>
@@ -117,6 +173,7 @@ export function Header() {
                       <Link to="/admin">Admin Panel</Link>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem onSelect={() => setSecurityOpen(true)}>Password &amp; sign-in</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>Sign Out</DropdownMenuItem>
                 </DropdownMenuContent>
@@ -124,6 +181,7 @@ export function Header() {
             </div>
           </div>
         </div>
+        <SignInSecurityDialog open={securityOpen} onOpenChange={setSecurityOpen} />
       </header>
     );
   }
@@ -220,7 +278,7 @@ export function Header() {
                 <DropdownMenuContent align="end" className="w-52">
                   {user ? (
                     <>
-                      <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{user.email}</DropdownMenuLabel>
+                      <DropdownMenuLabel className="truncate font-normal text-muted-foreground">{userContact(user)}</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
                         <Link to="/account">My Account</Link>

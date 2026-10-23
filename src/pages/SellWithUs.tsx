@@ -299,7 +299,7 @@ export default function SellWithUs() {
   if (authLoading || vendorLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header variant="seller" />
         <div className="flex justify-center items-center py-40">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -455,7 +455,7 @@ export default function SellWithUs() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header variant="seller" />
 
       {/* Hero */}
       <section className="relative overflow-hidden bg-maroon-deep pattern-jaal-dark text-ivory">
@@ -573,7 +573,7 @@ export default function SellWithUs() {
                 Create an account or sign in, then submit your store application to
                 join AllBoutiqs as a vendor.
               </p>
-              <div className="mt-8 [&_button[type=submit]]:h-12 [&_button[type=submit]]:rounded-none [&_button[type=submit]]:text-[11px] [&_button[type=submit]]:uppercase [&_button[type=submit]]:tracking-[0.22em] [&_input]:rounded-none">
+              <div className="mt-8">
                 <InlineSignInForm />
               </div>
             </div>

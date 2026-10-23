@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Home as HomeIcon } from "lucide-react";
+import { Home as HomeIcon, KeyRound } from "lucide-react";
+import { SignInSecurityDialog } from "@/components/auth/SignInSecurity";
+import { userContact } from "@/lib/authIdentifier";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +46,7 @@ export default function Warehouse() {
   const [tab, setTab] = useUrlTab("incoming");
   const data = useWarehouseData(canOperate);
   const [warehouse, setWarehouse] = useState<WarehouseInfo | null>(null);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [settings, setSettings] = useState<WarehouseSettingsRow | null>(null);
   const [holidays, setHolidays] = useState<{ holiday_date: string; name: string }[]>([]);
 
@@ -104,7 +107,7 @@ export default function Warehouse() {
             <CardDescription>AllBoutiqs warehouse</CardDescription>
           </CardHeader>
           <CardContent>
-            <InlineSignInForm />
+            <InlineSignInForm variant="staff" />
           </CardContent>
         </Card>
       </div>
@@ -120,7 +123,7 @@ export default function Warehouse() {
             <CardDescription>Only AllBoutiqs warehouse staff and admins can open the warehouse.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground text-center">Logged in as: {user.email}</p>
+            <p className="text-sm text-muted-foreground text-center">Logged in as: {userContact(user)}</p>
             <Button variant="outline" className="w-full" onClick={() => navigate("/")}>
               Go to Store
             </Button>
@@ -182,6 +185,10 @@ export default function Warehouse() {
                   </Button>
                 </Link>
               )}
+              <Button variant="ghost" size="sm" onClick={() => setSecurityOpen(true)} title="Password & sign-in">
+                <KeyRound className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Password</span>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -197,6 +204,7 @@ export default function Warehouse() {
             </div>
           </div>
         </div>
+        <SignInSecurityDialog open={securityOpen} onOpenChange={setSecurityOpen} />
       </header>
 
       <div className="container mx-auto px-4 py-8">

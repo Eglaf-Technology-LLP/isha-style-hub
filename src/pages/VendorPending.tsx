@@ -14,7 +14,7 @@ export default function VendorPending() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header variant="seller" />
         <div className="flex justify-center items-center py-40">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -40,7 +40,7 @@ export default function VendorPending() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header variant="seller" />
       <div className="container mx-auto px-4 py-16">
         <Card className="max-w-2xl mx-auto">
           <CardHeader className="text-center">

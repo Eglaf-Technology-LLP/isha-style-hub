@@ -1,5 +1,7 @@
-import { useEffect } from "react";
-import { Home as HomeIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Home as HomeIcon, KeyRound } from "lucide-react";
+import { SignInSecurityDialog } from "@/components/auth/SignInSecurity";
+import { userContact } from "@/lib/authIdentifier";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { Button } from "@/components/ui/button";
@@ -86,6 +88,7 @@ export default function Admin() {
   const { canOperate: canOperateWarehouse } = useWarehouseAccess();
   const { vendor } = useVendor();
   const redirectParam = searchParams.get("redirect");
+  const [securityOpen, setSecurityOpen] = useState(false);
 
   // /admin is the only sign-in surface in the app, used by regular
   // customers too (e.g. Checkout's sign-in gate links here with
@@ -142,7 +145,7 @@ export default function Admin() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <InlineSignInForm />
+            <InlineSignInForm variant="staff" />
           </CardContent>
         </Card>
       </div>
@@ -162,7 +165,7 @@ export default function Admin() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              Logged in as: {user.email}
+              Logged in as: {userContact(user)}
             </p>
             {vendor && vendor.status === 'approved' && (
               <Button className="w-full" onClick={() => navigate('/vendor')}>
@@ -208,7 +211,7 @@ export default function Admin() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground hidden md:inline">
-                {user.email}
+                {userContact(user)}
               </span>
               <NotificationBell />
               <Link to="/warehouse">
@@ -226,6 +229,10 @@ export default function Admin() {
                   </Button>
                 </Link>
               )}
+              <Button variant="ghost" size="sm" onClick={() => setSecurityOpen(true)} title="Password & sign-in">
+                <KeyRound className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">Password</span>
+              </Button>
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -233,6 +240,7 @@ export default function Admin() {
             </div>
           </div>
         </div>
+        <SignInSecurityDialog open={securityOpen} onOpenChange={setSecurityOpen} />
       </header>
 
       <div className="container mx-auto px-4 py-8">

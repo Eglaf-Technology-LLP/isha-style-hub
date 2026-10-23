@@ -1,5 +1,5 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { corsHeaders, jsonResponse, serviceClient, errorMessage } from "../_shared/auth.ts";
+import { corsHeaders, jsonResponse, serviceClient, errorMessage, getCallerUserId } from "../_shared/auth.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 
 // Passwordless sign-in and sign-up for everyone (customers, boutiques,
@@ -7,8 +7,10 @@ import { emailTemplate, sendEmail } from "../_shared/email.ts";
 // {action:"verify", email, code} checks it and returns a one-time token
 // the browser exchanges for a normal Supabase session
 // (supabase.auth.verifyOtp({token_hash, type:"magiclink"})). New emails get
-// an account with a random password nobody knows. Public endpoint
-// (verify_jwt = false) - the caller isn't signed in yet.
+// an account with a random password nobody knows (people can set their own
+// later). Signed-in people who only have a mobile number add an email with
+// {action:"send", purpose:"link", email} then {action:"link", email, code}.
+// Public endpoint (verify_jwt = false) - the caller isn't signed in yet.
 
 const CODE_TTL_MINUTES = 10;
 const RESEND_AFTER_SECONDS = 60;
@@ -70,13 +72,21 @@ async function existingUserId(supabase: SupabaseClient, email: string): Promise<
   return data ?? null;
 }
 
-function codeEmail(code: string, isNew: boolean) {
-  const subject = `${code} is your AllBoutiqs ${isNew ? "sign-up" : "sign-in"} code`;
+type CodePurpose = "signin" | "signup" | "link";
+
+function codeEmail(code: string, purpose: CodePurpose) {
+  const subject = `${code} is your AllBoutiqs ${{ signin: "sign-in", signup: "sign-up", link: "verification" }[purpose]} code`;
   const html = emailTemplate({
     preheader: `Your code is ${code}. It expires in ${CODE_TTL_MINUTES} minutes.`,
-    heading: isNew ? "Welcome to AllBoutiqs" : "Your sign-in code",
+    heading: { signin: "Your sign-in code", signup: "Welcome to AllBoutiqs", link: "Confirm your email" }[purpose],
     bodyHtml: `
-<p style="margin:0 0 20px;">${isNew ? "Use this code to create your AllBoutiqs account:" : "Use this code to sign in to AllBoutiqs:"}</p>
+<p style="margin:0 0 20px;">${
+      {
+        signin: "Use this code to sign in to AllBoutiqs:",
+        signup: "Use this code to create your AllBoutiqs account:",
+        link: "Use this code to add this email to your AllBoutiqs account:",
+      }[purpose]
+    }</p>
 <p style="margin:0 0 20px; font-family:'Courier New',Courier,monospace; font-size:34px; font-weight:700; letter-spacing:8px; color:#7a2e22;">${code}</p>
 <p style="margin:0 0 12px;">It expires in ${CODE_TTL_MINUTES} minutes and works once. If you asked for more than one code, use the newest.</p>
 <p style="margin:0; font-size:13px; color:#6a6a6a;">Didn't ask for this? You can ignore this email - nobody can sign in without the code. AllBoutiqs will never ask you to share it.</p>`,
@@ -84,7 +94,12 @@ function codeEmail(code: string, isNew: boolean) {
   return { subject, html };
 }
 
-async function sendCode(supabase: SupabaseClient, email: string, ip: string | null): Promise<Response> {
+async function sendCode(
+  supabase: SupabaseClient,
+  email: string,
+  ip: string | null,
+  linkFor: string | null = null,
+): Promise<Response> {
   const now = Date.now();
   const hourAgo = new Date(now - 3600_000).toISOString();
 
@@ -121,7 +136,19 @@ async function sendCode(supabase: SupabaseClient, email: string, ip: string | nu
   }
 
   const code = randomCode();
-  const isNew = !(await existingUserId(supabase, email));
+  const ownerId = await existingUserId(supabase, email);
+  if (linkFor && ownerId) {
+    return jsonResponse(
+      {
+        error:
+          ownerId === linkFor
+            ? "This email is already on your account."
+            : "This email already has its own AllBoutiqs account. Sign in with it instead, or use another email.",
+      },
+      409,
+    );
+  }
+  const purpose: CodePurpose = linkFor ? "link" : ownerId ? "signin" : "signup";
   const { data: row, error: insertErr } = await supabase
     .from("auth_email_otps")
     .insert({
@@ -135,7 +162,7 @@ async function sendCode(supabase: SupabaseClient, email: string, ip: string | nu
   if (insertErr) throw insertErr;
 
   try {
-    const { subject, html } = codeEmail(code, isNew);
+    const { subject, html } = codeEmail(code, purpose);
     const result = await sendEmail(email, subject, html);
     if (result.skipped) throw new Error("SMTP is not configured");
   } catch (e) {
@@ -155,7 +182,9 @@ async function sendCode(supabase: SupabaseClient, email: string, ip: string | nu
   return jsonResponse({ sent: true, resend_after: RESEND_AFTER_SECONDS, expires_in: CODE_TTL_MINUTES * 60 });
 }
 
-async function verifyCode(supabase: SupabaseClient, email: string, code: string): Promise<Response> {
+// Checks (and uses up) the newest code for the email. Returns an error
+// response, or null when the code is right.
+async function checkCode(supabase: SupabaseClient, email: string, code: string): Promise<Response | null> {
   if (!/^\d{6}$/.test(code)) return jsonResponse({ error: "Enter the 6-digit code from the email." }, 400);
 
   const { data: otp, error: otpErr } = await supabase
@@ -199,6 +228,12 @@ async function verifyCode(supabase: SupabaseClient, email: string, code: string)
   if (!used) {
     return jsonResponse({ error: "This code was already used. Tap Resend code to get a new one.", reason: "expired" }, 400);
   }
+  return null;
+}
+
+async function verifyCode(supabase: SupabaseClient, email: string, code: string): Promise<Response> {
+  const rejected = await checkCode(supabase, email, code);
+  if (rejected) return rejected;
 
   let isNew = false;
   const userId = await existingUserId(supabase, email);
@@ -220,6 +255,24 @@ async function verifyCode(supabase: SupabaseClient, email: string, code: string)
   return jsonResponse({ token_hash: link.properties.hashed_token, is_new_user: isNew });
 }
 
+// Adds the (now proven) email to the signed-in caller's account.
+async function linkEmail(supabase: SupabaseClient, userId: string, email: string, code: string): Promise<Response> {
+  const ownerId = await existingUserId(supabase, email);
+  if (ownerId && ownerId !== userId) {
+    return jsonResponse({ error: "This email already has its own AllBoutiqs account." }, 409);
+  }
+  const rejected = await checkCode(supabase, email, code);
+  if (rejected) return rejected;
+  const { error } = await supabase.auth.admin.updateUserById(userId, { email, email_confirm: true });
+  if (error) {
+    if (/already|exists|registered/i.test(error.message)) {
+      return jsonResponse({ error: "This email already has its own AllBoutiqs account." }, 409);
+    }
+    throw error;
+  }
+  return jsonResponse({ linked: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -230,8 +283,20 @@ Deno.serve(async (req) => {
     if (!email) return jsonResponse({ error: "Enter a valid email address." }, 400);
 
     const supabase = serviceClient();
+    const code = String(body.code ?? "").trim();
+    if (body.purpose === "link" || body.action === "link") {
+      const userId = await getCallerUserId(req);
+      if (!userId) return jsonResponse({ error: "Please sign in again, then add your email." }, 401);
+      // Adding only - an account's existing email is never swapped here.
+      const { data: caller } = await supabase.auth.admin.getUserById(userId);
+      if (caller?.user?.email) {
+        return jsonResponse({ error: "Your account already has an email. To change it, contact AllBoutiqs support." }, 400);
+      }
+      if (body.action === "send") return await sendCode(supabase, email, clientIp(req), userId);
+      if (body.action === "link") return await linkEmail(supabase, userId, email, code);
+    }
     if (body.action === "send") return await sendCode(supabase, email, clientIp(req));
-    if (body.action === "verify") return await verifyCode(supabase, email, String(body.code ?? "").trim());
+    if (body.action === "verify") return await verifyCode(supabase, email, code);
     return jsonResponse({ error: "Unknown action" }, 400);
   } catch (e) {
     console.error("auth-email-otp failed", errorMessage(e));
