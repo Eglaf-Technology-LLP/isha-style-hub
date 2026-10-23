@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Home as HomeIcon } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -154,9 +155,15 @@ export default function Warehouse() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <Link to="/" aria-label="AllBoutiqs home">
+              {/* Home: the admin dashboard for admins, this page for warehouse staff. */}
+              <Link to={isAdmin ? "/admin" : "/warehouse"} aria-label="AllBoutiqs - home">
                 <img src={logo} alt="AllBoutiqs" className="h-12 w-auto object-contain" />
               </Link>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={isAdmin ? "/admin" : "/warehouse"} className="gap-1.5">
+                  <HomeIcon className="h-4 w-4" /> Home
+                </Link>
+              </Button>
               <Badge variant="secondary" className="gap-1">
                 <WarehouseIcon className="h-3 w-3" /> Warehouse
               </Badge>

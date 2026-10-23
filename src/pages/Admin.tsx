@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { Home as HomeIcon } from "lucide-react";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { Button } from "@/components/ui/button";
@@ -194,10 +195,16 @@ export default function Admin() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link to="/" aria-label="AllBoutiqs home">
+              {/* An admin's home is the admin dashboard. */}
+              <Link to="/admin" aria-label="AllBoutiqs - admin home">
                 <img src={logo} alt="AllBoutiqs" className="h-12 lg:h-14 w-auto object-contain" />
               </Link>
               <Badge variant="secondary">Admin</Badge>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/admin" className="gap-1.5">
+                  <HomeIcon className="h-4 w-4" /> Home
+                </Link>
+              </Button>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground hidden md:inline">

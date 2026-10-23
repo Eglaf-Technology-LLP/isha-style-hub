@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { useHomePath } from "@/hooks/useHomePath";
 import { useEffect } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -6,6 +7,7 @@ import { POPULAR_SEARCHES } from "@/content/storefront";
 
 const NotFound = () => {
   const location = useLocation();
+  const homePath = useHomePath();
 
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
@@ -26,7 +28,7 @@ const NotFound = () => {
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
-              to="/"
+              to={homePath}
               className="inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
             >
               Return to home

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import logo from "@/assets/logo.png";
-import { ArrowRight, BadgeCheck, ChevronRight, Heart, Menu, MessageCircle, Package, Search, Store, User } from "lucide-react";
+import { ArrowRight, BadgeCheck, ChevronRight, Heart, Home, Menu, MessageCircle, Package, Search, Store, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -88,9 +88,16 @@ export function Header() {
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <Link to={home} aria-label="AllBoutiqs">
-              <img src={logo} alt="AllBoutiqs" className="h-12 w-auto object-contain" />
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link to={home} aria-label="AllBoutiqs - home">
+                <img src={logo} alt="AllBoutiqs" className="h-12 w-auto object-contain" />
+              </Link>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={home} className="gap-1.5">
+                  <Home className="h-4 w-4" /> Home
+                </Link>
+              </Button>
+            </div>
             <div className="flex items-center gap-1">
               <NotificationBell />
               <DropdownMenu>
@@ -174,6 +181,11 @@ export function Header() {
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Search" onClick={() => setSearchOpen(true)}>
                 <Search className="h-5 w-5" />
               </Button>
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Home" asChild>
+                <Link to="/">
+                  <Home className="h-5 w-5" />
+                </Link>
+              </Button>
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
@@ -256,6 +268,7 @@ export function Header() {
           {/* Navigation (desktop) */}
           <nav className="hidden lg:block" aria-label="Main">
             <ul className="flex h-11 items-center justify-center gap-9">
+              {navLink("home", "Home", "/")}
               {navLink("new", "New In", "/category/all?sort=newest")}
               {categories.slice(0, 7).map((c) => navLink(`cat:${c.id}`, c.name, `/category/${c.slug}`, { mega: true }))}
               {liveBoutiques.length > 0 && navLink("boutiques", "Boutiques", "/boutiques", { mega: true })}
@@ -310,6 +323,7 @@ export function Header() {
             </button>
             <p className="eyebrow mb-3 text-gold">Shop</p>
             <ul className="divide-y divide-border border-y border-border">
+              <MobileLink to="/" label="Home" />
               <MobileLink to="/category/all?sort=newest" label="New In" />
               {categories.map((c) => (
                 <MobileLink key={c.id} to={`/category/${c.slug}`} label={c.name} />
