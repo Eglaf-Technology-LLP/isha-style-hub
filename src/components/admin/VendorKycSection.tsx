@@ -83,6 +83,41 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+// Opens a private seller document in a new tab through a short-lived
+// signed link. The tab opens first (popup blockers allow it inside the
+// click), then is pointed at the link.
+export async function openVendorDocument(filePath: string) {
+  const tab = window.open("", "_blank");
+  const { data, error } = await supabase.storage.from("vendor-documents").createSignedUrl(filePath, 300);
+  if (error || !data?.signedUrl) {
+    tab?.close();
+    toast.error("Couldn't open the document");
+    return;
+  }
+  if (tab) tab.location.href = data.signedUrl;
+  else window.location.assign(data.signedUrl);
+}
+
+// The PAN card the boutique uploaded at registration, if any, as a button.
+export function PanCardButton({ vendorId }: { vendorId: string }) {
+  const [path, setPath] = useState<string | null>(null);
+  useEffect(() => {
+    supabase
+      .from("vendor_documents")
+      .select("file_path")
+      .eq("vendor_id", vendorId)
+      .eq("doc_type", "pan_card")
+      .maybeSingle()
+      .then(({ data }) => setPath(data?.file_path ?? null));
+  }, [vendorId]);
+  if (!path) return <p className="text-xs text-muted-foreground">No PAN card uploaded</p>;
+  return (
+    <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => openVendorDocument(path)}>
+      <FileText className="h-3.5 w-3.5" /> View PAN card
+    </Button>
+  );
+}
+
 // What the boutique submitted on the seller registration form: constitution,
 // identifiers, people, and the document checklist with each PDF openable
 // through a short-lived signed link (the bucket is private).
@@ -106,18 +141,8 @@ export function VendorKycSection({ vendorId, brandName }: { vendorId: string; br
 
   const openDocument = async (doc: VendorDocument) => {
     setOpening(doc.id);
-    // Open the tab first (popup blockers allow it inside the click), then
-    // point it at the signed URL.
-    const tab = window.open("", "_blank");
-    const { data, error } = await supabase.storage.from("vendor-documents").createSignedUrl(doc.file_path, 300);
+    await openVendorDocument(doc.file_path);
     setOpening(null);
-    if (error || !data?.signedUrl) {
-      tab?.close();
-      toast.error("Couldn't open the document");
-      return;
-    }
-    if (tab) tab.location.href = data.signedUrl;
-    else window.location.assign(data.signedUrl);
   };
 
   if (loading) {

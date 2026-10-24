@@ -23,7 +23,7 @@ import { format } from "date-fns";
 import type { Vendor } from "@/hooks/useVendor";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
-import { VendorKycSection } from "./VendorKycSection";
+import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -321,6 +321,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                 <div className="space-y-2">
                   <Label htmlFor="vd-pan">PAN number</Label>
                   <Input id="vd-pan" value={form.pan_number} onChange={(e) => set("pan_number", e.target.value)} />
+                  <PanCardButton vendorId={vendor.id} />
                 </div>
               </div>
             </section>
