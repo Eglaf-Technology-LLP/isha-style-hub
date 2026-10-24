@@ -515,7 +515,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                           )}
                           <div className="flex gap-2 text-xs text-muted-foreground mt-1">
                             {item.size && <span>Size: {item.size}</span>}
-                            {item.color && <span>Color: {item.color}</span>}
+                            {item.color && <span>Colour: {item.color}</span>}
                           </div>
                           <p className="text-xs font-mono text-muted-foreground mt-1">
                             SKU: {item.sku || "not set"}

@@ -5,9 +5,9 @@ import { cartLineKey, useCartStore } from "@/stores/cartStore";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// A bag keeps the price each piece had when it was added. Prices can change
+// A cart keeps the price each piece had when it was added. Prices can change
 // since then - e.g. on 24-10-2026 every customer price gained GST (Product
-// Value, Developer Corrections Part 7, 5.1) - so the bag and checkout pull
+// Value, Developer Corrections Part 7, 5.1) - so the cart and checkout pull
 // today's price for each line and say so when one moved. A customised line
 // keeps its customisation charge on top of the new base price.
 export function useSyncCartPrices(enabled = true) {
@@ -45,7 +45,7 @@ export function useSyncCartPrices(enabled = true) {
       }
       if (Object.keys(updates).length === 0) return;
       setPrices(updates);
-      toast.info("Prices in your bag were updated", { description: "Your bag now shows today's prices, GST included." });
+      toast.info("Prices in your cart were updated", { description: "Your cart now shows today's prices, GST included." });
     })();
     return () => {
       alive = false;

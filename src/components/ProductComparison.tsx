@@ -180,7 +180,7 @@ export function CompareDrawer() {
                           )}
                           {variants?.colors && (
                             <div className="text-sm">
-                              <span className="text-muted-foreground">Colors: </span>
+                              <span className="text-muted-foreground">Colours: </span>
                               {variants.colors.join(", ")}
                             </div>
                           )}

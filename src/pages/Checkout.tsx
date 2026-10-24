@@ -133,10 +133,11 @@ export default function Checkout() {
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
-  // Today's prices for what's in the bag (they may have changed since it was added).
+  // Today's prices for what's in the cart (they may have changed since it was added).
   useSyncCartPrices();
   const platformRates = usePlatformRates();
-  const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("cod");
+  // Pay Online by default (Developer Corrections Part 8, 20).
+  const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("razorpay");
   const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";
   const [codOffProducts, setCodOffProducts] = useState<string[]>([]);
   const [emiMethods, setEmiMethods] = useState<{
@@ -425,7 +426,7 @@ export default function Checkout() {
   }, [paymentChoice, emiAvailable]);
 
   // The inverse case - a vendor with COD off is in the cart, but COD is
-  // still selected (the default). Move to online payment automatically.
+  // selected. Move to online payment automatically.
   useEffect(() => {
     if (codDisabledByVendor && paymentMethod === "cod") {
       setPaymentChoice("razorpay");
@@ -720,7 +721,7 @@ export default function Checkout() {
         product_title: item.productName,
         variant_title: item.variantTitle || null,
         size: item.selectedOptions.find((o) => o.name.toLowerCase() === "size")?.value || null,
-        color: item.selectedOptions.find((o) => o.name.toLowerCase() === "color")?.value || null,
+        color: item.selectedOptions.find((o) => ["color", "colour"].includes(o.name.toLowerCase()))?.value || null,
         sku:
           (UUID_RE.test(item.variantId) ? skuByVariantId.get(item.variantId) : null) ||
           productMetaById.get(item.productId)?.sku ||
@@ -1006,9 +1007,9 @@ export default function Checkout() {
           <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-ivory">
             <ShoppingBag className="h-8 w-8 text-gold" strokeWidth={1.5} />
           </span>
-          <h1 className="mt-8 font-serif text-4xl">Your bag is empty</h1>
+          <h1 className="mt-8 font-serif text-4xl">Your cart is empty</h1>
           <p className="mx-auto mt-3 max-w-sm text-muted-foreground">
-            Add a few pieces to your bag to check out.
+            Add a few pieces to your cart to check out.
           </p>
           <Link
             to="/category/all"

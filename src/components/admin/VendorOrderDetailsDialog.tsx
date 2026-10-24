@@ -365,7 +365,7 @@ export function VendorOrderDetailsDialog({
                       <TableRow key={i}>
                         <TableCell className="font-medium">{item.product_title}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
                             .filter(Boolean)
                             .join(" · ") || "—"}
                         </TableCell>

@@ -24,6 +24,7 @@ import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 import { formatDate } from "@/lib/dates";
+import { businessTypeLabel } from "@/lib/vendorKyc";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -459,12 +460,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   <Field label="Account Number" value={<span className="font-mono">{payoutAccount.bank_account_number}</span>} />
                   <Field label="IFSC" value={<span className="font-mono">{payoutAccount.bank_ifsc}</span>} />
                   <Field label="Bank" value={payoutAccount.bank_name} />
-                  <Field
-                    label="Business Type"
-                    value={
-                      payoutAccount.business_type === "huf" ? "HUF" : <span className="capitalize">{payoutAccount.business_type.replace(/_/g, " ")}</span>
-                    }
-                  />
+                  <Field label="Business Type" value={businessTypeLabel(payoutAccount.business_type)} />
                   {payoutAccount.razorpay_account_id && (
                     <Field label="Razorpay Account" value={payoutAccount.razorpay_account_id} />
                   )}

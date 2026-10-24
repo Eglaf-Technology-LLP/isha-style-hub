@@ -160,7 +160,7 @@ export function OrderCancellationDialog({
                       <p className="text-xs text-muted-foreground">
                         {item.variantTitle && <span>{item.variantTitle}</span>}
                         {item.size && <span> • Size: {item.size}</span>}
-                        {item.color && <span> • Color: {item.color}</span>}
+                        {item.color && <span> • Colour: {item.color}</span>}
                         {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
                       </p>
                       {group.blocked && (

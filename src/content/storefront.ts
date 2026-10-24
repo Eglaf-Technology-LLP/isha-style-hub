@@ -39,7 +39,7 @@ export const HERO_SLIDES: HeroSlide[] = [
     eyebrow: "One address",
     title: "India's boutiques,",
     titleAccent: "under one roof",
-    subtitle: "Shop independent labels you won't find anywhere else - every one verified by AllBoutiqs.",
+    subtitle: "Ethnic, western and party wear from India's best boutiques and designer brands.",
     cta: { label: "Meet the boutiques", href: "/boutiques" },
     secondaryCta: { label: "New in", href: "/category/all?sort=newest" },
     align: "center",

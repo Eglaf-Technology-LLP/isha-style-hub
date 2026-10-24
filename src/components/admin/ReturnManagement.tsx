@@ -506,7 +506,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                               <p className="text-xs text-muted-foreground">
                                 {item.size && `Size: ${item.size}`}
                                 {item.size && item.color && " • "}
-                                {item.color && `Color: ${item.color}`}
+                                {item.color && `Colour: ${item.color}`}
                                 {" • "}Qty: {item.quantity}
                               </p>
                               {selectedRequest.request_type === "exchange" && exchangeTo && (exchangeTo.size || exchangeTo.color) && (

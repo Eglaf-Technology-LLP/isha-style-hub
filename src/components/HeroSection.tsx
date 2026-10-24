@@ -27,7 +27,7 @@ export function HeroSection() {
             <span className="block italic text-primary-foreground">Perfect Style</span>
           </h1>
           <p className="text-lg text-card/90 mb-8 max-w-md">
-            Explore our curated collection of elegant dresses, trendy shirts, and comfortable pants.
+            Ethnic, western and party wear from India's best boutiques and designer brands.
             Fashion that speaks to you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">

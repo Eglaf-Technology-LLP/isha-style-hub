@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnalyticsData, AnalyticsGroupBy } from "@/hooks/useAnalytics";
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package, Users } from "lucide-react";
+import { TrendingUp, TrendingDown, IndianRupee, ShoppingCart, Package, Users } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 import { format, parseISO } from "date-fns";
 
@@ -121,7 +121,7 @@ export function AnalyticsCharts({
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {revenueLabel}
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{data.totalRevenue.toLocaleString()}</div>

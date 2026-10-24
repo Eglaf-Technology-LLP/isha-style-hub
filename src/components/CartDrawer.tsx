@@ -30,7 +30,7 @@ export function CartDrawer() {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label={`Shopping bag, ${totalItems} items`}>
+        <Button variant="ghost" size="icon" className="relative" aria-label={`Cart, ${totalItems} items`}>
           <ShoppingBag className="h-5 w-5" />
           {totalItems > 0 && (
             <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
@@ -43,10 +43,10 @@ export function CartDrawer() {
       <SheetContent className="flex h-full w-full flex-col gap-0 bg-ivory p-0 sm:max-w-[440px]">
         <SheetHeader className="flex-shrink-0 border-b border-border px-6 py-5 text-left">
           <SheetTitle className="font-serif text-2xl font-normal">
-            Your bag {totalItems > 0 && <span className="text-base text-muted-foreground">({totalItems})</span>}
+            Your cart {totalItems > 0 && <span className="text-base text-muted-foreground">({totalItems})</span>}
           </SheetTitle>
           <SheetDescription className="sr-only">
-            {totalItems === 0 ? "Your bag is empty" : `${totalItems} item${totalItems !== 1 ? "s" : ""} in your bag`}
+            {totalItems === 0 ? "Your cart is empty" : `${totalItems} item${totalItems !== 1 ? "s" : ""} in your cart`}
           </SheetDescription>
         </SheetHeader>
 
@@ -55,7 +55,7 @@ export function CartDrawer() {
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-gold/40">
               <ShoppingBag className="h-8 w-8 text-gold" />
             </div>
-            <p className="font-serif text-2xl">Your bag is empty</p>
+            <p className="font-serif text-2xl">Your cart is empty</p>
             <p className="mt-2 text-sm text-muted-foreground">Discover pieces from India's finest boutiques.</p>
             <div className="mt-7 flex flex-wrap justify-center gap-2">
               {categories.slice(0, 4).map((c) => (

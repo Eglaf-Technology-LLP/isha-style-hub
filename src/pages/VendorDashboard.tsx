@@ -85,6 +85,7 @@ import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
 import { formatDate } from "@/lib/dates";
+import { businessTypeLabel } from "@/lib/vendorKyc";
 
 interface VendorProduct {
   id: string;
@@ -590,7 +591,7 @@ export default function VendorDashboard() {
                 {vendor.is_founding && <FoundingBoutiqueBadge size="sm" />}
                 {vendor.is_trusted && (
                   <Badge variant="secondary" className="text-xs">
-                    Trusted partner
+                    Trusted Partner
                   </Badge>
                 )}
               </div>
@@ -1062,7 +1063,7 @@ export default function VendorDashboard() {
                                       <span className="text-muted-foreground"> × {item.quantity}</span>
                                       {(item.variant_title || item.size || item.color) && (
                                         <div className="text-muted-foreground">
-                                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+                                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
                                             .filter(Boolean)
                                             .join(" · ")}
                                         </div>
@@ -1365,8 +1366,8 @@ export default function VendorDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       {BUSINESS_TYPES.map((t) => (
-                        <SelectItem key={t} value={t} className={t === "huf" ? "" : "capitalize"}>
-                          {t === "huf" ? "HUF" : t.replace("_", " ")}
+                        <SelectItem key={t} value={t}>
+                          {businessTypeLabel(t)}
                         </SelectItem>
                       ))}
                     </SelectContent>

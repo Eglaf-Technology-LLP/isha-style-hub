@@ -13,7 +13,7 @@ import {
   type SizeChartTemplate,
 } from "@/lib/sizeCharts";
 
-// Product page "Size chart": the boutique's own numbers for this category
+// Product page "Size guide": the boutique's own size chart for this category
 // (else AllBoutiqs' standard numbers, if set), in the category's fixed
 // template, with how to take each measurement. Hidden when there's nothing
 // to show.
@@ -48,12 +48,12 @@ export function SizeGuideModal({ categoryId, vendorId }: { categoryId?: string |
       <DialogTrigger asChild>
         <Button variant="link" className="gap-1 px-0 h-auto text-sm">
           <Ruler className="h-4 w-4" />
-          Size chart
+          Size guide
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto [&>*]:min-w-0">
         <DialogHeader>
-          <DialogTitle>Size chart · {template.name}</DialogTitle>
+          <DialogTitle>Size guide · {template.name}</DialogTitle>
           <DialogDescription>Garment measurements in {unitLabel(template.unit)}.</DialogDescription>
         </DialogHeader>
 

@@ -84,6 +84,22 @@ export type BankProofType = (typeof BANK_PROOF_TYPES)[number]["value"];
 
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
+// Payout account business types, written the way people read them
+// ("Private Limited", not "private limited").
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  individual: "Individual",
+  proprietorship: "Proprietorship",
+  partnership: "Partnership",
+  private_limited: "Private Limited",
+  llp: "LLP",
+  huf: "HUF",
+};
+
+export function businessTypeLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return BUSINESS_TYPE_LABELS[value] ?? value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function constitutionLabel(value: string | null | undefined): string {
   return CONSTITUTIONS.find((c) => c.value === value)?.label ?? "—";
 }

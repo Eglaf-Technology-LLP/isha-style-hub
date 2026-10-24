@@ -295,7 +295,7 @@ export default function ProductDetail() {
     ? [selectedVariant.image_url]
     : product?.images || [];
 
-  // Shared by both "Add to Cart" and "Shop Now" - the validation and the
+  // Shared by both "Add to Cart" and "Buy Now" - the validation and the
   // item that ends up in the cart must be identical either way, since Shop
   // Now still goes through the same cart/checkout flow (add, then jump
   // straight to /checkout) rather than a separate order path.
@@ -317,7 +317,7 @@ export default function ProductDetail() {
     if (missing.length > 0) {
       setMissingChoices(missing);
       toast.error(
-        missing.length === 2 ? "Please select a size and a color" : missing[0] === "size" ? "Please select a size" : "Please select a color",
+        missing.length === 2 ? "Please select a size and a colour" : missing[0] === "size" ? "Please select a size" : "Please select a colour",
       );
       document.getElementById(`choose-${missing[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return false;
@@ -333,7 +333,7 @@ export default function ProductDetail() {
     const variantTitle = [selectedSize, selectedColor].filter(Boolean).join(" / ") || "Default";
     const selectedOptions = [];
     if (selectedSize) selectedOptions.push({ name: "Size", value: selectedSize });
-    if (selectedColor) selectedOptions.push({ name: "Color", value: selectedColor });
+    if (selectedColor) selectedOptions.push({ name: "Colour", value: selectedColor });
 
     addItem({
       productId: product.id,
@@ -363,14 +363,14 @@ export default function ProductDetail() {
 
     const details = [product.name];
     if (selectedSize) details.push(`Size: ${selectedSize}`);
-    if (selectedColor) details.push(`Color: ${selectedColor}`);
+    if (selectedColor) details.push(`Colour: ${selectedColor}`);
     if ("choice" in customised && customised.choice) details.push(`Customised: ${customisationSummary(customised.choice)}`);
     details.push(`Qty: ${quantity}`);
 
-    toast.success("Added to your bag", {
+    toast.success("Added to cart", {
       description: details.join(" • "),
       position: "top-center",
-      action: { label: "View bag", onClick: () => setBagOpen(true) },
+      action: { label: "View cart", onClick: () => setBagOpen(true) },
     });
   };
 
@@ -547,7 +547,7 @@ export default function ProductDetail() {
                 {vendorInfo?.is_founding && <FoundingBoutiqueBadge size="sm" />}
                 {vendorInfo?.is_trusted && (
                   <span className="inline-flex items-center gap-1 border border-gold/40 px-2 py-0.5 text-[10px] uppercase tracking-[0.15em]">
-                    <ShieldCheck className="h-3 w-3 text-gold" /> Trusted partner
+                    <ShieldCheck className="h-3 w-3 text-gold" /> Trusted Partner
                   </span>
                 )}
               </div>
@@ -590,7 +590,7 @@ export default function ProductDetail() {
                     </span>
                   )}
                   {soldOut && (
-                    <span className="inline-flex items-center bg-foreground px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-background">Sold out</span>
+                    <span className="inline-flex items-center bg-foreground px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-background">Out of Stock</span>
                   )}
                   {!soldOut && currentStock <= 5 && (
                     <span className="inline-flex items-center border border-primary/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-primary">
@@ -675,7 +675,7 @@ export default function ProductDetail() {
                     disabled={soldOut}
                     className="h-12 flex-1 bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                   >
-                    {soldOut ? "Sold out" : "Add to bag"}
+                    {soldOut ? "Out of Stock" : "Add to Cart"}
                   </button>
                   <WishlistButton
                     productId={product.id}
@@ -688,7 +688,7 @@ export default function ProductDetail() {
                     onClick={handleBuyNow}
                     className="h-12 w-full border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
                   >
-                    Buy it now
+                    Buy Now
                   </button>
                 )}
                 {/* Stock Notification for Out of Stock */}
@@ -883,7 +883,7 @@ export default function ProductDetail() {
 
       <Footer />
 
-      {/* Phones: add-to-bag bar once the main buttons scroll away */}
+      {/* Phones: add-to-cart bar once the main buttons scroll away */}
       <div
         className={cn(
           "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-ivory/95 backdrop-blur-md transition-transform duration-300 lg:hidden",
@@ -908,7 +908,7 @@ export default function ProductDetail() {
             tabIndex={showStickyBar ? 0 : -1}
             className="h-12 shrink-0 bg-primary px-7 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
           >
-            {soldOut ? "Sold out" : "Add to bag"}
+            {soldOut ? "Out of Stock" : "Add to Cart"}
           </button>
         </div>
       </div>

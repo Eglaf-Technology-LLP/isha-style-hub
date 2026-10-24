@@ -76,7 +76,7 @@ export function Footer() {
         <div className="col-span-2 md:col-span-4 lg:col-span-1">
           <img src={logo} alt="AllBoutiqs" className="mb-5 h-14 w-auto object-contain" />
           <p className="max-w-xs text-sm leading-relaxed text-ivory/65">
-            India's independent boutiques, under one roof - every piece verified, quality-checked and delivered to your door.
+            India's Premium Boutique Marketplace – women's designer fashion from boutiques and designer brands.
           </p>
         </div>
 

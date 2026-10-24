@@ -20,7 +20,7 @@ import {
   Zap,
   Gift,
   Percent,
-  DollarSign,
+  IndianRupee,
   Users,
   Target,
 } from "lucide-react";
@@ -239,7 +239,7 @@ export function PromotionAnalytics() {
         <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3 mb-2">
-              <DollarSign className="h-6 w-6 text-primary" />
+              <IndianRupee className="h-6 w-6 text-primary" />
               <CardTitle className="text-lg">Estimated Savings Given</CardTitle>
             </div>
             <p className="text-3xl font-bold text-primary">

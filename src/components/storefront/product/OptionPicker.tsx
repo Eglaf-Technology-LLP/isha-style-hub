@@ -44,7 +44,7 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
                 type="button"
                 role="radio"
                 aria-checked={active}
-                aria-label={`${option}${out ? " (sold out)" : ""}`}
+                aria-label={`${option}${out ? " (out of stock)" : ""}`}
                 title={option}
                 onClick={() => onSelect(option)}
                 className={cn(
@@ -73,7 +73,7 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
               type="button"
               role="radio"
               aria-checked={active}
-              aria-label={`Size ${option}${out ? " (sold out)" : ""}`}
+              aria-label={`Size ${option}${out ? " (out of stock)" : ""}`}
               onClick={() => onSelect(option)}
               className={cn(
                 "relative h-11 min-w-[3.25rem] overflow-hidden border px-3.5 text-sm transition-colors",

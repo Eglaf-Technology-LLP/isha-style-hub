@@ -5,7 +5,7 @@ import logo from "@/assets/logo.png";
 import { COMPANY, telHref } from "@/lib/company";
 import { cn } from "@/lib/utils";
 
-const STEPS = ["Bag", "Details & payment", "Confirmed"] as const;
+const STEPS = ["Cart", "Details & payment", "Confirmed"] as const;
 
 // Checkout's own distraction-free frame: logo, a way back, the steps, and a
 // slim help footer instead of the full site header/footer.

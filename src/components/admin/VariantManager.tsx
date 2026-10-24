@@ -24,7 +24,7 @@ interface VariantManagerProps {
 }
 
 const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "Free Size"];
-const COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Gray", "Navy", "Beige", "Cream", "Maroon"];
+const COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Grey", "Navy", "Beige", "Cream", "Maroon"];
 
 export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFolder = "products" }: VariantManagerProps) {
   // Derived fresh from `variants` every render, not seeded once at mount -
@@ -231,9 +231,9 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
           </div>
         </div>
 
-        {/* Color Options */}
+        {/* Colour Options */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Available Colors</Label>
+          <Label className="text-sm font-medium">Available Colours</Label>
           <div className="flex flex-wrap gap-2 mb-2">
             {availableColors.map(color => (
               <Badge key={color} variant="secondary" className="gap-1">
@@ -246,7 +246,7 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
           </div>
           <div className="flex gap-2">
             <Input
-              placeholder="Add custom color..."
+              placeholder="Add custom colour..."
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor(newColor))}
@@ -397,7 +397,7 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
 
         {variants.length === 0 && (availableSizes.length > 0 || availableColors.length > 0) && (
           <p className="text-sm text-muted-foreground text-center py-2">
-            Add sizes or colors above to generate variants
+            Add sizes or colours above to generate variants
           </p>
         )}
       </CardContent>

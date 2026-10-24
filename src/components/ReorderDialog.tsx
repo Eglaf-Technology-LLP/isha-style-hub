@@ -52,7 +52,7 @@ export function ReorderDialog({ items, open, onOpenChange }: ReorderDialogProps)
     const cartItems: CartItem[] = toAdd.map((r) => {
       const selectedOptions: { name: string; value: string }[] = [];
       if (r.sourceItem.size) selectedOptions.push({ name: "Size", value: r.sourceItem.size });
-      if (r.sourceItem.color) selectedOptions.push({ name: "Color", value: r.sourceItem.color });
+      if (r.sourceItem.color) selectedOptions.push({ name: "Colour", value: r.sourceItem.color });
 
       return {
         productId: r.sourceItem.product_id,
@@ -120,7 +120,7 @@ export function ReorderDialog({ items, open, onOpenChange }: ReorderDialogProps)
                       <p className="font-medium text-sm truncate">{item.product_title}</p>
                       <p className="text-xs text-muted-foreground">
                         {item.size && <span>Size: {item.size}</span>}
-                        {item.color && <span> • Color: {item.color}</span>}
+                        {item.color && <span> • Colour: {item.color}</span>}
                         {" • "}Qty: {item.quantity}
                       </p>
 

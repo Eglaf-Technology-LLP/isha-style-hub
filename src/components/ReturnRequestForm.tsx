@@ -50,7 +50,7 @@ const RETURN_REASONS = [
   "Defective or damaged product",
   "Wrong item received",
   "Size doesn't fit",
-  "Color is different from what was shown",
+  "Colour is different from what was shown",
   "Product not as described",
   "Changed my mind",
   "Other",
@@ -103,7 +103,7 @@ export function ReturnRequestForm({
       const variants = await fetchExchangeableVariants(productId);
       setVariantsByProductId((prev) => ({ ...prev, [productId]: variants }));
     } catch {
-      toast.error("Couldn't load available sizes/colors for one of the items");
+      toast.error("Couldn't load available sizes/colours for one of the items");
     } finally {
       setLoadingVariantsForProductId((prev) => ({ ...prev, [productId]: false }));
     }
@@ -189,7 +189,7 @@ export function ReturnRequestForm({
           return;
         }
         if (needsColor && !target?.color) {
-          toast.error(`Please pick a color to exchange "${item.product_title}" into`);
+          toast.error(`Please pick a colour to exchange "${item.product_title}" into`);
           return;
         }
       }
@@ -313,7 +313,7 @@ export function ReturnRequestForm({
                         <p className="text-xs text-muted-foreground">
                           {item.size && `Size: ${item.size}`}
                           {item.size && item.color && " • "}
-                          {item.color && `Color: ${item.color}`}
+                          {item.color && `Colour: ${item.color}`}
                           {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
                         </p>
                         {disabled && (
@@ -346,7 +346,7 @@ export function ReturnRequestForm({
                                 )}
                                 {availableColors.length > 0 && (
                                   <VariantSelector
-                                    label="Exchange for color"
+                                    label="Exchange for colour"
                                     type="color"
                                     options={availableColors}
                                     selected={target.color}
@@ -363,7 +363,7 @@ export function ReturnRequestForm({
                                   target.size &&
                                   variants.some((v) => v.color) && (
                                     <p className="text-xs text-destructive">
-                                      No colors currently in stock for size {target.size}.
+                                      No colours currently in stock for size {target.size}.
                                     </p>
                                   )}
                               </>

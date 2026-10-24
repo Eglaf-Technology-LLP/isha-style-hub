@@ -124,7 +124,7 @@ export function VariantSelector({
                 )}
                 style={{ backgroundColor: colorValue }}
                 title={option}
-                aria-label={`Select ${option} color`}
+                aria-label={`Select ${option} colour`}
               >
                 {isSelected && (
                   <Check

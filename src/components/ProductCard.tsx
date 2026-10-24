@@ -48,7 +48,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
     const color = variant ? colorOf(variant) : null;
     const selectedOptions = [
       ...(size ? [{ name: "Size", value: size }] : []),
-      ...(color ? [{ name: "Color", value: color }] : []),
+      ...(color ? [{ name: "Colour", value: color }] : []),
     ];
     addItem({
       productId: product.id,
@@ -62,10 +62,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
       quantity: 1,
       selectedOptions,
     });
-    toast.success("Added to your bag", {
+    toast.success("Added to cart", {
       description: [product.name, size && `Size ${size}`].filter(Boolean).join(" · "),
       position: "top-center",
-      action: { label: "View bag", onClick: () => setBagOpen(true) },
+      action: { label: "View cart", onClick: () => setBagOpen(true) },
     });
   };
 
@@ -127,7 +127,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
 
           {!available && (
             <span className="absolute inset-x-0 bottom-0 bg-ivory/90 py-2 text-center text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              Sold out
+              Out of Stock
             </span>
           )}
 
@@ -152,7 +152,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
                               ? "cursor-not-allowed border-border text-muted-foreground/50 line-through"
                               : "border-foreground/20 hover:border-primary hover:bg-primary hover:text-primary-foreground",
                           )}
-                          aria-label={`Add size ${size} to bag`}
+                          aria-label={`Add size ${size} to cart`}
                         >
                           {size}
                         </button>
@@ -166,7 +166,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
                   onClick={(e) => onQuick(e, null)}
                   className="flex w-full items-center justify-center gap-2 bg-primary py-2.5 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground hover:bg-primary/90"
                 >
-                  <ShoppingBag className="h-3.5 w-3.5" /> Add to bag
+                  <ShoppingBag className="h-3.5 w-3.5" /> Add to Cart
                 </button>
               )}
             </div>

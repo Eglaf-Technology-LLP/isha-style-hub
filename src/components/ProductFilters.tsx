@@ -219,7 +219,7 @@ export function ProductFilters({
               {/* Colors */}
               {availableColors.length > 0 && (
                 <div>
-                  <h3 className="font-medium mb-3">Colors</h3>
+                  <h3 className="font-medium mb-3">Colours</h3>
                   <div className="flex flex-wrap gap-2">
                     {availableColors.map((color) => (
                       <Badge

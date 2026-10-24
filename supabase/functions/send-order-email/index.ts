@@ -336,7 +336,7 @@ const handler = async (req: Request): Promise<Response> => {
             item.size || item.color
               ? `<br><span style="color: #8a8a8a; font-size:13px;">${[
                   item.size ? `Size: ${escapeHtml(item.size)}` : "",
-                  item.color ? `Color: ${escapeHtml(item.color)}` : "",
+                  item.color ? `Colour: ${escapeHtml(item.color)}` : "",
                 ].filter(Boolean).join(" · ")}</span>`
               : ""
           }

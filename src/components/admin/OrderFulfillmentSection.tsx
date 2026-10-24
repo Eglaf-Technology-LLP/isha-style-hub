@@ -215,7 +215,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                     {(item.variant_title || item.size || item.color) && (
                       <span className="text-muted-foreground">
                         {" "}
-                        ({[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Color: ${item.color}`]
+                        ({[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
                           .filter(Boolean)
                           .join(" · ")})
                       </span>
