@@ -86,6 +86,7 @@ import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
+import { CUSTOMISATION_ENABLED } from "@/lib/customisation";
 
 interface VendorProduct {
   id: string;
@@ -114,6 +115,7 @@ interface VendorProduct {
   cod_available: boolean;
   prep_days: number | null;
   made_to_order: boolean;
+  customisable?: boolean;
   ai_content_status: AiContentStatus | null;
   ai_original_photo_paths: string[];
   video_url: string | null;
@@ -838,6 +840,15 @@ export default function VendorDashboard() {
                               {!p.cod_available && (
                                 <Badge variant="outline" className="ml-2 text-[10px] font-normal" title="Cash on Delivery is off for this product">
                                   No COD
+                                </Badge>
+                              )}
+                              {/* The product's type at a glance (Part 8, 48). */}
+                              <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                                {p.made_to_order ? "Made after order" : "Ready to Ship"}
+                              </Badge>
+                              {CUSTOMISATION_ENABLED && p.customisable && (
+                                <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                                  Custom Fit
                                 </Badge>
                               )}
                             </TableCell>

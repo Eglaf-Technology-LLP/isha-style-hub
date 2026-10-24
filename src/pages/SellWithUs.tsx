@@ -60,6 +60,7 @@ import {
   type BusinessConstitution,
   type DocumentType,
 } from "@/lib/vendorKyc";
+import { titleCase } from "@/lib/text";
 
 const benefits = [
   {
@@ -436,7 +437,7 @@ export default function SellWithUs() {
     setSubmitting(true);
     const { error } = await submitApplication(
       {
-        name: form.name.trim(),
+        name: titleCase(form.name),
         description: form.description.trim(),
         address: {
           address_line1: form.address_line1.trim(),

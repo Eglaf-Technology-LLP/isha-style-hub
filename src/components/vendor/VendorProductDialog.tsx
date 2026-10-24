@@ -47,6 +47,8 @@ import { ProductVideoField } from "@/components/ProductVideoField";
 import type { AiContentStatus } from "@/lib/aiContent";
 import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
+import { titleCase } from "@/lib/text";
+import { NET_QTY_WARN_ABOVE, checkStock, parseNetQuantity } from "@/lib/productRules";
 
 export interface VendorProductRow {
   id: string;
@@ -103,7 +105,8 @@ const empty = {
   product_value: "",
   compare_at_value: "",
   sku: "",
-  stock_quantity: "100",
+  // Empty on purpose: the boutique types what it really has (Part 8, 26).
+  stock_quantity: "",
   is_active: true,
   weight_grams: "",
   length_cm: "",
@@ -195,9 +198,28 @@ export function VendorProductDialog({
     setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async () => {
-    if (!form.name.trim()) return toast.error("Product name is required");
+    const name = titleCase(form.name);
+    if (!name) return toast.error("Product name is required");
+    if (!form.category_id) return toast.error("Choose a category");
+    if (!form.description.trim()) return toast.error("Add a description");
     const productValue = Number(form.product_value);
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
+    const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order);
+    if ("error" in stockCheck) return toast.error(stockCheck.error);
+    const netQuantity = parseNetQuantity(form.net_quantity);
+    if (!netQuantity) return toast.error('Net Quantity must be a number followed by N, Set or Pair - e.g. "1 N"');
+    const parcel = [
+      ["Weight", form.weight_grams],
+      ["Length", form.length_cm],
+      ["Breadth", form.breadth_cm],
+      ["Height", form.height_cm],
+    ] as const;
+    const zeroParcel = parcel.find(([, v]) => v !== "" && !(Number(v) > 0));
+    if (zeroParcel) return toast.error(`${zeroParcel[0]} must be more than 0 - or leave it empty`);
+    // Detail rows left empty are dropped, not shown blank on the product page.
+    const details = specifications
+      .map((d) => ({ label: d.label.trim(), value: d.value.trim() }))
+      .filter((d) => d.label && d.value);
     if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
     if (needsOriginals && originalPhotos.length === 0)
       return toast.error("AI imagery needs at least one original product photo for verification");
@@ -209,22 +231,22 @@ export function VendorProductDialog({
     try {
       const payload = {
         vendor_id: vendorId,
-        name: form.name.trim(),
+        name,
         description: form.description.trim() || null,
         category_id: form.category_id || null,
         product_value: productValue,
         compare_at_value: form.compare_at_value ? Number(form.compare_at_value) : null,
         sku: form.sku.trim() || null,
-        stock_quantity: Number(form.stock_quantity) || 0,
+        stock_quantity: stockCheck.stock,
         images,
         is_active: form.is_active,
         weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
         length_cm: form.length_cm ? Number(form.length_cm) : null,
         breadth_cm: form.breadth_cm ? Number(form.breadth_cm) : null,
         height_cm: form.height_cm ? Number(form.height_cm) : null,
-        specifications,
+        specifications: details,
         country_of_origin: form.country_of_origin.trim() || "India",
-        net_quantity: form.net_quantity.trim() || "1 N",
+        net_quantity: netQuantity.value,
         is_returnable: form.is_returnable,
         cod_available: form.cod_available,
         prep_days:
@@ -246,12 +268,12 @@ export function VendorProductDialog({
 
       if (product) {
         const existing = await fetchProductWithVariants(product.id);
-        await applyProductUpdate(product.id, payload, existing, undefined, variants);
+        await applyProductUpdate(product.id, payload, existing, undefined, stockCheck.variants);
         toast.success(
           isTrusted ? "Product updated" : "Product updated — sent for re-approval"
         );
       } else {
-        await insertProductRecord(payload, images, variants);
+        await insertProductRecord(payload, images, stockCheck.variants);
         toast.success(
           isTrusted
             ? "Product published to the storefront"
@@ -292,7 +314,7 @@ export function VendorProductDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vp-desc">Description</Label>
+            <Label htmlFor="vp-desc">Description *</Label>
             <Textarea
               id="vp-desc"
               rows={4}
@@ -318,7 +340,7 @@ export function VendorProductDialog({
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Category</Label>
+              <Label>Category *</Label>
               <Select
                 value={form.category_id}
                 onValueChange={(v) => set("category_id", v)}
@@ -371,17 +393,21 @@ export function VendorProductDialog({
               <CustomerPriceHint value={form.compare_at_value} categoryId={form.category_id} label="Crossed-out MRP" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vp-stock">Stock</Label>
+              <Label htmlFor="vp-stock">Stock {variants.length === 0 && !form.made_to_order && "*"}</Label>
               <Input
                 id="vp-stock"
                 type="number"
+                min="0"
+                placeholder="Pieces ready"
                 value={form.stock_quantity}
                 onChange={(e) => set("stock_quantity", e.target.value)}
               />
-              {variants.length > 0 && (
+              {variants.length > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Ignored while variants below are set - stock is tracked per variant instead.
                 </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">The real number you have ready. 0 only for Made to order.</p>
               )}
             </div>
           </div>
@@ -446,10 +472,15 @@ export function VendorProductDialog({
               <Label htmlFor="vp-netqty">Net Quantity</Label>
               <Input
                 id="vp-netqty"
-                placeholder="e.g. 1 N, 1 Set, 500 g"
+                placeholder="e.g. 1 N, 1 Set, 1 Pair"
                 value={form.net_quantity}
                 onChange={(e) => set("net_quantity", e.target.value)}
               />
+              {form.net_quantity.trim() && !parseNetQuantity(form.net_quantity) ? (
+                <p className="text-xs text-destructive">A number followed by N, Set or Pair - e.g. 1 N</p>
+              ) : (parseNetQuantity(form.net_quantity)?.count ?? 0) > NET_QTY_WARN_ABOVE ? (
+                <p className="text-xs text-amber-700">More than {NET_QTY_WARN_ABOVE} in one listing - check this is right.</p>
+              ) : null}
             </div>
           </div>
 

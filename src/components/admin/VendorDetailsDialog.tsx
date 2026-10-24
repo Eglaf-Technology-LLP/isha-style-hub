@@ -25,6 +25,7 @@ import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
+import { titleCase } from "@/lib/text";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -159,7 +160,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       const { error } = await supabase
         .from("vendors")
         .update({
-          name: form.name.trim(),
+          name: titleCase(form.name),
           description: form.description.trim() || null,
           contact_email: form.contact_email.trim() || null,
           contact_phone: form.contact_phone.trim() || null,

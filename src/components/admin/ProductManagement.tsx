@@ -70,6 +70,8 @@ import {
 import { CUSTOMISATION_ENABLED, readSetup } from "@/lib/customisation";
 import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
+import { titleCase } from "@/lib/text";
+import { parseNetQuantity } from "@/lib/productRules";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -201,10 +203,19 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     }
     return {
       ...productForm,
+      // Same tidy-up as the boutique form (Part 8, 29/30).
+      name: titleCase(productForm.name),
+      specifications: (productForm.specifications ?? [])
+        .map((d) => ({ label: d.label.trim(), value: d.value.trim() }))
+        .filter((d) => d.label && d.value),
+      net_quantity: parseNetQuantity(productForm.net_quantity ?? "")?.value ?? productForm.net_quantity,
       ai_original_photo_paths: needsOriginals ? productForm.ai_original_photo_paths : [],
       ...custom.value,
     };
   };
+
+  // A variant whose stock box was left empty is saved as 0.
+  const variantsToSave = () => productVariants.map((v) => (Number.isNaN(v.stock) ? { ...v, stock: 0 } : v));
 
   const handleAddProduct = async () => {
     if (!productForm.name) return;
@@ -212,7 +223,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     if (!form) return;
 
     setIsSubmitting(true);
-    const result = await addProduct(form, productImages, productVariants);
+    const result = await addProduct(form, productImages, variantsToSave());
     setIsSubmitting(false);
 
     if (result) {
@@ -231,7 +242,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       editingProduct.id,
       form,
       productImages.length > 0 ? productImages : undefined,
-      productVariants
+      variantsToSave()
     );
     setIsSubmitting(false);
 

@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { Vendor } from "@/hooks/useVendor";
 import { SingleImageDropzone } from "@/components/ImageDropzone";
+import { titleCase } from "@/lib/text";
 
 interface Props {
   open: boolean;
@@ -112,7 +113,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       const { error } = await supabase
         .from("vendors")
         .update({
-          name: form.name.trim(),
+          name: titleCase(form.name),
           description: form.description.trim() || null,
           contact_email: form.contact_email.trim() || null,
           contact_phone: form.contact_phone.trim() || null,

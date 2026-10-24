@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X, Trash2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductVariant, uploadImageFile } from "@/hooks/useProducts";
+import { titleCase } from "@/lib/text";
 
 interface VariantManagerProps {
   variants: ProductVariant[];
@@ -43,6 +44,9 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
   const [newSize, setNewSize] = useState("");
   const [newColor, setNewColor] = useState("");
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // "Set all" opens a box in the page, not a browser popup (Part 8, 25).
+  const [bulk, setBulk] = useState<"stock" | "value" | null>(null);
+  const [bulkValue, setBulkValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetId = useRef<string | null>(null);
 
@@ -73,86 +77,66 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
 
   const generateVariantId = () => `variant-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  const addSize = (size: string) => {
-    if (!size.trim() || availableSizes.includes(size.trim())) return;
-    const trimmedSize = size.trim();
-    setNewSize("");
+  const sizeOf = (v: ProductVariant) => v.options?.size || v.options?.Size || null;
+  const colourOf = (v: ProductVariant) => v.options?.color || v.options?.Color || null;
 
-    // Generate variants for this size with all existing colors
-    const newVariants: ProductVariant[] = [];
-    if (availableColors.length === 0) {
-      newVariants.push({
-        id: generateVariantId(),
-        name: trimmedSize,
-        price: 0,
-        product_value: basePrice,
-        stock: 0,
-        options: { size: trimmedSize },
-      });
-    } else {
-      availableColors.forEach(color => {
-        const exists = variants.some(v =>
-          (v.options?.size === trimmedSize || v.options?.Size === trimmedSize) &&
-          (v.options?.color === color || v.options?.Color === color)
-        );
-        if (!exists) {
-          newVariants.push({
-            id: generateVariantId(),
-            name: `${trimmedSize} / ${color}`,
-            price: 0,
-            product_value: basePrice,
-            stock: 0,
-            options: { size: trimmedSize, color },
-          });
-        }
-      });
-    }
-    onChange([...variants, ...newVariants]);
+  // One row per size x colour once both are picked - 3 sizes x 6 colours is
+  // exactly 18 rows, never leftover size-only or colour-only rows (Part 8,
+  // 23). Rows that already exist keep their stock, value, SKU and photo; a
+  // size-only row becomes that size's first colour when colours arrive.
+  const rebuild = (sizes: string[], colours: string[]) => {
+    const combos: [string | null, string | null][] =
+      sizes.length && colours.length
+        ? sizes.flatMap((s) => colours.map((c) => [s, c] as [string, string]))
+        : sizes.length
+          ? sizes.map((s) => [s, null] as [string, null])
+          : colours.map((c) => [null, c] as [null, string]);
+    const used = new Set<string>();
+    const take = (pred: (v: ProductVariant) => boolean) => {
+      const found = variants.find((v) => !used.has(v.id) && pred(v));
+      if (found) used.add(found.id);
+      return found;
+    };
+    onChange(
+      combos.map(([s, c]) => {
+        const existing =
+          take((v) => sizeOf(v) === s && colourOf(v) === c) ??
+          take((v) => (s === null || sizeOf(v) === s) && (c === null || colourOf(v) === c)) ??
+          (s && c ? take((v) => sizeOf(v) === s && !colourOf(v)) ?? take((v) => !sizeOf(v) && colourOf(v) === c) : undefined);
+        const options: Record<string, string> = {};
+        if (s) options.size = s;
+        if (c) options.color = c;
+        return {
+          ...(existing ?? { id: generateVariantId(), price: 0, product_value: basePrice, stock: Number.NaN, image_url: null }),
+          name: [s, c].filter(Boolean).join(" / "),
+          options,
+        };
+      }),
+    );
   };
 
-  const addColor = (color: string) => {
-    if (!color.trim() || availableColors.includes(color.trim())) return;
-    const trimmedColor = color.trim();
-    setNewColor("");
+  const addSize = (size: string) => {
+    const trimmedSize = size.trim();
+    if (!trimmedSize || availableSizes.some((s) => s.toLowerCase() === trimmedSize.toLowerCase())) return;
+    setNewSize("");
+    rebuild([...availableSizes, trimmedSize], availableColors);
+  };
 
-    // Generate variants for this color with all existing sizes
-    const newVariants: ProductVariant[] = [];
-    if (availableSizes.length === 0) {
-      newVariants.push({
-        id: generateVariantId(),
-        name: trimmedColor,
-        price: 0,
-        product_value: basePrice,
-        stock: 0,
-        options: { color: trimmedColor },
-      });
-    } else {
-      availableSizes.forEach(size => {
-        const exists = variants.some(v =>
-          (v.options?.size === size || v.options?.Size === size) &&
-          (v.options?.color === trimmedColor || v.options?.Color === trimmedColor)
-        );
-        if (!exists) {
-          newVariants.push({
-            id: generateVariantId(),
-            name: `${size} / ${trimmedColor}`,
-            price: 0,
-            product_value: basePrice,
-            stock: 0,
-            options: { size, color: trimmedColor },
-          });
-        }
-      });
-    }
-    onChange([...variants, ...newVariants]);
+  // pink, Pink and PINK are one colour, kept as "Pink" (Part 8, 24).
+  const addColor = (color: string) => {
+    const name = titleCase(color);
+    if (!name) return;
+    setNewColor("");
+    if (availableColors.some((c) => c.toLowerCase() === name.toLowerCase())) return;
+    rebuild(availableSizes, [...availableColors, name]);
   };
 
   const removeSize = (size: string) => {
-    onChange(variants.filter(v => v.options?.size !== size && v.options?.Size !== size));
+    rebuild(availableSizes.filter((s) => s !== size), availableColors);
   };
 
   const removeColor = (color: string) => {
-    onChange(variants.filter(v => v.options?.color !== color && v.options?.Color !== color));
+    rebuild(availableSizes, availableColors.filter((c) => c !== color));
   };
 
   const updateVariant = (
@@ -175,6 +159,19 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
 
   const updateAllValues = (product_value: number) => {
     onChange(variants.map(v => ({ ...v, product_value })));
+  };
+
+  const openBulk = (kind: "stock" | "value") => {
+    setBulk(kind);
+    setBulkValue(kind === "value" && basePrice > 0 ? String(basePrice) : "");
+  };
+
+  const applyBulk = () => {
+    const n = Number(bulkValue);
+    if (bulkValue.trim() === "" || !Number.isFinite(n) || n < 0) return;
+    if (bulk === "stock") updateAllStock(Math.floor(n));
+    else updateAllValues(n);
+    setBulk(null);
   };
 
   return (
@@ -278,32 +275,39 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Variant Details ({variants.length})</Label>
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => {
-                    const stock = prompt("Set stock for all variants:", "10");
-                    if (stock !== null) updateAllStock(parseInt(stock) || 0);
-                  }}
-                >
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => openBulk("stock")}>
                   Set All Stock
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => {
-                    const value = prompt("Product Value (excl. GST) for all variants:", basePrice.toString());
-                    if (value !== null) updateAllValues(parseFloat(value) || basePrice);
-                  }}
-                >
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => openBulk("value")}>
                   Set All Values
                 </Button>
               </div>
             </div>
+            {bulk && (
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-background p-3">
+                <div className="space-y-1">
+                  <Label htmlFor="variant-bulk" className="text-xs">
+                    {bulk === "stock" ? "Stock for every variant" : "Product Value (excl. GST) for every variant"}
+                  </Label>
+                  <Input
+                    id="variant-bulk"
+                    type="number"
+                    min="0"
+                    autoFocus
+                    value={bulkValue}
+                    onChange={(e) => setBulkValue(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyBulk())}
+                    className="h-8 w-40 text-sm"
+                  />
+                </div>
+                <Button type="button" size="sm" className="h-8" onClick={applyBulk} disabled={bulkValue.trim() === ""}>
+                  Apply to all
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setBulk(null)}>
+                  Cancel
+                </Button>
+              </div>
+            )}
             <div className="max-h-64 overflow-y-auto space-y-2">
               {variants.map((variant) => (
                 <div
@@ -375,8 +379,12 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
                     <Input
                       type="number"
                       min="0"
-                      value={variant.stock}
-                      onChange={(e) => updateVariant(variant.id, "stock", parseInt(e.target.value) || 0)}
+                      aria-label={`Stock for ${variant.name}`}
+                      placeholder="—"
+                      value={Number.isNaN(variant.stock) ? "" : variant.stock}
+                      onChange={(e) =>
+                        updateVariant(variant.id, "stock", e.target.value === "" ? Number.NaN : Math.max(0, parseInt(e.target.value) || 0))
+                      }
                       className="w-16 h-7 text-xs"
                     />
                   </div>
