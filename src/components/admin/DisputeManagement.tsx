@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Loader2, ShieldAlert, ExternalLink } from "lucide-react";
 import { useDisputes } from "@/hooks/useDisputes";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/dates";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Open", variant: "destructive" },
@@ -99,7 +99,7 @@ export function DisputeManagement({ isAdmin }: DisputeManagementProps) {
                         <Badge variant={config.variant}>{config.label}</Badge>
                       </TableCell>
                       <TableCell className={`text-sm ${deadlinePassed ? "text-destructive font-medium" : ""}`}>
-                        {dispute.respond_by ? format(new Date(dispute.respond_by), "MMM d, yyyy") : "—"}
+                        {dispute.respond_by ? formatDate(new Date(dispute.respond_by)) : "—"}
                         {deadlinePassed && " (passed)"}
                       </TableCell>
                       <TableCell>

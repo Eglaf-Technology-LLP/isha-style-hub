@@ -25,7 +25,7 @@ import {
 import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle, Send } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminVendorPayouts, AdminVendorPayout } from "@/hooks/useAdminVendorPayouts";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/dates";
 
 const statusClass: Record<string, string> = {
   pending: "bg-blue-100 text-blue-800",
@@ -226,7 +226,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                   <TableRow key={p.id}>
                     <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {format(new Date(p.periodStart), "MMM d")} - {format(new Date(p.periodEnd), "MMM d, yyyy")}
+                      {formatDate(new Date(p.periodStart))} - {formatDate(new Date(p.periodEnd))}
                     </TableCell>
                     <TableCell className="text-sm">{p.vendorName}</TableCell>
                     <TableCell className="text-sm">₹{p.grossSales.toFixed(2)}</TableCell>

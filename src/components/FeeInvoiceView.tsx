@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, Printer } from "lucide-react";
@@ -7,6 +6,7 @@ import type { Tables } from "@/integrations/supabase/types";
 import { amountInWords } from "@/lib/amountInWords";
 import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
+import { formatDate } from "@/lib/dates";
 
 export type FeeInvoice = Tables<"fee_invoices">;
 
@@ -61,11 +61,11 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
                 </p>
                 <p>
                   <span className="text-muted-foreground">Invoice Date: </span>
-                  {format(new Date(invoice.issued_at), "dd MMM yyyy")}
+                  {formatDate(new Date(invoice.issued_at))}
                 </p>
                 <p>
                   <span className="text-muted-foreground">Payout date: </span>
-                  {format(new Date(invoice.payout_date), "dd MMM yyyy")}
+                  {formatDate(new Date(invoice.payout_date))}
                 </p>
               </div>
             </div>
@@ -95,9 +95,9 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
             <p>
               Fees on {invoice.order_count} delivered order{invoice.order_count === 1 ? "" : "s"}
               {invoice.period_start && invoice.period_end
-                ? ` (${format(new Date(invoice.period_start), "dd MMM")} - ${format(new Date(invoice.period_end), "dd MMM yyyy")})`
+                ? ` (${formatDate(new Date(invoice.period_start))} - ${formatDate(new Date(invoice.period_end))})`
                 : ""}
-              , deducted from the payout of {format(new Date(invoice.payout_date), "dd MMM yyyy")}. SAC {invoice.sac_code}.
+              , deducted from the payout of {formatDate(new Date(invoice.payout_date))}. SAC {invoice.sac_code}.
             </p>
 
             <table className="w-full border-collapse text-[11px]">

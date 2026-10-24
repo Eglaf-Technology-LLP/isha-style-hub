@@ -45,6 +45,7 @@ import { useDiscounts, Discount, DiscountFormData } from "@/hooks/useDiscounts";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { DiscountImportExportDialog } from "./DiscountImportExportDialog";
+import { formatDate } from "@/lib/dates";
 
 export function DiscountManagement() {
   const {
@@ -432,7 +433,7 @@ export function DiscountManagement() {
                       Used: {discount.used_count}
                       {discount.max_uses && ` / ${discount.max_uses}`}
                       {discount.expires_at &&
-                        ` • Expires: ${format(new Date(discount.expires_at), "MMM d, yyyy")}`}
+                        ` • Expires: ${formatDate(new Date(discount.expires_at))}`}
                     </p>
                   </div>
                 </div>

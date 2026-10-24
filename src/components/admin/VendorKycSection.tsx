@@ -12,6 +12,7 @@ import {
   instagramHandle,
   type BusinessConstitution,
 } from "@/lib/vendorKyc";
+import { formatDateTime } from "@/lib/dates";
 
 interface Kyc {
   business_constitution: BusinessConstitution;
@@ -36,24 +37,6 @@ interface Kyc {
   brand_legal_declared_at: string | null;
   instagram_url: string | null;
   website_url: string | null;
-}
-
-// 19-10-2026, 5:33 PM IST
-function istDateTime(iso: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    })
-      .formatToParts(new Date(iso))
-      .map((p) => [p.type, p.value]),
-  );
-  return `${parts.day}-${parts.month}-${parts.year}, ${parts.hour}:${parts.minute} ${String(parts.dayPeriod).toUpperCase()} IST`;
 }
 
 function ExternalLinkValue({ href, children }: { href: string; children: React.ReactNode }) {
@@ -191,7 +174,7 @@ export function VendorKycSection({ vendorId, brandName }: { vendorId: string; br
               <>
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
                 <span>
-                  Declaration ticked on {istDateTime(kyc.brand_legal_declared_at)}: the brand operates under, is owned by, or
+                  Declaration ticked on {formatDateTime(kyc.brand_legal_declared_at)}: the brand operates under, is owned by, or
                   is associated with the legal business.
                 </span>
               </>
@@ -212,7 +195,7 @@ export function VendorKycSection({ vendorId, brandName }: { vendorId: string; br
           value={kyc.instagram_url ? <ExternalLinkValue href={kyc.instagram_url}>{instagramHandle(kyc.instagram_url) ?? kyc.instagram_url}</ExternalLinkValue> : null}
         />
         <Field label="Website" value={kyc.website_url ? <ExternalLinkValue href={kyc.website_url}>{kyc.website_url.replace(/^https?:\/\//, "")}</ExternalLinkValue> : null} />
-        <Field label="Submitted" value={istDateTime(kyc.submitted_at)} />
+        <Field label="Submitted" value={formatDateTime(kyc.submitted_at)} />
         <Field label="PAN" value={<span className="font-mono">{kyc.pan}</span>} />
         <Field label="GST Number" value={kyc.gstin ? <span className="font-mono">{kyc.gstin}</span> : null} />
         <Field label="Official Business Email" value={kyc.business_email} />

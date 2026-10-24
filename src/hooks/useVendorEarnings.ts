@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildWorkbook } from "@/lib/excelImportExport";
 import { format } from "date-fns";
+import { formatDate } from "@/lib/dates";
 
 export interface VendorOrderEarning {
   id: string;
@@ -144,7 +145,7 @@ export function useVendorEarnings(vendorId: string | undefined) {
     });
 
     const rows = summary.orders.map((o) => ({
-      "Order Date": format(new Date(o.createdAt), "yyyy-MM-dd"),
+      "Order Date": formatDate(o.createdAt),
       "Order ID": o.orderId,
       Products: (productsByVendorOrder.get(o.id) ?? []).join(", "),
       Subtotal: o.subtotal,

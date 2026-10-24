@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,6 +7,7 @@ import { Loader2, Receipt, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { FeeInvoiceView, type FeeInvoice } from "./FeeInvoiceView";
+import { formatDate } from "@/lib/dates";
 
 const money = (n: number) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ALL = "__all__";
@@ -110,7 +110,7 @@ export function FeeInvoicesCard({ vendorId, admin = false }: { vendorId?: string
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-xs">{inv.invoice_number}</TableCell>
                     {admin && <TableCell className="text-sm">{vendorName(inv.vendor_id) || inv.recipient_name}</TableCell>}
-                    <TableCell className="text-sm whitespace-nowrap">{format(new Date(inv.payout_date), "dd MMM yyyy")}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(inv.payout_date))}</TableCell>
                     <TableCell className="text-right text-sm">{inv.order_count}</TableCell>
                     <TableCell className="text-right text-sm">{money(inv.taxable_value)}</TableCell>
                     <TableCell className="text-right text-sm">

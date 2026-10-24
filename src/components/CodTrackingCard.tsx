@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
 import { Banknote, Check, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +15,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatPayoutDate, todayIst } from "@/lib/payoutDates";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/dates";
 
 // Cash on Delivery money: the courier collects the cash, Shiprocket remits
 // it to AllBoutiqs, AllBoutiqs pays the boutique. A boutique sees its own
@@ -26,7 +26,7 @@ type CodRow = Database["public"]["Functions"]["cod_tracking"]["Returns"][number]
 type Stage = "awaiting_delivery" | "collected" | "received" | "paid" | "not_collected" | "cancelled";
 
 const money = (n: number) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const day = (d: string | null) => (d ? format(new Date(d), "d MMM yyyy") : "");
+const day = (d: string | null) => (d ? formatDate(new Date(d)) : "");
 const ALL = "__all__";
 
 const STEPS: { stage: Stage; label: string }[] = [

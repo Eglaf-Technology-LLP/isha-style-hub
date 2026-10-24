@@ -12,7 +12,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Loader2, Package, ShoppingBag, RotateCcw, ArrowLeftRight, Ban, RefreshCw, Heart, User, Truck } from "lucide-react";
-import { format } from "date-fns";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
@@ -26,6 +25,7 @@ import { useFocusTarget } from "@/hooks/useDeepLink";
 import { formatShortDate, istToday } from "@/lib/warehouse";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -468,7 +468,7 @@ export default function OrderHistory() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
-                        <p className="text-sm">{format(new Date(order.created_at), "d MMM yyyy, p")}</p>
+                        <p className="text-sm">{formatDateTime(new Date(order.created_at))}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total</p>
@@ -706,7 +706,7 @@ export default function OrderHistory() {
                                           {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
                                         </span>
                                         <span className="text-muted-foreground">
-                                          {format(new Date(rr.created_at), "d MMM yyyy")}
+                                          {formatDate(new Date(rr.created_at))}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 import { Package, CheckCircle2, Truck, MapPin, PackageCheck, Ban, RotateCcw, AlertTriangle, Scissors, ShieldCheck } from "lucide-react";
-import { format } from "date-fns";
 import { OrderTimeline, TimelineStage } from "@/lib/orderStatus";
+import { formatDate as formatDay, formatDateTime } from "@/lib/dates";
 
 const STAGE_ICONS: Record<TimelineStage["key"], typeof Package> = {
   placed: Package,
@@ -14,11 +14,7 @@ const STAGE_ICONS: Record<TimelineStage["key"], typeof Package> = {
 
 function formatDate(iso: string | null, withTime = false): string | null {
   if (!iso) return null;
-  try {
-    return format(new Date(iso), withTime ? "MMM d, yyyy" : "MMM d, yyyy");
-  } catch {
-    return null;
-  }
+  return (withTime ? formatDateTime(iso) : formatDay(iso)) || null;
 }
 
 interface OrderStatusTimelineProps {

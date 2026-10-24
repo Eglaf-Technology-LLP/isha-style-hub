@@ -11,10 +11,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLowStockAlerts, StockAlertRow, StockMovementRecord } from "@/hooks/useLowStockAlerts";
 import { AlertTriangle, Package, PackageX, Edit2, RefreshCw, History, Layers } from "lucide-react";
-import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
+import { formatDateTime } from "@/lib/dates";
 
 interface InventoryAlertsProps {
   vendorId?: string;
@@ -400,7 +400,7 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
                     <TableRow key={m.id}>
                       <TableCell className="text-xs text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {format(new Date(m.createdAt), "MMM d, yyyy h:mm a")}
+                        {formatDateTime(new Date(m.createdAt))}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">{m.movementType.replace("_", " ")}</Badge>

@@ -10,9 +10,9 @@ import {
 } from "@/components/ui/table";
 import { Loader2, Ban } from "lucide-react";
 import { useOrderCancellations } from "@/hooks/useOrderCancellations";
-import { format } from "date-fns";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFlashFocus } from "@/hooks/useDeepLink";
+import { formatDate } from "@/lib/dates";
 
 const refundStatusClass: Record<string, string> = {
   processed: "bg-green-100 text-green-800",
@@ -84,7 +84,7 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                   <TableRow key={c.id} data-focus-id={`${c.vendorOrderId ?? ""} ${c.orderId}`.trim()}>
                     <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {format(new Date(c.createdAt), "MMM d, yyyy")}
+                      {formatDate(new Date(c.createdAt))}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{c.orderId.slice(0, 8)}</TableCell>
                     <TableCell className="text-sm">

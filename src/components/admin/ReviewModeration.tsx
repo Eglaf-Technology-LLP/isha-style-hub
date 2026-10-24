@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { format } from "date-fns";
 import { CheckCircle2, ImageIcon, Loader2, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { deletePublicPhoto } from "@/lib/userPhotoUpload";
+import { formatDateTime } from "@/lib/dates";
 
 interface AdminReviewImage {
   id: string;
@@ -177,7 +177,7 @@ export function ReviewModeration() {
                       </div>
                       {r.title && <p className="mt-1 font-medium">{r.title}</p>}
                       {r.review_text && <p className="text-sm text-muted-foreground">{r.review_text}</p>}
-                      <p className="mt-1 text-xs text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy p")}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(new Date(r.created_at))}</p>
                     </div>
                     <Button
                       size="sm"

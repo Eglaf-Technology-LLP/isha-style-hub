@@ -8,10 +8,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarPlus, Loader2, Percent, Trash2 } from "lucide-react";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlatformRates, WEEKDAYS, type PlatformRates } from "@/hooks/usePlatformRates";
+import { formatDate } from "@/lib/dates";
 
 type RateForm = Omit<PlatformRates, "id" | "created_at" | "created_by">;
 
@@ -87,7 +87,7 @@ export function PlatformRatesCard() {
       toast.error(error.message);
       return;
     }
-    toast.success(`Rates saved - they apply from ${format(new Date(form.effective_from), "d MMM yyyy")}`);
+    toast.success(`Rates saved - they apply from ${formatDate(new Date(form.effective_from))}`);
     setForm(null);
     refetch();
   };
@@ -128,7 +128,7 @@ export function PlatformRatesCard() {
           <>
             <div className="space-y-3">
               <p className="text-sm font-medium flex items-center gap-2">
-                In force now <Badge variant="secondary">since {format(new Date(current.effective_from), "d MMM yyyy")}</Badge>
+                In force now <Badge variant="secondary">since {formatDate(new Date(current.effective_from))}</Badge>
               </p>
               <Summary r={current} />
             </div>
@@ -142,7 +142,7 @@ export function PlatformRatesCard() {
                     return (
                       <li key={v.id} className="flex items-center justify-between gap-3 p-2.5">
                         <span>
-                          From {format(new Date(v.effective_from), "d MMM yyyy")} · commission {pct(v.marketplace_commission_pct)} · tech fee{" "}
+                          From {formatDate(new Date(v.effective_from))} · commission {pct(v.marketplace_commission_pct)} · tech fee{" "}
                           {pct(v.technology_fee_pct)} · TCS {pct(v.gst_tcs_pct)} · TDS {pct(v.tds_pct)}
                           {v.note ? <span className="text-muted-foreground"> · {v.note}</span> : null}
                         </span>

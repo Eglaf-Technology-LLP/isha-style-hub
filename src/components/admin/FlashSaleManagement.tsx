@@ -38,6 +38,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { FlashSaleImportExportDialog } from "./FlashSaleImportExportDialog";
+import { formatDateTime } from "@/lib/dates";
 
 export function FlashSaleManagement() {
   const {
@@ -379,8 +380,8 @@ export function FlashSaleManagement() {
                       </p>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {format(new Date(sale.starts_at), "MMM d, h:mm a")} -{" "}
-                        {format(new Date(sale.ends_at), "MMM d, h:mm a")}
+                        {formatDateTime(new Date(sale.starts_at))} -{" "}
+                        {formatDateTime(new Date(sale.ends_at))}
                       </div>
                     </div>
                   </div>

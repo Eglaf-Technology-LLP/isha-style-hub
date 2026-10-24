@@ -1,3 +1,4 @@
+import { formatDateWithDay } from "@/lib/dates";
 // Labels for the warehouse route (boutique -> AllBoutiqs warehouse ->
 // customer), shared by the boutique, admin and warehouse screens.
 
@@ -78,11 +79,10 @@ export const sendBackReasonLabels: Record<string, string> = {
   rto_cancelled: "Undelivered order cancelled",
 };
 
+// "Mon, 27-10-2026" (the site's DD-MM-YYYY, with the weekday for planning).
 export function formatShortDate(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  return formatDateWithDay(iso) || null;
 }
 
 // ---------- warehouse working days (same rules as the database) ----------

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
+import { formatDate } from "../_shared/dates.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -22,13 +23,7 @@ function isServiceRoleCall(req: Request): boolean {
 
 const PAYOUTS_URL = "https://allboutiqs.com/vendor?tab=payouts";
 const inr = (n: number) => `₹${Math.round(Number(n)).toLocaleString("en-IN")}`;
-const day = (d: string) =>
-  new Date(d.length === 10 ? `${d}T00:00:00+05:30` : d).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  });
+const day = (d: string) => formatDate(d);
 const p = (html: string) => `<p style="color:#5a5a5a;">${html}</p>`;
 const factsBox = (rows: [string, string][]) =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin:16px 0; font-size:14px;">${rows

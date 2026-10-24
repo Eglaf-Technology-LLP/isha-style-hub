@@ -3,9 +3,9 @@ import { COMPANY } from "@/lib/company";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Printer, Receipt as ReceiptIcon } from "lucide-react";
-import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Refund } from "@/hooks/useRefunds";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 interface OrderInfo {
   id: string;
@@ -70,7 +70,7 @@ export function RefundReceiptDialog({ refund }: { refund: Refund }) {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Refund Date</p>
-                <p>{format(new Date(refund.initiated_at), "MMM d, yyyy")}</p>
+                <p>{formatDate(new Date(refund.initiated_at))}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Customer</p>
@@ -96,7 +96,7 @@ export function RefundReceiptDialog({ refund }: { refund: Refund }) {
 
             {refund.gateway_processed_at && (
               <p className="text-xs text-muted-foreground border-t border-border pt-3">
-                Processed by Razorpay on {format(new Date(refund.gateway_processed_at), "MMM d, yyyy 'at' h:mm a")}.
+                Processed by Razorpay on {formatDateTime(new Date(refund.gateway_processed_at))}.
                 Bank credit to the customer's original payment method can take a few additional days to reflect.
               </p>
             )}

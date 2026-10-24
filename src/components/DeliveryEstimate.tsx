@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Truck, CircleX, MapPin } from "lucide-react";
 import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { formatDate, formatDateWithDay } from "@/lib/dates";
 
 interface CourierOption {
   courierName: string;
@@ -15,7 +16,7 @@ interface DeliveryEstimateProps {
 }
 
 function dateLabel(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  return formatDateWithDay(isoDate);
 }
 
 function earliestEtaLabel(couriers: CourierOption[]): string | null {
@@ -24,7 +25,7 @@ function earliestEtaLabel(couriers: CourierOption[]): string | null {
     .filter((d): d is Date => !!d && !isNaN(d.getTime()));
   if (dates.length === 0) return null;
   const earliest = new Date(Math.min(...dates.map((d) => d.getTime())));
-  return earliest.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(earliest);
 }
 
 // Real delivery-date estimate for this specific vendor+product, using the

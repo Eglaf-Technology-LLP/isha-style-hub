@@ -75,7 +75,8 @@ export function AnalyticsCharts({
     );
   }
 
-  const displayDateFormat = groupBy === "month" ? "MMM yyyy" : "MMM dd";
+  // Months stay "Oct 2026"; days and weeks use the site's DD-MM.
+  const displayDateFormat = groupBy === "month" ? "MMM yyyy" : "dd-MM";
   const chartData = data.dailySales.map((d) => ({
     ...d,
     displayDate:

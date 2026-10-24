@@ -27,6 +27,7 @@ import {
   type PeriodKind,
   type StatementLine,
 } from "@/lib/statement";
+import { formatDate } from "@/lib/dates";
 
 const ALL = "__all__";
 const money = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -124,7 +125,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const t = totals(filtered);
   const who = allBoutiques ? "all-boutiques" : (vendors.find((v) => v.id === boutique)?.name ?? "boutique").replace(/\W+/g, "-").toLowerCase();
   const fileBase = `allboutiqs-statement-${who}-${rangeFrom}-to-${rangeTo}`;
-  const titleLine = `Statement ${format(new Date(rangeFrom), "dd MMM yyyy")} - ${format(new Date(rangeTo), "dd MMM yyyy")}`;
+  const titleLine = `Statement ${formatDate(new Date(rangeFrom))} - ${formatDate(new Date(rangeTo))}`;
 
   const SHEETS = {
     orders: { name: "Orders", rows: reports.orders },

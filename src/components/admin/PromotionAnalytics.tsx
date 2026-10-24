@@ -28,6 +28,7 @@ import { useDiscounts } from "@/hooks/useDiscounts";
 import { useFlashSales } from "@/hooks/useFlashSales";
 import { useGiftCards } from "@/hooks/useGiftCards";
 import { useOrders } from "@/hooks/useOrders";
+import { formatDateTime } from "@/lib/dates";
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -442,7 +443,7 @@ export function PromotionAnalytics() {
                     {sale.discount_percentage}% OFF
                   </Badge>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Ends: {new Date(sale.ends_at).toLocaleDateString()}
+                    Ends: {formatDateTime(sale.ends_at)}
                   </p>
                 </div>
               </div>

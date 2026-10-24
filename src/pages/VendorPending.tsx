@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Clock, XCircle, Mail, Store, ArrowLeft } from "lucide-react";
+import { formatDate } from "@/lib/dates";
 
 export default function VendorPending() {
   const { vendor, loading } = useVendor();
@@ -73,7 +74,7 @@ export default function VendorPending() {
                 Status: <span className="font-medium capitalize">{vendor.status}</span>
               </p>
               <p className="text-sm text-muted-foreground">
-                Submitted: {new Date(vendor.created_at).toLocaleDateString()}
+                Submitted: {formatDate(vendor.created_at)}
               </p>
               {vendor.contact_email && (
                 <p className="text-sm text-muted-foreground">

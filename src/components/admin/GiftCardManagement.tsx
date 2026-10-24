@@ -37,6 +37,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { GiftCardImportExportDialog } from "./GiftCardImportExportDialog";
+import { formatDate } from "@/lib/dates";
 
 interface GiftCard {
   id: string;
@@ -457,7 +458,7 @@ export function GiftCardManagement() {
                       <p className="text-xs text-muted-foreground">
                         {card.recipient_name && `To: ${card.recipient_name}`}
                         {card.expires_at &&
-                          ` • Expires: ${format(new Date(card.expires_at), "MMM d, yyyy")}`}
+                          ` • Expires: ${formatDate(new Date(card.expires_at))}`}
                       </p>
                     </div>
                   </div>

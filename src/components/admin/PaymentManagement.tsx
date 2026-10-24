@@ -40,10 +40,10 @@ import {
 import { usePayments, Payment } from "@/hooks/usePayments";
 import { usePlatformRevenue } from "@/hooks/usePlatformRevenue";
 import { useRefunds } from "@/hooks/useRefunds";
-import { format } from "date-fns";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { RefundHistory } from "@/components/RefundHistory";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
+import { formatDate, formatTime } from "@/lib/dates";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -331,10 +331,10 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                     <TableRow key={payment.id}>
                       <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(payment.created_at), "MMM d, yyyy")}
+                        {formatDate(new Date(payment.created_at))}
                         <br />
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(payment.created_at), "h:mm a")}
+                          {formatTime(new Date(payment.created_at))}
                         </span>
                       </TableCell>
                       <TableCell className="font-mono text-sm">

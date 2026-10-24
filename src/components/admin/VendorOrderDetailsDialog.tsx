@@ -19,10 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Eye, Package, MapPin, User, Truck, Loader2, ExternalLink } from "lucide-react";
-import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 interface DetailItem {
   product_title: string;
@@ -230,7 +230,7 @@ export function VendorOrderDetailsDialog({
                 <Package className="h-4 w-4" /> Order Details
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Field label="Order Placed" value={format(new Date(data.createdAt), "MMM d, yyyy 'at' p")} />
+                <Field label="Order Placed" value={formatDateTime(new Date(data.createdAt))} />
                 <Field label="Payment Method" value={data.paymentMethod.toUpperCase()} />
                 <Field
                   label="Payment Status"
@@ -256,19 +256,19 @@ export function VendorOrderDetailsDialog({
                   <Field label="AWB No." value={data.shipment.awb_code ? <span className="font-mono">{data.shipment.awb_code}</span> : "Not yet assigned"} />
                   <Field label="Status" value={<span className="capitalize">{data.shipment.status.replace(/_/g, " ")}</span>} />
                   {data.shipment.pickup_scheduled_at && (
-                    <Field label="Pickup Scheduled" value={format(new Date(data.shipment.pickup_scheduled_at), "MMM d, yyyy p")} />
+                    <Field label="Pickup Scheduled" value={formatDateTime(new Date(data.shipment.pickup_scheduled_at))} />
                   )}
                   {data.shipment.picked_up_at && (
-                    <Field label="Picked Up" value={format(new Date(data.shipment.picked_up_at), "MMM d, yyyy p")} />
+                    <Field label="Picked Up" value={formatDateTime(new Date(data.shipment.picked_up_at))} />
                   )}
                   {data.shipment.delivered_at && (
-                    <Field label="Delivered" value={format(new Date(data.shipment.delivered_at), "MMM d, yyyy p")} />
+                    <Field label="Delivered" value={formatDateTime(new Date(data.shipment.delivered_at))} />
                   )}
                   {data.shipment.rto_initiated_at && (
-                    <Field label="RTO Initiated" value={format(new Date(data.shipment.rto_initiated_at), "MMM d, yyyy p")} />
+                    <Field label="RTO Initiated" value={formatDateTime(new Date(data.shipment.rto_initiated_at))} />
                   )}
                   {data.shipment.estimated_delivery_date && (
-                    <Field label="Estimated Delivery" value={format(new Date(data.shipment.estimated_delivery_date), "MMM d, yyyy")} />
+                    <Field label="Estimated Delivery" value={formatDate(new Date(data.shipment.estimated_delivery_date))} />
                   )}
                   {(data.shipment.label_url || data.shipment.manifest_url) && (
                     <div>
@@ -412,7 +412,7 @@ export function VendorOrderDetailsDialog({
                     <p className="text-sm font-medium">{m.title}</p>
                     {m.detail && <p className="text-xs text-muted-foreground">{m.detail}</p>}
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {format(new Date(m.at), "MMM d, yyyy h:mm a")}
+                      {formatDateTime(new Date(m.at))}
                     </p>
                   </div>
                 ))}
@@ -438,7 +438,7 @@ export function VendorOrderDetailsDialog({
                           <p className="text-sm font-medium">{e.event_status || "Update"}</p>
                           {e.activity && <p className="text-xs text-muted-foreground">{e.activity}</p>}
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            <span>{format(new Date(e.event_timestamp || e.received_at), "MMM d, yyyy h:mm a")}</span>
+                            <span>{formatDateTime(new Date(e.event_timestamp || e.received_at))}</span>
                             {e.location && (
                               <span className="inline-flex items-center gap-0.5">
                                 <MapPin className="h-3 w-3" /> {e.location}

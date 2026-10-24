@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
+import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -236,7 +237,7 @@ const handler = async (req: Request): Promise<Response> => {
         : "";
     const trackingUrl = shipment?.awb_code ? `https://shiprocket.co/tracking/${encodeURIComponent(shipment.awb_code)}` : null;
     const eta = shipment?.estimated_delivery_date
-      ? new Date(shipment.estimated_delivery_date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })
+      ? formatDateWithDay(shipment.estimated_delivery_date)
       : null;
     const orderUrl = `https://allboutiqs.com/orders?focus=${order.id}`;
 
@@ -356,7 +357,7 @@ const handler = async (req: Request): Promise<Response> => {
       ${extraHtml}
       ${infoBox([
         ["Order", `#${orderNumber}`],
-        ["Placed on", new Date(order.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })],
+        ["Placed on", formatDate(order.created_at)],
         ...(isDeliveryStep && boutique ? [["Boutique", escapeHtml(boutique)] as [string, string]] : []),
       ])}
       ${partNote}

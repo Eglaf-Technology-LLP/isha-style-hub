@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileText, Printer } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { formatWeightKg } from "@/lib/weight";
+import { formatDate } from "@/lib/dates";
 
 export interface PackingSlipData {
   title: string; // "Packing slip", "Exchange replacement", ...
@@ -79,7 +80,7 @@ export function packingSlipHtml(d: PackingSlipData, autoPrint = false): string {
 <body>
   <div class="head">
     <img src="${esc(logoUrl)}" alt="AllBoutiqs">
-    <div><h1>${esc(d.title)}</h1><div class="ref">Order #${ref} &middot; Packed ${esc(new Date(d.packedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }))}</div></div>
+    <div><h1>${esc(d.title)}</h1><div class="ref">Order #${ref} &middot; Packed ${esc(formatDate(d.packedAt))}</div></div>
   </div>
   <div class="cols">
     <div class="box"><h2>Ship to</h2><strong>${esc(d.customer.name)}</strong><br>${addressLines(d.customer.address)}<br>Phone: ${esc(d.customer.phone)}</div>

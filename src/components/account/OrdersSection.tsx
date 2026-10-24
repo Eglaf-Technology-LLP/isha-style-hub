@@ -10,7 +10,6 @@ import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight, Ban, Ref
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
-import { format } from "date-fns";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
@@ -18,6 +17,7 @@ import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
+import { formatDate } from "@/lib/dates";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -250,7 +250,7 @@ export function OrdersSection() {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
-                    <p className="text-sm">{format(new Date(order.created_at), "d MMM yyyy")}</p>
+                    <p className="text-sm">{formatDate(new Date(order.created_at))}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

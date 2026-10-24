@@ -40,7 +40,6 @@ import {
   User,
 } from "lucide-react";
 import { useOrders, Order, OrderItem } from "@/hooks/useOrders";
-import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { OrderFulfillmentSection } from "./OrderFulfillmentSection";
@@ -50,6 +49,7 @@ import { useFocusTarget } from "@/hooks/useDeepLink";
 import { toast } from "sonner";
 import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -301,7 +301,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       {order.id.slice(0, 8)}...
                     </TableCell>
                     <TableCell className="text-sm">
-                      {format(new Date(order.created_at), "MMM d, yyyy")}
+                      {formatDate(new Date(order.created_at))}
                     </TableCell>
                     <TableCell>
                       <div>
@@ -419,7 +419,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                   <div>
                     <p className="text-sm text-muted-foreground">Order Date</p>
                     <p className="font-medium">
-                      {format(new Date(selectedOrder.created_at), "PPP 'at' p")}
+                      {formatDateTime(new Date(selectedOrder.created_at))}
                     </p>
                   </div>
                   <div>

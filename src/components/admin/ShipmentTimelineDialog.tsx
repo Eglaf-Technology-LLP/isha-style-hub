@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, History, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/dates";
 
 interface ShipmentEvent {
   id: string;
@@ -80,7 +80,7 @@ export function ShipmentTimelineDialog({ shipmentId, awbCode }: Props) {
                 <p className="text-sm font-medium">{e.event_status || "Update"}</p>
                 {e.activity && <p className="text-xs text-muted-foreground">{e.activity}</p>}
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                  <span>{format(new Date(e.event_timestamp || e.received_at), "MMM d, yyyy h:mm a")}</span>
+                  <span>{formatDateTime(new Date(e.event_timestamp || e.received_at))}</span>
                   {e.location && (
                     <span className="inline-flex items-center gap-0.5">
                       <MapPin className="h-3 w-3" /> {e.location}

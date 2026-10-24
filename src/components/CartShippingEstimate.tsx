@@ -8,6 +8,7 @@ import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { CartItem } from "@/stores/cartStore";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
+import { formatDateWithDay } from "@/lib/dates";
 
 interface VendorShippingGroup {
   vendorId: string;
@@ -40,7 +41,7 @@ export async function fetchCartDeliveryDate(
 }
 
 export function deliveryDateLabel(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  return formatDateWithDay(isoDate);
 }
 
 // Cart never grouped items by vendor before (a single order/cart can span

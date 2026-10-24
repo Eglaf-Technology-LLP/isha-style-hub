@@ -19,11 +19,11 @@ import { SingleImageDropzone } from "@/components/ImageDropzone";
 import { Loader2, ShieldCheck, Truck, Landmark, ExternalLink, FileCheck2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import type { Vendor } from "@/hooks/useVendor";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { PanCardButton, VendorKycSection } from "./VendorKycSection";
+import { formatDate } from "@/lib/dates";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -222,10 +222,10 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
               <h4 className="font-medium mb-3">Application &amp; Account</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Boutique Code" value={<span className="font-mono">{vendor.boutique_code}</span>} />
-                <Field label="Applied On" value={format(new Date(vendor.created_at), "MMM d, yyyy")} />
+                <Field label="Applied On" value={formatDate(new Date(vendor.created_at))} />
                 <Field
                   label="Approved On"
-                  value={vendor.approved_at ? format(new Date(vendor.approved_at), "MMM d, yyyy") : "Not yet approved"}
+                  value={vendor.approved_at ? formatDate(new Date(vendor.approved_at)) : "Not yet approved"}
                 />
                 <Field label="Rating" value={vendor.rating != null ? `${vendor.rating.toFixed(1)} / 5` : "No ratings yet"} />
                 <Field

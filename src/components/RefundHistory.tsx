@@ -1,8 +1,8 @@
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
-import { format } from "date-fns";
 import { useRefunds } from "@/hooks/useRefunds";
 import { RefundReceiptDialog } from "@/components/RefundReceiptDialog";
+import { formatDateTime } from "@/lib/dates";
 
 export const refundStatusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   initiated: { label: "Initiated", variant: "secondary" },
@@ -43,14 +43,14 @@ export function RefundHistory({ orderId }: { orderId: string }) {
             <p className="text-muted-foreground">{refund.reason}</p>
             <p className="text-xs text-muted-foreground">
               {refund.initiated_by ? "Initiated by admin" : "Issued directly in Razorpay dashboard"} on{" "}
-              {format(new Date(refund.initiated_at), "MMM d, yyyy 'at' h:mm a")}
+              {formatDateTime(new Date(refund.initiated_at))}
             </p>
             {refund.razorpay_refund_id && (
               <p className="text-xs text-muted-foreground font-mono">Razorpay refund #{refund.razorpay_refund_id}</p>
             )}
             {refund.status === "processed" && refund.gateway_processed_at && (
               <p className="text-xs text-green-700">
-                Processed by gateway on {format(new Date(refund.gateway_processed_at), "MMM d, yyyy 'at' h:mm a")} -
+                Processed by gateway on {formatDateTime(new Date(refund.gateway_processed_at))} -
                 bank credit can take a few more days to reflect.
               </p>
             )}

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Loader2, Landmark } from "lucide-react";
 import { useSettlements } from "@/hooks/useSettlements";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/dates";
 
 interface SettlementLedgerProps {
   isAdmin: boolean;
@@ -82,7 +82,7 @@ export function SettlementLedger({ isAdmin }: SettlementLedgerProps) {
                     <TableRow key={s.id}>
                       <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(s.settled_at), "MMM d, yyyy")}
+                        {formatDate(new Date(s.settled_at))}
                       </TableCell>
                       <TableCell className="font-medium">₹{s.amount.toFixed(2)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">

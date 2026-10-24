@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Hourglass, Landmark, Loader2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useVendorPayoutHistory, VendorPayout } from "@/hooks/useVendorPayoutHistory";
 import { formatPayoutDate, todayIst } from "@/lib/payoutDates";
 import { cn } from "@/lib/utils";
+import { formatDate } from "@/lib/dates";
 
 interface PayoutOrder {
   id: string;
@@ -77,7 +77,7 @@ function TransferStatus({ p }: { p: VendorPayout }) {
           <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
         </Badge>
         <div className="text-xs text-muted-foreground mt-1">
-          {p.paid_at ? format(new Date(p.paid_at), "d MMM yyyy") : ""}
+          {p.paid_at ? formatDate(new Date(p.paid_at)) : ""}
           {p.payment_reference ? ` · UTR ${p.payment_reference}` : ""}
         </div>
       </div>
@@ -219,7 +219,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                     <TableRow key={o.id} data-focus-id={o.id}>
                       <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
                       <TableCell className="text-sm">
-                        {o.delivered_at ? format(new Date(o.delivered_at), "d MMM") : "—"}
+                        {o.delivered_at ? formatDate(new Date(o.delivered_at)) : "—"}
                       </TableCell>
                       <TableCell className="font-medium tabular-nums">{rupees(Number(o.net_payable))}</TableCell>
                       <TableCell>
@@ -316,7 +316,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                   {sentViaRazorpay.map((o) => (
                     <TableRow key={o.id} data-focus-id={o.id}>
                       <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-sm">{o.rzp_released_at ? format(new Date(o.rzp_released_at), "d MMM") : "—"}</TableCell>
+                      <TableCell className="text-sm">{o.rzp_released_at ? formatDate(new Date(o.rzp_released_at)) : "—"}</TableCell>
                       <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
                       <TableCell>
                         {o.rzp_settled_at ? (
@@ -325,7 +325,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
                             </Badge>
                             <div className="text-xs text-muted-foreground mt-1">
-                              {format(new Date(o.rzp_settled_at), "d MMM yyyy")}
+                              {formatDate(new Date(o.rzp_settled_at))}
                               {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
                             </div>
                           </div>
@@ -378,7 +378,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                 <TableBody>
                   {payouts.map((p) => (
                     <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
-                      <TableCell className="text-sm whitespace-nowrap">{format(new Date(p.created_at), "d MMM yyyy")}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.created_at))}</TableCell>
                       <TableCell className="text-sm">{p.order_count}</TableCell>
                       <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>
                       <TableCell className="text-sm text-muted-foreground tabular-nums">

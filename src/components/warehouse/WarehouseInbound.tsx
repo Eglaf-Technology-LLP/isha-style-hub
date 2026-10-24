@@ -16,6 +16,7 @@ import {
 } from "@/lib/warehouse";
 import { PromptDialog } from "./PromptDialog";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseViewProps } from "./shared";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 const ON_THE_WAY = ["pending", "confirmed", "processing", "in_transit_to_warehouse"];
 
@@ -117,7 +118,7 @@ export function IncomingTab({ data, timing }: WarehouseViewProps) {
                     <TableRow key={vo.id} data-focus-id={`${vo.id} ${vo.order_id}`}>
                       <TableCell className="font-mono text-xs">
                         {orderRef(vo.order_id)}
-                        <div className="text-muted-foreground">{new Date(vo.created_at).toLocaleDateString("en-IN")}</div>
+                        <div className="text-muted-foreground">{formatDate(vo.created_at)}</div>
                       </TableCell>
                       <TableCell className="text-sm">{vo.vendor_name}</TableCell>
                       <TableCell>
@@ -205,7 +206,7 @@ export function InspectTab({ data, timing, isAdmin }: WarehouseViewProps) {
                     <TableCell className="text-xs">
                       {vo.received_at_warehouse_at ? (
                         <>
-                          {new Date(vo.received_at_warehouse_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {formatDateTime(vo.received_at_warehouse_at)}
                           {vo.warehouse_shelf && <div className="text-muted-foreground">Shelf {vo.warehouse_shelf}</div>}
                         </>
                       ) : (

@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, ShieldCheck, Star, TrendingUp } from "lucide-react";
 import { useVendorPerformance, VendorPerformance } from "@/hooks/useVendorPerformance";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/dates";
 
 export function VendorPerformanceAnalytics() {
   const { vendors, loading } = useVendorPerformance(true);
@@ -116,7 +116,7 @@ export function VendorPerformanceAnalytics() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {v.lastOrderAt ? format(new Date(v.lastOrderAt), "MMM d, yyyy") : "—"}
+                      {v.lastOrderAt ? formatDate(new Date(v.lastOrderAt)) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => setDetailVendor(v)}>

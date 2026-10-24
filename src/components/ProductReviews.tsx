@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { useProductReviews, ReviewFormData } from "@/hooks/useProductReviews";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import { uploadUserFile } from "@/lib/userPhotoUpload";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDate } from "@/lib/dates";
 
 const MAX_REVIEW_PHOTOS = 5;
 
@@ -245,7 +245,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                     <StarRating rating={review.rating} readonly size="sm" />
                     {review.title && <h4 className="mt-2 font-serif text-xl">{review.title}</h4>}
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {format(new Date(review.created_at), "d MMM yyyy")}
+                      {formatDate(new Date(review.created_at))}
                       {review.is_verified_purchase && <span className="ml-3 text-emerald-700">✓ Verified purchase</span>}
                     </p>
                   </div>

@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Printer, FileText } from "lucide-react";
-import { format } from "date-fns";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { amountInWords } from "@/lib/amountInWords";
 import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
+import { formatDate } from "@/lib/dates";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
 
@@ -140,13 +140,13 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                   </p>
                   <p>
                     <span className="text-muted-foreground">Invoice Date: </span>
-                    {format(new Date(invoice.issued_at), "dd MMM yyyy")}
+                    {formatDate(new Date(invoice.issued_at))}
                   </p>
                   {invoice.order_number && (
                     <p>
                       <span className="text-muted-foreground">Order No: </span>
                       {invoice.order_number}
-                      {invoice.order_date && ` · ${format(new Date(invoice.order_date), "dd MMM yyyy")}`}
+                      {invoice.order_date && ` · ${formatDate(new Date(invoice.order_date))}`}
                     </p>
                   )}
                 </div>

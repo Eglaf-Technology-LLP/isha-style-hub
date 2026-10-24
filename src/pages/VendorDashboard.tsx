@@ -84,6 +84,7 @@ import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
+import { formatDate } from "@/lib/dates";
 
 interface VendorProduct {
   id: string;
@@ -1022,7 +1023,7 @@ export default function VendorDashboard() {
                             <TableCell className="font-mono text-xs">
                               {o.order_id.slice(0, 8)}
                               <div className="text-muted-foreground">
-                                {new Date(o.created_at).toLocaleDateString()}
+                                {formatDate(o.created_at)}
                               </div>
                               <div className="mt-1">
                                 <VendorOrderDetailsDialog

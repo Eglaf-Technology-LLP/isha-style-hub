@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
 import { toast } from "sonner";
 import { VendorFilterSelect } from "./VendorFilterSelect";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
@@ -46,6 +45,7 @@ import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipNowDialog } from "./ShipNowDialog";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -387,7 +387,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                         {request.id.slice(0, 8)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(request.created_at), "MMM d, yyyy")}
+                        {formatDate(new Date(request.created_at))}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="gap-1">
@@ -455,7 +455,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                   </div>
                   <div>
                     <p className="text-muted-foreground">Date</p>
-                    <p>{format(new Date(selectedRequest.created_at), "PPP 'at' p")}</p>
+                    <p>{formatDateTime(new Date(selectedRequest.created_at))}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Status</p>
@@ -626,7 +626,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                 {selectedRequest.status === "pending" && selectedRequest.handled_by === "vendor" && !readOnly && (
                   <p className="text-xs bg-muted p-3 rounded-lg">
                     With the boutique until{" "}
-                    {format(new Date(new Date(selectedRequest.created_at).getTime() + slaHours * 3600_000), "MMM d, p")}
+                    {formatDateTime(new Date(new Date(selectedRequest.created_at).getTime() + slaHours * 3600_000))}
                     {" "}- it escalates to you automatically if they don't respond. You can still decide now.
                   </p>
                 )}
