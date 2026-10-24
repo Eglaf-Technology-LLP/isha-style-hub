@@ -16,11 +16,13 @@ import {
   ShieldCheck,
   Star,
   Truck,
+  MessageCircle,
 } from "lucide-react";
 import { COMPANY } from "@/lib/company";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { supabase } from "@/integrations/supabase/client";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore, type CartItem } from "@/stores/cartStore";
+import { useBuyNowStore } from "@/stores/buyNowStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "sonner";
 import { Product, ProductVariant, mapDbVariant } from "@/hooks/useProducts";
@@ -83,6 +85,7 @@ export default function ProductDetail() {
   const { user } = useAuth();
 
   const addItem = useCartStore((state) => state.addItem);
+  const setBuyNowItem = useBuyNowStore((state) => state.setItem);
   const { trackProductView } = useRecentlyViewed();
   const setBagOpen = useUiStore((s) => s.setBagOpen);
   const { data: boutiques = [] } = useStoreBoutiques();
@@ -299,10 +302,12 @@ export default function ProductDetail() {
   // item that ends up in the cart must be identical either way, since Shop
   // Now still goes through the same cart/checkout flow (add, then jump
   // straight to /checkout) rather than a separate order path.
-  const addSelectedToCart = (): boolean => {
+  // The chosen size / colour / quantity as a cart line, or null (with the
+  // reason shown) when something still has to be picked.
+  const buildSelectedItem = (): CartItem | null => {
     if (!product) {
       toast.error("Product not available");
-      return false;
+      return null;
     }
     // Size and color are required wherever the product has them - every
     // missing one is flagged at once, not one prompt at a time.
@@ -320,12 +325,12 @@ export default function ProductDetail() {
         missing.length === 2 ? "Please select a size and a colour" : missing[0] === "size" ? "Please select a size" : "Please select a colour",
       );
       document.getElementById(`choose-${missing[0]}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return false;
+      return null;
     }
 
     if ("error" in customised) {
       toast.error(customised.error);
-      return false;
+      return null;
     }
     const customisation = customised.choice;
 
@@ -335,7 +340,7 @@ export default function ProductDetail() {
     if (selectedSize) selectedOptions.push({ name: "Size", value: selectedSize });
     if (selectedColor) selectedOptions.push({ name: "Colour", value: selectedColor });
 
-    addItem({
+    return {
       productId: product.id,
       productName: product.name,
       productImage: product.images[0] || null,
@@ -352,9 +357,14 @@ export default function ProductDetail() {
       ...(customisation
         ? { lineId: crypto.randomUUID(), customisation, basePrice: currentPrice.toString() }
         : {}),
-    });
-    if (customisation) setCustomiser(emptyCustomiser);
+    };
+  };
 
+  const addSelectedToCart = (): boolean => {
+    const item = buildSelectedItem();
+    if (!item) return false;
+    addItem(item);
+    if (item.customisation) setCustomiser(emptyCustomiser);
     return true;
   };
 
@@ -378,8 +388,11 @@ export default function ProductDetail() {
   // regular Add to Cart would add, just skips the "review your cart" step
   // for a customer who already knows they want it now.
   const handleBuyNow = () => {
-    if (!addSelectedToCart()) return;
-    navigate("/checkout");
+    const item = buildSelectedItem();
+    if (!item) return;
+    // Only this item goes to checkout; the cart is left as it is (Part 8, 18).
+    setBuyNowItem(item);
+    navigate("/checkout?buy=now");
   };
 
   if (loading) {
@@ -693,6 +706,17 @@ export default function ProductDetail() {
                 )}
                 {/* Stock Notification for Out of Stock */}
                 {soldOut && <StockNotificationButton productId={product.id} productName={product.name} />}
+                {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47). */}
+                <a
+                  href={`${COMPANY.whatsappUrl}?text=${encodeURIComponent(
+                    `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${window.location.origin}/product/${product.id}`,
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-12 w-full items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground/80 underline-offset-4 transition-colors hover:text-primary hover:underline"
+                >
+                  <MessageCircle className="h-4 w-4" /> Speak to our stylist
+                </a>
               </div>
 
               <div className="mt-5 flex items-center justify-between gap-4">

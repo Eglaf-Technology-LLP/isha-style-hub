@@ -38,6 +38,7 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
           if (type === "color") {
             const multi = isMulticolour(option);
             const hex = swatchColor(option);
+            // The colour's name sits under its circle (Part 8, 15).
             return (
               <button
                 key={option}
@@ -47,22 +48,35 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
                 aria-label={`${option}${out ? " (out of stock)" : ""}`}
                 title={option}
                 onClick={() => onSelect(option)}
-                className={cn(
-                  "relative flex h-10 w-10 items-center justify-center rounded-full p-[3px] transition",
-                  active ? "ring-1 ring-foreground" : "ring-1 ring-transparent hover:ring-foreground/30",
-                )}
+                className="group flex w-16 flex-col items-center gap-1.5"
               >
                 <span
-                  className={cn("flex h-full w-full items-center justify-center rounded-full border border-foreground/15 text-[10px] uppercase", out && "opacity-40")}
-                  style={
-                    multi
-                      ? { background: "conic-gradient(#b3261e, #e8c53a, #3f7a4a, #2f5d9e, #6a3d8f, #b3261e)" }
-                      : { backgroundColor: hex ?? "hsl(var(--muted))" }
-                  }
+                  className={cn(
+                    "relative flex h-10 w-10 items-center justify-center rounded-full p-[3px] transition",
+                    active ? "ring-1 ring-foreground" : "ring-1 ring-transparent group-hover:ring-foreground/30",
+                  )}
                 >
-                  {!hex && !multi && option.charAt(0)}
+                  <span
+                    className={cn("flex h-full w-full items-center justify-center rounded-full border border-foreground/15 text-[10px] uppercase", out && "opacity-40")}
+                    style={
+                      multi
+                        ? { background: "conic-gradient(#b3261e, #e8c53a, #3f7a4a, #2f5d9e, #6a3d8f, #b3261e)" }
+                        : { backgroundColor: hex ?? "hsl(var(--muted))" }
+                    }
+                  >
+                    {!hex && !multi && option.charAt(0)}
+                  </span>
+                  {out && <span className="absolute h-px w-9 -rotate-45 bg-foreground/60" />}
                 </span>
-                {out && <span className="absolute h-px w-9 -rotate-45 bg-foreground/60" />}
+                <span
+                  className={cn(
+                    "line-clamp-2 text-center text-[11px] leading-tight",
+                    active ? "font-medium text-foreground" : "text-muted-foreground",
+                    out && "line-through",
+                  )}
+                >
+                  {option}
+                </span>
               </button>
             );
           }

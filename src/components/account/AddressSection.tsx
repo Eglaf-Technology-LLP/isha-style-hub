@@ -17,6 +17,7 @@ import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
 import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
 import { cn } from "@/lib/utils";
+import { usePincodeAutofill } from "@/lib/pincode";
 
 export function AddressSection() {
   const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useSavedAddresses();
@@ -33,6 +34,8 @@ export function AddressSection() {
     pincode: "",
     is_default: false,
   });
+  // City and state from the PIN code (the customer can still change them).
+  usePincodeAutofill(formData.pincode, formData, (patch) => setFormData((prev) => ({ ...prev, ...patch })));
 
   const resetForm = () => {
     setFormData({

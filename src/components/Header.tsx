@@ -18,7 +18,7 @@ import { NotificationBell } from "./NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { useVendor } from "@/hooks/useVendor";
 import { useAdmin } from "@/hooks/useAdmin";
-import { categoryCover, StoreCategory, useStoreBoutiques, useStoreCategories, useStoreProducts } from "@/hooks/useStorefront";
+import { categoryCover, StoreCategory, useMenuCategories, useStoreBoutiques, useStoreProducts } from "@/hooks/useStorefront";
 import { useUiStore } from "@/stores/uiStore";
 import { AnnouncementBar } from "@/components/storefront/AnnouncementBar";
 import { SearchPanel } from "@/components/storefront/SearchPanel";
@@ -49,7 +49,7 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const homePath = useHomePath();
 
-  const { data: categories = [] } = useStoreCategories();
+  const { data: categories } = useMenuCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
   const { data: products = [] } = useStoreProducts();
 

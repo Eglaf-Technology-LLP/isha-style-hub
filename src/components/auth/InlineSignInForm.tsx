@@ -164,12 +164,11 @@ export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "s
         duration: 10000,
       });
     } else if (isNewUser) {
+      // No "add your full name" nudge: checkout already asks for the name and
+      // saves it to the account (Developer Corrections Part 8, 22).
       toast.success("Welcome to AllBoutiqs! Your account is ready.", {
-        description: pendingPassword
-          ? "Next time, sign in with your password or a code. Add your full name in My Account."
-          : "Add your full name in My Account.",
-        action: { label: "My Account", onClick: () => navigate("/account") },
-        duration: 8000,
+        ...(pendingPassword ? { description: "Next time, sign in with your password or a code." } : {}),
+        duration: 6000,
       });
     } else if (pendingPassword) {
       toast.success("Password saved. You're signed in.");

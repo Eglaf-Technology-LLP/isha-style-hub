@@ -88,9 +88,19 @@ export function swatchColor(name: string): string | null {
   // "Light Blue", "Dark Green", "Pale Pink", "Deep Red"…
   const m = key.match(/^(light|pale|dark|deep)[\s-]+(.+)$/);
   const base = m ? SWATCHES[m[2]] : undefined;
-  if (!m || !base) return null;
-  return shade(base, m[1] === "light" || m[1] === "pale" ? 0.45 : -0.4);
+  if (m && base) return shade(base, m[1] === "light" || m[1] === "pale" ? 0.45 : -0.4);
+  // Any colour the browser knows by name ("Teal", "Royal Blue", "Sea
+  // Green"), else the last word ("Bottle Green" -> green), so a circle is
+  // never a plain grey blank (Developer Corrections Part 8, 15).
+  const css = key.replace(/[\s-]+/g, "");
+  if (cssColour(css)) return css;
+  const last = key.split(/[\s-]+/).pop() ?? "";
+  if (SWATCHES[last]) return SWATCHES[last];
+  return cssColour(last) ? last : null;
 }
+
+const cssColour = (name: string) =>
+  !!name && typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("color", name);
 
 // For colours like "Multicolor" / "Multi" a soft rainbow ring.
 export function isMulticolour(name: string): boolean {

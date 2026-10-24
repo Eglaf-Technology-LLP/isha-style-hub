@@ -5,14 +5,14 @@ import { useStaffRole } from "@/hooks/useStaffRole";
 import { ArrowRight, Loader2, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { COMPANY, telHref } from "@/lib/company";
 import { useNewsletter } from "@/hooks/useNewsletter";
-import { useStoreCategories } from "@/hooks/useStorefront";
+import { useMenuCategories } from "@/hooks/useStorefront";
 import logo from "@/assets/logo-white.png";
 
 const PAYMENT_METHODS = ["UPI", "Visa", "Mastercard", "RuPay", "Net banking", "Cash on Delivery"];
 
 export function Footer() {
   const { role } = useStaffRole();
-  const { data: categories = [] } = useStoreCategories();
+  const { data: categories } = useMenuCategories();
   const { subscribe, loading } = useNewsletter();
   const [email, setEmail] = useState("");
 

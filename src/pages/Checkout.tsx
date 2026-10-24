@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { deliveryDateLabel, fetchCartDeliveryDate } from "@/components/CartShippingEstimate";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCartStore, CartItem, cartLineKey } from "@/stores/cartStore";
+import { useBuyNowStore } from "@/stores/buyNowStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
+import { usePincodeAutofill } from "@/lib/pincode";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -101,8 +103,16 @@ interface VendorOrderGroup {
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { items, getTotalPrice, clearCart } = useCartStore();
-  const subtotal = getTotalPrice();
+  // "Buy Now" checks out only that one item and leaves the cart alone
+  // (Developer Corrections Part 8, 18); otherwise it's the cart.
+  const [searchParams] = useSearchParams();
+  const cart = useCartStore();
+  const buyNowItem = useBuyNowStore((s) => s.item);
+  const clearBuyNow = useBuyNowStore((s) => s.clear);
+  const buyNow = searchParams.get("buy") === "now" && !!buyNowItem;
+  const items = useMemo(() => (buyNow && buyNowItem ? [buyNowItem] : cart.items), [buyNow, buyNowItem, cart.items]);
+  const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
+  const clearCart = buyNow ? clearBuyNow : cart.clearCart;
   const { user, loading: authLoading } = useAuth();
   const {
     addresses: savedAddresses,
@@ -124,6 +134,10 @@ export default function Checkout() {
     pincode: "",
     country: "India",
   });
+  // City and state from the PIN code; the customer can still change them.
+  usePincodeAutofill(shippingAddress.pincode, shippingAddress, (patch) =>
+    setShippingAddress((prev) => ({ ...prev, ...patch })),
+  );
 
   // "new" means the fields below are a fresh entry; any other value is the
   // id of the saved_addresses row currently populating them.
@@ -134,7 +148,7 @@ export default function Checkout() {
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
   // Today's prices for what's in the cart (they may have changed since it was added).
-  useSyncCartPrices();
+  useSyncCartPrices(!buyNow);
   const platformRates = usePlatformRates();
   // Pay Online by default (Developer Corrections Part 8, 20).
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("razorpay");
@@ -597,6 +611,16 @@ export default function Checkout() {
     }
 
     setIsPlacingOrder(true);
+    // The name typed here becomes the account's name if it has none yet, so
+    // nobody is asked for it twice (Part 8, 22). Doesn't hold up the order.
+    if (user) {
+      void supabase
+        .from("profiles")
+        .update({ full_name: customerInfo.name.trim() })
+        .eq("user_id", user.id)
+        .or("full_name.is.null,full_name.eq.")
+        .then(({ error }) => error && console.error("Couldn't save the name to the account:", error.message));
+    }
     // Set once an online order is saved, so a failure before payment can
     // release it.
     let unpaidOnlineOrderId: string | null = null;
@@ -1180,28 +1204,6 @@ export default function Checkout() {
                   />
                 </Field>
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Field label="City" htmlFor="city" required>
-                    <Input
-                      id="city"
-                      placeholder="City"
-                      autoComplete="address-level2"
-                      className={fieldClass}
-                      value={shippingAddress.city}
-                      onChange={(e) =>
-                        setShippingAddress((prev) => ({ ...prev, city: e.target.value }))
-                      }
-                    />
-                  </Field>
-                  <Field label="State" htmlFor="state" required>
-                    <StateSelect
-                      id="state"
-                      className={fieldClass}
-                      value={shippingAddress.state}
-                      onChange={(state) => setShippingAddress((prev) => ({ ...prev, state }))}
-                    />
-                  </Field>
-                </div>
-                <div className="grid gap-5 sm:grid-cols-2">
                   <Field label="Pincode" htmlFor="pincode" required>
                     <Input
                       id="pincode"
@@ -1225,6 +1227,28 @@ export default function Checkout() {
                       className={fieldClass}
                       value={shippingAddress.country}
                       disabled
+                    />
+                  </Field>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field label="City" htmlFor="city" required>
+                    <Input
+                      id="city"
+                      placeholder="City"
+                      autoComplete="address-level2"
+                      className={fieldClass}
+                      value={shippingAddress.city}
+                      onChange={(e) =>
+                        setShippingAddress((prev) => ({ ...prev, city: e.target.value }))
+                      }
+                    />
+                  </Field>
+                  <Field label="State" htmlFor="state" required>
+                    <StateSelect
+                      id="state"
+                      className={fieldClass}
+                      value={shippingAddress.state}
+                      onChange={(state) => setShippingAddress((prev) => ({ ...prev, state }))}
                     />
                   </Field>
                 </div>
@@ -1319,6 +1343,12 @@ export default function Checkout() {
               </div>
 
               <div className="space-y-6 p-6">
+                {buyNow && cart.items.length > 0 && (
+                  <p className="border border-gold/40 bg-background px-3 py-2 text-xs text-muted-foreground">
+                    Buying only this item - the {cart.items.length} other {cart.items.length === 1 ? "item" : "items"} in your
+                    cart {cart.items.length === 1 ? "stays" : "stay"} saved for later.
+                  </p>
+                )}
                 {/* Cart Items */}
                 <ul className="no-scrollbar max-h-80 space-y-5 overflow-y-auto">
                   {items.map((item) => (

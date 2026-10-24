@@ -69,6 +69,17 @@ export function useStoreCategories() {
   });
 }
 
+// Categories for the top menu and footer (Developer Corrections Part 8, 11):
+// only ones with at least one live product - an empty category makes the
+// shop look closed - and nothing until both lists have loaded.
+export function useMenuCategories() {
+  const categories = useStoreCategories();
+  const products = useStoreProducts();
+  const ready = categories.isSuccess && products.isSuccess;
+  const live = new Set((products.data ?? []).map((p) => p.category_id).filter(Boolean));
+  return { data: ready ? (categories.data ?? []).filter((c) => live.has(c.id)) : [], ready };
+}
+
 export function useStoreBoutiques() {
   return useQuery({
     queryKey: ["storefront", "boutiques"],
