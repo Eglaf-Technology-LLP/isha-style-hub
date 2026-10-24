@@ -293,6 +293,20 @@ export function VendorProductDialog({
             />
           </div>
 
+          {/* Was "Listed on storefront" further down, next to the AI originals, where it read as part of
+              them (Developer Corrections Part 7, 8.1). */}
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div>
+              <Label htmlFor="vp-active" className="text-sm font-medium">
+                Show on store (visible to customers)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Off: the product stays in your catalogue but customers can't see or buy it.
+              </p>
+            </div>
+            <Switch id="vp-active" checked={form.is_active} onCheckedChange={(v) => set("is_active", v)} />
+          </div>
+
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Category</Label>
@@ -458,19 +472,6 @@ export function VendorProductDialog({
           {needsOriginals && (
             <AiOriginalPhotosField ownerFolder={vendorId} value={originalPhotos} onChange={setOriginalPhotos} />
           )}
-
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
-            <div>
-              <p className="text-sm font-medium">Listed on storefront</p>
-              <p className="text-xs text-muted-foreground">
-                Hidden products stay in your catalogue but are not shown to shoppers.
-              </p>
-            </div>
-            <Switch
-              checked={form.is_active}
-              onCheckedChange={(v) => set("is_active", v)}
-            />
-          </div>
 
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>

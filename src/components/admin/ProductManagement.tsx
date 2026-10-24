@@ -427,8 +427,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       </div>
 
       <div className="flex items-center justify-between">
-        <Label>Active</Label>
+        <Label htmlFor={isEdit ? "edit-active" : "add-active"}>Show on store (visible to customers)</Label>
         <Switch
+          id={isEdit ? "edit-active" : "add-active"}
           checked={productForm.is_active}
           onCheckedChange={(checked) =>
             setProductForm((prev) => ({ ...prev, is_active: checked }))
