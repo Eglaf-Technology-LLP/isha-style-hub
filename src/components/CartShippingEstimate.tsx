@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { CartItem } from "@/stores/cartStore";
+import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 
 interface VendorShippingGroup {
   vendorId: string;
@@ -149,7 +150,14 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
   }, [defaultAddress, groups.length]);
 
   if (groups.length === 0) {
-    return <p className="text-sm text-muted-foreground">Shipping &amp; taxes calculated at checkout</p>;
+    return !shippingCharged ? (
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-muted-foreground">Delivery</span>
+        <FreeDeliveryBadge />
+      </div>
+    ) : (
+      <p className="text-sm text-muted-foreground">Shipping &amp; taxes calculated at checkout</p>
+    );
   }
 
   const anyChecked = groups.some((g) => g.checked);
@@ -160,9 +168,15 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
 
   return (
     <div className="space-y-2">
+      {!shippingCharged && (
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Delivery</span>
+          <FreeDeliveryBadge />
+        </div>
+      )}
       <div className="flex items-center gap-2">
         <Input
-          placeholder="Enter pincode for shipping estimate"
+          placeholder={shippingCharged ? "Enter pincode for shipping estimate" : "Enter pincode for delivery date"}
           value={pincode}
           onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
           className="h-9 text-sm flex-1"
@@ -185,13 +199,13 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
             return (
               <div key={g.vendorId} className="flex justify-between text-muted-foreground">
                 <span>Estimated shipping - {g.vendorName}</span>
-                <span>{rate > 0 ? `₹${rate.toFixed(0)}` : "Free"}</span>
+                {rate > 0 ? <span>₹{rate.toFixed(0)}</span> : <FreeDeliveryBadge />}
               </div>
             );
           })}
           <div className="flex justify-between font-medium pt-1 border-t border-border/60">
             <span>Estimated shipping total</span>
-            <span>{totalEstimated > 0 ? `₹${totalEstimated.toFixed(0)}` : "Free"}</span>
+            {totalEstimated > 0 ? <span>₹{totalEstimated.toFixed(0)}</span> : <FreeDeliveryBadge />}
           </div>
           {cartEta && (
             <div className="flex justify-between text-green-700 font-medium">

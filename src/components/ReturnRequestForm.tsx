@@ -19,6 +19,7 @@ import { fetchExchangeableVariants, ExchangeVariantOption } from "@/lib/exchange
 import { supabase } from "@/integrations/supabase/client";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import { uploadUserFile } from "@/lib/userPhotoUpload";
+import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 
 const MAX_PHOTOS_PER_ITEM = 5;
 const MAX_VIDEO_MB = 50;
@@ -453,6 +454,16 @@ export function ReturnRequestForm({
               onChange={(e) => setAdditionalNotes(e.target.value)}
               rows={3}
             />
+          </div>
+
+          {/* Customers pay nothing for the courier on a return or exchange. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-emerald-700/20 bg-emerald-50 p-3 text-xs text-emerald-800">
+            <FreeDeliveryBadge>{requestType === "exchange" ? "Free Delivery" : "Free Pickup"}</FreeDeliveryBadge>
+            <span>
+              {requestType === "exchange"
+                ? "We collect your piece and deliver the replacement at no cost."
+                : "The courier collects your piece from your address at no cost."}
+            </span>
           </div>
 
           <Button

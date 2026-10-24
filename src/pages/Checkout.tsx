@@ -40,6 +40,7 @@ import { CheckoutShell } from "@/components/storefront/checkout/CheckoutShell";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { cn } from "@/lib/utils";
+import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1420,7 +1421,7 @@ export default function Checkout() {
                       </dt>
                       <dd className="shrink-0">
                         {group.shippingCost === 0 ? (
-                          <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-700">Free</span>
+                          <FreeDeliveryBadge />
                         ) : (
                           `₹${group.shippingCost}`
                         )}
@@ -1458,7 +1459,7 @@ export default function Checkout() {
                   if (threshold === null) return null;
                   return (
                     <p className="text-center text-xs text-muted-foreground">
-                      Add ₹{formatMoney(threshold - vendorGroups[0].subtotal)} more for free shipping
+                      Add ₹{formatMoney(threshold - vendorGroups[0].subtotal)} more for Free Delivery
                     </p>
                   );
                 })()}

@@ -48,6 +48,7 @@ import { CUSTOMISATION_ENABLED, customisationPrice, customisationSummary, inr, r
 import { useAuth } from "@/hooks/useAuth";
 import { discountPercent, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -473,7 +474,11 @@ export default function ProductDetail() {
     ? `${vendorInfo.address.address_line1}${vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, ${vendorInfo.address.city}, ${vendorInfo.address.state} - ${vendorInfo.address.pincode}, ${vendorInfo.address.country || "India"}`
     : null;
 
-  const shippingTitle = !shippingCharged || vendorInfo?.free_shipping_threshold != null ? "Free delivery" : "Shipping";
+  const shippingTitle = !shippingCharged || vendorInfo?.free_shipping_threshold != null ? "Free Delivery" : "Shipping";
+  // This piece alone ships free: delivery is free site-wide, or it's above
+  // the boutique's free-delivery amount.
+  const freeDelivery =
+    !shippingCharged || (vendorInfo?.free_shipping_threshold != null && currentPrice >= Number(vendorInfo.free_shipping_threshold));
   const shippingText = !shippingCharged
     ? "On all orders"
     : vendorInfo?.free_shipping_threshold != null
@@ -575,6 +580,7 @@ export default function ProductDetail() {
                 </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</p>
+              {freeDelivery && <FreeDeliveryBadge className="mt-2" />}
 
               {(madeToOrder || soldOut || currentStock <= 5) && (
                 <div className="mt-4 flex flex-wrap gap-2">

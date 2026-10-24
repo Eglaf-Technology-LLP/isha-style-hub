@@ -25,6 +25,7 @@ import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { formatShortDate, istToday } from "@/lib/warehouse";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
+import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -669,7 +670,7 @@ export default function OrderHistory() {
                               </div>
                               <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Shipping</dt>
-                                <dd>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : "Free"}</dd>
+                                <dd>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : <FreeDeliveryBadge />}</dd>
                               </div>
                               {order.discount_amount > 0 && (
                                 <div className="flex justify-between text-primary">
