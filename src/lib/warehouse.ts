@@ -1,6 +1,12 @@
 // Labels for the warehouse route (boutique -> AllBoutiqs warehouse ->
 // customer), shared by the boutique, admin and warehouse screens.
 
+// Direct shipping (boutique straight to the customer) is switched off for
+// now: every order goes through the warehouse, so boutiques never see where a
+// customer lives or how to reach them (Developer Corrections Part 7, 4.2).
+// The admin switch for it is hidden, not removed - set true to bring it back.
+export const DIRECT_ROUTE_ENABLED = false;
+
 export const WAREHOUSE_VENDOR_ORDER_STATUSES = ["in_transit_to_warehouse", "at_warehouse", "qc_failed"] as const;
 
 const LABELS: Record<string, string> = {

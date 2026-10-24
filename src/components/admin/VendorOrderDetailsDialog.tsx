@@ -102,6 +102,8 @@ interface Props {
   data?: VendorOrderDetailsData;
   vendorOrderId?: string;
   triggerLabel?: string;
+  // false for boutiques: no customer phone / email (Part 7, 4.2).
+  showCustomerContact?: boolean;
 }
 
 // The previous view crammed courier, AWB, tracking link, label link and
@@ -112,7 +114,12 @@ interface Props {
 // own clearly labeled section, mirroring how Shiprocket's own order detail
 // page separates Order/Shipping/Customer/Product/Activity into distinct
 // blocks instead of one row.
-export function VendorOrderDetailsDialog({ data: providedData, vendorOrderId, triggerLabel = "View Details" }: Props) {
+export function VendorOrderDetailsDialog({
+  data: providedData,
+  vendorOrderId,
+  triggerLabel = "View Details",
+  showCustomerContact = true,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [lazyData, setLazyData] = useState<VendorOrderDetailsData | null>(null);
   const [loadingData, setLoadingData] = useState(false);
@@ -308,8 +315,12 @@ export function VendorOrderDetailsDialog({ data: providedData, vendorOrderId, tr
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Name" value={data.customerName} />
-                <Field label="Phone" value={data.customerPhone} />
-                <Field label="Email" value={data.customerEmail} />
+                {showCustomerContact && (
+                  <>
+                    <Field label="Phone" value={data.customerPhone} />
+                    <Field label="Email" value={data.customerEmail} />
+                  </>
+                )}
               </div>
               {data.shippingAddress && (
                 <div className="mt-3">

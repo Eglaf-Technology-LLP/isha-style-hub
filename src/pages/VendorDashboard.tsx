@@ -142,8 +142,6 @@ interface VendorOrder {
   created_at: string;
   updated_at: string;
   customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
   shipping_address?: {
     address_line1?: string;
     address_line2?: string | null;
@@ -369,15 +367,15 @@ export default function VendorDashboard() {
         const { data: ords } = await supabase
           .from("orders")
           .select(
-            "id, customer_name, customer_phone, customer_email, shipping_address, payment_status, payment_method, discount_code, discount_amount, fulfilment_route"
+            // No customer phone or email for boutiques (Part 7, 4.2) - AllBoutiqs
+            // stays the only contact; they appear only on the tax invoice.
+            "id, customer_name, shipping_address, payment_status, payment_method, discount_code, discount_amount, fulfilment_route"
           )
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
         vOrders.forEach((o) => {
           const ord = map.get(o.order_id);
           o.customer_name = ord?.customer_name || "Customer";
-          o.customer_phone = ord?.customer_phone;
-          o.customer_email = ord?.customer_email;
           o.shipping_address = ord?.shipping_address;
           o.payment_status = ord?.payment_status;
           o.payment_method = ord?.payment_method;
@@ -509,11 +507,10 @@ export default function VendorDashboard() {
       const q = orderSearch.trim().toLowerCase();
       const matchesOrderId = o.order_id.toLowerCase().includes(q);
       const matchesCustomer = (o.customer_name || "").toLowerCase().includes(q);
-      const matchesPhone = (o.customer_phone || "").toLowerCase().includes(q);
       const matchesItems = (o.items || []).some(
         (item) => item.product_title.toLowerCase().includes(q) || (item.sku || "").toLowerCase().includes(q),
       );
-      if (!matchesOrderId && !matchesCustomer && !matchesPhone && !matchesItems) return false;
+      if (!matchesOrderId && !matchesCustomer && !matchesItems) return false;
     }
     return true;
   });
@@ -958,7 +955,7 @@ export default function VendorDashboard() {
 
                     <div className="flex flex-wrap items-center gap-2 mb-4">
                       <Input
-                        placeholder="Search by order ID, customer, phone, product or SKU..."
+                        placeholder="Search by order ID, customer, product or SKU..."
                         value={orderSearch}
                         onChange={(e) => setOrderSearch(e.target.value)}
                         className="max-w-sm"
@@ -1037,8 +1034,6 @@ export default function VendorDashboard() {
                                     paymentMethod: o.payment_method || "",
                                     paymentStatus: o.payment_status || "pending",
                                     customerName: o.customer_name || "Customer",
-                                    customerPhone: o.customer_phone,
-                                    customerEmail: o.customer_email,
                                     shippingAddress: o.shipping_address,
                                     items: o.items || [],
                                     subtotal: o.subtotal,
@@ -1047,6 +1042,7 @@ export default function VendorDashboard() {
                                     discountAmount: o.discount_amount,
                                     shipment: forwardShipmentFor(o.id) ?? null,
                                   }}
+                                  showCustomerContact={false}
                                 />
                               </div>
                             </TableCell>
@@ -1085,9 +1081,6 @@ export default function VendorDashboard() {
                             </TableCell>
                             <TableCell>
                               <div>{o.customer_name || "Customer"}</div>
-                              {o.customer_phone && (
-                                <div className="text-xs text-muted-foreground">{o.customer_phone}</div>
-                              )}
                               {o.shipping_address?.city && (
                                 <div className="text-xs text-muted-foreground">
                                   {o.shipping_address.city}, {o.shipping_address.state} {o.shipping_address.pincode}

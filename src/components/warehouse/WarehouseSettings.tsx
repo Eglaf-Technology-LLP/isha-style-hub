@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatShortDate } from "@/lib/warehouse";
+import { DIRECT_ROUTE_ENABLED, formatShortDate } from "@/lib/warehouse";
 import { WarehouseInfo } from "./shared";
 
 export interface WarehouseSettingsRow {
@@ -109,7 +109,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
     const { error } = await supabase
       .from("platform_settings")
       .update({
-        warehouse_routing_enabled: routing,
+        warehouse_routing_enabled: DIRECT_ROUTE_ENABLED ? routing : true,
         default_prep_days: n("default_prep_days"),
         warehouse_handling_days: n("warehouse_handling_days"),
         warehouse_cutoff_hour: n("warehouse_cutoff_hour"),
@@ -199,15 +199,21 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
             <CardDescription>Used for delivery dates, dispatch deadlines and overdue alerts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-border p-3">
-              <div>
-                <p className="text-sm font-medium">Send new orders through the warehouse</p>
-                <p className="text-xs text-muted-foreground">
-                  Off: new orders ship straight from the boutique, as before. Orders already placed keep their route.
-                </p>
+            {DIRECT_ROUTE_ENABLED ? (
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <p className="text-sm font-medium">Send new orders through the warehouse</p>
+                  <p className="text-xs text-muted-foreground">
+                    Off: new orders ship straight from the boutique, as before. Orders already placed keep their route.
+                  </p>
+                </div>
+                <Switch checked={routing} onCheckedChange={setRouting} />
               </div>
-              <Switch checked={routing} onCheckedChange={setRouting} />
-            </div>
+            ) : (
+              <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                Every order goes through the warehouse. Shipping straight from the boutique is switched off for now.
+              </p>
+            )}
             <div className="grid sm:grid-cols-2 gap-4">
               {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 1).", 10)}
               {ruleField("warehouse_cutoff_hour", "Cut-off hour (0-23)", "Parcels received from this hour count from the next day (agreed: 17 = 5pm).", 23)}
