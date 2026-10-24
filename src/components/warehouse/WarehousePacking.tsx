@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +20,60 @@ import {
 } from "@/lib/warehouse";
 import { CourierPickerDialog } from "./CourierPickerDialog";
 import { formatWeightKg } from "@/lib/weight";
-import { PackParcelDialog } from "./PackParcelDialog";
+import { PackParcelDialog, type ParcelSize } from "./PackParcelDialog";
 import { PackingSlipButton, PackingSlipData } from "./PackingSlip";
 import { PromptDialog } from "./PromptDialog";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseInfo, WarehouseViewProps } from "./shared";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// Same defaults the courier bookings use when a product has no weight/size.
+const DEFAULT_ITEM_WEIGHT_GRAMS = 300;
+const DEFAULT_ITEM_SIZE = { lengthCm: 25, breadthCm: 20, heightCm: 5 };
+
+type ProductParcelData = { weight_grams: number | null; length_cm: number | null; breadth_cm: number | null; height_cm: number | null };
+
+// The weight and size each boutique entered on its products.
+function useProductParcelData(productIds: string[]) {
+  const key = [...new Set(productIds)].sort().join(",");
+  const [map, setMap] = useState<Map<string, ProductParcelData>>(new Map());
+  useEffect(() => {
+    if (!key) return;
+    supabase
+      .from("products")
+      .select("id, weight_grams, length_cm, breadth_cm, height_cm")
+      .in("id", key.split(","))
+      .then(({ data }) => setMap(new Map((data ?? []).map((p) => [p.id, p as ProductParcelData]))));
+  }, [key]);
+  return map;
+}
+
+// Starting weight and size for the warehouse's parcel to the customer, from
+// the boutiques' own product entries - never blank (Part 7, 8.2). The outer
+// wrap adds next to nothing, so the weight is the pieces' total; pieces are
+// laid side by side on the largest footprint and stacked in height.
+function suggestParcel(parts: WhVendorOrder[], products: Map<string, ProductParcelData>): ParcelSize {
+  let grams = 0;
+  let lengthCm = 0;
+  let breadthCm = 0;
+  let heightCm = 0;
+  for (const item of parts.flatMap((p) => p.items)) {
+    const p = products.get(item.product_id);
+    const qty = Math.max(1, item.quantity);
+    grams += (Number(p?.weight_grams) || DEFAULT_ITEM_WEIGHT_GRAMS) * qty;
+    lengthCm = Math.max(lengthCm, Number(p?.length_cm) || DEFAULT_ITEM_SIZE.lengthCm);
+    breadthCm = Math.max(breadthCm, Number(p?.breadth_cm) || DEFAULT_ITEM_SIZE.breadthCm);
+    heightCm += (Number(p?.height_cm) || DEFAULT_ITEM_SIZE.heightCm) * qty;
+  }
+  return {
+    weightKg: Math.max(grams, 100) / 1000,
+    lengthCm: Math.ceil(lengthCm || DEFAULT_ITEM_SIZE.lengthCm),
+    breadthCm: Math.ceil(breadthCm || DEFAULT_ITEM_SIZE.breadthCm),
+    heightCm: Math.ceil(heightCm || DEFAULT_ITEM_SIZE.heightCm),
+  };
+}
+
+const SUGGESTED_NOTE = "Filled in from the boutiques' product weight and size - change it if the packed parcel is different.";
 
 // What the courier collects for these parts of a Cash on Delivery order: their
 // prices + delivery charge, less their share of any coupon (same as the server).
@@ -176,6 +226,8 @@ function PackedParcel({
 // Orders being put together: every part in and passed -> pack one parcel.
 export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps) {
   const today = istToday();
+  const productIds = useMemo(() => data.vendorOrders.flatMap((vo) => vo.items.map((i) => i.product_id)), [data.vendorOrders]);
+  const productParcelData = useProductParcelData(productIds);
   const packingDispatches = data.dispatches.filter((d) => d.status === "packing");
   const orderIds = [
     ...new Set([
@@ -323,7 +375,8 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                       triggerLabel="Pack parcel"
                       title={`Pack order ${orderRef(o.id)}`}
                       description="Every part is in and passed. Pack everything in one AllBoutiqs parcel, then weigh and measure it."
-                      initial={{ lengthCm: 30, breadthCm: 25, heightCm: 8 }}
+                      initial={suggestParcel(ready, productParcelData)}
+                      note={SUGGESTED_NOTE}
                       onSubmit={async (s) => {
                         const ok = await runRpc(
                           "warehouse_create_dispatch",
@@ -347,7 +400,8 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                       variant="outline"
                       title={`Send part of order ${orderRef(o.id)}`}
                       description={`Packs only the ${ready.length} part(s) that are ready. The rest follows in its own parcel when it arrives - or cancel it above.`}
-                      initial={{ lengthCm: 30, breadthCm: 25, heightCm: 8 }}
+                      initial={suggestParcel(ready, productParcelData)}
+                      note={SUGGESTED_NOTE}
                       onSubmit={async (s) => {
                         const ok = await runRpc(
                           "warehouse_create_dispatch",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WeightInput } from "@/components/WeightInput";
@@ -25,13 +25,15 @@ interface PackParcelDialogProps {
   title: string;
   description: string;
   initial?: Partial<ParcelSize>;
+  // Shown under the fields, e.g. where the starting numbers came from.
+  note?: string;
   variant?: "default" | "outline" | "secondary";
   onSubmit: (size: ParcelSize) => Promise<boolean>;
 }
 
 // After repacking, staff weigh and measure the parcel so the courier charges
 // what it really is.
-export function PackParcelDialog({ triggerLabel, title, description, initial, variant = "default", onSubmit }: PackParcelDialogProps) {
+export function PackParcelDialog({ triggerLabel, title, description, initial, note, variant = "default", onSubmit }: PackParcelDialogProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   // Weight is kept in grams on screen (with a g / kg choice) and sent as kg.
@@ -43,6 +45,17 @@ export function PackParcelDialog({ triggerLabel, title, description, initial, va
     breadthCm: String(initial?.breadthCm ?? ""),
     heightCm: String(initial?.heightCm ?? ""),
   });
+  // Start from the latest suggestion every time the dialog opens.
+  useEffect(() => {
+    if (!open) return;
+    setWeightGrams(initial?.weightKg != null ? Math.round(Number(initial.weightKg) * 1000) : null);
+    setForm({
+      lengthCm: String(initial?.lengthCm ?? ""),
+      breadthCm: String(initial?.breadthCm ?? ""),
+      heightCm: String(initial?.heightCm ?? ""),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const values = {
     weightKg: (weightGrams ?? 0) / 1000,
     lengthCm: Number(form.lengthCm),
@@ -93,6 +106,7 @@ export function PackParcelDialog({ triggerLabel, title, description, initial, va
           {field("breadthCm", "Breadth (cm)", "1")}
           {field("heightCm", "Height (cm)", "1")}
         </div>
+        {note && <p className="text-xs text-muted-foreground">{note}</p>}
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>
             Back
