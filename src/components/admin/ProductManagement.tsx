@@ -68,6 +68,8 @@ import {
   type CustomisationForm,
 } from "@/components/CustomisationEditor";
 import { CUSTOMISATION_ENABLED, readSetup } from "@/lib/customisation";
+import { CustomerPriceHint } from "@/components/CustomerPriceHint";
+import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -92,13 +94,14 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const gstRules = useCategoryGstRules();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormData>({
     name: "",
     description: "",
     category_id: null,
-    price: 0,
-    compare_at_price: null,
+    product_value: 0,
+    compare_at_value: null,
     sku: "",
     stock_quantity: 0,
     is_active: true,
@@ -128,8 +131,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       name: "",
       description: "",
       category_id: null,
-      price: 0,
-      compare_at_price: null,
+      product_value: 0,
+      compare_at_value: null,
       sku: "",
       stock_quantity: 0,
       is_active: true,
@@ -244,8 +247,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       name: product.name,
       description: product.description || "",
       category_id: product.category_id,
-      price: product.price,
-      compare_at_price: product.compare_at_price,
+      product_value: Number(product.product_value ?? product.price),
+      compare_at_value: product.compare_at_value ?? product.compare_at_price,
       sku: product.sku || "",
       stock_quantity: product.stock_quantity,
       is_active: product.is_active,
@@ -332,25 +335,26 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-price" : "add-price"}>Price (₹) *</Label>
+          <Label htmlFor={isEdit ? "edit-price" : "add-price"}>Product Value (excl. GST) (₹) *</Label>
           <Input
             id={isEdit ? "edit-price" : "add-price"}
             type="number"
             min="0"
             step="0.01"
             placeholder="999"
-            value={productForm.price || ""}
+            value={productForm.product_value || ""}
             onChange={(e) =>
               setProductForm((prev) => ({
                 ...prev,
-                price: parseFloat(e.target.value) || 0,
+                product_value: parseFloat(e.target.value) || 0,
               }))
             }
           />
+          <CustomerPriceHint value={productForm.product_value} categoryId={productForm.category_id} />
         </div>
         <div className="space-y-2">
           <Label htmlFor={isEdit ? "edit-compare" : "add-compare"}>
-            Compare at Price (₹)
+            Compare-at value (excl. GST) (₹)
           </Label>
           <Input
             id={isEdit ? "edit-compare" : "add-compare"}
@@ -358,14 +362,15 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             min="0"
             step="0.01"
             placeholder="1499"
-            value={productForm.compare_at_price || ""}
+            value={productForm.compare_at_value || ""}
             onChange={(e) =>
               setProductForm((prev) => ({
                 ...prev,
-                compare_at_price: parseFloat(e.target.value) || null,
+                compare_at_value: parseFloat(e.target.value) || null,
               }))
             }
           />
+          <CustomerPriceHint value={productForm.compare_at_value ?? 0} categoryId={productForm.category_id} label="Crossed-out MRP" />
         </div>
       </div>
 
@@ -596,7 +601,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       <VariantManager
         variants={productVariants}
         onChange={setProductVariants}
-        basePrice={productForm.price}
+        basePrice={productForm.product_value}
+        mrpFor={(v) =>
+          productForm.category_id ? gstBreakdown(gstRules.ruleFor(productForm.category_id), v)?.price ?? null : null
+        }
       />
 
       {isEdit && editingProduct && editingProduct.images.length > 0 && (
@@ -831,8 +839,11 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                   <div>
                     <h4 className="font-medium">{product.name}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {getCategoryName(product.category_id)} • ₹
+                      {getCategoryName(product.category_id)} • MRP ₹
                       {product.price.toFixed(0)}
+                      {product.product_value != null && (
+                        <span className="ml-1">(value ₹{Number(product.product_value).toFixed(0)} excl. GST)</span>
+                      )}
                       {product.compare_at_price && (
                         <span className="line-through ml-2 text-muted-foreground">
                           ₹{product.compare_at_price.toFixed(0)}

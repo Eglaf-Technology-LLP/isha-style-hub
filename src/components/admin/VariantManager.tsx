@@ -11,7 +11,12 @@ import { ProductVariant, uploadImageFile } from "@/hooks/useProducts";
 interface VariantManagerProps {
   variants: ProductVariant[];
   onChange: (variants: ProductVariant[]) => void;
+  // The product's own Product Value (excl. GST) - the starting value of a
+  // new variant.
   basePrice: number;
+  // Customer price (MRP incl. GST) for a Product Value, shown beside each
+  // variant; null when it can't be worked out yet (no category).
+  mrpFor?: (value: number) => number | null;
   // Admin uploads land under "products" (existing bucket policy); vendors
   // can only write under "vendor-uploads" - the bucket's RLS rejects
   // anything else from a non-admin, so this must match the caller's role.
@@ -21,7 +26,7 @@ interface VariantManagerProps {
 const COMMON_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36", "38", "40", "42", "Free Size"];
 const COMMON_COLORS = ["Black", "White", "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Pink", "Brown", "Gray", "Navy", "Beige", "Cream", "Maroon"];
 
-export function VariantManager({ variants, onChange, basePrice, uploadFolder = "products" }: VariantManagerProps) {
+export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFolder = "products" }: VariantManagerProps) {
   // Derived fresh from `variants` every render, not seeded once at mount -
   // a one-time useState initializer here previously left these stuck on
   // whatever product first mounted this component (e.g. "Add New Product"
@@ -79,7 +84,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
       newVariants.push({
         id: generateVariantId(),
         name: trimmedSize,
-        price: basePrice,
+        price: 0,
+        product_value: basePrice,
         stock: 0,
         options: { size: trimmedSize },
       });
@@ -93,7 +99,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
           newVariants.push({
             id: generateVariantId(),
             name: `${trimmedSize} / ${color}`,
-            price: basePrice,
+            price: 0,
+            product_value: basePrice,
             stock: 0,
             options: { size: trimmedSize, color },
           });
@@ -114,7 +121,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
       newVariants.push({
         id: generateVariantId(),
         name: trimmedColor,
-        price: basePrice,
+        price: 0,
+        product_value: basePrice,
         stock: 0,
         options: { color: trimmedColor },
       });
@@ -128,7 +136,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
           newVariants.push({
             id: generateVariantId(),
             name: `${size} / ${trimmedColor}`,
-            price: basePrice,
+            price: 0,
+            product_value: basePrice,
             stock: 0,
             options: { size, color: trimmedColor },
           });
@@ -148,7 +157,7 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
 
   const updateVariant = (
     variantId: string,
-    field: "price" | "stock" | "image_url" | "sku",
+    field: "product_value" | "stock" | "image_url" | "sku",
     value: number | string
   ) => {
     onChange(variants.map(v =>
@@ -164,8 +173,8 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
     onChange(variants.map(v => ({ ...v, stock })));
   };
 
-  const updateAllPrices = (price: number) => {
-    onChange(variants.map(v => ({ ...v, price })));
+  const updateAllValues = (product_value: number) => {
+    onChange(variants.map(v => ({ ...v, product_value })));
   };
 
   return (
@@ -287,11 +296,11 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
                   size="sm"
                   className="h-7 text-xs"
                   onClick={() => {
-                    const price = prompt("Set price for all variants:", basePrice.toString());
-                    if (price !== null) updateAllPrices(parseFloat(price) || basePrice);
+                    const value = prompt("Product Value (excl. GST) for all variants:", basePrice.toString());
+                    if (value !== null) updateAllValues(parseFloat(value) || basePrice);
                   }}
                 >
-                  Set All Prices
+                  Set All Values
                 </Button>
               </div>
             </div>
@@ -345,15 +354,21 @@ export function VariantManager({ variants, onChange, basePrice, uploadFolder = "
                       className="w-24 h-7 text-xs"
                     />
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">₹</span>
+                  <div className="flex items-center gap-1" title="Product Value (excl. GST)">
+                    <span className="text-xs text-muted-foreground">Value excl. GST ₹</span>
                     <Input
                       type="number"
                       min="0"
-                      value={variant.price}
-                      onChange={(e) => updateVariant(variant.id, "price", parseFloat(e.target.value) || 0)}
+                      aria-label={`Product Value (excl. GST) for ${variant.name}`}
+                      value={variant.product_value}
+                      onChange={(e) => updateVariant(variant.id, "product_value", parseFloat(e.target.value) || 0)}
                       className="w-20 h-7 text-xs"
                     />
+                    {mrpFor && mrpFor(variant.product_value) != null && (
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        MRP ₹{mrpFor(variant.product_value)!.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-muted-foreground">Stock:</span>

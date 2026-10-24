@@ -41,6 +41,7 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
+import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -132,6 +133,8 @@ export default function Checkout() {
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
+  // Today's prices for what's in the bag (they may have changed since it was added).
+  useSyncCartPrices();
   const platformRates = usePlatformRates();
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("cod");
   const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";

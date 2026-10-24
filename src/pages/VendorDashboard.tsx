@@ -89,7 +89,10 @@ import { formatDate } from "@/lib/dates";
 interface VendorProduct {
   id: string;
   name: string;
+  // Customer price (MRP incl. GST); product_value = what the boutique entered.
   price: number;
+  product_value?: number | null;
+  compare_at_value?: number | null;
   stock_quantity: number;
   is_active: boolean;
   approval_status: string;
@@ -320,7 +323,7 @@ export default function VendorDashboard() {
         supabase
           .from("products")
           .select(
-            "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, customisable, customisation_options, custom_size_price, customisation_days, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
+            "id, name, price, product_value, compare_at_value, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, customisable, customisation_options, custom_size_price, customisation_days, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
           )
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
@@ -816,7 +819,7 @@ export default function VendorDashboard() {
                         <TableRow>
                           <TableHead className="w-12">#</TableHead>
                           <TableHead>Product</TableHead>
-                          <TableHead>Price</TableHead>
+                          <TableHead>Product Value (excl. GST)</TableHead>
                           <TableHead>Stock</TableHead>
                           <TableHead>Approval</TableHead>
                           <TableHead>Visible</TableHead>
@@ -837,7 +840,10 @@ export default function VendorDashboard() {
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
+                            <TableCell>
+                              ₹{Number(p.product_value ?? p.price).toFixed(0)}
+                              <div className="text-xs text-muted-foreground">MRP ₹{Number(p.price).toFixed(0)}</div>
+                            </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
                                 {p.stock_quantity}

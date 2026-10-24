@@ -10,12 +10,14 @@ import { useStoreCategories } from "@/hooks/useStorefront";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
+import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 
 export function CartDrawer() {
   const { bagOpen: isOpen, setBagOpen: setIsOpen } = useUiStore();
   const navigate = useNavigate();
   const { items, updateQuantity, removeItem, getTotalItems, getTotalPrice } = useCartStore();
   const { data: categories = [] } = useStoreCategories();
+  useSyncCartPrices(isOpen);
 
   const totalItems = getTotalItems();
   const totalPrice = getTotalPrice();

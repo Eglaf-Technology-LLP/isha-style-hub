@@ -29,6 +29,7 @@ interface ModeratedProduct {
   id: string;
   name: string;
   price: number;
+  product_value: number | null;
   images: string[] | null;
   vendor_id: string | null;
   approval_status: string;
@@ -120,7 +121,7 @@ export function ProductModeration() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, video_url, video_status, video_is_primary, vendors(name)"
+          "id, name, price, product_value, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, video_url, video_status, video_is_primary, vendors(name)"
         )
         .eq("approval_status", filter)
         .order("created_at", { ascending: false });
@@ -310,7 +311,8 @@ export function ProductModeration() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{p.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {p.vendors?.name || "No vendor"} &middot; ₹{Number(p.price).toFixed(0)}
+                    {p.vendors?.name || "No vendor"} &middot; Value ₹{Number(p.product_value ?? p.price).toFixed(0)} excl. GST
+                    &middot; MRP ₹{Number(p.price).toFixed(0)}
                   </div>
                   <div className="mt-1">
                     <Badge

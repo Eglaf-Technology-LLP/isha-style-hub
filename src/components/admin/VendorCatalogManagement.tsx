@@ -71,7 +71,7 @@ export function VendorCatalogManagement() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
+          "id, name, price, product_value, compare_at_value, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
@@ -165,7 +165,7 @@ export function VendorCatalogManagement() {
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>Product</TableHead>
-                  <TableHead>Price</TableHead>
+                  <TableHead>Product Value (excl. GST)</TableHead>
                   <TableHead>Stock</TableHead>
                   <TableHead>Approval</TableHead>
                   <TableHead>Visible</TableHead>
@@ -177,7 +177,10 @@ export function VendorCatalogManagement() {
                   <TableRow key={p.id}>
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
-                    <TableCell>₹{Number(p.price).toFixed(0)}</TableCell>
+                    <TableCell>
+                      ₹{Number(p.product_value ?? p.price).toFixed(0)}
+                      <div className="text-xs text-muted-foreground">MRP ₹{Number(p.price).toFixed(0)}</div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {p.stock_quantity}

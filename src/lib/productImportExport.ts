@@ -15,7 +15,9 @@ export interface ImportExportProduct {
   description: string | null;
   category_id: string | null;
   vendor_id?: string | null;
+  // Customer price (MRP incl. GST) and the boutique's Product Value (excl. GST).
   price: number;
+  product_value?: number | null;
   sku: string | null;
   stock_quantity: number;
   is_active: boolean;
@@ -56,7 +58,10 @@ export const PRODUCT_COLUMNS = {
   isActive: "Is Active (TRUE/FALSE)",
   variantOptions: "Variant Options (label:value;label:value)",
   sku: "SKU",
-  price: "Price",
+  // Product Value excl. GST (Part 7, 5.1); the customer price column is
+  // export-only - the database adds GST on import.
+  price: "Product Value (excl. GST)",
+  customerPrice: "Customer Price (MRP incl. GST, read-only)",
   stock: "Stock",
   imageUrl: "Image URL",
 } as const;
@@ -103,6 +108,23 @@ export function parseImportRows(
 ): { groups: ProductImportGroup[]; errors: ImportRowError[] } {
   const errors: ImportRowError[] = [];
   const byHandle = new Map<string, { row: Record<string, string>; rowNumber: number }[]>();
+
+  // Files made before Product Value had a "Price" column holding the
+  // customer price (GST included) - reading it as a Product Value would add
+  // GST twice, so they're refused with what to do instead.
+  if (rows.length > 0 && !(PRODUCT_COLUMNS.price in rows[0]) && "Price" in rows[0]) {
+    return {
+      groups: [],
+      errors: [
+        {
+          handle: "(file)",
+          rowNumber: 1,
+          message:
+            'This file has the old "Price" column. Prices are now entered as "Product Value (excl. GST)" - download a fresh export or template and fill in that column.',
+        },
+      ],
+    };
+  }
 
   rows.forEach((row, i) => {
     const rowNumber = i + 2; // header is row 1
@@ -168,7 +190,7 @@ export function parseImportRows(
       // else-branch for products with no variants array.
       const stock = parseNumberOrNull(first[PRODUCT_COLUMNS.stock]);
       if (price === null || price <= 0) {
-        errors.push({ handle, rowNumber: entries[0].rowNumber, message: "Price must be a positive number" });
+        errors.push({ handle, rowNumber: entries[0].rowNumber, message: "Product Value (excl. GST) must be a positive number" });
         continue;
       }
       productLevelSku = first[PRODUCT_COLUMNS.sku]?.trim() || "";
@@ -180,7 +202,7 @@ export function parseImportRows(
         const variantStock = parseNumberOrNull(entry.row[PRODUCT_COLUMNS.stock]);
         const sku = entry.row[PRODUCT_COLUMNS.sku]?.trim() || "";
         if (variantPrice === null || variantPrice <= 0) {
-          errors.push({ handle, rowNumber: entry.rowNumber, message: "Price must be a positive number" });
+          errors.push({ handle, rowNumber: entry.rowNumber, message: "Product Value (excl. GST) must be a positive number" });
           rowFailed = true;
           continue;
         }
@@ -189,7 +211,8 @@ export function parseImportRows(
         variants.push({
           id: crypto.randomUUID(),
           name: variantNameFromOptions(optionPairs, sku),
-          price: variantPrice,
+          price: 0,
+          product_value: variantPrice,
           sku: sku || undefined,
           stock: variantStock ?? 0,
           options,
@@ -205,8 +228,8 @@ export function parseImportRows(
       name,
       description: first[PRODUCT_COLUMNS.description]?.trim() || "",
       category_id: categoryId,
-      price: price ?? (variants[0]?.price ?? 0),
-      compare_at_price: compareAtPrice,
+      product_value: price ?? (variants[0]?.product_value ?? 0),
+      compare_at_value: compareAtPrice,
       sku: productLevelSku,
       stock_quantity: productLevelStock,
       is_active: parseBoolean(first[PRODUCT_COLUMNS.isActive], true),
@@ -289,7 +312,8 @@ export function productsToRows(
         ...base,
         [PRODUCT_COLUMNS.variantOptions]: "",
         [PRODUCT_COLUMNS.sku]: product.sku ?? "",
-        [PRODUCT_COLUMNS.price]: String(product.price),
+        [PRODUCT_COLUMNS.price]: String(product.product_value ?? product.price),
+        [PRODUCT_COLUMNS.customerPrice]: String(product.price),
         [PRODUCT_COLUMNS.stock]: String(product.stock_quantity),
         [PRODUCT_COLUMNS.imageUrl]: product.images?.[0] ?? "",
       });
@@ -301,7 +325,8 @@ export function productsToRows(
             Object.entries(variant.options ?? {}).map(([label, value]) => ({ label, value })),
           ),
           [PRODUCT_COLUMNS.sku]: variant.sku ?? "",
-          [PRODUCT_COLUMNS.price]: String(variant.price),
+          [PRODUCT_COLUMNS.price]: String(variant.product_value ?? variant.price),
+          [PRODUCT_COLUMNS.customerPrice]: String(variant.price),
           [PRODUCT_COLUMNS.stock]: String(variant.stock),
           [PRODUCT_COLUMNS.imageUrl]: variant.image_url ?? product.images?.[0] ?? "",
         });
@@ -339,6 +364,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.variantOptions]: "Size:S;Color:Maroon",
       [PRODUCT_COLUMNS.sku]: "SEK-S-MRN",
       [PRODUCT_COLUMNS.price]: "1499",
+      [PRODUCT_COLUMNS.customerPrice]: "",
       [PRODUCT_COLUMNS.stock]: "10",
     },
     {
@@ -349,6 +375,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.variantOptions]: "Size:M;Color:Maroon",
       [PRODUCT_COLUMNS.sku]: "SEK-M-MRN",
       [PRODUCT_COLUMNS.price]: "1499",
+      [PRODUCT_COLUMNS.customerPrice]: "",
       [PRODUCT_COLUMNS.stock]: "8",
     },
     {
@@ -372,6 +399,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.variantOptions]: "",
       [PRODUCT_COLUMNS.sku]: "CPD-001",
       [PRODUCT_COLUMNS.price]: "599",
+      [PRODUCT_COLUMNS.customerPrice]: "",
       [PRODUCT_COLUMNS.stock]: "25",
     },
   ];

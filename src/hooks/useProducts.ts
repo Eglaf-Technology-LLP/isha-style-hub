@@ -8,7 +8,10 @@ import type { AiContentStatus } from "@/lib/aiContent";
 export interface ProductVariant {
   id: string;
   name: string;
+  // The customer's price (MRP incl. GST) - worked out by the database.
   price: number;
+  // What the boutique enters: Product Value excl. GST.
+  product_value: number;
   sku?: string;
   stock: number;
   options: Record<string, string>;
@@ -49,8 +52,12 @@ export interface Product {
   vendor_id: string | null;
   name: string;
   description: string | null;
+  // Customer prices (MRP incl. GST), worked out by the database from the
+  // boutique's Product Values (excl. GST) below.
   price: number;
   compare_at_price: number | null;
+  product_value?: number | null;
+  compare_at_value?: number | null;
   sku: string | null;
   stock_quantity: number;
   is_active: boolean;
@@ -100,6 +107,7 @@ export function mapDbVariant(v: {
   id: string;
   name: string;
   price: number | null;
+  product_value?: number | null;
   sku: string | null;
   stock: number;
   options: unknown;
@@ -109,6 +117,7 @@ export function mapDbVariant(v: {
     id: v.id,
     name: v.name,
     price: Number(v.price) || 0,
+    product_value: Number(v.product_value ?? v.price) || 0,
     sku: v.sku || undefined,
     stock: v.stock,
     options: (v.options as Record<string, string>) || {},
@@ -120,8 +129,10 @@ export interface ProductFormData {
   name: string;
   description: string;
   category_id: string | null;
-  price: number;
-  compare_at_price: number | null;
+  // Product Value excl. GST (and the pre-discount value, if any); the
+  // database adds GST to make the customer's price.
+  product_value: number;
+  compare_at_value: number | null;
   sku: string;
   stock_quantity: number;
   is_active: boolean;
@@ -226,8 +237,8 @@ export async function insertProductRecord(
       name: productData.name,
       description: productData.description || null,
       category_id: productData.category_id || null,
-      price: productData.price,
-      compare_at_price: productData.compare_at_price || null,
+      product_value: productData.product_value,
+      compare_at_value: productData.compare_at_value || null,
       sku: productData.sku || null,
       stock_quantity: 0,
       is_active: productData.is_active,
@@ -274,7 +285,7 @@ export async function insertProductRecord(
           name: variant.name,
           sku: variant.sku || null,
           options: variant.options,
-          price: variant.price,
+          product_value: variant.product_value,
           image_url: variant.image_url || null,
           stock: 0,
         })
@@ -322,8 +333,8 @@ export async function applyProductUpdate(
     name: productData.name,
     description: productData.description,
     category_id: productData.category_id,
-    price: productData.price,
-    compare_at_price: productData.compare_at_price,
+    product_value: productData.product_value,
+    compare_at_value: productData.compare_at_value,
     sku: productData.sku,
     is_active: productData.is_active,
   };
@@ -408,7 +419,7 @@ export async function applyProductUpdate(
             name: incoming.name,
             sku: incoming.sku || null,
             options: incoming.options,
-            price: incoming.price,
+            product_value: incoming.product_value,
             image_url: incoming.image_url || null,
             stock: 0,
           })
@@ -434,7 +445,7 @@ export async function applyProductUpdate(
           name: incoming.name,
           sku: incoming.sku || null,
           options: incoming.options,
-          price: incoming.price,
+          product_value: incoming.product_value,
           image_url: incoming.image_url || null,
         })
         .eq("id", existing.id);

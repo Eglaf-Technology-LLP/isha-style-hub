@@ -1538,6 +1538,7 @@ export type Database = {
           name: string
           options: Json
           price: number | null
+          product_value: number | null
           product_id: string
           sku: string | null
           stock: number
@@ -1551,6 +1552,7 @@ export type Database = {
           name: string
           options?: Json
           price?: number | null
+          product_value?: number | null
           product_id: string
           sku?: string | null
           stock?: number
@@ -1564,6 +1566,7 @@ export type Database = {
           name?: string
           options?: Json
           price?: number | null
+          product_value?: number | null
           product_id?: string
           sku?: string | null
           stock?: number
@@ -1588,6 +1591,7 @@ export type Database = {
           category_id: string | null
           cod_available: boolean
           compare_at_price: number | null
+          compare_at_value: number | null
           country_of_origin: string
           created_at: string
           custom_size_price: number | null
@@ -1607,6 +1611,7 @@ export type Database = {
           net_quantity: string
           prep_days: number | null
           price: number
+          product_value: number | null
           rejection_reason: string | null
           related_product_ids: string[] | null
           sku: string | null
@@ -1628,6 +1633,7 @@ export type Database = {
           category_id?: string | null
           cod_available?: boolean
           compare_at_price?: number | null
+          compare_at_value?: number | null
           country_of_origin?: string
           created_at?: string
           custom_size_price?: number | null
@@ -1647,6 +1653,7 @@ export type Database = {
           net_quantity?: string
           prep_days?: number | null
           price?: number
+          product_value?: number | null
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
@@ -1668,6 +1675,7 @@ export type Database = {
           category_id?: string | null
           cod_available?: boolean
           compare_at_price?: number | null
+          compare_at_value?: number | null
           country_of_origin?: string
           created_at?: string
           custom_size_price?: number | null
@@ -1687,6 +1695,7 @@ export type Database = {
           net_quantity?: string
           prep_days?: number | null
           price?: number
+          product_value?: number | null
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null

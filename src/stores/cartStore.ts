@@ -38,6 +38,9 @@ interface CartStore {
   updateQuantity: (lineKey: string, quantity: number) => void;
   removeItem: (lineKey: string) => void;
   clearCart: () => void;
+  // Today's prices for some lines (line key -> price, and base price for a
+  // customised line) - see useSyncCartPrices.
+  setPrices: (prices: Record<string, { amount: string; basePrice?: string }>) => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
 }
@@ -100,6 +103,16 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: () => {
         set({ items: [] });
+      },
+
+      setPrices: (prices) => {
+        set({
+          items: get().items.map((item) => {
+            const p = prices[cartLineKey(item)];
+            if (!p) return item;
+            return { ...item, price: { ...item.price, amount: p.amount }, ...(p.basePrice ? { basePrice: p.basePrice } : {}) };
+          }),
+        });
       },
 
       getTotalItems: () => {

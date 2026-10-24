@@ -45,11 +45,16 @@ import { AiDeclarationField } from "@/components/AiDeclarationField";
 import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
 import { ProductVideoField } from "@/components/ProductVideoField";
 import type { AiContentStatus } from "@/lib/aiContent";
+import { CustomerPriceHint } from "@/components/CustomerPriceHint";
+import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 
 export interface VendorProductRow {
   id: string;
   name: string;
+  // Customer price (MRP incl. GST); product_value is what the boutique entered.
   price: number;
+  product_value?: number | null;
+  compare_at_value?: number | null;
   stock_quantity: number;
   is_active: boolean;
   approval_status: string;
@@ -94,8 +99,9 @@ const empty = {
   name: "",
   description: "",
   category_id: "",
-  price: "",
-  compare_at_price: "",
+  // Product Value excl. GST (Part 7, 5.1) - the customer price adds GST.
+  product_value: "",
+  compare_at_value: "",
   sku: "",
   stock_quantity: "100",
   is_active: true,
@@ -121,6 +127,7 @@ export function VendorProductDialog({
   onSaved,
 }: Props) {
   const { categories } = useCategories();
+  const gstRules = useCategoryGstRules();
   const [form, setForm] = useState({ ...empty });
   const [images, setImages] = useState<string[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -139,9 +146,11 @@ export function VendorProductDialog({
         name: product.name || "",
         description: product.description || "",
         category_id: product.category_id || "",
-        price: String(product.price ?? ""),
-        compare_at_price:
-          product.compare_at_price != null ? String(product.compare_at_price) : "",
+        product_value: String(product.product_value ?? product.price ?? ""),
+        compare_at_value:
+          (product.compare_at_value ?? product.compare_at_price) != null
+            ? String(product.compare_at_value ?? product.compare_at_price)
+            : "",
         sku: product.sku || "",
         stock_quantity: String(product.stock_quantity ?? 0),
         is_active: product.is_active,
@@ -187,8 +196,8 @@ export function VendorProductDialog({
 
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Product name is required");
-    const price = Number(form.price);
-    if (!price || price <= 0) return toast.error("Enter a valid price");
+    const productValue = Number(form.product_value);
+    if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
     if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
     if (needsOriginals && originalPhotos.length === 0)
       return toast.error("AI imagery needs at least one original product photo for verification");
@@ -203,8 +212,8 @@ export function VendorProductDialog({
         name: form.name.trim(),
         description: form.description.trim() || null,
         category_id: form.category_id || null,
-        price,
-        compare_at_price: form.compare_at_price ? Number(form.compare_at_price) : null,
+        product_value: productValue,
+        compare_at_value: form.compare_at_value ? Number(form.compare_at_value) : null,
         sku: form.sku.trim() || null,
         stock_quantity: Number(form.stock_quantity) || 0,
         images,
@@ -339,22 +348,27 @@ export function VendorProductDialog({
 
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="vp-price">Price (₹)</Label>
+              <Label htmlFor="vp-price">Product Value (excl. GST) (₹)</Label>
               <Input
                 id="vp-price"
                 type="number"
-                value={form.price}
-                onChange={(e) => set("price", e.target.value)}
+                min="0"
+                value={form.product_value}
+                onChange={(e) => set("product_value", e.target.value)}
               />
+              <CustomerPriceHint value={form.product_value} categoryId={form.category_id} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="vp-mrp">Compare at (₹)</Label>
+              <Label htmlFor="vp-mrp">Compare-at value (excl. GST) (₹)</Label>
               <Input
                 id="vp-mrp"
                 type="number"
-                value={form.compare_at_price}
-                onChange={(e) => set("compare_at_price", e.target.value)}
+                min="0"
+                placeholder="Optional"
+                value={form.compare_at_value}
+                onChange={(e) => set("compare_at_value", e.target.value)}
               />
+              <CustomerPriceHint value={form.compare_at_value} categoryId={form.category_id} label="Crossed-out MRP" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="vp-stock">Stock</Label>
@@ -444,7 +458,8 @@ export function VendorProductDialog({
           <VariantManager
             variants={variants}
             onChange={setVariants}
-            basePrice={Number(form.price) || 0}
+            basePrice={Number(form.product_value) || 0}
+            mrpFor={(v) => (form.category_id ? gstBreakdown(gstRules.ruleFor(form.category_id), v)?.price ?? null : null)}
             uploadFolder="vendor-uploads"
           />
 
