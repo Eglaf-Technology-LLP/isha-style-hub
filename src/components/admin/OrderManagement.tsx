@@ -50,6 +50,7 @@ import { toast } from "sonner";
 import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -332,10 +333,10 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       )}
                     </TableCell>
                     <TableCell className="font-medium">
-                      ₹{order.total.toFixed(2)}
+                      {formatMoney(order.total)}
                       {order.discount_amount > 0 && (
                         <div className="text-xs font-normal text-primary">
-                          -₹{order.discount_amount.toFixed(2)}{order.discount_code && ` (${order.discount_code})`}
+                          -{formatMoney(order.discount_amount)}{order.discount_code && ` (${order.discount_code})`}
                         </div>
                       )}
                     </TableCell>
@@ -524,10 +525,10 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                         </div>
                         <div className="text-right">
                           <p className="font-medium">
-                            ₹{item.price.toFixed(2)} × {item.quantity}
+                            {formatMoney(item.price)} × {item.quantity}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            ₹{(item.price * item.quantity).toFixed(2)}
+                            {formatMoney((item.price * item.quantity))}
                           </p>
                         </div>
                       </div>
@@ -552,24 +553,24 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{selectedOrder.subtotal.toFixed(2)}</span>
+                    <span>{formatMoney(selectedOrder.subtotal)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Shipping</span>
-                    <span>₹{selectedOrder.shipping_cost.toFixed(2)}</span>
+                    <span>{formatMoney(selectedOrder.shipping_cost)}</span>
                   </div>
                   {selectedOrder.discount_amount > 0 && (
                     <div className="flex justify-between text-primary">
                       <span>
                         Discount{selectedOrder.discount_code && ` (${selectedOrder.discount_code})`}
                       </span>
-                      <span>-₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                      <span>-{formatMoney(selectedOrder.discount_amount)}</span>
                     </div>
                   )}
                   <Separator />
                   <div className="flex justify-between font-medium text-lg">
                     <span>Total</span>
-                    <span>₹{selectedOrder.total.toFixed(2)}</span>
+                    <span>{formatMoney(selectedOrder.total)}</span>
                   </div>
                 </div>
 

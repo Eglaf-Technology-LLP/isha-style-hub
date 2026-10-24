@@ -1,3 +1,4 @@
+import { formatINR } from "@/lib/format";
 // Product customisation: made to the customer's measurements and/or with
 // extra options, each with its own price added to the product's. The
 // boutique sets it up per product; the order line keeps a snapshot priced by
@@ -69,6 +70,6 @@ export function customisationSummary(c: CustomisationChoice | null | undefined):
   return [c.custom_size ? "Custom size" : null, ...c.options.map((o) => o.label)].filter(Boolean).join(" · ") || "Customised";
 }
 
-export const inr = (n: number) => `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+export const inr = (n: number) => `${formatINR(Number(n))}`;
 
 export const newOptionId = () => crypto.randomUUID().slice(0, 8);

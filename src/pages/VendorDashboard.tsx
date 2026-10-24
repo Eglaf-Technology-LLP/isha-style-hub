@@ -87,6 +87,7 @@ import { StatementDownload } from "@/components/StatementDownload";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
 import { CUSTOMISATION_ENABLED } from "@/lib/customisation";
+import { formatMoney } from "@/lib/format";
 
 interface VendorProduct {
   id: string;
@@ -705,7 +706,7 @@ export default function VendorDashboard() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-3xl font-bold">
-                    {dataLoading ? "..." : `₹${revenue.toFixed(0)}`}
+                    {dataLoading ? "..." : formatMoney(revenue)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Commission {vendor.commission_rate ?? platformRates.current?.marketplace_commission_pct ?? "—"}%
@@ -853,8 +854,8 @@ export default function VendorDashboard() {
                               )}
                             </TableCell>
                             <TableCell>
-                              ₹{Number(p.product_value ?? p.price).toFixed(0)}
-                              <div className="text-xs text-muted-foreground">MRP ₹{Number(p.price).toFixed(0)}</div>
+                              {formatMoney(Number(p.product_value ?? p.price))}
+                              <div className="text-xs text-muted-foreground">MRP {formatMoney(Number(p.price))}</div>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
@@ -1112,10 +1113,10 @@ export default function VendorDashboard() {
                               )}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              -₹{Number(o.commission_amount || 0).toFixed(0)}
+                              -{formatMoney(Number(o.commission_amount || 0))}
                             </TableCell>
                             <TableCell className="font-medium">
-                              ₹{Number(o.net_payable).toFixed(0)}
+                              {formatMoney(Number(o.net_payable))}
                               {o.status === "delivered" && (
                                 <div className="text-xs font-normal text-muted-foreground whitespace-nowrap">
                                   {o.payout_id

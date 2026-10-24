@@ -10,6 +10,7 @@ import {
 import { Loader2, Landmark } from "lucide-react";
 import { useSettlements } from "@/hooks/useSettlements";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface SettlementLedgerProps {
   isAdmin: boolean;
@@ -44,7 +45,7 @@ export function SettlementLedger({ isAdmin }: SettlementLedgerProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-primary">₹{totalSettled.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-primary">{formatMoney(totalSettled)}</p>
             <p className="text-xs text-muted-foreground">{settlements.length} settlements</p>
           </CardContent>
         </Card>
@@ -84,12 +85,12 @@ export function SettlementLedger({ isAdmin }: SettlementLedgerProps) {
                       <TableCell className="text-sm">
                         {formatDate(new Date(s.settled_at))}
                       </TableCell>
-                      <TableCell className="font-medium">₹{s.amount.toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">{formatMoney(s.amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {s.fees != null ? `₹${s.fees.toFixed(2)}` : "—"}
+                        {s.fees != null ? `${formatMoney(s.fees)}` : "—"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {s.tax != null ? `₹${s.tax.toFixed(2)}` : "—"}
+                        {s.tax != null ? `${formatMoney(s.tax)}` : "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs">{s.utr || "—"}</TableCell>
                     </TableRow>

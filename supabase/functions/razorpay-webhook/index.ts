@@ -3,6 +3,7 @@ import { applyPayoutEntity, applyValidation } from "../_shared/razorpayx.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 import { links } from "../_shared/notify.ts";
+import { money } from "../_shared/money.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
                 supabase,
                 "late_payment_refund",
                 "Payment received for a released checkout - refund it",
-                `Order #${order.id.slice(0, 8)} was released as unpaid, then Razorpay captured ₹${(Number(paymentEntity.amount) / 100).toFixed(2)} for it. Refund it from Payments.`,
+                `Order #${order.id.slice(0, 8)} was released as unpaid, then Razorpay captured ${money((Number(paymentEntity.amount) / 100))} for it. Refund it from Payments.`,
                 "/admin?tab=payments",
               );
             } else if (newStatus === "paid") {

@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, errorMessage } from "../_shared/auth.ts";
 import { executeRefund, RefundValidationError } from "../_shared/refunds.ts";
+import { money } from "../_shared/money.ts";
 
 // Admin-only, by design: this is the only place in the app that actually
 // moves money back to a customer. The old "Process Refund" button only
@@ -60,7 +61,7 @@ Deno.serve(async (req) => {
           if (refundAmount > eligibleTotal) {
             return jsonResponse(
               {
-                error: `Refund amount exceeds the refundable value of the selected items (₹${eligibleTotal.toFixed(2)}) - one or more selected items may be non-returnable`,
+                error: `Refund amount exceeds the refundable value of the selected items (${money(eligibleTotal)}) - one or more selected items may be non-returnable`,
               },
               400,
             );

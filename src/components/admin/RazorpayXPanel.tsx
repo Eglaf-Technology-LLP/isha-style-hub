@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RazorpayPayoutsPanel } from "./RazorpayPayoutsPanel";
+import { formatINR } from "@/lib/format";
 
 // Boutique payouts through RazorpayX: is RazorpayX ready, money waiting /
 // on its way, automatic sending, and each boutique's bank-account check.
@@ -36,7 +37,7 @@ interface AccountRow {
   error: string | null;
 }
 
-const money = (n: number) => `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatINR(Number(n))}`;
 
 const ACCOUNT_STATUS: Record<string, { label: string; className: string }> = {
   none: { label: "No bank details", className: "bg-muted text-muted-foreground" },

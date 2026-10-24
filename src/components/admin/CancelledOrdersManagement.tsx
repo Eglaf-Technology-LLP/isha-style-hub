@@ -13,6 +13,7 @@ import { useOrderCancellations } from "@/hooks/useOrderCancellations";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFlashFocus } from "@/hooks/useDeepLink";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 const refundStatusClass: Record<string, string> = {
   processed: "bg-green-100 text-green-800",
@@ -105,7 +106,7 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                     <TableCell className="text-sm">
                       {c.refundAmount != null ? (
                         <div className="flex flex-col gap-1">
-                          <span className="font-medium">₹{c.refundAmount.toFixed(2)}</span>
+                          <span className="font-medium">{formatMoney(c.refundAmount)}</span>
                           <Badge
                             variant="outline"
                             className={refundStatusClass[c.refundStatus ?? ""] || "bg-muted"}

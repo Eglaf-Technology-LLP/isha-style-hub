@@ -11,6 +11,7 @@ import {
 import { Loader2, ShieldAlert, ExternalLink } from "lucide-react";
 import { useDisputes } from "@/hooks/useDisputes";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   open: { label: "Open", variant: "destructive" },
@@ -91,7 +92,7 @@ export function DisputeManagement({ isAdmin }: DisputeManagementProps) {
                       <TableCell className="font-mono text-sm">
                         {dispute.order_id ? dispute.order_id.slice(0, 8).toUpperCase() : "—"}
                       </TableCell>
-                      <TableCell className="font-medium">₹{dispute.amount.toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">{formatMoney(dispute.amount)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {dispute.reason_code || "—"}
                       </TableCell>

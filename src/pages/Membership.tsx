@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useMembership, MEMBERSHIP_PLANS, INSIDER_BENEFITS, type MembershipPlan } from "@/hooks/useMembership";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 export default function Membership() {
   const { user, loading: authLoading } = useAuth();
@@ -87,7 +88,7 @@ export default function Membership() {
                 onSubscribe={subscribe}
                 actionLoading={actionLoading}
                 highlight
-                tag={`Save ₹${annualSavings}`}
+                tag={`Save ${formatINR(annualSavings)}`}
               />
             </div>
 
@@ -128,7 +129,7 @@ function PlanCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <span className="text-4xl font-bold">₹{info.price}</span>
+          <span className="text-4xl font-bold">{formatINR(info.price)}</span>
           <span className="text-muted-foreground">
             {plan === "monthly" ? " / month" : " / year"}
           </span>

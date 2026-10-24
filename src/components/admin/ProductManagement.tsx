@@ -72,6 +72,7 @@ import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 import { titleCase } from "@/lib/text";
 import { parseNetQuantity } from "@/lib/productRules";
+import { formatINR } from "@/lib/format";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -853,11 +854,11 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                       {getCategoryName(product.category_id)} • MRP ₹
                       {product.price.toFixed(0)}
                       {product.product_value != null && (
-                        <span className="ml-1">(value ₹{Number(product.product_value).toFixed(0)} excl. GST)</span>
+                        <span className="ml-1">(value {formatINR(Number(product.product_value))} excl. GST)</span>
                       )}
                       {product.compare_at_price && (
                         <span className="line-through ml-2 text-muted-foreground">
-                          ₹{product.compare_at_price.toFixed(0)}
+                          {formatINR(product.compare_at_price)}
                         </span>
                       )}
                     </p>

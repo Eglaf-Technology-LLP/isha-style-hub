@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { formatINR } from "@/lib/format";
 
 export interface Discount {
   id: string;
@@ -218,7 +219,7 @@ export function useDiscounts() {
 
       // Check min order amount
       if (orderTotal < discount.min_order_amount) {
-        toast.error(`Minimum order amount of ₹${discount.min_order_amount} required`);
+        toast.error(`Minimum order amount of ${formatINR(discount.min_order_amount)} required`);
         return null;
       }
 

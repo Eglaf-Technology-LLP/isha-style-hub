@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { FlashSaleImportExportDialog } from "./FlashSaleImportExportDialog";
 import { formatDateTime } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 export function FlashSaleManagement() {
   const {
@@ -266,7 +267,7 @@ export function FlashSaleManagement() {
                   />
                   <span className="text-sm">{product.name}</span>
                   <span className="text-xs text-muted-foreground ml-auto">
-                    ₹{product.price}
+                    {formatINR(product.price)}
                   </span>
                 </label>
               ))}

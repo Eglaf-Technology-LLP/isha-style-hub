@@ -26,6 +26,7 @@ import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle, Send } from "lucid
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminVendorPayouts, AdminVendorPayout } from "@/hooks/useAdminVendorPayouts";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 const statusClass: Record<string, string> = {
   pending: "bg-blue-100 text-blue-800",
@@ -229,9 +230,9 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                       {formatDate(new Date(p.periodStart))} - {formatDate(new Date(p.periodEnd))}
                     </TableCell>
                     <TableCell className="text-sm">{p.vendorName}</TableCell>
-                    <TableCell className="text-sm">₹{p.grossSales.toFixed(2)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">-₹{p.commissionAmount.toFixed(2)}</TableCell>
-                    <TableCell className="font-medium">₹{p.netPayable.toFixed(2)}</TableCell>
+                    <TableCell className="text-sm">{formatMoney(p.grossSales)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">-{formatMoney(p.commissionAmount)}</TableCell>
+                    <TableCell className="font-medium">{formatMoney(p.netPayable)}</TableCell>
                     <TableCell className="text-sm">{p.orderCount}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{p.bankLast4 ? `••${p.bankLast4}` : "—"}</TableCell>
                     <TableCell>
@@ -302,7 +303,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Amount to transfer</span>
-                  <span className="font-semibold">₹{markingPayout.netPayable.toFixed(2)}</span>
+                  <span className="font-semibold">{formatMoney(markingPayout.netPayable)}</span>
                 </div>
                 {transfer === undefined ? (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -349,7 +350,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
             <DialogTitle>Bank declined this payout</DialogTitle>
             <DialogDescription>
               {decliningPayout &&
-                `₹${decliningPayout.netPayable.toFixed(2)} to ${decliningPayout.vendorName}. The orders go back into their payout queue, their bank details are flagged for update, and they're emailed the reason.`}
+                `${formatMoney(decliningPayout.netPayable)} to ${decliningPayout.vendorName}. The orders go back into their payout queue, their bank details are flagged for update, and they're emailed the reason.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">

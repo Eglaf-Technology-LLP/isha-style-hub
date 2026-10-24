@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption, ShipDestination } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
+import { formatMoney } from "@/lib/format";
 
 interface ShipNowDialogProps {
   vendorOrderId: string;
@@ -165,13 +166,13 @@ export function ShipNowDialog({
                           checking there sees the exact same numbers, not a
                           single total with no way to verify it. */}
                       <div className="text-xs text-muted-foreground mt-1">
-                        Freight: ₹{c.freightCharge.toFixed(2)}
-                        {c.serviceFee > 0 && <> · Service fee: ₹{c.serviceFee.toFixed(2)}</>}
-                        {c.codCharges > 0 && <> · COD charge: ₹{c.codCharges.toFixed(2)}</>}
+                        Freight: {formatMoney(c.freightCharge)}
+                        {c.serviceFee > 0 && <> · Service fee: {formatMoney(c.serviceFee)}</>}
+                        {c.codCharges > 0 && <> · COD charge: {formatMoney(c.codCharges)}</>}
                       </div>
                     </div>
                   </div>
-                  <span className="font-semibold whitespace-nowrap">₹{c.rate.toFixed(2)}</span>
+                  <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>
                 </Label>
               ))}
             </RadioGroup>

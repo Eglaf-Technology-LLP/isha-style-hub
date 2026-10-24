@@ -6,6 +6,7 @@ import { AnalyticsData, AnalyticsGroupBy } from "@/hooks/useAnalytics";
 import { TrendingUp, TrendingDown, IndianRupee, ShoppingCart, Package, Users } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 import { format, parseISO } from "date-fns";
+import { formatINR } from "@/lib/format";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--secondary))", "hsl(var(--accent))", "hsl(var(--muted))"];
 
@@ -124,7 +125,7 @@ export function AnalyticsCharts({
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{data.totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{formatINR(data.totalRevenue)}</div>
             <div className="flex items-center text-xs mt-1">
               {data.revenueGrowth >= 0 ? (
                 <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
@@ -170,7 +171,7 @@ export function AnalyticsCharts({
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{data.averageOrderValue.toFixed(0)}</div>
+            <div className="text-2xl font-bold">{formatINR(data.averageOrderValue)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Per completed order
             </p>
@@ -220,10 +221,10 @@ export function AnalyticsCharts({
                   <YAxis
                     className="text-xs"
                     tick={{ fill: "hsl(var(--muted-foreground))" }}
-                    tickFormatter={(value) => `₹${value}`}
+                    tickFormatter={(value) => `${formatINR(value)}`}
                   />
                   <Tooltip
-                    formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+                    formatter={(value: number) => [`${formatINR(value)}`, "Revenue"]}
                     contentStyle={{
                       backgroundColor: "hsl(var(--background))",
                       border: "1px solid hsl(var(--border))",
@@ -264,7 +265,7 @@ export function AnalyticsCharts({
                     <XAxis
                       type="number"
                       tick={{ fill: "hsl(var(--muted-foreground))" }}
-                      tickFormatter={(value) => `₹${value}`}
+                      tickFormatter={(value) => `${formatINR(value)}`}
                     />
                     <YAxis
                       dataKey="productName"
@@ -273,7 +274,7 @@ export function AnalyticsCharts({
                       tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     />
                     <Tooltip
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+                      formatter={(value: number) => [`${formatINR(value)}`, "Revenue"]}
                       contentStyle={{
                         backgroundColor: "hsl(var(--background))",
                         border: "1px solid hsl(var(--border))",
@@ -318,7 +319,7 @@ export function AnalyticsCharts({
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number) => [`₹${value.toLocaleString()}`, "Revenue"]}
+                      formatter={(value: number) => [`${formatINR(value)}`, "Revenue"]}
                       contentStyle={{
                         backgroundColor: "hsl(var(--background))",
                         border: "1px solid hsl(var(--border))",

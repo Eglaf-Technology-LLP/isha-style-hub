@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
+import { money } from "../_shared/money.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,7 +44,7 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
           </div>
         </td>
-        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">${money((item.price * item.quantity))}</td>
       </tr>
     `).join("");
 
@@ -74,7 +75,7 @@ const handler = async (req: Request): Promise<Response> => {
         <tfoot>
           <tr style="font-weight: 700;">
             <td style="padding: 12px 0; border-top: 2px solid #1a1a1a;">Cart Total</td>
-            <td style="padding: 12px 0; border-top: 2px solid #1a1a1a; text-align: right; color: #7a2e22; font-size: 16px;">₹${cartTotal.toFixed(2)}</td>
+            <td style="padding: 12px 0; border-top: 2px solid #1a1a1a; text-align: right; color: #7a2e22; font-size: 16px;">${money(cartTotal)}</td>
           </tr>
         </tfoot>
       </table>

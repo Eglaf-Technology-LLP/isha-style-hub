@@ -44,6 +44,7 @@ import { VendorFilterSelect } from "./VendorFilterSelect";
 import { RefundHistory } from "@/components/RefundHistory";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { formatDate, formatTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -156,7 +157,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-primary">
-              ₹{stats.totalReceived.toFixed(2)}
+              {formatMoney(stats.totalReceived)}
             </p>
             <p className="text-xs text-muted-foreground">
               {stats.completedCount} payments
@@ -171,7 +172,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">₹{stats.totalPending.toFixed(2)}</p>
+            <p className="text-2xl font-bold">{formatMoney(stats.totalPending)}</p>
             <p className="text-xs text-muted-foreground">
               {stats.pendingCount} payments
             </p>
@@ -186,7 +187,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-muted-foreground">
-              ₹{stats.totalRefunded.toFixed(2)}
+              {formatMoney(stats.totalRefunded)}
             </p>
             <p className="text-xs text-muted-foreground">
               {stats.refundedCount} refunds
@@ -202,7 +203,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-primary">
-              ₹{(stats.totalReceived - stats.totalRefunded).toFixed(2)}
+              {formatMoney((stats.totalReceived - stats.totalRefunded))}
             </p>
           </CardContent>
         </Card>
@@ -227,7 +228,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  ₹{(revenueStats?.vendorPayoutObligation || 0).toFixed(2)}
+                  {formatMoney((revenueStats?.vendorPayoutObligation || 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Owed to vendors on {revenueStats?.paidVendorOrderCount || 0} paid orders
@@ -243,7 +244,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-primary">
-                  ₹{(revenueStats?.platformCommissionEarned || 0).toFixed(2)}
+                  {formatMoney((revenueStats?.platformCommissionEarned || 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Platform's cut before gateway fees
@@ -259,7 +260,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
-                  ₹{(revenueStats?.gatewayFeesPaid || 0).toFixed(2)}
+                  {formatMoney((revenueStats?.gatewayFeesPaid || 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Razorpay's cut (incl. GST), COD has none
@@ -275,7 +276,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600">
-                  ₹{(revenueStats?.netPlatformRevenue || 0).toFixed(2)}
+                  {formatMoney((revenueStats?.netPlatformRevenue || 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Commission earned minus gateway fees
@@ -356,16 +357,16 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                       <TableCell>
                         <div>
                           <p className="font-medium">
-                            ₹{payment.amount.toFixed(2)}
+                            {formatMoney(payment.amount)}
                           </p>
                           {!!payment.gateway_fee && (
                             <p className="text-xs text-muted-foreground">
-                              Gateway fee: ₹{payment.gateway_fee.toFixed(2)}
+                              Gateway fee: {formatMoney(payment.gateway_fee)}
                             </p>
                           )}
                           {payment.refund_amount > 0 && (
                             <p className="text-xs text-muted-foreground">
-                              Refunded: ₹{payment.refund_amount.toFixed(2)}
+                              Refunded: {formatMoney(payment.refund_amount)}
                             </p>
                           )}
                         </div>

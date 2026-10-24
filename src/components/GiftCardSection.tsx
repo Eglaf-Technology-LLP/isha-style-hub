@@ -8,6 +8,7 @@ import { useGiftCards } from "@/hooks/useGiftCards";
 import { useAuth } from "@/hooks/useAuth";
 import { useState } from "react";
 import { format } from "date-fns";
+import { formatINR } from "@/lib/format";
 
 export function GiftCardSection() {
   const { user } = useAuth();
@@ -49,7 +50,7 @@ export function GiftCardSection() {
           {balance !== null && (
             <div className="bg-muted p-4 rounded-lg text-center">
               <p className="text-sm text-muted-foreground">Available Balance</p>
-              <p className="text-2xl font-bold">₹{balance.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{formatINR(balance)}</p>
             </div>
           )}
         </CardContent>
@@ -104,9 +105,9 @@ export function GiftCardSection() {
                     </div>
                     <div className="flex items-center gap-3 ml-auto">
                       <div className="text-right">
-                        <p className="font-semibold">₹{card.current_balance.toLocaleString()}</p>
+                        <p className="font-semibold">{formatINR(card.current_balance)}</p>
                         <p className="text-xs text-muted-foreground">
-                          of ₹{card.initial_balance.toLocaleString()}
+                          of {formatINR(card.initial_balance)}
                         </p>
                       </div>
                       <Badge variant={card.is_active ? "default" : "secondary"}>

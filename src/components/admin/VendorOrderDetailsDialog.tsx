@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface DetailItem {
   product_title: string;
@@ -371,8 +372,8 @@ export function VendorOrderDetailsDialog({
                         </TableCell>
                         <TableCell className="font-mono text-xs">{item.sku || "not set"}</TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">₹{item.price.toFixed(2)}</TableCell>
-                        <TableCell className="text-right font-medium">₹{(item.price * item.quantity).toFixed(2)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(item.price)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatMoney((item.price * item.quantity))}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -381,22 +382,22 @@ export function VendorOrderDetailsDialog({
               <div className="mt-3 ml-auto max-w-xs space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Product Total ({data.items.length} item{data.items.length !== 1 ? "s" : ""})</span>
-                  <span>₹{itemsTotal.toFixed(2)}</span>
+                  <span>{formatMoney(itemsTotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping charges</span>
-                  <span>₹{data.shippingCost.toFixed(2)}</span>
+                  <span>{formatMoney(data.shippingCost)}</span>
                 </div>
                 {!!data.discountAmount && data.discountAmount > 0 && (
                   <div className="flex justify-between text-primary">
                     <span>Discount{data.discountCode && ` (${data.discountCode})`}</span>
-                    <span>-₹{data.discountAmount.toFixed(2)}</span>
+                    <span>-{formatMoney(data.discountAmount)}</span>
                   </div>
                 )}
                 <Separator />
                 <div className="flex justify-between font-medium">
                   <span>Order Total</span>
-                  <span>₹{orderTotal.toFixed(2)}</span>
+                  <span>{formatMoney(orderTotal)}</span>
                 </div>
               </div>
             </section>

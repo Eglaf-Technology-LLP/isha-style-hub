@@ -1,4 +1,5 @@
 import { formatDateWithDay } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 // Labels for the warehouse route (boutique -> AllBoutiqs warehouse ->
 // customer), shared by the boutique, admin and warehouse screens.
 
@@ -136,4 +137,4 @@ export const purposeLabels: Record<string, string> = {
   return_send_back: "Return sent back (failed inspection)",
 };
 
-export const inr = (n: number | null | undefined) => `₹${Math.round(Number(n ?? 0)).toLocaleString("en-IN")}`;
+export const inr = (n: number | null | undefined) => `${formatINR(Math.round(Number(n ?? 0)))}`;

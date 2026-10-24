@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { GiftCardImportExportDialog } from "./GiftCardImportExportDialog";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 interface GiftCard {
   id: string;
@@ -453,7 +454,7 @@ export function GiftCardManagement() {
                         <Badge variant={status.variant}>{status.label}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Balance: ₹{card.current_balance} / ₹{card.initial_balance}
+                        Balance: {formatINR(card.current_balance)} / {formatINR(card.initial_balance)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {card.recipient_name && `To: ${card.recipient_name}`}

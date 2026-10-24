@@ -24,6 +24,7 @@ import { Loader2, CheckCircle2, XCircle, ImageOff } from "lucide-react";
 import { toast } from "sonner";
 import { aiContentLabel } from "@/lib/aiContent";
 import { useSignedOriginalUrls } from "@/lib/productOriginals";
+import { formatINR } from "@/lib/format";
 
 interface ModeratedProduct {
   id: string;
@@ -311,8 +312,8 @@ export function ProductModeration() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{p.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {p.vendors?.name || "No vendor"} &middot; Value ₹{Number(p.product_value ?? p.price).toFixed(0)} excl. GST
-                    &middot; MRP ₹{Number(p.price).toFixed(0)}
+                    {p.vendors?.name || "No vendor"} &middot; Value {formatINR(Number(p.product_value ?? p.price))} excl. GST
+                    &middot; MRP {formatINR(Number(p.price))}
                   </div>
                   <div className="mt-1">
                     <Badge

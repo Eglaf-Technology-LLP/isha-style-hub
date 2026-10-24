@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
+import { formatINR } from "@/lib/format";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -55,10 +56,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // "Total ₹0" side by side, which don't even reconcile with each other and
 // hide that anything is still owed. Whole-rupee amounts still render clean
 // (no forced ".00"); only a genuine fractional amount shows its paise.
-const formatMoney = (n: number): string => {
-  const rounded = Math.round(n * 100) / 100;
-  return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(2);
-};
 
 // Razorpay rejects any order below ₹1 (their real, documented minimum) -
 // a steep enough discount (e.g. a near-100% coupon) can legitimately bring
@@ -481,7 +478,7 @@ export default function Checkout() {
 
       // Check min order amount
       if (subtotal < (data.min_order_amount || 0)) {
-        toast.error(`Minimum order of ₹${data.min_order_amount} required`);
+        toast.error(`Minimum order of ${formatINR(data.min_order_amount)} required`);
         return;
       }
 
@@ -636,7 +633,7 @@ export default function Checkout() {
       let razorpayKeyId: string | null = null;
       if (paymentMethod === "razorpay") {
         if (belowOnlineMinimum) {
-          toast.error(`Online payment needs at least ₹${MIN_ONLINE_PAYMENT_AMOUNT} - please choose Cash on Delivery instead`);
+          toast.error(`Online payment needs at least ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - please choose Cash on Delivery instead`);
           setIsPlacingOrder(false);
           return;
         }
@@ -1052,8 +1049,8 @@ export default function Checkout() {
       ? "Processing payment…"
       : "Placing order…"
     : paymentMethod === "razorpay"
-      ? `Pay ₹${formatMoney(total)}`
-      : `Place order · ₹${formatMoney(total)}`;
+      ? `Pay ${formatINR(total)}`
+      : `Place order · ${formatINR(total)}`;
 
   return (
     <CheckoutShell
@@ -1063,7 +1060,7 @@ export default function Checkout() {
         <div className="store-container flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Total</p>
-            <p className="font-serif text-xl leading-tight">₹{formatMoney(total)}</p>
+            <p className="font-serif text-xl leading-tight">{formatINR(total)}</p>
           </div>
           <button
             type="button"
@@ -1275,7 +1272,7 @@ export default function Checkout() {
                   <p className={cn("text-sm", belowOnlineMinimum ? "text-destructive" : "text-muted-foreground")}>
                     {codUnavailableReason}{" "}
                     {belowOnlineMinimum
-                      ? `This order is also below the ₹${MIN_ONLINE_PAYMENT_AMOUNT} minimum for online payment - add another item to check out.`
+                      ? `This order is also below the ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} minimum for online payment - add another item to check out.`
                       : "Please pay online."}
                   </p>
                 )}
@@ -1287,7 +1284,7 @@ export default function Checkout() {
                   title="Pay online"
                   text={
                     belowOnlineMinimum
-                      ? `Not available below ₹${MIN_ONLINE_PAYMENT_AMOUNT} - use Cash on Delivery`
+                      ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - use Cash on Delivery`
                       : "Card, UPI or netbanking — pick your method at checkout"
                   }
                   extra={
@@ -1376,7 +1373,7 @@ export default function Checkout() {
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
                         )}
                         <p className="mt-1 text-sm font-medium">
-                          ₹{formatMoney(parseFloat(item.price.amount) * item.quantity)}
+                          {formatINR(parseFloat(item.price.amount) * item.quantity)}
                         </p>
                       </div>
                     </li>
@@ -1398,7 +1395,7 @@ export default function Checkout() {
                           <span className="bg-primary/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-primary">
                             {appliedDiscount.discount_type === "percentage"
                               ? `${appliedDiscount.discount_value}% off`
-                              : `₹${appliedDiscount.discount_value} off`}
+                              : `${formatINR(appliedDiscount.discount_value)} off`}
                           </span>
                         </div>
                         <button
@@ -1411,7 +1408,7 @@ export default function Checkout() {
                         </button>
                       </div>
                       <p className="mt-1.5 text-xs text-primary/80">
-                        You're saving ₹{formatMoney(discountAmount)} on this order!
+                        You're saving {formatINR(discountAmount)} on this order!
                       </p>
                     </div>
                   ) : (
@@ -1440,12 +1437,12 @@ export default function Checkout() {
                 <dl className="space-y-2.5 border-t border-border pt-6 text-sm">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Subtotal</dt>
-                    <dd>₹{formatMoney(subtotal)}</dd>
+                    <dd>{formatINR(subtotal)}</dd>
                   </div>
                   {appliedDiscount && (
                     <div className="flex justify-between text-primary">
                       <dt>Discount</dt>
-                      <dd>-₹{formatMoney(discountAmount)}</dd>
+                      <dd>-{formatINR(discountAmount)}</dd>
                     </div>
                   )}
                   {vendorGroups.map((group) => (
@@ -1457,7 +1454,7 @@ export default function Checkout() {
                         {group.shippingCost === 0 ? (
                           <FreeDeliveryBadge />
                         ) : (
-                          `₹${group.shippingCost}`
+                          `${formatINR(group.shippingCost)}`
                         )}
                       </dd>
                     </div>
@@ -1466,7 +1463,7 @@ export default function Checkout() {
 
                 <div className="flex items-baseline justify-between border-t border-foreground/80 pt-5">
                   <span className="text-[12px] font-medium uppercase tracking-[0.2em]">Total</span>
-                  <span className="font-serif text-3xl">₹{formatMoney(total)}</span>
+                  <span className="font-serif text-3xl">{formatINR(total)}</span>
                 </div>
                 <p className="-mt-4 text-right text-xs text-muted-foreground">Inclusive of all taxes</p>
 
@@ -1493,7 +1490,7 @@ export default function Checkout() {
                   if (threshold === null) return null;
                   return (
                     <p className="text-center text-xs text-muted-foreground">
-                      Add ₹{formatMoney(threshold - vendorGroups[0].subtotal)} more for Free Delivery
+                      Add {formatINR(threshold - vendorGroups[0].subtotal)} more for Free Delivery
                     </p>
                   );
                 })()}

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { History } from "lucide-react";
 import { useRefunds } from "@/hooks/useRefunds";
 import { RefundHistory, refundStatusConfig } from "@/components/RefundHistory";
+import { formatMoney } from "@/lib/format";
 
 // Compact summary for a dense table cell (vendor/admin order lists) - the
 // full RefundHistory card (reason, initiated-by, gateway timestamp,
@@ -25,7 +26,7 @@ export function RefundSummaryCell({ orderId }: { orderId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium">₹{latest.amount.toFixed(2)}</span>
+        <span className="text-xs font-medium">{formatMoney(latest.amount)}</span>
         <Badge variant={config.variant} className="text-[10px] px-1.5 py-0">
           {refunds.length > 1 ? `${refunds.length} refunds` : config.label}
         </Badge>

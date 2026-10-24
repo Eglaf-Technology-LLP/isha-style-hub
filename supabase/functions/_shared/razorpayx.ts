@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
 import { notifyAdmins, notifyVendor, onboardVendor } from "./razorpayRoute.ts";
+import { money } from "./money.ts";
 
 // Boutique payouts through RazorpayX - see migration
 // 20261016110000_razorpayx_payouts.sql for the flow. Payments settle to
@@ -46,7 +47,7 @@ export async function payoutRail(supabase: SupabaseClient): Promise<"razorpayx" 
   return (data?.payout_rail as any) ?? "razorpayx";
 }
 
-const inr = (n: number) => `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const inr = (n: number) => `${money(Number(n))}`;
 const paise = (rupees: number) => Math.round(Number(rupees) * 100);
 const clip = (s: string, n: number) => s.trim().slice(0, n);
 

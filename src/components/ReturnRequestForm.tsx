@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import { uploadUserFile } from "@/lib/userPhotoUpload";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
+import { formatMoney } from "@/lib/format";
 
 const MAX_PHOTOS_PER_ITEM = 5;
 const MAX_VIDEO_MB = 50;
@@ -314,7 +315,7 @@ export function ReturnRequestForm({
                           {item.size && `Size: ${item.size}`}
                           {item.size && item.color && " • "}
                           {item.color && `Colour: ${item.color}`}
-                          {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
+                          {" • "}Qty: {item.quantity} • {formatMoney((item.price * item.quantity))}
                         </p>
                         {disabled && (
                           <p className="text-xs text-destructive mt-0.5">

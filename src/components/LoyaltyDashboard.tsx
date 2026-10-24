@@ -8,6 +8,7 @@ import { useLoyaltyPoints } from "@/hooks/useLoyaltyPoints";
 import { useReferrals } from "@/hooks/useReferrals";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 const tierColors = {
   bronze: "bg-amber-700",
@@ -82,7 +83,7 @@ export function LoyaltyDashboard() {
             </div>
             <div className="text-right">
               <p className="text-sm opacity-75">Points Value</p>
-              <p className="text-2xl font-bold">₹{getPointsValue(currentPoints).toFixed(0)}</p>
+              <p className="text-2xl font-bold">{formatINR(getPointsValue(currentPoints))}</p>
             </div>
           </div>
         </div>

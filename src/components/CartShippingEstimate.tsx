@@ -9,6 +9,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { CartItem } from "@/stores/cartStore";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatDateWithDay } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 interface VendorShippingGroup {
   vendorId: string;
@@ -200,13 +201,13 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
             return (
               <div key={g.vendorId} className="flex justify-between text-muted-foreground">
                 <span>Estimated shipping - {g.vendorName}</span>
-                {rate > 0 ? <span>₹{rate.toFixed(0)}</span> : <FreeDeliveryBadge />}
+                {rate > 0 ? <span>{formatINR(rate)}</span> : <FreeDeliveryBadge />}
               </div>
             );
           })}
           <div className="flex justify-between font-medium pt-1 border-t border-border/60">
             <span>Estimated shipping total</span>
-            {totalEstimated > 0 ? <span>₹{totalEstimated.toFixed(0)}</span> : <FreeDeliveryBadge />}
+            {totalEstimated > 0 ? <span>{formatINR(totalEstimated)}</span> : <FreeDeliveryBadge />}
           </div>
           {cartEta && (
             <div className="flex justify-between text-green-700 font-medium">

@@ -15,3 +15,13 @@ export function discountPercent(price: number, compareAt: number | null | undefi
   if (!compareAt || compareAt <= price) return null;
   return Math.round(((compareAt - price) / compareAt) * 100);
 }
+
+// Money with paise, Indian grouping: ₹2,277.99, ₹1,00,000.00 - for the
+// seller dashboard, statements, invoices and emails, where every amount is
+// shown the same way (Developer Corrections Part 8, 6 and 12).
+export function formatMoney(amount: number | string | null | undefined): string {
+  const n = Number(amount ?? 0);
+  const value = Number.isFinite(n) ? n : 0;
+  const text = Math.abs(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${value < 0 ? "-" : ""}₹${text}`;
+}

@@ -16,6 +16,7 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatPayoutDate, todayIst } from "@/lib/payoutDates";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 // Cash on Delivery money: the courier collects the cash, Shiprocket remits
 // it to AllBoutiqs, AllBoutiqs pays the boutique. A boutique sees its own
@@ -25,7 +26,7 @@ import { formatDate } from "@/lib/dates";
 type CodRow = Database["public"]["Functions"]["cod_tracking"]["Returns"][number];
 type Stage = "awaiting_delivery" | "collected" | "received" | "paid" | "not_collected" | "cancelled";
 
-const money = (n: number) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatINR(Number(n))}`;
 const day = (d: string | null) => (d ? formatDate(new Date(d)) : "");
 const ALL = "__all__";
 

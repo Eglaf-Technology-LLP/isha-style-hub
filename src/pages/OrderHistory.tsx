@@ -26,6 +26,7 @@ import { formatShortDate, istToday } from "@/lib/warehouse";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -472,7 +473,7 @@ export default function OrderHistory() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total</p>
-                        <p className="text-sm font-medium">₹{order.total.toFixed(2)}</p>
+                        <p className="text-sm font-medium">{formatMoney(order.total)}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -581,7 +582,7 @@ export default function OrderHistory() {
                                     )}
                                     {item.customisation && <CustomisationDetails customisation={item.customisation} className="mt-2" />}
                                   </div>
-                                  <p className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(2)}</p>
+                                  <p className="shrink-0 font-medium">{formatMoney((item.price * item.quantity))}</p>
                                 </div>
                               ))}
                               {group.vendorOrder && viaWarehouse && (
@@ -666,23 +667,23 @@ export default function OrderHistory() {
                             <dl className="space-y-1.5 text-sm">
                               <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Subtotal</dt>
-                                <dd>₹{order.subtotal.toFixed(2)}</dd>
+                                <dd>{formatMoney(order.subtotal)}</dd>
                               </div>
                               <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Shipping</dt>
-                                <dd>{order.shipping_cost > 0 ? `₹${order.shipping_cost.toFixed(2)}` : <FreeDeliveryBadge />}</dd>
+                                <dd>{order.shipping_cost > 0 ? `${formatMoney(order.shipping_cost)}` : <FreeDeliveryBadge />}</dd>
                               </div>
                               {order.discount_amount > 0 && (
                                 <div className="flex justify-between text-primary">
                                   <dt>
                                     Discount{order.discount_code && ` (${order.discount_code})`}
                                   </dt>
-                                  <dd>-₹{order.discount_amount.toFixed(2)}</dd>
+                                  <dd>-{formatMoney(order.discount_amount)}</dd>
                                 </div>
                               )}
                               <div className="flex justify-between border-t border-border pt-2 font-medium">
                                 <dt>Total</dt>
-                                <dd>₹{order.total.toFixed(2)}</dd>
+                                <dd>{formatMoney(order.total)}</dd>
                               </div>
                             </dl>
                           </div>
@@ -711,7 +712,7 @@ export default function OrderHistory() {
                                       </div>
                                       <div className="flex items-center gap-2">
                                         {!!rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
-                                          <span className="text-xs font-medium text-emerald-700">Refund: ₹{rr.refund_amount.toFixed(2)}</span>
+                                          <span className="text-xs font-medium text-emerald-700">Refund: {formatMoney(rr.refund_amount)}</span>
                                         )}
                                         <StatusPill className={statusInfo.className}>{statusInfo.label}</StatusPill>
                                         {rr.status === "pending" && (

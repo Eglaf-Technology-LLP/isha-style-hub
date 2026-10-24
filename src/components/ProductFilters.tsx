@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { formatINR } from "@/lib/format";
 
 export interface FilterState {
   search: string;
@@ -142,8 +143,8 @@ export function ProductFilters({
                   className="mb-2"
                 />
                 <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>₹{localPriceRange[0].toLocaleString()}</span>
-                  <span>₹{localPriceRange[1].toLocaleString()}</span>
+                  <span>{formatINR(localPriceRange[0])}</span>
+                  <span>{formatINR(localPriceRange[1])}</span>
                 </div>
               </div>
 
@@ -281,7 +282,7 @@ export function ProductFilters({
           )}
           {(filters.priceRange[0] > 0 || filters.priceRange[1] < maxPrice) && (
             <Badge variant="secondary" className="gap-1">
-              ₹{filters.priceRange[0]} - ₹{filters.priceRange[1]}
+              {formatINR(filters.priceRange[0])} - {formatINR(filters.priceRange[1])}
               <X
                 className="h-3 w-3 cursor-pointer"
                 onClick={() => {

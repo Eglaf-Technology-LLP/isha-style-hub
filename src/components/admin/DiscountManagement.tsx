@@ -46,6 +46,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { DiscountImportExportDialog } from "./DiscountImportExportDialog";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 export function DiscountManagement() {
   const {
@@ -425,9 +426,9 @@ export function DiscountManagement() {
                     <p className="text-sm text-muted-foreground">
                       {discount.discount_type === "percentage"
                         ? `${discount.discount_value}% off`
-                        : `₹${discount.discount_value} off`}
+                        : `${formatINR(discount.discount_value)} off`}
                       {discount.min_order_amount > 0 &&
-                        ` • Min. ₹${discount.min_order_amount}`}
+                        ` • Min. ${formatINR(discount.min_order_amount)}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Used: {discount.used_count}

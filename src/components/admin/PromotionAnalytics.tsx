@@ -29,6 +29,7 @@ import { useFlashSales } from "@/hooks/useFlashSales";
 import { useGiftCards } from "@/hooks/useGiftCards";
 import { useOrders } from "@/hooks/useOrders";
 import { formatDateTime } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 const CHART_COLORS = [
   "hsl(var(--primary))",
@@ -208,7 +209,7 @@ export function PromotionAnalytics() {
             </div>
             <div className="mt-2">
               <Badge variant="outline" className="text-xs">
-                ₹{giftCardMetrics.totalValue.toLocaleString()} issued
+                {formatINR(giftCardMetrics.totalValue)} issued
               </Badge>
             </div>
           </CardContent>
@@ -243,7 +244,7 @@ export function PromotionAnalytics() {
               <CardTitle className="text-lg">Estimated Savings Given</CardTitle>
             </div>
             <p className="text-3xl font-bold text-primary">
-              ₹{discountMetrics.estimatedSavings.toLocaleString()}
+              {formatINR(discountMetrics.estimatedSavings)}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               Total discount value redeemed by customers
@@ -258,7 +259,7 @@ export function PromotionAnalytics() {
               <CardTitle className="text-lg">Avg Order Value</CardTitle>
             </div>
             <p className="text-3xl font-bold text-chart-2">
-              ₹{orderMetrics.avgOrderValue}
+              {formatINR(orderMetrics.avgOrderValue)}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
               Across {orderMetrics.totalOrders} total orders
@@ -415,7 +416,7 @@ export function PromotionAnalytics() {
                     <Badge variant="secondary">
                       {discount.discount_type === "percentage"
                         ? `${discount.discount_value}% OFF`
-                        : `₹${discount.discount_value} OFF`}
+                        : `${formatINR(discount.discount_value)} OFF`}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">
                       {discount.used_count} uses

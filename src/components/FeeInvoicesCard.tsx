@@ -8,8 +8,9 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { FeeInvoiceView, type FeeInvoice } from "./FeeInvoiceView";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
-const money = (n: number) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${formatINR(Number(n))}`;
 const ALL = "__all__";
 
 // AllBoutiqs' weekly fee invoices. A boutique sees its own (vendorId); admins

@@ -3,6 +3,7 @@ import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
+import { money } from "../_shared/money.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -343,7 +344,7 @@ const handler = async (req: Request): Promise<Response> => {
           ${item.customisation ? `<br><span style="color: #8a8a8a; font-size:13px;">Customised: ${escapeHtml(customisationSummary(item.customisation))}</span>` : ""}
         </td>
         <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; text-align: center;">${item.quantity}</td>
-        <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; text-align: right;">${money((item.price * item.quantity))}</td>
       </tr>
     `).join("");
 
@@ -375,7 +376,7 @@ const handler = async (req: Request): Promise<Response> => {
             ? `<tfoot>
           <tr style="font-weight: 700;">
             <td colspan="2" style="padding: 12px 16px 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">Total</td>
-            <td style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">₹${order.total.toFixed(2)}</td>
+            <td style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">${money(order.total)}</td>
           </tr>
         </tfoot>`
             : ""

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatINR } from "@/lib/format";
 
 export interface HsnCode {
   id: string;
@@ -19,7 +20,7 @@ export type HsnCodeInput = Omit<HsnCode, "id">;
 export function describeGst(h: Pick<HsnCode, "gst_rate" | "price_limit" | "gst_rate_above_limit">): string {
   const pct = (n: number) => `${Number(n)}%`;
   if (h.price_limit == null || h.gst_rate_above_limit == null) return pct(h.gst_rate);
-  return `${pct(h.gst_rate)} up to ₹${Number(h.price_limit).toLocaleString("en-IN")} · ${pct(h.gst_rate_above_limit)} above`;
+  return `${pct(h.gst_rate)} up to ${formatINR(Number(h.price_limit))} · ${pct(h.gst_rate_above_limit)} above`;
 }
 
 export function useHsnCodes() {

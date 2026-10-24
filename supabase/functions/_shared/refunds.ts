@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
 import { reverseVendorShare } from "./razorpayRoute.ts";
+import { money } from "./money.ts";
 
 // Thrown for anything wrong with the request itself (no payment, wrong
 // status, amount exceeds what's left) - before executeRefund ever touches
@@ -123,7 +124,7 @@ export async function executeRefund(
   const alreadyCommitted = (committedRefunds ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
   const remaining = payment.amount - alreadyCommitted;
   if (amount > remaining) {
-    throw new RefundValidationError(`Refund amount exceeds what's left refundable (₹${remaining.toFixed(2)} remaining)`);
+    throw new RefundValidationError(`Refund amount exceeds what's left refundable (${money(remaining)} remaining)`);
   }
 
   const { data: refundRow, error: insertErr } = await supabase

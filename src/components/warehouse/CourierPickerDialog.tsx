@@ -14,6 +14,7 @@ import {
 import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
+import { formatMoney } from "@/lib/format";
 
 interface CourierPickerDialogProps {
   triggerLabel: string;
@@ -113,7 +114,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
                       {c.etd && <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>}
                     </div>
                   </div>
-                  <span className="font-semibold whitespace-nowrap">₹{c.rate.toFixed(2)}</span>
+                  <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>
                 </Label>
               ))}
             </RadioGroup>

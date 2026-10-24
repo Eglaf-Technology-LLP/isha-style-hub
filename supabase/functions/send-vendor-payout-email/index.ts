@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { formatDate } from "../_shared/dates.ts";
+import { money } from "../_shared/money.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -22,7 +23,7 @@ function isServiceRoleCall(req: Request): boolean {
 }
 
 const PAYOUTS_URL = "https://allboutiqs.com/vendor?tab=payouts";
-const inr = (n: number) => `₹${Math.round(Number(n)).toLocaleString("en-IN")}`;
+const inr = (n: number) => `${money(Number(n))}`;
 const day = (d: string) => formatDate(d);
 const p = (html: string) => `<p style="color:#5a5a5a;">${html}</p>`;
 const factsBox = (rows: [string, string][]) =>

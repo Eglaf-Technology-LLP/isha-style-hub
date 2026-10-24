@@ -6,6 +6,7 @@ import { Printer, Receipt as ReceiptIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Refund } from "@/hooks/useRefunds";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface OrderInfo {
   id: string;
@@ -91,7 +92,7 @@ export function RefundReceiptDialog({ refund }: { refund: Refund }) {
 
             <div className="border-t border-border pt-3 flex justify-between items-baseline">
               <span className="font-medium">Amount Refunded</span>
-              <span className="text-lg font-bold">₹{refund.amount.toFixed(2)}</span>
+              <span className="text-lg font-bold">{formatMoney(refund.amount)}</span>
             </div>
 
             {refund.gateway_processed_at && (

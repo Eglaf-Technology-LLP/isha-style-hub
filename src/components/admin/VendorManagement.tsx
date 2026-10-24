@@ -22,6 +22,7 @@ import { VendorImportExportDialog } from "./VendorImportExportDialog";
 import { VendorDetailsDialog } from "./VendorDetailsDialog";
 import type { Vendor as AdminVendor } from "@/hooks/useVendor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatINR } from "@/lib/format";
 
 // Internal only - never shown to customers or the boutique itself.
 const QUALITY_GRADES = ["A++", "A+", "A", "B+", "B", "C"];
@@ -234,10 +235,10 @@ export function VendorManagement() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs">
-                      ₹{v.shipping_flat_rate} flat
+                      {formatINR(v.shipping_flat_rate)} flat
                       <br />
                       <span className="text-muted-foreground">
-                        free over ₹{v.free_shipping_threshold || "—"}
+                        free over {v.free_shipping_threshold ? formatINR(v.free_shipping_threshold) : "—"}
                       </span>
                     </TableCell>
                     <TableCell>

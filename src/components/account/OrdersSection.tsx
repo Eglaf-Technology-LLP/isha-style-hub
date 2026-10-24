@@ -18,6 +18,7 @@ import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDate } from "@/lib/dates";
+import { formatINR, formatMoney } from "@/lib/format";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -287,7 +288,7 @@ export function OrdersSection() {
                 <AccordionItem value="items" className="border-b-0">
                   <AccordionTrigger className="py-4 hover:no-underline">
                     <span className="text-sm">
-                      {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""} · <span className="font-medium">₹{order.total.toFixed(0)}</span>
+                      {order.order_items.length} item{order.order_items.length > 1 ? "s" : ""} · <span className="font-medium">{formatINR(order.total)}</span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
@@ -312,7 +313,7 @@ export function OrdersSection() {
                                   {[item.size && `Size ${item.size}`, item.color, `Qty ${item.quantity}`].filter(Boolean).join(" · ")}
                                 </p>
                               </div>
-                              <span className="shrink-0 font-medium">₹{(item.price * item.quantity).toFixed(0)}</span>
+                              <span className="shrink-0 font-medium">{formatINR((item.price * item.quantity))}</span>
                             </div>
                           ))}
                           {group.vendorOrder && (
@@ -341,7 +342,7 @@ export function OrdersSection() {
                         <span className="text-muted-foreground">
                           Discount applied{order.discount_code && ` (${order.discount_code})`}
                         </span>
-                        <span className="text-primary">-₹{order.discount_amount.toFixed(2)}</span>
+                        <span className="text-primary">-{formatMoney(order.discount_amount)}</span>
                       </div>
                     )}
                     {/* Return/Exchange status */}

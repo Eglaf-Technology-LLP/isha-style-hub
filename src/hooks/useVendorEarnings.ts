@@ -9,25 +9,41 @@ export interface VendorOrderEarning {
   orderId: string;
   createdAt: string;
   status: string;
-  subtotal: number;
-  shippingCost: number;
+  // What the customer paid for this boutique's pieces (incl. GST), plus
+  // the delivery charge when it goes to the boutique.
+  grossSales: number;
   commissionRate: number;
   commissionAmount: number;
-  // Informational only - the platform absorbs the gateway fee out of its
-  // own commission today (see usePlatformRevenue.ts), it is never deducted
-  // from a vendor's net_payable. Shown so a vendor can see how much of the
-  // processing cost their own sales contributed to, not as money owed.
-  gatewayFeeAttributed: number;
+  // Everything else net_payable takes off (see compute_vendor_order_fees):
+  // technology fee, GST on AllBoutiqs' fees, payment gateway, courier / COD
+  // handling (when charged to the boutique), GST TCS and income-tax TDS.
+  fees: FeeBreakdown;
+  feesTotal: number;
   netPayable: number;
+}
+
+export interface FeeBreakdown {
+  techFee: number;
+  feeGst: number;
+  gateway: number;
+  courierAndCod: number;
+  tcs: number;
+  tds: number;
 }
 
 export interface VendorEarningsSummary {
   grossSales: number;
   commissionDeducted: number;
-  gatewayFeeAttributed: number;
+  fees: FeeBreakdown;
+  feesTotal: number;
+  // Gross Sales - Commission - Fees & taxes, to the paisa.
   netPayable: number;
   orders: VendorOrderEarning[];
 }
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+const ZERO_FEES: FeeBreakdown = { techFee: 0, feeGst: 0, gateway: 0, courierAndCod: 0, tcs: 0, tds: 0 };
+const sumFees = (f: FeeBreakdown) => r2(f.techFee + f.feeGst + f.gateway + f.courierAndCod + f.tcs + f.tds);
 
 // A nested embed via a single FK column can come back as an object or a
 // one-element array depending on the client/typegen combo - same defensive
@@ -58,7 +74,7 @@ export function useVendorEarnings(vendorId: string | undefined) {
       const { data: vendorOrders, error } = await supabase
         .from("vendor_orders")
         .select(
-          "id, order_id, created_at, status, subtotal, shipping_cost, commission_rate, commission_amount, net_payable, order:orders(subtotal, payment_status)",
+          "id, order_id, created_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, order:orders(payment_status)",
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
@@ -71,49 +87,50 @@ export function useVendorEarnings(vendorId: string | undefined) {
         return order?.payment_status === "paid" && vo.status !== "cancelled";
       });
 
-      const orderIds = [...new Set(eligible.map((vo) => vo.order_id))];
-      const { data: payments } = orderIds.length
-        ? await supabase.from("payments").select("order_id, gateway_fee, payment_status").in("order_id", orderIds)
-        : { data: [] as { order_id: string; gateway_fee: number | null; payment_status: string }[] };
-
-      const gatewayFeeByOrderId = new Map<string, number>();
-      (payments ?? []).forEach((p) => {
-        if (p.payment_status !== "paid") return;
-        gatewayFeeByOrderId.set(
-          p.order_id,
-          (gatewayFeeByOrderId.get(p.order_id) || 0) + Number(p.gateway_fee || 0),
-        );
-      });
-
+      // The same stored figures net_payable is made of, so Gross - Commission
+      // - Fees always equals Net Payable (Developer Corrections Part 8, 6).
       const orders: VendorOrderEarning[] = eligible.map((vo) => {
-        const order = unwrapOne(vo.order);
-        const orderSubtotal = Number(order?.subtotal || 0);
-        const totalGatewayFee = gatewayFeeByOrderId.get(vo.order_id) || 0;
-        // This vendor's share of a multi-vendor order's one gateway fee,
-        // proportional to their slice of the order's subtotal - nothing
-        // splits this anywhere else today, so it's derived here, not stored.
-        const gatewayFeeAttributed =
-          orderSubtotal > 0 ? totalGatewayFee * (Number(vo.subtotal) / orderSubtotal) : 0;
-
+        const n = (v: unknown) => Number(v ?? 0);
+        const toBoutique = !!vo.shipping_to_boutique;
+        const fees: FeeBreakdown = {
+          techFee: n(vo.tech_fee_amount),
+          feeGst: n(vo.fee_gst_amount),
+          gateway: n(vo.gateway_fee_amount),
+          courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + n(vo.cod_handling_charge)),
+          tcs: n(vo.tcs_amount),
+          tds: n(vo.tds_amount),
+        };
         return {
           id: vo.id,
           orderId: vo.order_id,
           createdAt: vo.created_at,
           status: vo.status,
-          subtotal: Number(vo.subtotal),
-          shippingCost: Number(vo.shipping_cost),
-          commissionRate: Number(vo.commission_rate),
-          commissionAmount: Number(vo.commission_amount),
-          gatewayFeeAttributed,
-          netPayable: Number(vo.net_payable),
+          grossSales: r2((vo.goods_value != null ? n(vo.goods_value) : n(vo.subtotal)) + (toBoutique ? n(vo.shipping_cost) : 0)),
+          commissionRate: n(vo.commission_rate),
+          commissionAmount: n(vo.commission_amount),
+          fees,
+          feesTotal: sumFees(fees),
+          netPayable: n(vo.net_payable),
         };
       });
 
+      const fees = orders.reduce<FeeBreakdown>(
+        (t, o) => ({
+          techFee: r2(t.techFee + o.fees.techFee),
+          feeGst: r2(t.feeGst + o.fees.feeGst),
+          gateway: r2(t.gateway + o.fees.gateway),
+          courierAndCod: r2(t.courierAndCod + o.fees.courierAndCod),
+          tcs: r2(t.tcs + o.fees.tcs),
+          tds: r2(t.tds + o.fees.tds),
+        }),
+        ZERO_FEES,
+      );
       setSummary({
-        grossSales: orders.reduce((s, o) => s + o.subtotal + o.shippingCost, 0),
-        commissionDeducted: orders.reduce((s, o) => s + o.commissionAmount, 0),
-        gatewayFeeAttributed: orders.reduce((s, o) => s + o.gatewayFeeAttributed, 0),
-        netPayable: orders.reduce((s, o) => s + o.netPayable, 0),
+        grossSales: r2(orders.reduce((s, o) => s + o.grossSales, 0)),
+        commissionDeducted: r2(orders.reduce((s, o) => s + o.commissionAmount, 0)),
+        fees,
+        feesTotal: sumFees(fees),
+        netPayable: r2(orders.reduce((s, o) => s + o.netPayable, 0)),
         orders,
       });
     } catch (error) {
@@ -148,11 +165,16 @@ export function useVendorEarnings(vendorId: string | undefined) {
       "Order Date": formatDate(o.createdAt),
       "Order ID": o.orderId,
       Products: (productsByVendorOrder.get(o.id) ?? []).join(", "),
-      Subtotal: o.subtotal,
-      Shipping: o.shippingCost,
+      "Gross Sales": o.grossSales,
       "Commission Rate %": o.commissionRate,
-      "Commission Amount": o.commissionAmount,
-      "Gateway Fee (Attributed)": Number(o.gatewayFeeAttributed.toFixed(2)),
+      Commission: o.commissionAmount,
+      "Technology fee": o.fees.techFee,
+      "GST on AllBoutiqs fees": o.fees.feeGst,
+      "Payment gateway fee": o.fees.gateway,
+      "Courier & COD": o.fees.courierAndCod,
+      "GST TCS": o.fees.tcs,
+      "Income-tax TDS": o.fees.tds,
+      "Fees & taxes": o.feesTotal,
       "Net Payable": o.netPayable,
     }));
 

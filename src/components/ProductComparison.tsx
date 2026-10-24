@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { useComparisonStore, CompareProduct } from "@/stores/comparisonStore";
 import { cn } from "@/lib/utils";
+import { formatINR } from "@/lib/format";
 
 interface CompareButtonProps {
   product: CompareProduct;
@@ -145,10 +146,10 @@ export function CompareDrawer() {
                   {compareProducts.map((product) => (
                     <TableCell key={product.id}>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold">₹{product.price.toLocaleString()}</span>
+                        <span className="font-semibold">{formatINR(product.price)}</span>
                         {product.compare_at_price && product.compare_at_price > product.price && (
                           <span className="text-sm text-muted-foreground line-through">
-                            ₹{product.compare_at_price.toLocaleString()}
+                            {formatINR(product.compare_at_price)}
                           </span>
                         )}
                       </div>

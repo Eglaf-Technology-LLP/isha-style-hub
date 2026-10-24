@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useRefunds } from "@/hooks/useRefunds";
 import { RefundReceiptDialog } from "@/components/RefundReceiptDialog";
 import { formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 export const refundStatusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   initiated: { label: "Initiated", variant: "secondary" },
@@ -37,7 +38,7 @@ export function RefundHistory({ orderId }: { orderId: string }) {
         return (
           <div key={refund.id} className="p-3 border border-border rounded-lg text-sm space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-medium">₹{refund.amount.toFixed(2)}</span>
+              <span className="font-medium">{formatMoney(refund.amount)}</span>
               <Badge variant={config.variant}>{config.label}</Badge>
             </div>
             <p className="text-muted-foreground">{refund.reason}</p>

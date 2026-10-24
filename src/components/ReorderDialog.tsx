@@ -13,6 +13,7 @@ import { Loader2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useCartStore, CartItem } from "@/stores/cartStore";
 import { checkReorderAvailability, ReorderCheckResult, ReorderSourceItem } from "@/lib/reorderAvailability";
+import { formatMoney } from "@/lib/format";
 
 interface ReorderDialogProps {
   items: ReorderSourceItem[];
@@ -141,11 +142,11 @@ export function ReorderDialog({ items, open, onOpenChange }: ReorderDialogProps)
                       )}
                       {r.availability === "available" && r.priceChanged && r.currentPrice !== null && (
                         <p className="mt-1 text-xs">
-                          <span className="line-through text-muted-foreground mr-1.5">₹{item.price.toFixed(2)}</span>
+                          <span className="line-through text-muted-foreground mr-1.5">{formatMoney(item.price)}</span>
                           <span
                             className={r.currentPrice > item.price ? "text-destructive font-medium" : "text-green-700 font-medium"}
                           >
-                            ₹{r.currentPrice.toFixed(2)} now
+                            {formatMoney(r.currentPrice)} now
                           </span>
                         </p>
                       )}

@@ -19,6 +19,7 @@ import {
 import { Loader2, ShieldCheck, Star, TrendingUp } from "lucide-react";
 import { useVendorPerformance, VendorPerformance } from "@/hooks/useVendorPerformance";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 export function VendorPerformanceAnalytics() {
   const { vendors, loading } = useVendorPerformance(true);
@@ -103,10 +104,10 @@ export function VendorPerformanceAnalytics() {
                       )}
                     </TableCell>
                     <TableCell className="font-medium">
-                      ₹{v.grossRevenue.toFixed(2)}
+                      {formatMoney(v.grossRevenue)}
                     </TableCell>
                     <TableCell className="text-primary font-medium">
-                      ₹{v.commissionEarned.toFixed(2)}
+                      {formatMoney(v.commissionEarned)}
                     </TableCell>
                     <TableCell>
                       {v.topCategories[0] ? (
@@ -141,17 +142,17 @@ export function VendorPerformanceAnalytics() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Gross Revenue</p>
-                  <p className="text-lg font-bold">₹{detailVendor.grossRevenue.toFixed(2)}</p>
+                  <p className="text-lg font-bold">{formatMoney(detailVendor.grossRevenue)}</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Commission Earned</p>
                   <p className="text-lg font-bold text-primary">
-                    ₹{detailVendor.commissionEarned.toFixed(2)}
+                    {formatMoney(detailVendor.commissionEarned)}
                   </p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Net Payable to Vendor</p>
-                  <p className="text-lg font-bold">₹{detailVendor.netPayable.toFixed(2)}</p>
+                  <p className="text-lg font-bold">{formatMoney(detailVendor.netPayable)}</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Paid / Pending Orders</p>
@@ -173,7 +174,7 @@ export function VendorPerformanceAnalytics() {
                       >
                         <span>{c.categoryName}</span>
                         <span className="text-muted-foreground">
-                          ₹{c.revenue.toFixed(2)} · {c.quantity} units
+                          {formatMoney(c.revenue)} · {c.quantity} units
                         </span>
                       </div>
                     ))}

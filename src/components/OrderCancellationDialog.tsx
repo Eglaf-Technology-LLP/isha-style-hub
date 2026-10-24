@@ -14,6 +14,7 @@ import {
 import { Loader2, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { formatMoney } from "@/lib/format";
 
 // vendorOrderId/vendorOrderStatus are internal grouping keys only - the
 // customer never sees a vendor name or grouping label anywhere in this
@@ -161,7 +162,7 @@ export function OrderCancellationDialog({
                         {item.variantTitle && <span>{item.variantTitle}</span>}
                         {item.size && <span> • Size: {item.size}</span>}
                         {item.color && <span> • Colour: {item.color}</span>}
-                        {" • "}Qty: {item.quantity} • ₹{(item.price * item.quantity).toFixed(2)}
+                        {" • "}Qty: {item.quantity} • {formatMoney((item.price * item.quantity))}
                       </p>
                       {group.blocked && (
                         <p className="text-xs text-destructive mt-0.5">

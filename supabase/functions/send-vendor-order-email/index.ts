@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
+import { money } from "../_shared/money.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +77,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const itemsHtml = (list: { product_title: string; quantity: number; price: number; customisation?: unknown }[]) =>
       `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${list
-        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ₹${(i.price * i.quantity).toFixed(2)}${customisationHtml(i.customisation)}</li>`)
+        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ${money((i.price * i.quantity))}${customisationHtml(i.customisation)}</li>`)
         .join("")}</ul>`;
 
     const vendorSends = (vendors ?? [])
@@ -120,7 +121,7 @@ const handler = async (req: Request): Promise<Response> => {
         emailTemplate({
           heading: "New order placed",
           preheader: `Order #${orderId.slice(0, 8)} from ${order.customer_name}`,
-          bodyHtml: `<p style="color:#5a5a5a;">Order #${orderId.slice(0, 8)} from <strong>${order.customer_name}</strong> — ₹${Number(order.total).toFixed(2)} (${order.payment_method.toUpperCase()}).</p>`,
+          bodyHtml: `<p style="color:#5a5a5a;">Order #${orderId.slice(0, 8)} from <strong>${order.customer_name}</strong> — ${money(Number(order.total))} (${order.payment_method.toUpperCase()}).</p>`,
           ctaLabel: "View in Admin",
           ctaUrl: "https://allboutiqs.com/admin",
         })

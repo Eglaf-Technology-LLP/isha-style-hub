@@ -6,6 +6,7 @@ import { useVendorPayoutHistory, VendorPayout } from "@/hooks/useVendorPayoutHis
 import { formatPayoutDate, todayIst } from "@/lib/payoutDates";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 interface PayoutOrder {
   id: string;
@@ -33,7 +34,8 @@ interface VendorPayoutStagesProps {
   accountStatus: string;
 }
 
-const rupees = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+// Every amount on the seller dashboard has paise (Part 8, 6).
+const rupees = (n: number) => formatMoney(n);
 const sum = (rows: { net_payable: number }[]) => rows.reduce((s, r) => s + Number(r.net_payable || 0), 0);
 
 function Stage({

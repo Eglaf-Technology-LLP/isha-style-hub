@@ -46,6 +46,7 @@ import { useFocusTarget } from "@/hooks/useDeepLink";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipNowDialog } from "./ShipNowDialog";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatMoney } from "@/lib/format";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -301,7 +302,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
         if (errorMessage) {
           toast.error(`Marked completed, but the refund failed: ${errorMessage}`);
         } else {
-          toast.success(`₹${refundVal} refund submitted to Razorpay`);
+          toast.success(`${formatMoney(refundVal)} refund submitted to Razorpay`);
         }
       }
 
@@ -515,7 +516,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                                 </p>
                               )}
                             </div>
-                            {item.price && <p className="font-medium shrink-0">₹{(item.price * item.quantity).toFixed(2)}</p>}
+                            {item.price && <p className="font-medium shrink-0">{formatMoney((item.price * item.quantity))}</p>}
                           </div>
                           {returnItemPhotos(item).length > 0 ? (
                             <div className="flex flex-wrap gap-2">

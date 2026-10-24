@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { formatMoney } from "@/lib/format";
 
 export interface Payment {
   id: string;
@@ -221,7 +222,7 @@ export function usePayments(isAdmin: boolean = false) {
     }
 
     await fetchPayments();
-    toast.success(`₹${refundAmount} refund submitted to Razorpay`);
+    toast.success(`${formatMoney(refundAmount)} refund submitted to Razorpay`);
     return true;
   };
 

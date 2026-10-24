@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatINR } from "@/lib/format";
 
 interface BoutiqueRow {
   vendor_id: string;
@@ -70,7 +71,7 @@ export function RazorpayPayoutsPanel() {
     setReleasing(false);
     if (errorMessage) return toast.error(errorMessage);
     const total = (data?.released ?? []).reduce((s, r) => s + r.amount, 0);
-    toast.success(`Released ${data?.released.length ?? 0} payout(s) - ₹${Math.round(total)}`, {
+    toast.success(`Released ${data?.released.length ?? 0} payout(s) - ${formatINR(Math.round(total))}`, {
       description: [
         data?.settled ? `${data.settled} credited to bank` : null,
         data?.skipped.length ? `${data.skipped.length} not yet payable` : null,
@@ -123,8 +124,8 @@ export function RazorpayPayoutsPanel() {
                       </Badge>
                       {r.razorpay_error && <div className="text-xs text-destructive mt-1 max-w-[320px]">{r.razorpay_error}</div>}
                     </TableCell>
-                    <TableCell className="tabular-nums">₹{Math.round(r.inTransit)}</TableCell>
-                    <TableCell className="tabular-nums">₹{Math.round(r.credited)}</TableCell>
+                    <TableCell className="tabular-nums">{formatINR(Math.round(r.inTransit))}</TableCell>
+                    <TableCell className="tabular-nums">{formatINR(Math.round(r.credited))}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

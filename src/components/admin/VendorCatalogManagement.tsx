@@ -27,6 +27,7 @@ import { mapDbVariant } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
+import { formatINR } from "@/lib/format";
 
 interface VendorOption {
   id: string;
@@ -178,8 +179,8 @@ export function VendorCatalogManagement() {
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>
-                      ₹{Number(p.product_value ?? p.price).toFixed(0)}
-                      <div className="text-xs text-muted-foreground">MRP ₹{Number(p.price).toFixed(0)}</div>
+                      {formatINR(Number(p.product_value ?? p.price))}
+                      <div className="text-xs text-muted-foreground">MRP {formatINR(Number(p.price))}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

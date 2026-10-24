@@ -8,6 +8,7 @@ import { Plus, X, Trash2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductVariant, uploadImageFile } from "@/hooks/useProducts";
 import { titleCase } from "@/lib/text";
+import { formatINR } from "@/lib/format";
 
 interface VariantManagerProps {
   variants: ProductVariant[];
@@ -370,7 +371,7 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
                     />
                     {mrpFor && mrpFor(variant.product_value) != null && (
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        MRP ₹{mrpFor(variant.product_value)!.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                        MRP {formatINR(mrpFor(variant.product_value)!)}
                       </span>
                     )}
                   </div>

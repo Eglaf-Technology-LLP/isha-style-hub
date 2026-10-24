@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGlobalSearch, SearchResult } from "@/hooks/useGlobalSearch";
 import { Search, X, Clock, Tag, FolderOpen, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatINR } from "@/lib/format";
 
 interface GlobalSearchProps {
   className?: string;
@@ -149,7 +150,7 @@ export function GlobalSearch({ className, onClose, autoFocus = false }: GlobalSe
                       </Badge>
                       {result.price && (
                         <span className="text-sm text-primary font-medium">
-                          ₹{result.price}
+                          {formatINR(result.price)}
                         </span>
                       )}
                     </div>

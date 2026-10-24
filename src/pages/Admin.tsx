@@ -77,6 +77,7 @@ import { useUrlTab } from "@/hooks/useDeepLink";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import logo from "@/assets/logo.png";
+import { formatINR } from "@/lib/format";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -363,7 +364,7 @@ export default function Admin() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-4xl font-bold text-primary">
-                    ₹{paymentStats.totalReceived.toFixed(0)}
+                    {formatINR(paymentStats.totalReceived)}
                   </p>
                 </CardContent>
               </Card>

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
+import { money } from "../_shared/money.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,7 +42,7 @@ function buildEmailHtml(params: {
        </div>`
     : refundAmount !== null
       ? `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
-          <p style="margin: 0; color: #166534; font-weight: bold;">Refund issued: ₹${refundAmount.toFixed(2)}</p>
+          <p style="margin: 0; color: #166534; font-weight: bold;">Refund issued: ${money(refundAmount)}</p>
          </div>`
       : "";
 

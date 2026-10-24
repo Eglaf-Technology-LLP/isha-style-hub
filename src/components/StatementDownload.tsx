@@ -28,9 +28,10 @@ import {
   type StatementLine,
 } from "@/lib/statement";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 const ALL = "__all__";
-const money = (v: number) => `₹${v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (v: number) => `${formatINR(v)}`;
 const cell = (v: unknown) =>
   typeof v === "number" ? v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v ?? "");
 

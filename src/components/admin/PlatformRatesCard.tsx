@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlatformRates, WEEKDAYS, type PlatformRates } from "@/hooks/usePlatformRates";
 import { formatDate } from "@/lib/dates";
+import { formatINR } from "@/lib/format";
 
 type RateForm = Omit<PlatformRates, "id" | "created_at" | "created_by">;
 
@@ -39,7 +40,7 @@ function Summary({ r }: { r: PlatformRates }) {
     ["Payment gateway fee", `${pct(r.payment_gateway_fee_pct)} (online only)`],
     ["Courier & logistics", r.charge_courier_to_boutique ? "Charged to boutique" : "Borne by AllBoutiqs"],
     ["GST TCS", pct(r.gst_tcs_pct)],
-    ["Income-tax TDS", `${pct(r.tds_pct)} · ${pct(r.tds_no_pan_pct)} without PAN · individuals exempt up to ₹${Number(r.tds_individual_exempt_upto).toLocaleString("en-IN")}`],
+    ["Income-tax TDS", `${pct(r.tds_pct)} · ${pct(r.tds_no_pan_pct)} without PAN · individuals exempt up to ${formatINR(Number(r.tds_individual_exempt_upto))}`],
     [
       "Payouts",
       `${r.payout_hold_hours}h after delivery · cut-off ${WEEKDAYS[r.payout_cutoff_weekday]} ${time12(r.payout_cutoff_time)} · paid ${WEEKDAYS[r.payout_weekday]}`,
