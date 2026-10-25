@@ -1,5 +1,6 @@
 import { corsHeaders, errorMessage, getCallerUserId, isAdmin, jsonResponse, serviceClient } from "../_shared/auth.ts";
 import { createHeldTransfers, rzp } from "../_shared/razorpayRoute.ts";
+import { alertAdminsOfUnpaidCheckouts } from "./unpaidAlert.ts";
 
 // Online checkouts whose payment never went through. Checkout saves the
 // order (and takes the stock) before Razorpay opens; if the payment fails or
@@ -13,7 +14,8 @@ import { createHeldTransfers, rzp } from "../_shared/razorpayRoute.ts";
 //   use released.
 // Called by the customer's checkout when they close the payment window (one
 // order of theirs, straight away) and every 10 minutes by cron (all online
-// checkouts left unpaid for 30 minutes).
+// checkouts left unpaid for 30 minutes). The cron run also emails the admins
+// about customers who reached payment but didn't pay (unpaidAlert.ts).
 
 const UNPAID_FOR_MINUTES = 30;
 
@@ -108,11 +110,12 @@ Deno.serve(async (req) => {
       .limit(100);
     if (error) throw error;
 
-    const summary: Record<Outcome, number> & { errors: { order_id: string; error: string }[] } = {
+    const summary: Record<Outcome, number> & { alerts: number; errors: { order_id: string; error: string }[] } = {
       paid: 0,
       processing: 0,
       released: 0,
       skipped: 0,
+      alerts: 0,
       errors: [],
     };
     for (const order of orders ?? []) {
@@ -122,6 +125,12 @@ Deno.serve(async (req) => {
         console.error("release-unpaid-orders", order.id, errorMessage(e));
         summary.errors.push({ order_id: order.id, error: errorMessage(e) });
       }
+    }
+    try {
+      summary.alerts = await alertAdminsOfUnpaidCheckouts(supabase, razorpayPayments);
+    } catch (e) {
+      console.error("release-unpaid-orders: unpaid checkout alert", errorMessage(e));
+      summary.errors.push({ order_id: "alerts", error: errorMessage(e) });
     }
     return jsonResponse(summary);
   } catch (e) {
