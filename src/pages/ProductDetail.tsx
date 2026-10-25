@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { GrievanceOfficerNote } from "@/components/legal/GrievanceOfficerNote";
 import {
   ArrowRight,
   Banknote,
@@ -881,6 +882,8 @@ export default function ProductDetail() {
                   <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
                 </Link>
               )}
+
+              <GrievanceOfficerNote className="mt-8" />
             </div>
           </div>
         </div>

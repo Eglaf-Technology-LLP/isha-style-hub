@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Ornament } from "@/components/storefront/Ornament";
@@ -26,6 +27,12 @@ export function LegalPage({
   intro: ReactNode;
   sections: LegalSection[];
 }) {
+  // Links like /privacy-policy#grievance-officer open at that section.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
+  }, [hash]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
