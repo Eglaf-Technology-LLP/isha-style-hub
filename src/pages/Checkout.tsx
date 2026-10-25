@@ -13,7 +13,6 @@ import {
   Tag,
   X,
   Loader2,
-  CheckCircle,
   LogIn,
   MapPin,
   CalendarClock,
@@ -46,6 +45,8 @@ import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
 import { formatINR } from "@/lib/format";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
+import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
+import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -113,6 +114,9 @@ export default function Checkout() {
   const buyNowItem = useBuyNowStore((s) => s.item);
   const clearBuyNow = useBuyNowStore((s) => s.clear);
   const buyNow = searchParams.get("buy") === "now" && !!buyNowItem;
+  // The confirmation lives in the address (?placed=<order id>), so a refresh
+  // shows the same order summary instead of an empty cart (Extra list G).
+  const placedId = searchParams.get("placed");
   const items = useMemo(() => (buyNow && buyNowItem ? [buyNowItem] : cart.items), [buyNow, buyNowItem, cart.items]);
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
   const clearCart = buyNow ? clearBuyNow : cart.clearCart;
@@ -169,8 +173,8 @@ export default function Checkout() {
   // Each cart product's category, for coupons limited to categories.
   const [categoryByProduct, setCategoryByProduct] = useState<Record<string, string | null>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
-  const [orderPlaced, setOrderPlaced] = useState(false);
-  const [orderId, setOrderId] = useState<string | null>(null);
+  // A payment from before a reload being looked up (see pendingPayment.ts).
+  const [paymentCheck, setPaymentCheck] = useState<"checking" | "processing" | null>(null);
   const [notes, setNotes] = useState("");
 
   // Prefill email once we know who's signed in, and default the address
@@ -664,6 +668,70 @@ export default function Checkout() {
     return data?.status ?? null;
   };
 
+  const showPlaced = useCallback(
+    (placedOrderId: string) => navigate(`/checkout?placed=${placedOrderId}`, { replace: true }),
+    [navigate],
+  );
+  const dropPlaced = useCallback(() => navigate("/checkout", { replace: true }), [navigate]);
+
+  // An online payment still open when the page reloaded - typically a phone
+  // reloading the tab while the customer paid in their UPI app. Ask the
+  // server how it ended: paid -> the order summary; still with the bank ->
+  // keep checking for up to 3 minutes; not paid -> the cart, as it was.
+  useEffect(() => {
+    if (!user || placedId) return;
+    const pending = readPendingPayment(user.id);
+    if (!pending) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let tries = 0;
+    const check = async () => {
+      setPaymentCheck((c) => c ?? "checking");
+      const { data: o } = await supabase
+        .from("orders")
+        .select("payment_status, order_status")
+        .eq("id", pending.orderId)
+        .maybeSingle();
+      const status =
+        o && ["paid", "refunded"].includes(o.payment_status)
+          ? "paid"
+          : !o || o.order_status === "cancelled"
+            ? "released"
+            : await releaseUnpaidCheckout(pending.orderId);
+      if (cancelled) return;
+      if (status === "paid") {
+        clearPendingPayment();
+        setPaymentCheck(null);
+        (pending.buyNow ? clearBuyNow : cart.clearCart)();
+        toast.success("Payment successful!");
+        showPlaced(pending.orderId);
+        return;
+      }
+      // Still with the bank, or the check itself failed (no answer is not
+      // a "no"): try again.
+      const unsure = status === "processing" || status === null;
+      if (unsure && ++tries < 36) {
+        setPaymentCheck("processing");
+        timer = setTimeout(check, 5000);
+        return;
+      }
+      clearPendingPayment();
+      setPaymentCheck(null);
+      if (unsure) {
+        toast.info("Your bank is still confirming the payment. If it goes through, we'll place the order and email you.");
+      } else {
+        toast.error("Your last payment didn't go through, so no order was placed. Your cart is saved - you can try again.");
+      }
+    };
+    check();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // Once per signed-in visit to checkout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, placedId]);
+
   const placeOrder = async () => {
     if (!user) {
       toast.error("Please sign in to place your order");
@@ -911,10 +979,9 @@ export default function Checkout() {
         await sendConfirmationEmail(newOrderId);
         await sendVendorOrderEmail(newOrderId);
         clearCart();
-        setOrderId(newOrderId);
-        setOrderPlaced(true);
         toast.success("Order placed successfully!");
         setIsPlacingOrder(false);
+        showPlaced(newOrderId);
         return;
       }
 
@@ -923,6 +990,7 @@ export default function Checkout() {
       // past this point runs asynchronously in Razorpay's callbacks, not
       // in this try block, so isPlacingOrder is reset inside each branch
       // rather than in a finally here.
+      savePendingPayment({ orderId: newOrderId, userId: user.id, buyNow, startedAt: Date.now() });
       await openRazorpayCheckout({
         key: razorpayKeyId!,
         amount: Math.round(total * 100),
@@ -977,25 +1045,26 @@ export default function Checkout() {
             return;
           }
 
+          clearPendingPayment();
           await sendConfirmationEmail(newOrderId);
           await sendVendorOrderEmail(newOrderId);
           clearCart();
-          setOrderId(newOrderId);
-          setOrderPlaced(true);
           toast.success("Payment successful!");
           setIsPlacingOrder(false);
+          showPlaced(newOrderId);
         },
         modal: {
           ondismiss: async () => {
             const status = await releaseUnpaidCheckout(newOrderId);
+            // Still with the bank: keep the note, so a reload checks again.
+            if (status !== "processing") clearPendingPayment();
             if (status === "paid") {
               // Razorpay took the payment after all (the window closed first).
               await sendConfirmationEmail(newOrderId);
               await sendVendorOrderEmail(newOrderId);
               clearCart();
-              setOrderId(newOrderId);
-              setOrderPlaced(true);
               toast.success("Payment successful!");
+              showPlaced(newOrderId);
             } else if (status === "processing") {
               toast.info("Your payment is still being confirmed by your bank. We'll place the order as soon as it goes through.");
             } else {
@@ -1008,46 +1077,19 @@ export default function Checkout() {
     } catch (error: any) {
       console.error("Error placing order:", error);
       // The payment window never opened - don't leave the saved order behind.
-      if (unpaidOnlineOrderId) await releaseUnpaidCheckout(unpaidOnlineOrderId);
+      if (unpaidOnlineOrderId) {
+        clearPendingPayment();
+        await releaseUnpaidCheckout(unpaidOnlineOrderId);
+      }
       toast.error(error.message || "Failed to place order");
       setIsPlacingOrder(false);
     }
   };
 
-  if (orderPlaced) {
+  if (placedId && user) {
     return (
       <CheckoutShell step={2}>
-        <div className="store-container py-16 md:py-24">
-          <div className="mx-auto max-w-lg text-center">
-            <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-gold/40 bg-ivory">
-              <CheckCircle className="h-9 w-9 text-gold" strokeWidth={1.5} />
-            </span>
-            <p className="eyebrow mt-8 text-gold">Thank you</p>
-            <h1 className="mt-3 font-serif text-4xl leading-tight md:text-5xl">
-              Your order is <em className="font-normal text-primary">placed</em>
-            </h1>
-            <p className="mt-4 text-muted-foreground">
-              Thank you for your order. We'll send you a confirmation email shortly.
-            </p>
-            <p className="mt-6 inline-flex items-center gap-2 border border-border bg-ivory px-4 py-2 text-sm">
-              Order ID <span className="font-mono font-medium">{orderId?.slice(0, 8)}</span>
-            </p>
-            <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link
-                to="/orders"
-                className="inline-flex h-12 items-center justify-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
-              >
-                Track your order
-              </Link>
-              <Link
-                to="/"
-                className="inline-flex h-12 items-center justify-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-maroon-deep"
-              >
-                Continue shopping
-              </Link>
-            </div>
-          </div>
-        </div>
+        <OrderPlacedSummary orderId={placedId} onMissing={dropPlaced} />
       </CheckoutShell>
     );
   }
@@ -1135,7 +1177,7 @@ export default function Checkout() {
           <button
             type="button"
             onClick={placeOrder}
-            disabled={isPlacingOrder}
+            disabled={isPlacingOrder || paymentCheck !== null}
             className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -1145,6 +1187,16 @@ export default function Checkout() {
       }
     >
       <div className="store-container pb-16 pt-8 md:pt-12 lg:pb-20">
+        {paymentCheck && (
+          <div role="status" className="mb-8 flex items-start gap-3 border border-gold/40 bg-ivory p-4 text-sm">
+            <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-gold" />
+            <p>
+              {paymentCheck === "checking"
+                ? "Checking your last payment..."
+                : "Your bank is still confirming your last payment. This page will update by itself - please don't pay again."}
+            </p>
+          </div>
+        )}
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-16 xl:gap-20">
           {/* Left Column - Forms */}
           <div className="min-w-0 space-y-12">
@@ -1560,7 +1612,7 @@ export default function Checkout() {
                 <button
                   type="button"
                   onClick={placeOrder}
-                  disabled={isPlacingOrder}
+                  disabled={isPlacingOrder || paymentCheck !== null}
                   className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
                 >
                   {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
