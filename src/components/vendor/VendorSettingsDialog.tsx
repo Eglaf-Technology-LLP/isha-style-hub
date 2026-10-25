@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
+import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -85,9 +86,17 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
   }, [open, vendor]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
+  const ADDRESS_IDS: Record<PickupAddressField, string> = { address_line1: "vs-addr1", address_line2: "vs-addr2", city: "vs-city", state: "vs-state", pincode: "vs-pincode" };
+  const addressError = (field: PickupAddressField) =>
+    addressErrors[field] ? <p className="text-xs text-destructive">{addressErrors[field]}</p> : null;
 
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
+    // A pickup address Shiprocket will accept (Extra list F).
+    const problems = pickupAddressErrors(form, { allowBlank: true });
+    setAddressErrors(problems);
+    if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
 
     setSaving(true);
     try {
@@ -244,7 +253,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-addr1"
                 value={form.address_line1}
                 onChange={(e) => set("address_line1", e.target.value)}
+                aria-invalid={!!addressErrors.address_line1}
               />
+              {addressError("address_line1") ?? (
+                <p className="text-xs text-muted-foreground">At least 10 characters - shop / building number, street and area.</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="vs-addr2">Address line 2 (optional)</Label>
@@ -252,20 +265,25 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-addr2"
                 value={form.address_line2}
                 onChange={(e) => set("address_line2", e.target.value)}
+                aria-invalid={!!addressErrors.address_line2}
               />
+              {addressError("address_line2")}
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="vs-city">City</Label>
-                <Input id="vs-city" value={form.city} onChange={(e) => set("city", e.target.value)} />
+                <Input id="vs-city" value={form.city} onChange={(e) => set("city", e.target.value)} aria-invalid={!!addressErrors.city} />
+                {addressError("city")}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vs-state">State</Label>
-                <StateSelect id="vs-state" value={form.state} onChange={(v) => set("state", v)} />
+                <StateSelect id="vs-state" value={form.state} onChange={(v) => set("state", v)} invalid={!!addressErrors.state} />
+                {addressError("state")}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vs-pincode">PIN code</Label>
-                <Input id="vs-pincode" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                <Input id="vs-pincode" inputMode="numeric" maxLength={6} value={form.pincode} onChange={(e) => set("pincode", e.target.value)} aria-invalid={!!addressErrors.pincode} />
+                {addressError("pincode")}
               </div>
             </div>
           </div>

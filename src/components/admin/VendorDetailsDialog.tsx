@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
+import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -137,9 +138,17 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
   }, [open, vendor]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
+  const ADDRESS_IDS: Record<PickupAddressField, string> = { address_line1: "vd-addr1", address_line2: "vd-addr2", city: "vd-city", state: "vd-state", pincode: "vd-pincode" };
+  const addressError = (field: PickupAddressField) =>
+    addressErrors[field] ? <p className="text-xs text-destructive">{addressErrors[field]}</p> : null;
 
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
+    // A pickup address Shiprocket will accept (Extra list F).
+    const problems = pickupAddressErrors(form, { allowBlank: true });
+    setAddressErrors(problems);
+    if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
     setSaving(true);
     try {
       const newAddress = {
@@ -335,24 +344,29 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
               <h4 className="font-medium">Pickup Address</h4>
               <div className="space-y-2">
                 <Label htmlFor="vd-addr1">Address line 1</Label>
-                <Input id="vd-addr1" value={form.address_line1} onChange={(e) => set("address_line1", e.target.value)} />
+                <Input id="vd-addr1" value={form.address_line1} onChange={(e) => set("address_line1", e.target.value)} aria-invalid={!!addressErrors.address_line1} />
+                {addressError("address_line1")}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vd-addr2">Address line 2</Label>
-                <Input id="vd-addr2" value={form.address_line2} onChange={(e) => set("address_line2", e.target.value)} />
+                <Input id="vd-addr2" value={form.address_line2} onChange={(e) => set("address_line2", e.target.value)} aria-invalid={!!addressErrors.address_line2} />
+                {addressError("address_line2")}
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="vd-city">City</Label>
-                  <Input id="vd-city" value={form.city} onChange={(e) => set("city", e.target.value)} />
+                  <Input id="vd-city" value={form.city} onChange={(e) => set("city", e.target.value)} aria-invalid={!!addressErrors.city} />
+                  {addressError("city")}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-state">State</Label>
-                  <StateSelect id="vd-state" value={form.state} onChange={(v) => set("state", v)} />
+                  <StateSelect id="vd-state" value={form.state} onChange={(v) => set("state", v)} invalid={!!addressErrors.state} />
+                  {addressError("state")}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-pincode">Pincode</Label>
-                  <Input id="vd-pincode" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} />
+                  <Input id="vd-pincode" inputMode="numeric" maxLength={6} value={form.pincode} onChange={(e) => set("pincode", e.target.value)} aria-invalid={!!addressErrors.pincode} />
+                  {addressError("pincode")}
                 </div>
               </div>
             </section>

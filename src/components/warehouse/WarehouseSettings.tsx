@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
+import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserPlus } from "lucide-react";
@@ -27,6 +28,14 @@ interface Props {
   onSaved: () => void;
 }
 
+const ADDRESS_IDS: Record<PickupAddressField, string> = {
+  address_line1: "wd-address_line1",
+  address_line2: "wd-address_line2",
+  city: "wd-city",
+  state: "wd-state",
+  pincode: "wd-pincode",
+};
+
 const ADDRESS_FIELDS: [string, string][] = [
   ["address_line1", "Address line 1"],
   ["address_line2", "Address line 2"],
@@ -38,6 +47,7 @@ const ADDRESS_FIELDS: [string, string][] = [
 // Admin only: where the warehouse is, its rules, holidays and staff.
 export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }: Props) {
   const [details, setDetails] = useState<Record<string, string>>({});
+  const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
   const [rules, setRules] = useState<Record<string, string>>({});
   const [routing, setRouting] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -81,7 +91,10 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
 
   const saveDetails = async () => {
     if (!warehouse) return;
-    if (!/^\d{6}$/.test(details.pincode ?? "")) return toast.error("Enter a 6-digit PIN code");
+    // The courier collects from here - an address Shiprocket accepts (Extra list F).
+    const problems = pickupAddressErrors(details);
+    setAddressErrors(problems);
+    if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
     if (!/^\d{10}$/.test((details.contact_phone ?? "").replace(/\D/g, "").slice(-10))) return toast.error("Enter a 10-digit phone number");
     setSaving("details");
     const { error } = await supabase
@@ -179,9 +192,22 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
             <div key={k} className="space-y-1.5">
               <Label htmlFor={`wd-${k}`}>{label}</Label>
               {k === "state" ? (
-                <StateSelect id="wd-state" value={details.state ?? ""} onChange={(v) => setDetails((d) => ({ ...d, state: v }))} />
+                <StateSelect
+                  id="wd-state"
+                  value={details.state ?? ""}
+                  onChange={(v) => setDetails((d) => ({ ...d, state: v }))}
+                  invalid={!!addressErrors.state}
+                />
               ) : (
-                <Input id={`wd-${k}`} value={details[k] ?? ""} onChange={(e) => setDetails((d) => ({ ...d, [k]: e.target.value }))} />
+                <Input
+                  id={`wd-${k}`}
+                  value={details[k] ?? ""}
+                  onChange={(e) => setDetails((d) => ({ ...d, [k]: e.target.value }))}
+                  aria-invalid={!!addressErrors[k as PickupAddressField]}
+                />
+              )}
+              {addressErrors[k as PickupAddressField] && (
+                <p className="text-xs text-destructive">{addressErrors[k as PickupAddressField]}</p>
               )}
             </div>
           ))}

@@ -42,7 +42,6 @@ import {
   ACCOUNT_RE,
   ADDRESS_LINE1_MIN,
   BRAND_LEGAL_DECLARATION,
-  PIN_RE,
   cleanMobileInput,
   instagramProblem,
   normalizeInstagram,
@@ -62,6 +61,7 @@ import {
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
 import { LEGAL_PATHS, LEGAL_UPDATED } from "@/lib/legal";
+import { pickupAddressErrors } from "@/lib/pickupAddress";
 
 const benefits = [
   {
@@ -413,12 +413,8 @@ export default function SellWithUs() {
     if (!bank.proof_type) e.bank_proof_type = "Choose the type of bank proof";
     if (!files.bank_proof) e.doc_bank_proof = "Upload your bank proof as a PDF";
 
-    if (form.address_line1.trim().length < ADDRESS_LINE1_MIN) {
-      e.address_line1 = `Address line 1 needs at least ${ADDRESS_LINE1_MIN} characters`;
-    }
-    if (!form.city.trim()) e.city = "Enter your city";
-    if (!form.state.trim()) e.state = "Select your state";
-    if (!PIN_RE.test(form.pincode.trim())) e.pincode = "Enter a 6-digit PIN code";
+    // Courier pickup address - what Shiprocket accepts (Extra list F).
+    Object.assign(e, pickupAddressErrors(form));
     if (!acceptedTerms) e.accept_terms = "Please accept the Privacy Policy and the Seller Terms & Conditions";
     return e;
   };
@@ -1107,13 +1103,19 @@ export default function SellWithUs() {
                     }}
                     error={errors.address_line1}
                   />
-                  <p className="text-xs text-muted-foreground">Minimum {ADDRESS_LINE1_MIN} characters</p>
+                  <p className="text-xs text-muted-foreground">
+                    At least {ADDRESS_LINE1_MIN} characters - the courier needs the shop / building number and street
+                  </p>
                 </div>
                 <TextField
                   id="address_line2"
                   label="Address line 2 (optional)"
                   value={form.address_line2}
-                  onChange={(v) => set("address_line2", v)}
+                  onChange={(v) => {
+                    set("address_line2", v);
+                    clearError("address_line2");
+                  }}
+                  error={errors.address_line2}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <TextField
