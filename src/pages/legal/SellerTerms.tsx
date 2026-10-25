@@ -13,7 +13,7 @@ const sections: LegalSection[] = [
     body: (
       <p>
         These terms are an agreement between your business ("you", the seller) and {COMPANY.legalName} ("AllBoutiqs",
-        "we") for selling on allboutiqs.com. You accept them when you apply to sell, together with our{" "}
+        "we") for selling on allboutiqs.com. You accept them when you create your seller account, together with our{" "}
         <Link to={LEGAL_PATHS.privacy} className={link}>
           Privacy Policy
         </Link>

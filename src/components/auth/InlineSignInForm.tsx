@@ -16,6 +16,8 @@ import {
   type Identifier,
 } from "@/lib/authIdentifier";
 import { cn } from "@/lib/utils";
+import { ConsentFields, CONSENT_REQUIRED_MESSAGE } from "@/components/auth/ConsentFields";
+import { savePendingConsent, type ConsentKind } from "@/lib/consent";
 
 const CODE_LENGTH = 6;
 const PHONE_RESEND_SECONDS = 60;
@@ -54,7 +56,16 @@ const shown = (id: Identifier) => (id.kind === "phone" ? formatPhone(id.value) :
 //
 // variant "store": square storefront look with Sign in / Create account
 // tabs. "staff" (admin, warehouse): default look, sign-in only.
-export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "staff" }) {
+// audience: who "Create account" is for - customers agree to the Terms &
+// Conditions, sellers (Sell with us) to the Seller Terms & Conditions; both
+// to the Privacy Policy, and choose promotional emails.
+export function InlineSignInForm({
+  variant = "store",
+  audience = "customer",
+}: {
+  variant?: "store" | "staff";
+  audience?: ConsentKind;
+}) {
   const navigate = useNavigate();
   const { sendEmailCode, verifyEmailCode, sendPhoneCode, verifyPhoneCode, signInWithPassword, setPassword } = useAuth();
   const store = variant === "store";
@@ -72,6 +83,9 @@ export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "s
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [marketing, setMarketing] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const codeInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -118,6 +132,11 @@ export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "s
       );
       return;
     }
+    const creating = store && tab === "signup" && !resetting;
+    if (creating && !termsAccepted) {
+      setConsentError(CONSENT_REQUIRED_MESSAGE(audience));
+      return;
+    }
     if (usesPassword && (passwordRequired || password) && password.length < PASSWORD_MIN_LENGTH) {
       setError(`Your password needs at least ${PASSWORD_MIN_LENGTH} characters.`);
       return;
@@ -132,6 +151,8 @@ export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "s
       toast.success("You're signed in");
       return;
     }
+    // Saved once the code makes the account (ConsentGate).
+    if (creating) savePendingConsent(audience, marketing);
     await sendCode(parsed, usesPassword && password ? password : null);
   };
 
@@ -398,6 +419,20 @@ export function InlineSignInForm({ variant = "store" }: { variant?: "store" | "s
             </p>
           )}
         </div>
+      )}
+
+      {store && tab === "signup" && !resetting && (
+        <ConsentFields
+          kind={audience}
+          accepted={termsAccepted}
+          onAccepted={(v) => {
+            setTermsAccepted(v);
+            setConsentError(null);
+          }}
+          marketing={marketing}
+          onMarketing={setMarketing}
+          error={consentError}
+        />
       )}
 
       {error && (

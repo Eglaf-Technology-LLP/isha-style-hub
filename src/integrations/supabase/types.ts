@@ -1744,7 +1744,13 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          marketing_consent_at: string | null
+          marketing_emails_opt_in: boolean
           phone: string | null
+          seller_terms_accepted_at: string | null
+          seller_terms_version: string | null
+          terms_accepted_at: string | null
+          terms_version: string | null
           updated_at: string
           user_id: string
         }
@@ -1753,7 +1759,13 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          marketing_consent_at?: string | null
+          marketing_emails_opt_in?: boolean
           phone?: string | null
+          seller_terms_accepted_at?: string | null
+          seller_terms_version?: string | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1762,7 +1774,13 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          marketing_consent_at?: string | null
+          marketing_emails_opt_in?: boolean
           phone?: string | null
+          seller_terms_accepted_at?: string | null
+          seller_terms_version?: string | null
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -3471,6 +3489,10 @@ export type Database = {
     }
     Functions: {
       abandon_checkout: { Args: { _order_id: string }; Returns: boolean }
+      accept_terms: {
+        Args: { _kind: string; _marketing?: boolean; _version: string }
+        Returns: undefined
+      }
       add_business_days: { Args: { _d: string; _n: number }; Returns: string }
       add_warehouse_working_days: {
         Args: { _d: string; _n: number }

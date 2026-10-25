@@ -24,6 +24,7 @@ export function Footer() {
           <span>© {new Date().getFullYear()} {COMPANY.legalName}</span>
           <span className="flex gap-4">
             <Link to={LEGAL_PATHS.privacy} className="underline">Privacy Policy</Link>
+            <Link to={LEGAL_PATHS.terms} className="underline">Terms</Link>
             <Link to={LEGAL_PATHS.sellerTerms} className="underline">Seller Terms</Link>
           </span>
           <span>
@@ -108,6 +109,7 @@ export function Footer() {
           <FooterLink to="/account">My account</FooterLink>
           <FooterLink to="/wishlist">Wishlist</FooterLink>
           <FooterLink to={LEGAL_PATHS.privacy}>Privacy policy</FooterLink>
+          <FooterLink to={LEGAL_PATHS.terms}>Terms &amp; conditions</FooterLink>
         </FooterColumn>
 
         <FooterColumn title="Customer care">

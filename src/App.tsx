@@ -19,6 +19,8 @@ import Boutiques from "./pages/Boutiques";
 import Warehouse from "./pages/Warehouse";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import SellerTerms from "./pages/legal/SellerTerms";
+import CustomerTerms from "./pages/legal/CustomerTerms";
+import { ConsentGate } from "./components/auth/ConsentGate";
 import { LEGAL_PATHS } from "./lib/legal";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
@@ -33,6 +35,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <StaffOnlyGate>
+          <ConsentGate />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/product/:handle" element={<ProductDetail />} />
@@ -54,6 +57,7 @@ const App = () => (
             <Route path="/boutiques" element={<Boutiques />} />
             <Route path="/warehouse" element={<Warehouse />} />
             <Route path={LEGAL_PATHS.privacy} element={<PrivacyPolicy />} />
+            <Route path={LEGAL_PATHS.terms} element={<CustomerTerms />} />
             <Route path={LEGAL_PATHS.sellerTerms} element={<SellerTerms />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

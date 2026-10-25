@@ -5,5 +5,6 @@ export const LEGAL_UPDATED = "2026-10-25";
 
 export const LEGAL_PATHS = {
   privacy: "/privacy-policy",
+  terms: "/terms",
   sellerTerms: "/seller-terms",
 } as const;
