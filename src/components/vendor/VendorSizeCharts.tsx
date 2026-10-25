@@ -20,6 +20,10 @@ import {
 // Boutique "Size charts": one chart per category, in AllBoutiqs' fixed
 // template - the boutique only fills in the numbers. Shown on its product
 // pages in that category straight away (no approval).
+// A chart the boutique hasn't saved starts from AllBoutiqs' starting values.
+const startingDraft = (t: SizeChartTemplate, own: ChartValues | undefined): ChartValues =>
+  hasAnyValue(own) ? own! : standardValues(t);
+
 export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
   const [templates, setTemplates] = useState<(SizeChartTemplate & { categoryName: string })[] | null>(null);
   const [saved, setSaved] = useState<Record<string, ChartValues>>({});
@@ -43,7 +47,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
       setSaved(own);
       if (list.length) {
         setActive(list[0].category_id);
-        setDraft(own[list[0].category_id!] ?? {});
+        setDraft(startingDraft(list[0], own[list[0].category_id!]));
       }
     })();
   }, [vendorId]);
@@ -52,10 +56,15 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved[active ?? ""] ?? {});
 
   const pick = (categoryId: string) => {
-    if (dirty && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
+    if (dirty && hasAnyValue(saved[active ?? ""]) && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
     setActive(categoryId);
-    setDraft(saved[categoryId] ?? {});
+    const t = templates?.find((x) => x.category_id === categoryId);
+    setDraft(t ? startingDraft(t, saved[categoryId]) : saved[categoryId] ?? {});
   };
+
+  // Not saved yet: the chart opens with AllBoutiqs' starting values
+  // (Developer Corrections Part 8, 40), for the boutique to change.
+  const notSavedYet = !!template && !hasAnyValue(saved[template.category_id!]);
 
   const setCell = (key: string, size: string, value: string) =>
     setDraft((d) => ({ ...d, [key]: { ...(d[key] ?? {}), [size]: cleanNumber(value) } }));
@@ -111,7 +120,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                   className="gap-1.5"
                   onClick={() => pick(t.category_id!)}
                 >
-                  {t.categoryName}
+                  {t.name || t.categoryName}
                   {hasAnyValue(saved[t.category_id!]) && <CheckCircle2 className="h-3.5 w-3.5" aria-label="filled in" />}
                 </Button>
               ))}
@@ -128,9 +137,15 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                       Showing on your products
                     </Badge>
                   ) : (
-                    <Badge variant="outline">Not filled in yet</Badge>
+                    <Badge variant="outline">Starting values - not saved yet</Badge>
                   )}
                 </div>
+                {notSavedYet && hasAnyValue(draft) && (
+                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Starting values - change to your own measurements, and leave a size empty if you don't make it. Then
+                    save the chart.
+                  </p>
+                )}
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <table className="w-full text-sm">
                     <thead>
@@ -169,7 +184,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={save} disabled={saving || !dirty}>
                     {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Save {template.categoryName} chart
+                    Save {template.name || template.categoryName} chart
                   </Button>
                   {hasAnyValue(standardValues(template)) && (
                     <Button variant="outline" onClick={() => setDraft(standardValues(template))}>

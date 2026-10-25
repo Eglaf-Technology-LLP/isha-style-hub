@@ -30,7 +30,7 @@ export function SizeChartTemplateButton({ categoryId, categoryName }: { category
     setTemplateId(t?.id ?? null);
     setName(t?.name || categoryName);
     setUnit(t?.unit ?? "in");
-    setSizes(t?.sizes ?? ["XS", "S", "M", "L", "XL", "XXL"]);
+    setSizes(t?.sizes ?? ["XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"]);
     setMeasurements(t?.measurements ?? []);
     setLoading(false);
   };
