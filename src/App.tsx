@@ -17,6 +17,9 @@ import VendorDashboard from "./pages/VendorDashboard";
 import StorePage from "./pages/StorePage";
 import Boutiques from "./pages/Boutiques";
 import Warehouse from "./pages/Warehouse";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import SellerTerms from "./pages/legal/SellerTerms";
+import { LEGAL_PATHS } from "./lib/legal";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 import { StaffOnlyGate } from "./components/StaffOnlyGate";
@@ -50,6 +53,8 @@ const App = () => (
             <Route path="/store/:slug" element={<StorePage />} />
             <Route path="/boutiques" element={<Boutiques />} />
             <Route path="/warehouse" element={<Warehouse />} />
+            <Route path={LEGAL_PATHS.privacy} element={<PrivacyPolicy />} />
+            <Route path={LEGAL_PATHS.sellerTerms} element={<SellerTerms />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -81,6 +81,11 @@ export interface VendorApplicationInput {
     bank_name: string;
     proof_type: BankProofType;
   };
+  // Privacy Policy + Seller Terms (required) and promotional emails (the
+  // seller's choice), with the version of the terms shown (Extra list E).
+  accepted_terms: boolean;
+  terms_version: string;
+  marketing_emails: boolean;
 }
 
 export interface ApplicationDocument {

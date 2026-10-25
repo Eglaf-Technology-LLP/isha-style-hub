@@ -12,7 +12,7 @@ import {
   instagramHandle,
   type BusinessConstitution,
 } from "@/lib/vendorKyc";
-import { formatDateTime } from "@/lib/dates";
+import { formatDate, formatDateTime } from "@/lib/dates";
 
 interface Kyc {
   business_constitution: BusinessConstitution;
@@ -37,6 +37,9 @@ interface Kyc {
   brand_legal_declared_at: string | null;
   instagram_url: string | null;
   website_url: string | null;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  marketing_emails_opt_in: boolean;
 }
 
 function ExternalLinkValue({ href, children }: { href: string; children: React.ReactNode }) {
@@ -196,6 +199,15 @@ export function VendorKycSection({ vendorId, brandName }: { vendorId: string; br
         />
         <Field label="Website" value={kyc.website_url ? <ExternalLinkValue href={kyc.website_url}>{kyc.website_url.replace(/^https?:\/\//, "")}</ExternalLinkValue> : null} />
         <Field label="Submitted" value={formatDateTime(kyc.submitted_at)} />
+        <Field
+          label="Privacy Policy & Seller Terms"
+          value={
+            kyc.terms_accepted_at
+              ? `Accepted ${formatDateTime(kyc.terms_accepted_at)}${kyc.terms_version ? ` (version ${formatDate(kyc.terms_version)})` : ""}`
+              : "Applied before sign-up asked for it"
+          }
+        />
+        <Field label="Promotional emails" value={kyc.marketing_emails_opt_in ? "Yes - agreed at sign-up" : "No"} />
         <Field label="PAN" value={<span className="font-mono">{kyc.pan}</span>} />
         <Field label="GST Number" value={kyc.gstin ? <span className="font-mono">{kyc.gstin}</span> : null} />
         <Field label="Official Business Email" value={kyc.business_email} />

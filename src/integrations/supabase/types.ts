@@ -2545,9 +2545,13 @@ export type Database = {
           gstin: string | null
           instagram_url: string | null
           legal_business_name: string
+          marketing_consent_at: string | null
+          marketing_emails_opt_in: boolean
           pan: string
           primary_mobile: string
           submitted_at: string
+          terms_accepted_at: string | null
+          terms_version: string | null
           updated_at: string
           vendor_id: string
           website_url: string | null
@@ -2571,9 +2575,13 @@ export type Database = {
           gstin?: string | null
           instagram_url?: string | null
           legal_business_name: string
+          marketing_consent_at?: string | null
+          marketing_emails_opt_in?: boolean
           pan: string
           primary_mobile: string
           submitted_at?: string
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           vendor_id: string
           website_url?: string | null
@@ -2597,9 +2605,13 @@ export type Database = {
           gstin?: string | null
           instagram_url?: string | null
           legal_business_name?: string
+          marketing_consent_at?: string | null
+          marketing_emails_opt_in?: boolean
           pan?: string
           primary_mobile?: string
           submitted_at?: string
+          terms_accepted_at?: string | null
+          terms_version?: string | null
           updated_at?: string
           vendor_id?: string
           website_url?: string | null

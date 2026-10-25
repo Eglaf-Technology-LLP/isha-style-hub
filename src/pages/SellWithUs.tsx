@@ -61,6 +61,7 @@ import {
   type DocumentType,
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
+import { LEGAL_PATHS, LEGAL_UPDATED } from "@/lib/legal";
 
 const benefits = [
   {
@@ -268,6 +269,8 @@ export default function SellWithUs() {
   // Boutique / Brand Name vs Legal Business Name (Part 7, 3.1-3.2).
   const [brandSame, setBrandSame] = useState(true);
   const [brandDeclared, setBrandDeclared] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [marketingEmails, setMarketingEmails] = useState(false);
   const [authorized, setAuthorized] = useState<PersonDetails>(EMPTY_PERSON);
   const [contactSame, setContactSame] = useState(true);
   const [contact, setContact] = useState<PersonDetails>(EMPTY_PERSON);
@@ -416,6 +419,7 @@ export default function SellWithUs() {
     if (!form.city.trim()) e.city = "Enter your city";
     if (!form.state.trim()) e.state = "Select your state";
     if (!PIN_RE.test(form.pincode.trim())) e.pincode = "Enter a 6-digit PIN code";
+    if (!acceptedTerms) e.accept_terms = "Please accept the Privacy Policy and the Seller Terms & Conditions";
     return e;
   };
 
@@ -472,6 +476,9 @@ export default function SellWithUs() {
           bank_name: bank.bank_name.trim(),
           proof_type: bank.proof_type as BankProofType,
         },
+        accepted_terms: acceptedTerms,
+        terms_version: LEGAL_UPDATED,
+        marketing_emails: marketingEmails,
       },
       documents,
       (done, total) => setProgress(done < total ? `Uploading documents (${done + 1} of ${total})...` : "Submitting application..."),
@@ -1197,12 +1204,50 @@ export default function SellWithUs() {
                 </div>
               </FormSection>
 
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label id="accept_terms" className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
+                    <Checkbox
+                      checked={acceptedTerms}
+                      onCheckedChange={(v) => {
+                        setAcceptedTerms(v === true);
+                        clearError("accept_terms");
+                      }}
+                      aria-invalid={!!errors.accept_terms}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      I have read and agree to the{" "}
+                      <Link to={LEGAL_PATHS.privacy} target="_blank" className="text-primary underline underline-offset-4">
+                        Privacy Policy
+                      </Link>{" "}
+                      and the{" "}
+                      <Link to={LEGAL_PATHS.sellerTerms} target="_blank" className="text-primary underline underline-offset-4">
+                        Seller Terms &amp; Conditions
+                      </Link>
+                      . *
+                    </span>
+                  </label>
+                  <FieldError message={errors.accept_terms} />
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
+                  <Checkbox
+                    checked={marketingEmails}
+                    onCheckedChange={(v) => setMarketingEmails(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Send me promotional emails from AllBoutiqs - news, offers and selling tips.{" "}
+                    <span className="text-muted-foreground">(optional - you can stop them any time)</span>
+                  </span>
+                </label>
+              </div>
+
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 text-primary shrink-0" />
                 <p>
-                  By submitting, you confirm these details and documents are genuine and agree to the marketplace
-                  terms. New stores start un-trusted (products need admin approval); AllBoutiqs can grant
-                  trusted-partner status to publish instantly.
+                  By submitting, you confirm these details and documents are genuine. New stores start un-trusted
+                  (products need admin approval); AllBoutiqs can grant trusted-partner status to publish instantly.
                 </p>
               </div>
 

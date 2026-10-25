@@ -4,6 +4,7 @@ import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { useStaffRole } from "@/hooks/useStaffRole";
 import { ArrowRight, Loader2, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { COMPANY, telHref } from "@/lib/company";
+import { LEGAL_PATHS } from "@/lib/legal";
 import { useNewsletter } from "@/hooks/useNewsletter";
 import { useMenuCategories } from "@/hooks/useStorefront";
 import logo from "@/assets/logo-white.png";
@@ -21,6 +22,10 @@ export function Footer() {
       <footer className="bg-secondary text-secondary-foreground">
         <div className="container mx-auto px-4 py-6 flex flex-wrap items-center justify-between gap-3 text-sm text-secondary-foreground/80">
           <span>© {new Date().getFullYear()} {COMPANY.legalName}</span>
+          <span className="flex gap-4">
+            <Link to={LEGAL_PATHS.privacy} className="underline">Privacy Policy</Link>
+            <Link to={LEGAL_PATHS.sellerTerms} className="underline">Seller Terms</Link>
+          </span>
           <span>
             Help: <a href={`mailto:${COMPANY.supportEmail}`} className="underline">{COMPANY.supportEmail}</a> ·{" "}
             <a href={telHref(COMPANY.supportPhone)} className="underline">{COMPANY.supportPhone}</a>
@@ -94,6 +99,7 @@ export function Footer() {
           <FooterLink to="/boutiques">Meet the boutiques</FooterLink>
           <FooterLink to="/sell-with-us">Sell on AllBoutiqs</FooterLink>
           <FooterLink to="/vendor">Boutique login</FooterLink>
+          <FooterLink to={LEGAL_PATHS.sellerTerms}>Seller terms</FooterLink>
         </FooterColumn>
 
         <FooterColumn title="Help">
@@ -101,6 +107,7 @@ export function Footer() {
           <FooterLink to="/orders">Returns &amp; exchanges</FooterLink>
           <FooterLink to="/account">My account</FooterLink>
           <FooterLink to="/wishlist">Wishlist</FooterLink>
+          <FooterLink to={LEGAL_PATHS.privacy}>Privacy policy</FooterLink>
         </FooterColumn>
 
         <FooterColumn title="Customer care">
