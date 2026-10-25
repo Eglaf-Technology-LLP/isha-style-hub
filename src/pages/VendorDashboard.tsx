@@ -69,7 +69,8 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
-import { ExternalLink, Ruler, XCircle } from "lucide-react";
+import { ExternalLink, FileBarChart, Ruler, XCircle } from "lucide-react";
+import { VendorReports } from "@/components/vendor/VendorReports";
 import { VendorSizeCharts } from "@/components/vendor/VendorSizeCharts";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
@@ -623,16 +624,16 @@ export default function VendorDashboard() {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-5xl grid-cols-8">
-            <TabsTrigger value="dashboard" className="flex items-center gap-1">
+          <TabsList className="grid w-full max-w-6xl grid-cols-9">
+            <TabsTrigger value="dashboard" aria-label="Dashboard" className="flex items-center gap-1">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-1">
+            <TabsTrigger value="analytics" aria-label="Analytics" className="flex items-center gap-1">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="flex items-center gap-1 relative">
+            <TabsTrigger value="inventory" aria-label="Inventory" className="flex items-center gap-1 relative">
               <AlertTriangle className="h-4 w-4" />
               <span className="hidden sm:inline">Inventory</span>
               {lowStockAlerts > 0 && (
@@ -641,25 +642,29 @@ export default function VendorDashboard() {
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center gap-1">
+            <TabsTrigger value="products" aria-label="Products" className="flex items-center gap-1">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Products</span>
             </TabsTrigger>
-            <TabsTrigger value="size-charts" className="flex items-center gap-1">
+            <TabsTrigger value="size-charts" aria-label="Size charts" className="flex items-center gap-1">
               <Ruler className="h-4 w-4" />
               <span className="hidden sm:inline">Size charts</span>
             </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-1">
+            <TabsTrigger value="orders" aria-label="Orders" className="flex items-center gap-1">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
             </TabsTrigger>
-            <TabsTrigger value="returns" className="flex items-center gap-1">
+            <TabsTrigger value="returns" aria-label="Returns" className="flex items-center gap-1">
               <RotateCcw className="h-4 w-4" />
               <span className="hidden sm:inline">Returns</span>
             </TabsTrigger>
-            <TabsTrigger value="payouts" className="flex items-center gap-1">
+            <TabsTrigger value="payouts" aria-label="Payouts" className="flex items-center gap-1">
               <Landmark className="h-4 w-4" />
               <span className="hidden sm:inline">Payouts</span>
+            </TabsTrigger>
+            <TabsTrigger value="reports" aria-label="Reports" className="flex items-center gap-1">
+              <FileBarChart className="h-4 w-4" />
+              <span className="hidden sm:inline">Reports</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1285,6 +1290,11 @@ export default function VendorDashboard() {
           {/* Returns Tab - read-only, RLS scopes visibility to this vendor's own items; approval stays admin-only */}
           <TabsContent value="returns">
             <ReturnManagement vendorView />
+          </TabsContent>
+
+          {/* Reports Tab - completed orders and every charge (Extra list H + I) */}
+          <TabsContent value="reports">
+            <VendorReports vendorId={vendor.id} />
           </TabsContent>
 
           {/* Payouts Tab */}

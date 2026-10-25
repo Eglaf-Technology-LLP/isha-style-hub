@@ -3677,6 +3677,7 @@ export type Database = {
         Returns: boolean
       }
       order_ref: { Args: { _order_id: string }; Returns: string }
+      pickup_address_problem: { Args: { _addr: Json }; Returns: string }
       prepare_vendor_payouts: {
         Args: { _payout_date?: string }
         Returns: {
@@ -3755,6 +3756,7 @@ export type Database = {
           commission: number
           courier: number
           delivered_on: string
+          discount: number
           fee_gst: number
           fee_invoice_number: string
           gateway_fee: number
@@ -3769,6 +3771,7 @@ export type Database = {
           payout_status: string
           product_value: number
           refunded: number
+          shipping_credit: number
           status: string
           supply_type: string
           tcs_cgst: number
