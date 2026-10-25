@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +47,8 @@ import { format } from "date-fns";
 import { DiscountImportExportDialog } from "./DiscountImportExportDialog";
 import { formatDate } from "@/lib/dates";
 import { formatINR } from "@/lib/format";
+import { listNames } from "@/lib/coupons";
+import { supabase } from "@/integrations/supabase/client";
 
 export function DiscountManagement() {
   const {
@@ -69,11 +71,30 @@ export function DiscountManagement() {
     min_order_amount: 0,
     max_uses: null,
     product_ids: null,
+    category_ids: null,
     is_active: true,
     starts_at: null,
     expires_at: null,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("categories")
+      .select("id, name")
+      .order("name")
+      .then(({ data }) => setCategories(data ?? []));
+  }, []);
+
+  const categoryNames = (ids: string[] | null) =>
+    (ids ?? []).map((id) => categories.find((c) => c.id === id)?.name).filter((n): n is string => !!n);
+
+  const toggleCategory = (id: string) => {
+    const current = discountForm.category_ids ?? [];
+    const next = current.includes(id) ? current.filter((c) => c !== id) : [...current, id];
+    setDiscountForm({ ...discountForm, category_ids: next.length ? next : null });
+  };
 
   const resetForm = () => {
     setDiscountForm({
@@ -85,6 +106,7 @@ export function DiscountManagement() {
       min_order_amount: 0,
       max_uses: null,
       product_ids: null,
+      category_ids: null,
       is_active: true,
       starts_at: null,
       expires_at: null,
@@ -132,6 +154,7 @@ export function DiscountManagement() {
       min_order_amount: discount.min_order_amount,
       max_uses: discount.max_uses,
       product_ids: discount.product_ids,
+      category_ids: discount.category_ids,
       is_active: discount.is_active,
       starts_at: discount.starts_at,
       expires_at: discount.expires_at,
@@ -322,6 +345,42 @@ export function DiscountManagement() {
         </div>
       </div>
 
+      {/* Extra list D: a coupon for some categories only (several allowed). */}
+      <div className="space-y-2">
+        <Label>Applies to</Label>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Categories this coupon is for">
+          <Button
+            type="button"
+            size="sm"
+            variant={discountForm.category_ids?.length ? "outline" : "default"}
+            aria-pressed={!discountForm.category_ids?.length}
+            onClick={() => setDiscountForm({ ...discountForm, category_ids: null })}
+          >
+            All categories
+          </Button>
+          {categories.map((c) => {
+            const on = !!discountForm.category_ids?.includes(c.id);
+            return (
+              <Button
+                key={c.id}
+                type="button"
+                size="sm"
+                variant={on ? "default" : "outline"}
+                aria-pressed={on}
+                onClick={() => toggleCategory(c.id)}
+              >
+                {c.name}
+              </Button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {discountForm.category_ids?.length
+            ? `Only items in ${listNames(categoryNames(discountForm.category_ids))} get the discount, and only they count towards the minimum order.`
+            : "Every item in the order gets the discount. Pick one or more categories to limit it."}
+        </p>
+      </div>
+
       <div className="flex items-center justify-between">
         <Label>Active</Label>
         <Switch
@@ -429,6 +488,9 @@ export function DiscountManagement() {
                         : `${formatINR(discount.discount_value)} off`}
                       {discount.min_order_amount > 0 &&
                         ` • Min. ${formatINR(discount.min_order_amount)}`}
+                      {discount.category_ids?.length
+                        ? ` • On ${listNames(categoryNames(discount.category_ids))} only`
+                        : ""}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Used: {discount.used_count}

@@ -14,6 +14,8 @@ export interface Discount {
   max_uses: number | null;
   used_count: number;
   product_ids: string[] | null;
+  // Categories the coupon is for (several allowed); null = every category.
+  category_ids: string[] | null;
   is_active: boolean;
   starts_at: string | null;
   expires_at: string | null;
@@ -30,6 +32,7 @@ export interface DiscountFormData {
   min_order_amount: number;
   max_uses: number | null;
   product_ids: string[] | null;
+  category_ids: string[] | null;
   is_active: boolean;
   starts_at: string | null;
   expires_at: string | null;
@@ -80,6 +83,7 @@ export function useDiscounts() {
           min_order_amount: discountData.min_order_amount,
           max_uses: discountData.max_uses || null,
           product_ids: discountData.product_ids || null,
+          category_ids: discountData.category_ids?.length ? discountData.category_ids : null,
           is_active: discountData.is_active,
           starts_at: discountData.starts_at || null,
           expires_at: discountData.expires_at || null,
@@ -124,6 +128,8 @@ export function useDiscounts() {
       if (discountData.min_order_amount !== undefined) updateData.min_order_amount = discountData.min_order_amount;
       if (discountData.max_uses !== undefined) updateData.max_uses = discountData.max_uses;
       if (discountData.product_ids !== undefined) updateData.product_ids = discountData.product_ids;
+      if (discountData.category_ids !== undefined)
+        updateData.category_ids = discountData.category_ids?.length ? discountData.category_ids : null;
       if (discountData.is_active !== undefined) updateData.is_active = discountData.is_active;
       if (discountData.starts_at !== undefined) updateData.starts_at = discountData.starts_at;
       if (discountData.expires_at !== undefined) updateData.expires_at = discountData.expires_at;

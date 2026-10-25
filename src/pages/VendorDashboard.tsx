@@ -88,6 +88,7 @@ import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
 import { CUSTOMISATION_ENABLED } from "@/lib/customisation";
 import { formatMoney } from "@/lib/format";
+import { boutiqueDiscountShare } from "@/lib/coupons";
 
 interface VendorProduct {
   id: string;
@@ -161,6 +162,7 @@ interface VendorOrder {
   payment_status?: string;
   payment_method?: string;
   discount_code?: string | null;
+  // This boutique's share of the order's coupon (not the whole order's).
   discount_amount?: number;
   items?: VendorOrderItem[];
   // Warehouse route: the parcel goes to the AllBoutiqs warehouse, which
@@ -180,6 +182,7 @@ interface VendorOrderItem {
   sku: string | null;
   quantity: number;
   price: number;
+  discount_amount: number | null;
   // What the customer asked for, if they customised it (make it from this).
   customisation: CustomisationChoice | null;
 }
@@ -377,7 +380,7 @@ export default function VendorDashboard() {
           .select(
             // No customer phone or email for boutiques (Part 7, 4.2) - AllBoutiqs
             // stays the only contact; they appear only on the tax invoice.
-            "id, customer_name, shipping_address, payment_status, payment_method, discount_code, discount_amount, fulfilment_route"
+            "id, customer_name, shipping_address, payment_status, payment_method, subtotal, discount_code, discount_amount, fulfilment_route"
           )
           .in("id", ids);
         const map = new Map((ords || []).map((o: any) => [o.id, o]));
@@ -400,7 +403,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -410,6 +413,8 @@ export default function VendorDashboard() {
         });
         vOrders.forEach((o) => {
           o.items = itemsByVendorOrder.get(o.id) ?? [];
+          // Only the coupon share on this boutique's own items.
+          o.discount_amount = boutiqueDiscountShare(o.items, o.discount_amount, map.get(o.order_id)?.subtotal);
         });
       }
       setOrders(vOrders);
@@ -1108,7 +1113,7 @@ export default function VendorDashboard() {
                               )}
                               {!!o.discount_amount && o.discount_amount > 0 && (
                                 <div className="text-xs text-primary">
-                                  Coupon used{o.discount_code && ` (${o.discount_code})`} - doesn't affect your payout
+                                  Coupon{o.discount_code && ` ${o.discount_code}`}: {formatMoney(o.discount_amount)} off your items
                                 </div>
                               )}
                             </TableCell>

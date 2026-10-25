@@ -33,6 +33,10 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
     idBySku: Map<string, string>;
     skuById: Map<string, string>;
   }>({ idBySku: new Map(), skuById: new Map() });
+  const [categoryMaps, setCategoryMaps] = useState<{ idByName: Map<string, string>; nameById: Map<string, string> }>({
+    idByName: new Map(),
+    nameById: new Map(),
+  });
   const [results, setResults] = useState<{ created: number; updated: number; errors: DiscountRowError[] } | null>(
     null,
   );
@@ -54,6 +58,15 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
         });
         setProductMaps({ idBySku, skuById });
       });
+    supabase
+      .from("categories")
+      .select("id, name")
+      .then(({ data }) =>
+        setCategoryMaps({
+          idByName: new Map((data ?? []).map((c) => [c.name.toLowerCase(), c.id])),
+          nameById: new Map((data ?? []).map((c) => [c.id, c.name])),
+        }),
+      );
   }, [open]);
 
   const downloadSample = async () => {
@@ -61,7 +74,7 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
   };
 
   const downloadCurrent = async () => {
-    await buildWorkbook(discountsToRows(discounts, productMaps.skuById), "discounts-export.xlsx");
+    await buildWorkbook(discountsToRows(discounts, productMaps.skuById, categoryMaps.nameById), "discounts-export.xlsx");
   };
 
   const handleFile = async (file: File) => {
@@ -69,7 +82,7 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
     setResults(null);
     try {
       const rawRows = await parseWorkbook(file);
-      const { rows, errors } = parseDiscountRows(rawRows, productMaps.idBySku);
+      const { rows, errors } = parseDiscountRows(rawRows, productMaps.idBySku, categoryMaps.idByName);
 
       let created = 0;
       let updated = 0;
@@ -83,6 +96,7 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
           min_order_amount: row.min_order_amount,
           max_uses: row.max_uses,
           product_ids: row.product_ids,
+          category_ids: row.category_ids,
           starts_at: row.starts_at,
           expires_at: row.expires_at,
           is_active: row.is_active,
@@ -125,7 +139,7 @@ export function DiscountImportExportDialog({ discounts, addDiscount, updateDisco
           <DialogHeader>
             <DialogTitle>Import / Export Discounts</DialogTitle>
             <DialogDescription>
-              Bulk-create or update discount codes via an Excel file - products are matched by SKU
+              Bulk-create or update discount codes via an Excel file - products are matched by SKU, categories by name
             </DialogDescription>
           </DialogHeader>
 

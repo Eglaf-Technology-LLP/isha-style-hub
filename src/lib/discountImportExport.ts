@@ -10,6 +10,7 @@ export const DISCOUNT_COLUMNS = {
   minOrderAmount: "Min. Order Amount",
   maxUses: "Max Uses (optional)",
   productSkus: "Restrict to Product SKUs (optional, semicolon-separated)",
+  categories: "Restrict to Categories (optional, semicolon-separated names)",
   startsAt: "Start Date/Time (optional, YYYY-MM-DD HH:mm)",
   expiresAt: "End Date/Time (optional, YYYY-MM-DD HH:mm)",
   isActive: "Active (TRUE/FALSE)",
@@ -25,6 +26,7 @@ export interface DiscountImportRow {
   min_order_amount: number;
   max_uses: number | null;
   product_ids: string[] | null;
+  category_ids: string[] | null;
   starts_at: string | null;
   expires_at: string | null;
   is_active: boolean;
@@ -38,6 +40,7 @@ export interface DiscountRowError {
 export function parseDiscountRows(
   rows: Record<string, string>[],
   productIdBySku: Map<string, string>,
+  categoryIdByName: Map<string, string>,
 ): { rows: DiscountImportRow[]; errors: DiscountRowError[] } {
   const errors: DiscountRowError[] = [];
   const parsed: DiscountImportRow[] = [];
@@ -73,6 +76,20 @@ export function parseDiscountRows(
       }
     }
 
+    const categoriesRaw = row[DISCOUNT_COLUMNS.categories]?.trim();
+    let categoryIds: string[] | null = null;
+    if (categoriesRaw) {
+      categoryIds = [];
+      for (const name of categoriesRaw.split(";").map((s) => s.trim()).filter(Boolean)) {
+        const id = categoryIdByName.get(name.toLowerCase());
+        if (!id) {
+          errors.push({ rowNumber, message: `Category "${name}" not found` });
+          return;
+        }
+        categoryIds.push(id);
+      }
+    }
+
     const startsAtRaw = row[DISCOUNT_COLUMNS.startsAt]?.trim();
     const expiresAtRaw = row[DISCOUNT_COLUMNS.expiresAt]?.trim();
 
@@ -86,6 +103,7 @@ export function parseDiscountRows(
       min_order_amount: parseNumberOrNull(row[DISCOUNT_COLUMNS.minOrderAmount]) ?? 0,
       max_uses: parseNumberOrNull(row[DISCOUNT_COLUMNS.maxUses]),
       product_ids: productIds,
+      category_ids: categoryIds,
       starts_at: startsAtRaw ? new Date(startsAtRaw).toISOString() : null,
       expires_at: expiresAtRaw ? new Date(expiresAtRaw).toISOString() : null,
       is_active: parseBoolean(row[DISCOUNT_COLUMNS.isActive], true),
@@ -106,11 +124,13 @@ export function discountsToRows(
     min_order_amount: number;
     max_uses: number | null;
     product_ids: string[] | null;
+    category_ids: string[] | null;
     starts_at: string | null;
     expires_at: string | null;
     is_active: boolean;
   }[],
   skuByProductId: Map<string, string>,
+  categoryNameById: Map<string, string>,
 ): Record<string, string>[] {
   return discounts.map((d) => ({
     [DISCOUNT_COLUMNS.discountId]: d.id,
@@ -123,6 +143,10 @@ export function discountsToRows(
     [DISCOUNT_COLUMNS.maxUses]: d.max_uses != null ? String(d.max_uses) : "",
     [DISCOUNT_COLUMNS.productSkus]: (d.product_ids ?? [])
       .map((id) => skuByProductId.get(id))
+      .filter(Boolean)
+      .join(";"),
+    [DISCOUNT_COLUMNS.categories]: (d.category_ids ?? [])
+      .map((id) => categoryNameById.get(id))
       .filter(Boolean)
       .join(";"),
     [DISCOUNT_COLUMNS.startsAt]: d.starts_at ? d.starts_at.slice(0, 16).replace("T", " ") : "",
@@ -143,6 +167,7 @@ export function sampleDiscountTemplateRows(): Record<string, string>[] {
       [DISCOUNT_COLUMNS.minOrderAmount]: "500",
       [DISCOUNT_COLUMNS.maxUses]: "100",
       [DISCOUNT_COLUMNS.productSkus]: "",
+      [DISCOUNT_COLUMNS.categories]: "Kurti;Lehenga",
       [DISCOUNT_COLUMNS.startsAt]: "",
       [DISCOUNT_COLUMNS.expiresAt]: "",
       [DISCOUNT_COLUMNS.isActive]: "TRUE",

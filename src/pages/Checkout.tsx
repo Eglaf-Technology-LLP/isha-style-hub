@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { deliveryDateLabel, fetchCartDeliveryDate } from "@/components/CartShippingEstimate";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,7 @@ import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
 import { formatINR } from "@/lib/format";
+import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -72,6 +73,11 @@ interface Discount {
   discount_type: "percentage" | "fixed_amount";
   discount_value: number;
   min_order_amount: number;
+  category_ids: string[] | null;
+  product_ids: string[] | null;
+  vendor_id: string | null;
+  // Names of category_ids, for "On Kurti and Lehenga only".
+  categoryNames: string[];
 }
 
 interface VendorShippingInfo {
@@ -160,6 +166,8 @@ export default function Checkout() {
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
+  // Each cart product's category, for coupons limited to categories.
+  const [categoryByProduct, setCategoryByProduct] = useState<Record<string, string | null>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
@@ -381,15 +389,24 @@ export default function Checkout() {
     };
   }, [shippingAddress.pincode, etaVendorItems]);
 
-  const calculateDiscount = () => {
-    if (!appliedDiscount) return 0;
-    if (appliedDiscount.discount_type === "percentage") {
-      return (subtotal * appliedDiscount.discount_value) / 100;
-    }
-    return appliedDiscount.discount_value;
-  };
-
-  const discountAmount = calculateDiscount();
+  // A coupon comes off only the lines it covers (its categories, products,
+  // boutique - Extra list D); each line's share is saved with the order.
+  const couponLines = useMemo<CouponLine[]>(
+    () =>
+      items.map((i) => ({
+        key: cartLineKey(i),
+        productId: i.productId,
+        vendorId: i.vendorId,
+        categoryId: categoryByProduct[i.productId] ?? null,
+        amount: parseFloat(i.price.amount) * i.quantity,
+      })),
+    [items, categoryByProduct],
+  );
+  const coupon = useMemo(
+    () => (appliedDiscount ? splitCouponDiscount(appliedDiscount, couponLines) : null),
+    [appliedDiscount, couponLines],
+  );
+  const discountAmount = coupon?.total ?? 0;
   const total = subtotal - discountAmount + shippingCost;
   const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
 
@@ -444,6 +461,21 @@ export default function Checkout() {
     }
   }, [codDisabledByVendor, paymentMethod]);
 
+  const productIdsKey = useMemo(() => [...new Set(items.map((i) => i.productId))].sort().join(","), [items]);
+  const loadProductCategories = useCallback(async () => {
+    const ids = productIdsKey ? productIdsKey.split(",") : [];
+    if (!ids.length) return {};
+    const { data } = await supabase.from("products").select("id, category_id").in("id", ids);
+    const map: Record<string, string | null> = Object.fromEntries((data ?? []).map((p) => [p.id, p.category_id]));
+    setCategoryByProduct(map);
+    return map;
+  }, [productIdsKey]);
+  // The cart changed under a limited coupon: look up the new lines' categories.
+  const limitedCouponApplied = !!appliedDiscount && isLimitedCoupon(appliedDiscount);
+  useEffect(() => {
+    if (limitedCouponApplied) loadProductCategories();
+  }, [limitedCouponApplied, loadProductCategories]);
+
   const validateDiscountCode = async () => {
     if (!discountCode.trim()) {
       toast.error("Please enter a discount code");
@@ -476,15 +508,51 @@ export default function Checkout() {
         return;
       }
 
-      // Check min order amount
-      if (subtotal < (data.min_order_amount || 0)) {
-        toast.error(`Minimum order of ${formatINR(data.min_order_amount)} required`);
-        return;
-      }
-
       // Check usage limit
       if (data.max_uses && data.used_count >= data.max_uses) {
         toast.error("This discount code has reached its usage limit");
+        return;
+      }
+
+      const terms = {
+        discount_type: data.discount_type as "percentage" | "fixed_amount",
+        discount_value: data.discount_value,
+        category_ids: data.category_ids?.length ? data.category_ids : null,
+        product_ids: data.product_ids?.length ? data.product_ids : null,
+        vendor_id: data.vendor_id,
+      };
+      // A coupon for some categories / products / a boutique: only the
+      // items it covers count, also towards its minimum order.
+      let categoryNames: string[] = [];
+      let coveredSubtotal = subtotal;
+      if (isLimitedCoupon(terms)) {
+        const categories = await loadProductCategories();
+        if (terms.category_ids) {
+          const { data: cats } = await supabase.from("categories").select("name").in("id", terms.category_ids).order("name");
+          categoryNames = (cats ?? []).map((c) => c.name);
+        }
+        const covered = splitCouponDiscount(
+          terms,
+          couponLines.map((l) => ({ ...l, categoryId: categories[l.productId] ?? null })),
+        );
+        if (covered.coveredCount === 0) {
+          toast.error(
+            categoryNames.length
+              ? `This coupon is only for ${listNames(categoryNames)}`
+              : "This coupon isn't for any item in your cart",
+          );
+          return;
+        }
+        coveredSubtotal = covered.coveredSubtotal;
+      }
+
+      // Check min order amount
+      if (coveredSubtotal < (data.min_order_amount || 0)) {
+        toast.error(
+          `Minimum order of ${formatINR(data.min_order_amount)}${
+            categoryNames.length ? ` on ${listNames(categoryNames)}` : isLimitedCoupon(terms) ? " on the items this coupon is for" : ""
+          } required`,
+        );
         return;
       }
 
@@ -492,9 +560,9 @@ export default function Checkout() {
         id: data.id,
         code: data.code,
         name: data.name,
-        discount_type: data.discount_type as "percentage" | "fixed_amount",
-        discount_value: data.discount_value,
+        ...terms,
         min_order_amount: data.min_order_amount || 0,
+        categoryNames,
       });
       setDiscountCode("");
       toast.success(`Discount "${data.name}" applied!`);
@@ -749,6 +817,8 @@ export default function Checkout() {
           null,
         quantity: item.quantity,
         price: parseFloat(item.price.amount),
+        // This line's share of the coupon (0 if the coupon isn't for it).
+        discount_amount: coupon?.perLine.get(cartLineKey(item)) ?? 0,
         vendor_id: item.vendorId,
         vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
         is_returnable: productMetaById.get(item.productId)?.is_returnable ?? true,
@@ -1407,9 +1477,22 @@ export default function Checkout() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                      <p className="mt-1.5 text-xs text-primary/80">
-                        You're saving {formatINR(discountAmount)} on this order!
-                      </p>
+                      {coupon && coupon.coveredCount === 0 ? (
+                        <p className="mt-1.5 text-xs text-destructive">
+                          {appliedDiscount.categoryNames.length
+                            ? `Only for ${listNames(appliedDiscount.categoryNames)} - none in your order now.`
+                            : "Not for any item in your order now."}
+                        </p>
+                      ) : (
+                        <p className="mt-1.5 text-xs text-primary/80">
+                          You're saving {formatINR(discountAmount)} on this order!
+                          {appliedDiscount.categoryNames.length > 0
+                            ? ` (on ${listNames(appliedDiscount.categoryNames)} only)`
+                            : coupon && coupon.coveredCount < items.length
+                              ? ` (on ${coupon.coveredCount} of ${items.length} items)`
+                              : ""}
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <div className="flex h-12 border border-foreground/20 bg-background focus-within:border-foreground">

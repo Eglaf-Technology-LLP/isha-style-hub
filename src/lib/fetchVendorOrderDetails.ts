@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { VendorOrderDetailsData } from "@/components/admin/VendorOrderDetailsDialog";
+import { boutiqueDiscountShare } from "@/lib/coupons";
 
 // Single source of truth for "everything about one vendor_order" - used by
 // every order-ish list (cancelled orders, returns/exchanges, payments) that
@@ -11,7 +12,7 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
   const { data: vo, error } = await supabase
     .from("vendor_orders")
     .select(
-      "id, order_id, subtotal, shipping_cost, status, vendor:vendors(name), order:orders(created_at, payment_method, payment_status, customer_name, customer_phone, customer_email, shipping_address, discount_code, discount_amount)"
+      "id, order_id, subtotal, shipping_cost, status, vendor:vendors(name), order:orders(created_at, payment_method, payment_status, customer_name, customer_phone, customer_email, shipping_address, subtotal, discount_code, discount_amount)"
     )
     .eq("id", vendorOrderId)
     .maybeSingle();
@@ -24,7 +25,7 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
   const [{ data: items }, { data: shipment }] = await Promise.all([
     supabase
       .from("order_items")
-      .select("product_title, variant_title, size, color, sku, quantity, price")
+      .select("product_title, variant_title, size, color, sku, quantity, price, discount_amount")
       .eq("vendor_order_id", vendorOrderId),
     supabase
       .from("shipments")
@@ -53,7 +54,8 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
     subtotal: Number(vo.subtotal),
     shippingCost: Number(vo.shipping_cost),
     discountCode: order.discount_code,
-    discountAmount: order.discount_amount,
+    // This boutique's share of the coupon, not the whole order's.
+    discountAmount: boutiqueDiscountShare(items ?? [], order.discount_amount, order.subtotal),
     shipment: shipment ?? null,
   };
 }

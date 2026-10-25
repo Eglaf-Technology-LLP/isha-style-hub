@@ -109,17 +109,20 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
     leadVendorOrderId = vendorOrders[0].id;
     const { data: lines } = await supabase
       .from("order_items")
-      .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price")
+      .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price, discount_amount")
       .in("vendor_order_id", vendorOrders.map((v) => v.id));
     items = await toShiprocketItems(supabase, (lines ?? []).map((l) => ({ ...l, order_item_id: l.id })));
     subTotal = vendorOrders.reduce((sum, v) => sum + Number(v.subtotal), 0);
     shippingCharges = vendorOrders.reduce((sum, v) => sum + Number(v.shipping_cost), 0);
     // Cash on Delivery collects what the customer owes for exactly these
-    // parts: their prices + delivery charge, less their share of a coupon.
+    // parts: their prices + delivery charge, less their share of a coupon -
+    // what checkout recorded on their lines, or (older orders) the order's
+    // discount shared by value.
     cod = order.payment_method === "cod";
     const orderSubtotal = Number(order.subtotal);
-    totalDiscount =
-      Number(order.discount_amount) > 0 && orderSubtotal > 0
+    totalDiscount = (lines ?? []).some((l) => l.discount_amount != null)
+      ? round2((lines ?? []).reduce((sum, l) => sum + Number(l.discount_amount ?? 0), 0))
+      : Number(order.discount_amount) > 0 && orderSubtotal > 0
         ? round2((Number(order.discount_amount) * subTotal) / orderSubtotal)
         : 0;
   } else {

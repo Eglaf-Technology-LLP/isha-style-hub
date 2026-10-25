@@ -196,6 +196,7 @@ export type Database = {
       }
       discounts: {
         Row: {
+          category_ids: string[] | null
           code: string
           created_at: string
           description: string | null
@@ -214,6 +215,7 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          category_ids?: string[] | null
           code: string
           created_at?: string
           description?: string | null
@@ -232,6 +234,7 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          category_ids?: string[] | null
           code?: string
           created_at?: string
           description?: string | null
@@ -1039,6 +1042,7 @@ export type Database = {
           created_at: string
           customisation: Json | null
           customisation_price: number
+          discount_amount: number | null
           id: string
           is_returnable: boolean
           order_id: string
@@ -1059,6 +1063,7 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
+          discount_amount?: number | null
           id?: string
           is_returnable?: boolean
           order_id: string
@@ -1079,6 +1084,7 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
+          discount_amount?: number | null
           id?: string
           is_returnable?: boolean
           order_id?: string
@@ -1158,6 +1164,7 @@ export type Database = {
           shipping_cost: number
           subtotal: number
           total: number
+          unpaid_alert_sent_at: string | null
           updated_at: string
           user_id: string | null
           vendor_email_sent_at: string | null
@@ -1184,6 +1191,7 @@ export type Database = {
           shipping_cost?: number
           subtotal: number
           total: number
+          unpaid_alert_sent_at?: string | null
           updated_at?: string
           user_id?: string | null
           vendor_email_sent_at?: string | null
@@ -1210,6 +1218,7 @@ export type Database = {
           shipping_cost?: number
           subtotal?: number
           total?: number
+          unpaid_alert_sent_at?: string | null
           updated_at?: string
           user_id?: string | null
           vendor_email_sent_at?: string | null
@@ -1538,8 +1547,8 @@ export type Database = {
           name: string
           options: Json
           price: number | null
-          product_value: number | null
           product_id: string
+          product_value: number | null
           sku: string | null
           stock: number
           updated_at: string
@@ -1552,8 +1561,8 @@ export type Database = {
           name: string
           options?: Json
           price?: number | null
-          product_value?: number | null
           product_id: string
+          product_value?: number | null
           sku?: string | null
           stock?: number
           updated_at?: string
@@ -1566,8 +1575,8 @@ export type Database = {
           name?: string
           options?: Json
           price?: number | null
-          product_value?: number | null
           product_id?: string
+          product_value?: number | null
           sku?: string | null
           stock?: number
           updated_at?: string
@@ -3553,6 +3562,10 @@ export type Database = {
         Args: { _hsn_code_id: string; _unit_price: number }
         Returns: number
       }
+      gst_rate_for_value: {
+        Args: { _category_id: string; _value: number }
+        Returns: number
+      }
       gst_state_code: { Args: { _state: string }; Returns: string }
       has_role: {
         Args: {
@@ -3597,6 +3610,8 @@ export type Database = {
         Returns: string
       }
       normalize_indian_mobile: { Args: { _raw: string }; Returns: string }
+      normalize_instagram_profile: { Args: { _raw: string }; Returns: string }
+      normalize_website_url: { Args: { _raw: string }; Returns: string }
       notify_admins: {
         Args: {
           _body: string
@@ -3660,6 +3675,10 @@ export type Database = {
           vendor_id: string
           vendor_name: string
         }[]
+      }
+      price_with_gst: {
+        Args: { _category_id: string; _value: number }
+        Returns: number
       }
       process_vendor_payout_queue: { Args: never; Returns: undefined }
       rates_on: {
@@ -3753,6 +3772,10 @@ export type Database = {
         }[]
       }
       submit_vendor_application: { Args: { _app: Json }; Returns: string }
+      value_from_price: {
+        Args: { _category_id: string; _price: number }
+        Returns: number
+      }
       vendor_bank_last4: { Args: { _vendor_id: string }; Returns: string }
       vendor_document_label: { Args: { _doc_type: string }; Returns: string }
       vendor_optional_documents: {

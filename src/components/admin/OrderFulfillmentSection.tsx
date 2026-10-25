@@ -23,6 +23,7 @@ import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { Link } from "react-router-dom";
 import { formatShortDate, vendorOrderStatusLabel } from "@/lib/warehouse";
 import { Input } from "@/components/ui/input";
+import { boutiqueDiscountShare } from "@/lib/coupons";
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
@@ -242,7 +243,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                     subtotal: vendorOrderFinancials[vendorOrderId]?.subtotal ?? 0,
                     shippingCost: vendorOrderFinancials[vendorOrderId]?.shipping_cost ?? 0,
                     discountCode: order.discount_code,
-                    discountAmount: order.discount_amount,
+                    discountAmount: boutiqueDiscountShare(group.items ?? [], order.discount_amount, order.subtotal),
                     shipment: shipment ?? null,
                   }}
                 />

@@ -16,6 +16,8 @@ export interface WhItem {
   sku: string | null;
   quantity: number;
   price: number;
+  // This line's share of the order's coupon (null on older orders).
+  discount_amount?: number | null;
   // Customised for the customer - QC checks the piece against this.
   customisation?: CustomisationChoice | null;
 }
@@ -237,7 +239,7 @@ export function useWarehouseData(enabled: boolean) {
       const [{ data: itemRows }, { data: vendorRows }] = await Promise.all([
         supabase
           .from("order_items")
-          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
+          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
           .in("order_id", orderIds),
         vendorIds.length
           ? supabase.from("vendors").select("id, name").in("id", vendorIds)

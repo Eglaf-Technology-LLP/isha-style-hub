@@ -19,8 +19,9 @@ import {
 //   AB0001/2627/0001 (next_boutique_invoice_number).
 // * Prices include GST. Each product's rate comes from its category's HSN
 //   code (gst_rate_for, which applies the apparel/footwear price band);
-//   the order's discount is shared across all its lines by value, so each
-//   boutique's invoice shows its share.
+//   each line carries its share of the coupon as checkout recorded it (only
+//   the lines the coupon was for); older orders share the order's discount
+//   across all lines by value. Each boutique's invoice shows its share.
 // * Same state (boutique's GSTIN state = delivery state) -> CGST + SGST,
 //   otherwise IGST.
 // * Shipping is part of the goods' supply: taxed at the rate of the
@@ -149,7 +150,7 @@ Deno.serve(async (req) => {
     // ---------- lines ----------
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")
-      .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price, customisation")
+      .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
       .eq("vendor_order_id", vendorOrder.id)
       .order("created_at");
     if (itemsErr) throw itemsErr;
@@ -175,7 +176,12 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: `No HSN code for ${where} - set it in Admin > Categories before invoicing` }, 422);
       }
       const gross = Number(item.price) * item.quantity;
-      const discount = orderGross > 0 ? round2((orderDiscount * gross) / orderGross) : 0;
+      const discount =
+        item.discount_amount != null
+          ? Number(item.discount_amount)
+          : orderGross > 0
+            ? round2((orderDiscount * gross) / orderGross)
+            : 0;
       const { data: rate, error: rateErr } = await supabase.rpc("gst_rate_for", {
         _hsn_code_id: hsn.id,
         _unit_price: (gross - discount) / item.quantity,

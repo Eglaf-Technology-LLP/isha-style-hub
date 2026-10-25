@@ -24,6 +24,7 @@ import { PackParcelDialog, type ParcelSize } from "./PackParcelDialog";
 import { PackingSlipButton, PackingSlipData } from "./PackingSlip";
 import { PromptDialog } from "./PromptDialog";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseInfo, WarehouseViewProps } from "./shared";
+import { boutiqueDiscountShare } from "@/lib/coupons";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -81,10 +82,11 @@ function codAmountFor(order: WhOrder, parts: WhVendorOrder[]): number | null {
   if (order.payment_method !== "cod") return null;
   const subtotal = parts.reduce((s, p) => s + Number(p.subtotal), 0);
   const shipping = parts.reduce((s, p) => s + Number(p.shipping_cost), 0);
-  const discount =
-    Number(order.discount_amount) > 0 && Number(order.subtotal) > 0
-      ? round2((Number(order.discount_amount) * subtotal) / Number(order.subtotal))
-      : 0;
+  const discount = boutiqueDiscountShare(
+    parts.flatMap((p) => p.items),
+    Number(order.discount_amount),
+    Number(order.subtotal),
+  );
   return round2(subtotal + shipping - discount);
 }
 
