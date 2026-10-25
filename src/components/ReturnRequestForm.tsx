@@ -37,6 +37,8 @@ interface OrderItem {
   // Refund eligibility only, snapshotted at checkout - a non-returnable
   // item can still be selected for an exchange, just not a refund.
   is_returnable: boolean;
+  // Made to the customer's measurements / options.
+  customisation?: unknown;
 }
 
 interface ReturnRequestFormProps {
@@ -46,6 +48,11 @@ interface ReturnRequestFormProps {
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
+
+// A customised piece can only come back if it arrived damaged or was the
+// wrong item, within 24 hours of delivery (the database checks the same:
+// enforce_return_window).
+const RETURN_REASONS_CUSTOMISED = ["Defective or damaged product", "Wrong item received"];
 
 const RETURN_REASONS = [
   "Defective or damaged product",
@@ -70,11 +77,19 @@ export function ReturnRequestForm({
   onSuccess,
 }: ReturnRequestFormProps) {
   const { createReturnRequest } = useReturnRequests();
-  const anyRefundable = orderItems.some((item) => item.is_returnable);
+  const isCustomised = (item: OrderItem) => !!item.customisation;
+  // Customised pieces can be returned (damage / wrong item) but never exchanged.
+  const anyRefundable = orderItems.some((item) => item.is_returnable || isCustomised(item));
   const [requestType, setRequestType] = useState<"return" | "exchange">(anyRefundable ? "return" : "exchange");
   const [reason, setReason] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [selectedItems, setSelectedItems] = useState<Record<string, boolean>>({});
+  const customisedSelected = orderItems.some((item) => selectedItems[item.id] && isCustomised(item));
+  const reasons = customisedSelected ? RETURN_REASONS_CUSTOMISED : RETURN_REASONS;
+  useEffect(() => {
+    if (reason && !reasons.includes(reason)) setReason("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customisedSelected]);
   const [submitting, setSubmitting] = useState(false);
 
   const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string[]>>({});
@@ -127,13 +142,21 @@ export function ReturnRequestForm({
       setSelectedItems((prev) => {
         const next = { ...prev };
         orderItems.forEach((item) => {
-          if (!item.is_returnable) next[item.id] = false;
+          if (!item.is_returnable && !isCustomised(item)) next[item.id] = false;
         });
         return next;
       });
     } else {
+      // Customised pieces are never exchanged.
+      setSelectedItems((prev) => {
+        const next = { ...prev };
+        orderItems.forEach((item) => {
+          if (isCustomised(item)) next[item.id] = false;
+        });
+        return next;
+      });
       orderItems.forEach((item) => {
-        if (selectedItems[item.id]) ensureVariantsLoaded(item.product_id);
+        if (selectedItems[item.id] && !isCustomised(item)) ensureVariantsLoaded(item.product_id);
       });
     }
   };
@@ -283,7 +306,8 @@ export function ReturnRequestForm({
             <Label className="text-sm font-medium mb-2 block">Select Items</Label>
             <div className="space-y-3">
               {orderItems.map((item) => {
-                const disabled = requestType === "return" && !item.is_returnable;
+                const disabled =
+                  requestType === "return" ? !item.is_returnable && !isCustomised(item) : isCustomised(item);
                 const selected = !!selectedItems[item.id];
                 const variants = variantsByProductId[item.product_id] ?? [];
                 const inStock = variants.filter((v) => v.stock > 0);
@@ -434,8 +458,14 @@ export function ReturnRequestForm({
           {/* Reason */}
           <div>
             <Label className="text-sm font-medium mb-2 block">Reason</Label>
+            {customisedSelected && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Customised pieces can be returned only if they arrived damaged or were the wrong item, within 24
+                hours of delivery.
+              </p>
+            )}
             <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">
-              {RETURN_REASONS.map((r) => (
+              {reasons.map((r) => (
                 <div key={r} className="flex items-center gap-2">
                   <RadioGroupItem value={r} id={`reason-${r}`} />
                   <Label htmlFor={`reason-${r}`} className="cursor-pointer text-sm">

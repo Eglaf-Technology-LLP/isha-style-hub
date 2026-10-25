@@ -8,6 +8,7 @@ import { Plus, X, Trash2, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductVariant, uploadImageFile } from "@/hooks/useProducts";
 import { titleCase } from "@/lib/text";
+import { colourCodes, normaliseHex, swatchColor } from "@/lib/colors";
 import { formatINR } from "@/lib/format";
 
 interface VariantManagerProps {
@@ -44,6 +45,9 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
   );
   const [newSize, setNewSize] = useState("");
   const [newColor, setNewColor] = useState("");
+  // Optional colour code for a new colour - picked or typed as #rrggbb.
+  const [newColorHex, setNewColorHex] = useState("");
+  const codes = useMemo(() => colourCodes(variants), [variants]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   // "Set all" opens a box in the page, not a browser popup (Part 8, 25).
   const [bulk, setBulk] = useState<"stock" | "value" | null>(null);
@@ -85,7 +89,8 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
   // exactly 18 rows, never leftover size-only or colour-only rows (Part 8,
   // 23). Rows that already exist keep their stock, value, SKU and photo; a
   // size-only row becomes that size's first colour when colours arrive.
-  const rebuild = (sizes: string[], colours: string[]) => {
+  const rebuild = (sizes: string[], colours: string[], extraCodes: Record<string, string> = {}) => {
+    const hexOf: Record<string, string> = { ...codes, ...extraCodes };
     const combos: [string | null, string | null][] =
       sizes.length && colours.length
         ? sizes.flatMap((s) => colours.map((c) => [s, c] as [string, string]))
@@ -107,6 +112,7 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
         const options: Record<string, string> = {};
         if (s) options.size = s;
         if (c) options.color = c;
+        if (c && hexOf[c]) options.color_hex = hexOf[c];
         return {
           ...(existing ?? { id: generateVariantId(), price: 0, product_value: basePrice, stock: Number.NaN, image_url: null }),
           name: [s, c].filter(Boolean).join(" / "),
@@ -124,12 +130,22 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
   };
 
   // pink, Pink and PINK are one colour, kept as "Pink" (Part 8, 24).
-  const addColor = (color: string) => {
+  const addColor = (color: string, hex?: string) => {
     const name = titleCase(color);
     if (!name) return;
+    const code = hex ? normaliseHex(hex) : null;
+    if (hex && !code) return toast.error("Colour code must look like #1F6F8B");
     setNewColor("");
+    setNewColorHex("");
     if (availableColors.some((c) => c.toLowerCase() === name.toLowerCase())) return;
-    rebuild(availableSizes, [...availableColors, name]);
+    rebuild(availableSizes, [...availableColors, name], code ? { [name]: code } : {});
+  };
+
+  // Change the code of a colour already added (every size of it).
+  const setColourCode = (colour: string, hex: string) => {
+    const code = normaliseHex(hex);
+    if (!code) return;
+    onChange(variants.map((v) => ((v.options?.color || v.options?.Color) === colour ? { ...v, options: { ...v.options, color_hex: code } } : v)));
   };
 
   const removeSize = (size: string) => {
@@ -234,23 +250,51 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
           <Label className="text-sm font-medium">Available Colours</Label>
           <div className="flex flex-wrap gap-2 mb-2">
             {availableColors.map(color => (
-              <Badge key={color} variant="secondary" className="gap-1">
+              <Badge key={color} variant="secondary" className="gap-1.5">
+                <label className="relative h-3.5 w-3.5 cursor-pointer rounded-full border border-foreground/20" title={`Change the colour code for ${color}`}
+                  style={{ backgroundColor: codes[color] ?? swatchColor(color) ?? "transparent" }}>
+                  <input
+                    type="color"
+                    aria-label={`Colour code for ${color}`}
+                    value={codes[color] ?? "#888888"}
+                    onChange={(e) => setColourCode(color, e.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                </label>
                 {color}
+                {codes[color] && <span className="font-mono text-[10px] text-muted-foreground">{codes[color]}</span>}
                 <button onClick={() => removeColor(color)} className="ml-1 hover:text-destructive">
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
             ))}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input
               placeholder="Add custom colour..."
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor(newColor))}
-              className="flex-1"
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor(newColor, newColorHex || undefined))}
+              className="min-w-[10rem] flex-1"
             />
-            <Button type="button" size="sm" onClick={() => addColor(newColor)} disabled={!newColor.trim()}>
+            {/* Pick the exact colour, or type its code (Part 8 extra list). */}
+            <input
+              type="color"
+              aria-label="Pick the colour"
+              title="Pick the colour"
+              value={normaliseHex(newColorHex) ?? swatchColor(newColor) ?? "#888888"}
+              onChange={(e) => setNewColorHex(e.target.value)}
+              className="h-10 w-10 cursor-pointer rounded-md border border-input bg-background p-1"
+            />
+            <Input
+              aria-label="Colour code"
+              placeholder="#hex (optional)"
+              value={newColorHex}
+              onChange={(e) => setNewColorHex(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addColor(newColor, newColorHex || undefined))}
+              className="w-32 font-mono"
+            />
+            <Button type="button" size="sm" onClick={() => addColor(newColor, newColorHex || undefined)} disabled={!newColor.trim()}>
               <Plus className="h-4 w-4" />
             </Button>
           </div>

@@ -106,3 +106,24 @@ const cssColour = (name: string) =>
 export function isMulticolour(name: string): boolean {
   return /multi/i.test(name);
 }
+
+// A colour the boutique picked or typed as a code (#rrggbb) when adding the
+// product, kept on each variant as options.color_hex (Part 8 extra list).
+export const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+export function normaliseHex(raw: string): string | null {
+  const text = raw.trim().replace(/^#?/, "#").toLowerCase();
+  return HEX_RE.test(text) ? text : null;
+}
+
+// Colour name -> picked code, from a product's variants.
+export function colourCodes(variants: { options?: Record<string, string> | null }[] | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const v of variants ?? []) {
+    const name = v.options?.color || v.options?.Color;
+    const hex = v.options?.color_hex;
+    if (name && hex && HEX_RE.test(hex) && !out[name]) out[name] = hex;
+  }
+  return out;
+}
+

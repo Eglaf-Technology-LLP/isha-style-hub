@@ -68,6 +68,7 @@ interface VendorOrderInfo {
   // Last day this part can be returned/exchanged (its boutique's window
   // from the day it was delivered). Set on delivery.
   return_window_ends_on: string | null;
+  delivered_at?: string | null;
 }
 
 interface Order {
@@ -164,7 +165,16 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
   const delivered = order.vendor_orders.filter((vo) => vo.status === "delivered");
   const open = delivered.filter((vo) => !vo.return_window_ends_on || vo.return_window_ends_on >= today);
   const openIds = new Set(open.map((vo) => vo.id));
-  const items = order.order_items.filter((i) => i.vendor_order_id && openIds.has(i.vendor_order_id) && !i.customisation);
+  // A customised piece can come back (damaged / wrong item) for 24 hours
+  // after its part was delivered.
+  const customisedOpen = new Set(
+    delivered
+      .filter((vo) => Date.now() - new Date(vo.delivered_at ?? 0).getTime() < 24 * 3600_000)
+      .map((vo) => vo.id),
+  );
+  const items = order.order_items.filter(
+    (i) => i.vendor_order_id && (i.customisation ? customisedOpen.has(i.vendor_order_id) : openIds.has(i.vendor_order_id)),
+  );
   const deadlines = [...new Set(open.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d))].sort();
   const note =
     deadlines.length === 0
@@ -231,7 +241,7 @@ export default function OrderHistory() {
             supabase
               .from("vendor_orders")
               .select(
-                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, delivered_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
             // The warehouse's own parcels to the customer (warehouse route).
@@ -270,6 +280,7 @@ export default function OrderHistory() {
                 arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
                 parcel,
                 return_window_ends_on: vo.return_window_ends_on,
+                delivered_at: vo.delivered_at,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,

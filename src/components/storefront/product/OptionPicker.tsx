@@ -15,10 +15,12 @@ interface OptionPickerProps {
   error?: string | null;
   // Shown on the right of the label (e.g. the size chart link).
   aside?: ReactNode;
+  // Colour codes the boutique picked, by colour name.
+  swatches?: Record<string, string>;
 }
 
 // Size boxes / colour swatches on the product page.
-export function OptionPicker({ id, label, type, options, selected, onSelect, unavailable, error, aside }: OptionPickerProps) {
+export function OptionPicker({ id, label, type, options, selected, onSelect, unavailable, error, aside, swatches }: OptionPickerProps) {
   if (options.length === 0) return null;
   return (
     <div id={id} className="scroll-mt-40" aria-invalid={error ? true : undefined}>
@@ -37,7 +39,7 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
 
           if (type === "color") {
             const multi = isMulticolour(option);
-            const hex = swatchColor(option);
+            const hex = swatches?.[option] ?? swatchColor(option);
             // The colour's name sits under its circle (Part 8, 15).
             return (
               <button

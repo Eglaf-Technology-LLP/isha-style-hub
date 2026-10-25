@@ -51,6 +51,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { discountPercent, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
+import { colourCodes } from "@/lib/colors";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -621,6 +622,7 @@ export default function ProductDetail() {
                   label="Colour"
                   type="color"
                   options={availableColors}
+                  swatches={colourCodes(Array.isArray(product.variants) ? product.variants : [])}
                   selected={selectedColor}
                   onSelect={chooseColor}
                   unavailable={unavailableColors}

@@ -10,7 +10,7 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { colorOf, inStock, isNewArrival, productColors, sizeOf } from "@/hooks/useStorefront";
 import { discountPercent, formatINR } from "@/lib/format";
-import { isMulticolour, swatchColor } from "@/lib/colors";
+import { colourCodes, isMulticolour, swatchColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
@@ -27,6 +27,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
   const off = discountPercent(product.price, product.compare_at_price);
   const available = inStock(product);
   const colors = productColors(product);
+  const codes = colourCodes(product.variants);
   const hasVideo = !!product.video_url && product.video_status === "approved";
   const variants = product.variants || [];
 
@@ -217,7 +218,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
                 style={
                   isMulticolour(c)
                     ? { background: "conic-gradient(#b3261e, #e8c53a, #3f7a4a, #2f5d9e, #6a3d8f, #b3261e)" }
-                    : { backgroundColor: swatchColor(c) ?? "hsl(var(--muted))" }
+                    : { backgroundColor: codes[c] ?? swatchColor(c) ?? "hsl(var(--muted))" }
                 }
               />
             ))}
