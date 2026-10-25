@@ -1144,6 +1144,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          cod_charge: number
           confirmation_email_sent_at: string | null
           created_at: string
           customer_email: string
@@ -1171,6 +1172,7 @@ export type Database = {
           warehouse_id: string | null
         }
         Insert: {
+          cod_charge?: number
           confirmation_email_sent_at?: string | null
           created_at?: string
           customer_email: string
@@ -1198,6 +1200,7 @@ export type Database = {
           warehouse_id?: string | null
         }
         Update: {
+          cod_charge?: number
           confirmation_email_sent_at?: string | null
           created_at?: string
           customer_email?: string

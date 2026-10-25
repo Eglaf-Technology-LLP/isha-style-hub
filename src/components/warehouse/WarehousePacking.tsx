@@ -77,7 +77,8 @@ function suggestParcel(parts: WhVendorOrder[], products: Map<string, ProductParc
 const SUGGESTED_NOTE = "Filled in from the boutiques' product weight and size - change it if the packed parcel is different.";
 
 // What the courier collects for these parts of a Cash on Delivery order: their
-// prices + delivery charge, less their share of any coupon (same as the server).
+// prices + delivery charge, less their share of any coupon, plus their share
+// of the COD charge (same as the server).
 function codAmountFor(order: WhOrder, parts: WhVendorOrder[]): number | null {
   if (order.payment_method !== "cod") return null;
   const subtotal = parts.reduce((s, p) => s + Number(p.subtotal), 0);
@@ -87,7 +88,12 @@ function codAmountFor(order: WhOrder, parts: WhVendorOrder[]): number | null {
     Number(order.discount_amount),
     Number(order.subtotal),
   );
-  return round2(subtotal + shipping - discount);
+  // Plus the COD charge the customer paid at checkout, its share for these parts.
+  const codCharge =
+    Number(order.cod_charge) > 0 && Number(order.subtotal) > 0
+      ? round2((Number(order.cod_charge) * subtotal) / Number(order.subtotal))
+      : 0;
+  return round2(subtotal + shipping - discount + codCharge);
 }
 
 function slipFor(

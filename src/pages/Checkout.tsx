@@ -411,7 +411,45 @@ export default function Checkout() {
     [appliedDiscount, couponLines],
   );
   const discountAmount = coupon?.total ?? 0;
-  const total = subtotal - discountAmount + shippingCost;
+  const goodsDue = Math.round((subtotal - discountAmount + shippingCost) * 100) / 100;
+
+  // Cash on Delivery charge (Extra list M): Shiprocket's real COD charge for
+  // this order's parcel to this PIN code, at this order value - paid by the
+  // customer, shown on the COD option and added to the total when chosen.
+  const [codQuote, setCodQuote] = useState<{ status: "idle" | "loading" | "ready" | "unavailable" | "error"; amount: number }>({
+    status: "idle",
+    amount: 0,
+  });
+  useEffect(() => {
+    const pin = shippingAddress.pincode;
+    if (!/^[1-9]\d{5}$/.test(pin) || etaVendorItems.size === 0) {
+      setCodQuote({ status: "idle", amount: 0 });
+      return;
+    }
+    let cancelled = false;
+    setCodQuote((q) => ({ ...q, status: "loading" }));
+    const timer = setTimeout(async () => {
+      const groups = [...etaVendorItems.entries()].map(([vendor_id, its]) => ({
+        vendor_id,
+        items: its.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+      }));
+      const { data } = await invokeEdgeFunction<{ available: boolean; cod_charge: number | null }>("shiprocket-cod-charge", {
+        delivery_pincode: pin,
+        order_value: goodsDue,
+        groups,
+      });
+      if (cancelled) return;
+      if (!data) setCodQuote({ status: "error", amount: 0 });
+      else if (!data.available || data.cod_charge == null) setCodQuote({ status: "unavailable", amount: 0 });
+      else setCodQuote({ status: "ready", amount: Number(data.cod_charge) });
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [shippingAddress.pincode, etaVendorItems, goodsDue]);
+  const codFee = paymentMethod === "cod" && codQuote.status === "ready" ? codQuote.amount : 0;
+  const total = goodsDue + codFee;
   const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
 
   // COD is a single payment method for the whole cart, not per-item - if
@@ -422,9 +460,12 @@ export default function Checkout() {
   const codOffVendors = vendorGroups
     .filter((g) => g.vendorId && vendorInfo[g.vendorId]?.cod_enabled === false)
     .map((g) => g.vendorName ?? "A boutique");
-  const codDisabledByVendor = codOffVendors.length > 0 || codOffProducts.length > 0;
-  const codUnavailableReason = codDisabledByVendor
+  // No courier collects cash at this PIN code.
+  const codOffAtPin = codQuote.status === "unavailable";
+  const codDisabled = codOffVendors.length > 0 || codOffProducts.length > 0 || codOffAtPin;
+  const codUnavailableReason = codDisabled
     ? [
+        codOffAtPin && "Cash on Delivery isn't available for this PIN code",
         codOffProducts.length > 0 &&
           `Cash on Delivery isn't available for ${codOffProducts.map((n) => `"${n}"`).join(", ")}`,
         codOffVendors.length > 0 && `${codOffVendors.join(", ")} ${codOffVendors.length > 1 ? "don't" : "doesn't"} offer Cash on Delivery`,
@@ -446,10 +487,10 @@ export default function Checkout() {
   // total below Razorpay's minimum - switch back to COD automatically
   // rather than letting the customer hit the payment failure at submit time.
   useEffect(() => {
-    if (belowOnlineMinimum && paymentMethod === "razorpay" && !codDisabledByVendor) {
+    if (belowOnlineMinimum && paymentMethod === "razorpay" && !codDisabled) {
       setPaymentChoice("cod");
     }
-  }, [belowOnlineMinimum, paymentMethod, codDisabledByVendor]);
+  }, [belowOnlineMinimum, paymentMethod, codDisabled]);
 
   // EMI no longer offered (e.g. a discount took the total below the EMI
   // minimum) - fall back to the regular online payment.
@@ -460,10 +501,10 @@ export default function Checkout() {
   // The inverse case - a vendor with COD off is in the cart, but COD is
   // selected. Move to online payment automatically.
   useEffect(() => {
-    if (codDisabledByVendor && paymentMethod === "cod") {
+    if (codDisabled && paymentMethod === "cod") {
       setPaymentChoice("razorpay");
     }
-  }, [codDisabledByVendor, paymentMethod]);
+  }, [codDisabled, paymentMethod]);
 
   const productIdsKey = useMemo(() => [...new Set(items.map((i) => i.productId))].sort().join(","), [items]);
   const loadProductCategories = useCallback(async () => {
@@ -742,6 +783,14 @@ export default function Checkout() {
       toast.error("Your cart is empty");
       return;
     }
+    if (paymentMethod === "cod" && codQuote.status !== "ready") {
+      toast.error(
+        codQuote.status === "loading"
+          ? "Working out the Cash on Delivery charge - try again in a moment"
+          : "Couldn't work out the Cash on Delivery charge for this PIN code. Check it, or pay online.",
+      );
+      return;
+    }
 
     setIsPlacingOrder(true);
     // The name typed here becomes the account's name if it has none yet, so
@@ -804,6 +853,7 @@ export default function Checkout() {
           total: total,
           discount_code: appliedDiscount?.code ?? null,
           discount_amount: discountAmount,
+          cod_charge: codFee,
           notes: notes || null,
           razorpay_order_id: razorpayOrderId,
           estimated_delivery_date: deliveryEta,
@@ -1381,13 +1431,21 @@ export default function Checkout() {
                 onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
                 className="space-y-3"
               >
-                {!codDisabledByVendor && (
+                {!codDisabled && (
                   <PaymentOption
                     value="cod"
                     selected={paymentChoice === "cod"}
                     icon={Banknote}
                     title="Cash on Delivery"
-                    text="Pay when your order arrives"
+                    text={
+                      codQuote.status === "ready"
+                        ? `Pay when your order arrives · COD charge ${formatINR(codQuote.amount)}`
+                        : codQuote.status === "loading"
+                          ? "Pay when your order arrives · working out the COD charge..."
+                          : codQuote.status === "error"
+                            ? "Pay when your order arrives · couldn't get the COD charge - check the PIN code"
+                            : "Pay when your order arrives · the COD charge shows once you enter your PIN code"
+                    }
                   />
                 )}
                 {codUnavailableReason && (
@@ -1594,6 +1652,12 @@ export default function Checkout() {
                       </dd>
                     </div>
                   ))}
+                  {codFee > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Cash on Delivery charge</dt>
+                      <dd className="shrink-0">{formatINR(codFee)}</dd>
+                    </div>
+                  )}
                 </dl>
 
                 <div className="flex items-baseline justify-between border-t border-foreground/80 pt-5">

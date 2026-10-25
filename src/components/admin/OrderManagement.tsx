@@ -567,6 +567,12 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       <span>-{formatMoney(selectedOrder.discount_amount)}</span>
                     </div>
                   )}
+                  {Number(selectedOrder.cod_charge) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Cash on Delivery charge</span>
+                      <span>{formatMoney(selectedOrder.cod_charge)}</span>
+                    </div>
+                  )}
                   <Separator />
                   <div className="flex justify-between font-medium text-lg">
                     <span>Total</span>

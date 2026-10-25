@@ -404,13 +404,16 @@ function courierDays(c: any): number | null {
 // as a separate flag rather than dictating the display order).
 export async function checkCourierServiceability(
   supabase: SupabaseClient,
-  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number },
+  // declaredValue: the parcel's value - a courier's COD charge is usually a
+  // share of the amount collected, so it's needed for a true COD rate.
+  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; declaredValue?: number },
 ): Promise<CourierOption[]> {
   const result = await shiprocketRequest(
     supabase,
     `/courier/serviceability/?pickup_postcode=${encodeURIComponent(params.pickupPincode)}` +
       `&delivery_postcode=${encodeURIComponent(params.deliveryPincode)}` +
-      `&cod=${params.cod ? 1 : 0}&weight=${params.weightKg}`,
+      `&cod=${params.cod ? 1 : 0}&weight=${params.weightKg}` +
+      (params.declaredValue ? `&declared_value=${Math.ceil(params.declaredValue)}` : ""),
   );
 
   const companies = result?.data?.available_courier_companies ?? [];

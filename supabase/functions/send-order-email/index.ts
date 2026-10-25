@@ -374,6 +374,14 @@ const handler = async (req: Request): Promise<Response> => {
         ${
           showTotal
             ? `<tfoot>
+          ${
+            Number(order.cod_charge) > 0
+              ? `<tr>
+            <td colspan="2" style="padding: 12px 16px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">Cash on Delivery charge</td>
+            <td style="padding: 12px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">${money(order.cod_charge)}</td>
+          </tr>`
+              : ""
+          }
           <tr style="font-weight: 700;">
             <td colspan="2" style="padding: 12px 16px 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">Total</td>
             <td style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">${money(order.total)}</td>

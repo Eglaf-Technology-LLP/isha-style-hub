@@ -74,7 +74,7 @@ export function useVendorEarnings(vendorId: string | undefined) {
       const { data: vendorOrders, error } = await supabase
         .from("vendor_orders")
         .select(
-          "id, order_id, created_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, order:orders(payment_status)",
+          "id, order_id, created_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, order:orders(payment_status, cod_charge)",
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
@@ -96,7 +96,8 @@ export function useVendorEarnings(vendorId: string | undefined) {
           techFee: n(vo.tech_fee_amount),
           feeGst: n(vo.fee_gst_amount),
           gateway: n(vo.gateway_fee_amount),
-          courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + n(vo.cod_handling_charge)),
+          // A COD charge the customer paid at checkout isn't the boutique's (Extra list M).
+          courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + (n(unwrapOne(vo.order)?.cod_charge) > 0 ? 0 : n(vo.cod_handling_charge))),
           tcs: n(vo.tcs_amount),
           tds: n(vo.tds_amount),
         };

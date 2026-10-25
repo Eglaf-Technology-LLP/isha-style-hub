@@ -82,6 +82,8 @@ interface Order {
   total: number;
   discount_code: string | null;
   discount_amount: number;
+  // Cash on Delivery charge paid by the customer (Extra list M).
+  cod_charge?: number;
   customer_name: string;
   fulfilment_route: string;
   estimated_delivery_date: string | null;
@@ -690,6 +692,12 @@ export default function OrderHistory() {
                                     Discount{order.discount_code && ` (${order.discount_code})`}
                                   </dt>
                                   <dd>-{formatMoney(order.discount_amount)}</dd>
+                                </div>
+                              )}
+                              {Number(order.cod_charge) > 0 && (
+                                <div className="flex justify-between">
+                                  <dt className="text-muted-foreground">Cash on Delivery charge</dt>
+                                  <dd>{formatMoney(order.cod_charge)}</dd>
                                 </div>
                               )}
                               <div className="flex justify-between border-t border-border pt-2 font-medium">

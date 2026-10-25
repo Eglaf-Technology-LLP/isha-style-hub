@@ -61,6 +61,8 @@ interface Order {
   total: number;
   discount_code: string | null;
   discount_amount: number;
+  // Cash on Delivery charge paid by the customer (Extra list M).
+  cod_charge?: number;
   order_items: OrderItem[];
   vendor_orders: VendorOrderInfo[];
 }
@@ -115,7 +117,7 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount")
+        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount, cod_charge")
         .eq("user_id", user.id)
         // An online checkout that was never paid isn't an order.
         .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
@@ -343,6 +345,12 @@ export function OrdersSection() {
                           Discount applied{order.discount_code && ` (${order.discount_code})`}
                         </span>
                         <span className="text-primary">-{formatMoney(order.discount_amount)}</span>
+                      </div>
+                    )}
+                    {Number(order.cod_charge) > 0 && (
+                      <div className="mt-3 flex justify-between border-t border-border pt-3 text-xs">
+                        <span className="text-muted-foreground">Cash on Delivery charge</span>
+                        <span>{formatMoney(order.cod_charge)}</span>
                       </div>
                     )}
                     {/* Return/Exchange status */}

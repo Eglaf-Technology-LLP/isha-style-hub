@@ -13,6 +13,7 @@ interface PlacedOrder {
   shipping_cost: number;
   discount_amount: number;
   discount_code: string | null;
+  cod_charge: number;
   total: number;
   customer_name: string;
   shipping_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
@@ -36,7 +37,7 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
     supabase
       .from("orders")
       .select(
-        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, total, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_title, variant_title, quantity, price)",
+        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_title, variant_title, quantity, price)",
       )
       .eq("id", orderId)
       .maybeSingle()
@@ -109,6 +110,12 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
             <dt className="text-muted-foreground">Delivery</dt>
             <dd className="tabular-nums">{Number(order.shipping_cost) > 0 ? formatINR(order.shipping_cost) : "Free"}</dd>
           </div>
+          {Number(order.cod_charge) > 0 && (
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Cash on Delivery charge</dt>
+              <dd className="tabular-nums">{formatINR(order.cod_charge)}</dd>
+            </div>
+          )}
           <div className="flex justify-between border-t border-border pt-2 text-base font-medium">
             <dt>Total</dt>
             <dd className="tabular-nums">{formatINR(order.total)}</dd>

@@ -53,6 +53,8 @@ export interface WhOrder {
   total: number;
   subtotal: number;
   discount_amount: number;
+  // COD charge the customer paid at checkout (Extra list M).
+  cod_charge: number;
   estimated_delivery_date: string | null;
 }
 
@@ -226,7 +228,7 @@ export function useWarehouseData(enabled: boolean) {
         supabase
           .from("orders")
           .select(
-            "id, customer_name, customer_phone, customer_email, shipping_address, payment_method, payment_status, created_at, total, subtotal, discount_amount, estimated_delivery_date",
+            "id, customer_name, customer_phone, customer_email, shipping_address, payment_method, payment_status, created_at, total, subtotal, discount_amount, cod_charge, estimated_delivery_date",
           )
           .in("id", orderIds),
         supabase.from("vendor_orders").select(VO_COLUMNS).in("order_id", orderIds),

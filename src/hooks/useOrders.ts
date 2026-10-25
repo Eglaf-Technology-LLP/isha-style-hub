@@ -44,6 +44,8 @@ export interface Order {
   total: number;
   discount_code: string | null;
   discount_amount: number;
+  // Cash on Delivery charge paid by the customer (Extra list M).
+  cod_charge?: number;
   notes: string | null;
   // 'warehouse': boutique -> AllBoutiqs warehouse -> customer.
   fulfilment_route?: 'direct' | 'warehouse';

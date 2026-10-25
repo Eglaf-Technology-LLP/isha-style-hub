@@ -86,7 +86,7 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
 
   const { data: order, error: orderErr } = await supabase
     .from("orders")
-    .select("id, customer_name, customer_email, customer_phone, shipping_address, payment_method, created_at, subtotal, discount_amount")
+    .select("id, customer_name, customer_email, customer_phone, shipping_address, payment_method, created_at, subtotal, discount_amount, cod_charge")
     .eq("id", dispatch.order_id)
     .single();
   if (orderErr) throw orderErr;
@@ -125,6 +125,11 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
       : Number(order.discount_amount) > 0 && orderSubtotal > 0
         ? round2((Number(order.discount_amount) * subTotal) / orderSubtotal)
         : 0;
+    // The COD charge the customer paid at checkout (Extra list M) is
+    // collected too - its share for these parts, added to the delivery charge.
+    if (cod && Number(order.cod_charge) > 0 && orderSubtotal > 0) {
+      shippingCharges = round2(shippingCharges + (Number(order.cod_charge) * subTotal) / orderSubtotal);
+    }
   } else {
     const { data: rr } = await supabase.from("return_requests").select("items").eq("id", dispatch.return_request_id).single();
     const rrItems = (rr?.items ?? []) as any[];
