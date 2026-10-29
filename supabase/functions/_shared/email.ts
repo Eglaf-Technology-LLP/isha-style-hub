@@ -49,7 +49,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
 // scaled down - see supabase/email-assets/), hosted in the public
 // email-assets bucket so it doesn't depend on a site deploy.
 const LOGO_URL =
-  "https://bldkjzitutojvnbbljrf.supabase.co/storage/v1/object/public/email-assets/allboutiqs-logo-white.png";
+  "https://whycxtnjhdbewgyugfax.supabase.co/storage/v1/object/public/email-assets/allboutiqs-logo-white.png";
 
 // Shared visual wrapper so every email in the app looks like it came from
 // the same place - the AllBoutiqs logo on the site's own maroon accent

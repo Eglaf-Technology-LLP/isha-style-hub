@@ -8,8 +8,8 @@
 # because .env is (correctly) not committed, and without them the build
 # produces a blank page ("supabaseUrl is required").
 [build.environment]
-  VITE_SUPABASE_URL = "https://bldkjzitutojvnbbljrf.supabase.co"
-  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_-OZbCTgdCKkLWRxa_S4BUw_Ro6FVIAr"
+  VITE_SUPABASE_URL = "https://whycxtnjhdbewgyugfax.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lXOgH0JPjvNKns9AkzuW8A_ad7UCdw6"
 
 # Single-page app: send every path to index.html so links like
 # /product/<id> work when opened directly or refreshed.

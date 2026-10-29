@@ -2,6 +2,8 @@
 
 Indian ethnic and western fashion marketplace, with AI styling and virtual try-on.
 
+The **`Live-Vendor` branch** runs on the live Supabase project **allboutiqs-marketplace-live** (`whycxtnjhdbewgyugfax`) only. Its committed `.env.development` and `.env.production` take priority over a local `.env`. To set up that database, functions and dashboard, follow [supabase/live-setup/README.md](supabase/live-setup/README.md).
+
 ## Stack
 
 - Vite + React + TypeScript
@@ -15,7 +17,7 @@ Indian ethnic and western fashion marketplace, with AI styling and virtual try-o
 # 1. Install dependencies
 npm i
 
-# 2. Copy the env template and fill in real values (see below)
+# 2. Copy the env template (on Live-Vendor it already holds the live project's public values)
 cp .env.example .env
 
 # 3. Start the dev server
@@ -30,21 +32,17 @@ npm run dev
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
 | `VITE_SUPABASE_PROJECT_ID` | Supabase project ref |
 
-Edge function secrets (set via `supabase secrets set`, not `.env`):
-
-| Secret | Purpose |
-|---|---|
-| `GEMINI_API_KEY` | Google Gemini API key, used by `complete-the-look`, `ai-size-recommender`, `virtual-try-on` |
-| `RESEND_API_KEY` | Transactional email (order/return confirmations) |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Set automatically by Supabase for edge functions |
+Edge function secrets are set in Supabase, not in `.env`. The full list is in [supabase/live-setup/README.md](supabase/live-setup/README.md#c-edge-function-secrets).
 
 ## Supabase
 
-Schema and edge functions live in [supabase/](supabase/). To apply migrations to a project:
+Schema and edge functions live in [supabase/](supabase/).
+
+- **First setup of the empty live database:** run the scripts in [supabase/live-setup/](supabase/live-setup/), in order.
+- **Later schema changes:** add a migration file, then run:
 
 ```sh
-supabase link --project-ref <your-project-ref>
-supabase db push
-supabase functions deploy
-supabase secrets set GEMINI_API_KEY=<key> RESEND_API_KEY=<key>
+npx supabase link --project-ref whycxtnjhdbewgyugfax
+npx supabase db push
+npx supabase functions deploy --project-ref whycxtnjhdbewgyugfax
 ```

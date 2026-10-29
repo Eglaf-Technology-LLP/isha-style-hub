@@ -1,4 +1,4 @@
-project_id = "bldkjzitutojvnbbljrf"
+project_id = "whycxtnjhdbewgyugfax"
 
 # Shiprocket's own servers call this, not our frontend - it can't carry a
 # Supabase user JWT. Authenticity is checked in-function via the x-api-key

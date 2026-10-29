@@ -16,6 +16,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Live-Vendor branch: the live project's public URL/key, committed so they
+# win over a local .env that still points at another project (Vite loads
+# .env.[mode] after .env).
+!.env.development
+!.env.production
 
 # Supabase CLI local cache
 supabase/.temp
