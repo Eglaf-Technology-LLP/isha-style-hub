@@ -9,8 +9,9 @@
 -- How to run:
 --   1. SQL Editor -> New query -> paste this whole file.
 --   2. In the SQL Editor (NOT in this file - never commit a password),
---      replace PASTE_NEW_PASSWORD_HERE with the admin's password
---      (at least 8 characters) -> Run.
+--      on the v_password line below, type the admin's password between
+--      the quotes in place of the placeholder (at least 8 characters) -> Run.
+--      Find-and-replace is fine: the placeholder appears only on that line.
 --
 -- If this email already has an account (for example it signed up on the
 -- site), it only makes that account admin and does not touch its password.
@@ -26,8 +27,10 @@ BEGIN
   SELECT id INTO v_id FROM auth.users WHERE lower(email) = lower(v_email);
 
   IF v_id IS NULL THEN
-    IF v_password = 'PASTE_NEW_PASSWORD_HERE' THEN
-      RAISE EXCEPTION 'Type the admin password in place of PASTE_NEW_PASSWORD_HERE first. Nothing was saved.';
+    -- Checks only the prefix, so a find-and-replace of the placeholder
+    -- cannot also rewrite this check.
+    IF left(v_password, 6) = 'PASTE_' THEN
+      RAISE EXCEPTION 'Type the admin password on the v_password line first. Nothing was saved.';
     END IF;
     IF length(v_password) < 8 THEN
       RAISE EXCEPTION 'Use a password of at least 8 characters for the admin. Nothing was saved.';

@@ -13,8 +13,10 @@
 --      (Not the new sb_secret_... key: the functions check the key's role
 --      claim, which only the legacy JWT key carries.)
 --   2. SQL Editor -> New query -> paste this whole file.
---   3. In the SQL Editor (NOT in this file - never commit the key), replace
---      PASTE_LEGACY_SERVICE_ROLE_KEY_HERE with the key you copied -> Run.
+--   3. In the SQL Editor (NOT in this file - never commit the key), on the
+--      v_key line below, paste the key between the quotes in place of the
+--      placeholder -> Run. Find-and-replace is fine: the placeholder
+--      appears only on that line.
 --
 -- It refuses a wrong key (the anon key, a key of another project, an
 -- sb_secret_ key) and saves nothing in that case. Safe to run again: it
@@ -28,8 +30,10 @@ DECLARE
   v_claims jsonb;
   v_id     uuid;
 BEGIN
-  IF v_key = 'PASTE_LEGACY_SERVICE_ROLE_KEY_HERE' THEN
-    RAISE EXCEPTION 'Paste the legacy service_role key in place of PASTE_LEGACY_SERVICE_ROLE_KEY_HERE first. Nothing was saved.';
+  -- Checks only the prefix, so a find-and-replace of the placeholder
+  -- cannot also rewrite this check.
+  IF left(v_key, 6) = 'PASTE_' THEN
+    RAISE EXCEPTION 'Paste the legacy service_role key on the v_key line first. Nothing was saved.';
   END IF;
   IF v_key !~ '^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$' THEN
     RAISE EXCEPTION 'That is not the legacy service_role key - it must start with eyJ (sb_secret_ keys do not work here). Nothing was saved.';
