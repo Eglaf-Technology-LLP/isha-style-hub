@@ -122,6 +122,27 @@ Deno.serve(async (req) => {
 
     if (!shipment) {
       console.error("courier-tracking-webhook: no matching shipment for awb", awbCode, "order_id", rawOrderId);
+      // Live and staging share one Shiprocket account, and Shiprocket calls
+      // only one webhook URL. It points at live; a parcel live doesn't know
+      // is staging's, so pass the event on to the URL in
+      // COURIER_WEBHOOK_FORWARD_URL (staging's own courier-tracking-webhook,
+      // which takes the same x-api-key). Only set on live, and a forwarded
+      // call is never forwarded again, so the two can't loop.
+      const forwardUrl = Deno.env.get("COURIER_WEBHOOK_FORWARD_URL");
+      if (forwardUrl && !req.headers.get("x-webhook-forwarded")) {
+        try {
+          const res = await fetch(forwardUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-api-key": providedToken, "x-webhook-forwarded": "1" },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!res.ok) console.error("courier-tracking-webhook: forward got", res.status, "for awb", awbCode);
+          return jsonResponse({ received: true, matched: false, forwarded: res.ok });
+        } catch (e) {
+          console.error("courier-tracking-webhook: forward failed for awb", awbCode, errorMessage(e));
+        }
+      }
       return jsonResponse({ received: true, matched: false });
     }
 
