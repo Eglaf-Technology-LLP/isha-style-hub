@@ -12,7 +12,7 @@ import { Download, Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Category } from "@/hooks/useCategories";
-import { insertProductRecord, applyProductUpdate } from "@/hooks/useProducts";
+import { insertProductRecord, applyProductUpdate, approveProduct } from "@/hooks/useProducts";
 import { parseWorkbook, buildWorkbook } from "@/lib/excelImportExport";
 import {
   parseImportRows,
@@ -112,7 +112,8 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
             await applyProductUpdate(existing.id, group.formData, existing, undefined, reconciledVariants);
             updated++;
           } else {
-            await insertProductRecord(group.formData, group.imageUrls, group.variants);
+            const newId = await insertProductRecord(group.formData, group.imageUrls, group.variants);
+            if (!vendorId) await approveProduct(newId); // admin import, same as the admin form
             created++;
           }
         } catch (e: any) {
@@ -176,6 +177,19 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
                 Import from Excel
               </Button>
             </div>
+
+            {!vendorId && vendors.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                <p className="mb-1">Every product needs a Vendor Slug - one of these:</p>
+                <ul className="max-h-24 overflow-y-auto rounded-md border border-border px-2 py-1">
+                  {vendors.map((v) => (
+                    <li key={v.id}>
+                      <span className="font-mono text-foreground">{v.slug}</span> - {v.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {results && (
               <div className="space-y-2 text-sm border-t border-border pt-3">

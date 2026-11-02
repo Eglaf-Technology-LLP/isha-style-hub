@@ -53,6 +53,7 @@ import { VariantManager } from "./VariantManager";
 import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { VendorFilterSelect } from "./VendorFilterSelect";
+import { ProductVendorSelect } from "./ProductVendorSelect";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 import { AiDeclarationField } from "@/components/AiDeclarationField";
@@ -100,6 +101,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   const gstRules = useCategoryGstRules();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormData>({
+    vendor_id: null,
     name: "",
     description: "",
     category_id: null,
@@ -131,6 +133,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   const resetForm = () => {
     setProductForm({
+      vendor_id: null,
       name: "",
       description: "",
       category_id: null,
@@ -188,6 +191,10 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   // Same AI-declaration rules as the vendor form; originals are cleared on "No AI".
   const checkedAiForm = (): ProductFormData | null => {
+    if (!productForm.vendor_id) {
+      toast.error("Select the vendor (boutique) this product belongs to");
+      return null;
+    }
     if (!productForm.ai_content_status) {
       toast.error("Please complete the AI content declaration");
       return null;
@@ -241,7 +248,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     setIsSubmitting(true);
     const result = await updateProduct(
       editingProduct.id,
-      form,
+      // An older product with no boutique is approved as it's given one,
+      // the same as a product an admin adds.
+      editingProduct.vendor_id ? form : { ...form, approval_status: "approved" },
       productImages.length > 0 ? productImages : undefined,
       variantsToSave()
     );
@@ -256,6 +265,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   const openEditDialog = (product: Product) => {
     setEditingProduct(product);
     setProductForm({
+      vendor_id: product.vendor_id,
       name: product.name,
       description: product.description || "",
       category_id: product.category_id,
@@ -320,6 +330,13 @@ export function ProductManagement({ categories }: ProductManagementProps) {
 
   const renderFormFields = (isEdit: boolean = false) => (
     <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
+      <ProductVendorSelect
+        id={isEdit ? "edit-vendor" : "add-vendor"}
+        value={productForm.vendor_id ?? null}
+        onChange={(vendor_id) => setProductForm((prev) => ({ ...prev, vendor_id }))}
+        locked={isEdit && !!editingProduct?.vendor_id}
+      />
+
       <div className="space-y-2">
         <Label htmlFor={isEdit ? "edit-name" : "add-name"}>Product Name *</Label>
         <Input
@@ -598,7 +615,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
       />
       {needsOriginals && (
         <AiOriginalPhotosField
-          ownerFolder={(isEdit && editingProduct?.vendor_id) || "platform"}
+          ownerFolder={productForm.vendor_id || "platform"}
           value={productForm.ai_original_photo_paths ?? []}
           onChange={(ai_original_photo_paths) => setProductForm((prev) => ({ ...prev, ai_original_photo_paths }))}
         />
@@ -744,7 +761,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
             <DialogHeader>
               <DialogTitle>Add New Product</DialogTitle>
               <DialogDescription>
-                Create a new product in your store
+                Add a product for one of your boutiques. Products added here skip the review queue.
               </DialogDescription>
             </DialogHeader>
             {renderFormFields(false)}

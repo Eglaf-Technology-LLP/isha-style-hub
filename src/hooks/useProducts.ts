@@ -161,9 +161,9 @@ export interface ProductFormData {
   ai_original_photo_paths?: string[];
   video_url?: string | null;
   video_is_primary?: boolean;
-  // Only vendor-facing callers (VendorProductDialog) set these; omitting
-  // them leaves vendor_id/approval_status untouched, matching this hook's
-  // long-standing admin-only behavior.
+  // vendor_id is always set by VendorProductDialog, the admin form (where
+  // it's required) and the product import; approval_status only by the
+  // vendor side and admin edits. Omitting either leaves it untouched.
   vendor_id?: string | null;
   approval_status?: string;
   // Full replacement image list, set only by VendorProductDialog (a plain
@@ -314,6 +314,17 @@ export async function insertProductRecord(
   }
 
   return data.id;
+}
+
+// Products an admin adds for a boutique skip the review queue. The insert
+// trigger (set_product_approval_status) marks a non-trusted boutique's new
+// product pending_review - that's meant for the boutique's own uploads.
+export async function approveProduct(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("products")
+    .update({ approval_status: "approved", rejection_reason: null })
+    .eq("id", id);
+  if (error) throw error;
 }
 
 // Shared by useProducts()'s updateProduct and VendorProductDialog. Note
@@ -519,6 +530,7 @@ export function useProducts() {
     try {
       const imageUrls = await uploadProductImages(images);
       const newId = await insertProductRecord(productData, imageUrls, variants);
+      if (productData.vendor_id) await approveProduct(newId);
       const newProduct = await fetchProductWithVariants(newId);
 
       setProducts((prev) => [newProduct, ...prev]);

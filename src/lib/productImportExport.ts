@@ -167,7 +167,9 @@ export function parseImportRows(
           continue;
         }
       } else {
-        vendorId = null; // platform-direct product
+        // Every product belongs to a boutique.
+        errors.push({ handle, rowNumber: entries[0].rowNumber, message: "Vendor Slug is required" });
+        continue;
       }
     }
 
@@ -352,7 +354,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
     [PRODUCT_COLUMNS.specifications]: "Fabric:Silk;Wash Care:Dry Clean Only;Fit:Regular",
     [PRODUCT_COLUMNS.isActive]: "TRUE",
     [PRODUCT_COLUMNS.imageUrl]: "https://example.com/product-image.jpg",
-    ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "" } : {}),
+    ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "your-boutique-slug" } : {}),
   };
 
   return [
@@ -395,7 +397,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.specifications]: "Fabric:Cotton;Pattern:Block Print",
       [PRODUCT_COLUMNS.isActive]: "TRUE",
       [PRODUCT_COLUMNS.imageUrl]: "https://example.com/dupatta.jpg",
-      ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "" } : {}),
+      ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "your-boutique-slug" } : {}),
       [PRODUCT_COLUMNS.variantOptions]: "",
       [PRODUCT_COLUMNS.sku]: "CPD-001",
       [PRODUCT_COLUMNS.price]: "599",
