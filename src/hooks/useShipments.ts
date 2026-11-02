@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { EwayBillPreview } from "@/lib/ewayBill";
 
 export interface CourierOption {
   courierId: number;
@@ -21,6 +22,19 @@ export interface ShipDestination {
   city?: string;
   pincode: string;
 }
+
+export interface ServiceabilityResult {
+  couriers: CourierOption[];
+  isCod: boolean;
+  // The parcel weight these fares are for (from the products' weights).
+  weightKg?: number;
+  destination?: ShipDestination;
+  // Set when the part is over the e-way bill limit.
+  ewayBill?: EwayBillPreview | null;
+}
+
+// "pending": not booked - the e-way bill was asked for (or is still being made).
+export type ShipNowOutcome = { status: "booked" } | { status: "failed" } | { status: "pending"; ewayBill: EwayBillPreview };
 
 export interface Shipment {
   id: string;
@@ -80,45 +94,50 @@ export function useShipments(vendorOrderIds: string[]) {
   // Step 1: real couriers + fares for this route, so the vendor picks one
   // instead of Shiprocket silently auto-assigning. Read-only.
   // returnRequestId: rates for an exchange's replacement (warehouse route).
-  const checkServiceability = async (
-    vendorOrderId: string,
-    returnRequestId?: string,
-  ): Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; destination?: ShipDestination } | null> => {
-    const { data, errorMessage: msg } = await invokeEdgeFunction<{
-      couriers: CourierOption[];
-      isCod: boolean;
-      // The parcel weight these fares are for (from the products' weights).
-      weightKg?: number;
-      destination?: ShipDestination;
-    }>("shiprocket-check-serviceability", { vendor_order_id: vendorOrderId, return_request_id: returnRequestId });
-    if (msg) {
-      toast.error(msg);
+  const checkServiceability = async (vendorOrderId: string, returnRequestId?: string): Promise<ServiceabilityResult | null> => {
+    const { data, errorMessage: msg } = await invokeEdgeFunction<
+      Omit<ServiceabilityResult, "ewayBill"> & { eway_bill?: EwayBillPreview | null }
+    >("shiprocket-check-serviceability", { vendor_order_id: vendorOrderId, return_request_id: returnRequestId });
+    if (msg || !data) {
+      toast.error(msg ?? "Couldn't load couriers");
       return null;
     }
-    return data;
+    const { eway_bill, ...rest } = data;
+    return { ...rest, ewayBill: eway_bill ?? null };
   };
 
   // Step 2: actually book the pickup with the courier the vendor chose.
   // courierEtd is the exact etd already shown for that courier in step 1 -
   // passed through so the real promised date gets persisted instead of
-  // discarded once booking succeeds.
+  // discarded once booking succeeds. Over the e-way bill limit the first
+  // press only asks for the e-way bill (status "pending").
   const shipNow = async (
     vendorOrderId: string,
     courierId?: number,
     courierEtd?: string | null,
     returnRequestId?: string,
-  ): Promise<boolean> => {
+    courierName?: string | null,
+  ): Promise<ShipNowOutcome> => {
     setActioningId(vendorOrderId);
     const { data, errorMessage: msg } = await invokeEdgeFunction("shiprocket-create-shipment", {
       vendor_order_id: vendorOrderId,
       courier_id: courierId,
+      courier_name: courierName,
       courier_etd: courierEtd,
       return_request_id: returnRequestId,
     });
     setActioningId(null);
     if (msg) {
       toast.error(msg);
-      return false;
+      return { status: "failed" };
+    }
+    if (data?.eway_bill_pending && data.eway_bill) {
+      toast.info(
+        data.eway_bill.made_by === "boutique"
+          ? "E-way bill needed - make it with the details shown and email us the number"
+          : "E-way bill asked for - we'll tell you when it's ready to ship",
+      );
+      return { status: "pending", ewayBill: data.eway_bill };
     }
     toast.success(
       data?.already_shipped
@@ -128,7 +147,7 @@ export function useShipments(vendorOrderIds: string[]) {
           : "Shipment booked - pickup requested",
     );
     await fetchShipments();
-    return true;
+    return { status: "booked" };
   };
 
   const cancelShipment = async (vendorOrderId: string): Promise<boolean> => {

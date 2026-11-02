@@ -79,6 +79,17 @@ export interface WhVendorOrder {
   items: WhItem[];
   // The boutique's latest parcel to the warehouse.
   inbound: WhShipment | null;
+  // Over the e-way bill limit: its e-way bills (not cancelled), any leg.
+  ewayBills: WhEwayBill[];
+}
+
+export interface WhEwayBill {
+  leg: string;
+  status: string;
+  ewb_number: string | null;
+  document_number: string;
+  challan_id: string | null;
+  shipment_id: string | null;
 }
 
 export interface WhDispatch {
@@ -224,7 +235,7 @@ export function useWarehouseData(enabled: boolean) {
         return;
       }
 
-      const [{ data: orderRows }, { data: voRows }, { data: shipmentRows }, { data: dispatchRows }] = await Promise.all([
+      const [{ data: orderRows }, { data: voRows }, { data: shipmentRows }, { data: dispatchRows }, { data: ewayRows }] = await Promise.all([
         supabase
           .from("orders")
           .select(
@@ -234,6 +245,12 @@ export function useWarehouseData(enabled: boolean) {
         supabase.from("vendor_orders").select(VO_COLUMNS).in("order_id", orderIds),
         supabase.from("shipments").select(SHIPMENT_COLUMNS).in("order_id", orderIds),
         supabase.from("warehouse_dispatches").select("*").in("order_id", orderIds).neq("status", "cancelled"),
+        supabase
+          .from("eway_bills")
+          .select("vendor_order_id, leg, status, ewb_number, document_number, challan_id, shipment_id")
+          .in("order_id", orderIds)
+          .neq("status", "cancelled")
+          .order("created_at"),
       ]);
 
       const allVos = (voRows ?? []) as any[];
@@ -258,6 +275,7 @@ export function useWarehouseData(enabled: boolean) {
           ...vo,
           vendor_name: vendorName.get(vo.vendor_id) ?? "Boutique",
           items: items.filter((i) => i.vendor_order_id === vo.id),
+          ewayBills: (ewayRows ?? []).filter((b) => b.vendor_order_id === vo.id),
           inbound:
             shipments.find(
               (s) => s.vendor_order_id === vo.id && s.shipment_type === "to_warehouse" && !s.return_request_id,

@@ -30,13 +30,17 @@ import {
 import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
+import { InvoiceError } from "../_shared/invoice.ts";
+import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
 
 // The warehouse's own steps that need the courier or the payment gateway
 // (receiving, inspecting boutique parcels and packing are plain database RPCs
 // - see the warehouse_logistics migration):
 //
 //   parcel_rates              couriers + fares from the warehouse for a parcel
-//   book_dispatch             book the warehouse's parcel to the customer
+//   book_dispatch             book the warehouse's parcel to the customer (each
+//                             boutique part over the e-way bill limit waits for
+//                             its e-way bill - _shared/ewayBill.ts)
 //   cancel_dispatch_booking   undo that booking (before pickup) to rebook
 //   book_send_back            book items back to a boutique
 //   cancel_send_back_booking  undo that booking (before pickup)
@@ -107,6 +111,7 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
   let shippingCharges = 0;
   let totalDiscount = 0;
   let leadVendorOrderId: string | null = null;
+  let vendorOrderIds: string[] = [];
 
   if (dispatch.purpose === "order") {
     const { data: vendorOrders } = await supabase
@@ -116,6 +121,7 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
       .order("id");
     if (!vendorOrders?.length) throw new ActionError("This parcel is empty");
     leadVendorOrderId = vendorOrders[0].id;
+    vendorOrderIds = vendorOrders.map((v) => v.id);
     const { data: lines } = await supabase
       .from("order_items")
       .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price, discount_amount")
@@ -181,7 +187,18 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
     totalDiscount,
     orderDate: order.created_at,
   };
-  return { dispatch, order, plan, leadVendorOrderId };
+  return { dispatch, order, plan, leadVendorOrderId, vendorOrderIds };
+}
+
+// The e-way bills a parcel to the customer needs (one per boutique part over
+// the limit), as the booking dialog shows them.
+async function dispatchEwayBills(supabase: Db, vendorOrderIds: string[]) {
+  const previews = await Promise.all(vendorOrderIds.map((id) => ewayBillPreview(supabase, id, "warehouse_to_customer")));
+  const needed = previews.filter((p): p is NonNullable<typeof p> => !!p);
+  if (!needed.length) return [];
+  const { data: parts } = await supabase.from("vendor_orders").select("id, vendors(name)").in("id", needed.map((p) => p.vendor_order_id));
+  const nameById = new Map((parts ?? []).map((p: any) => [p.id, p.vendors?.name ?? "Boutique"]));
+  return needed.map((p) => ({ ...p, vendor_name: nameById.get(p.vendor_order_id) ?? "Boutique" }));
 }
 
 async function loadSendBackPlan(supabase: Db, sendBackId: string) {
@@ -512,8 +529,9 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "parcel_rates": {
-        const plan = body.dispatch_id
-          ? (await loadDispatchPlan(supabase, body.dispatch_id)).plan
+        const dispatchPlan = body.dispatch_id ? await loadDispatchPlan(supabase, body.dispatch_id) : null;
+        const plan = dispatchPlan
+          ? dispatchPlan.plan
           : body.send_back_id
             ? (await loadSendBackPlan(supabase, body.send_back_id)).plan
             : null;
@@ -522,23 +540,52 @@ Deno.serve(async (req) => {
         if (couriers.length === 0) {
           throw new ActionError(`No courier currently services ${plan.warehouse.address.pincode} -> ${plan.consignee.address.pincode}`);
         }
-        return jsonResponse({ couriers, isCod: plan.cod, weightKg: plan.weightKg });
+        const ewayBills = dispatchPlan ? await dispatchEwayBills(supabase, dispatchPlan.vendorOrderIds) : [];
+        return jsonResponse({ couriers, isCod: plan.cod, weightKg: plan.weightKg, eway_bills: ewayBills });
       }
 
       case "book_dispatch": {
-        const { dispatch, plan, leadVendorOrderId } = await loadDispatchPlan(supabase, body.dispatch_id);
+        const { dispatch, plan, leadVendorOrderId, vendorOrderIds } = await loadDispatchPlan(supabase, body.dispatch_id);
         if (dispatch.status !== "packing") throw new ActionError(`This parcel is already ${dispatch.status}`);
         const existing = await liveBooking(supabase, "dispatch_id", dispatch.id);
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
 
+        // Each boutique part over the limit travels on its own e-way bill (on
+        // a delivery challan from here); the parcel waits until all are in.
+        const ewayBills: EwayBill[] = [];
+        let waiting = false;
+        for (const vendorOrderId of vendorOrderIds) {
+          const check = await ewayBillForBooking(supabase, {
+            vendorOrderId,
+            leg: "warehouse_to_customer",
+            courierId: body.courier_id ?? null,
+            courierName: body.courier_name ?? null,
+            from: { name: plan.warehouse.name, address: plan.warehouse.address as Record<string, unknown> },
+            to: { name: plan.consignee.name, address: plan.consignee.address as Record<string, unknown> },
+            dispatchId: dispatch.id,
+            requestedBy: userId,
+          });
+          if (!check.required) continue;
+          if (check.ready) ewayBills.push(check.bill);
+          else waiting = true;
+        }
+        if (waiting) {
+          return jsonResponse({ eway_bill_pending: true, eway_bills: await dispatchEwayBills(supabase, vendorOrderIds) });
+        }
+        const ewayCouriers = [...new Set(ewayBills.map((b) => b.courier_id))];
+        if (ewayCouriers.length > 1) {
+          throw new ActionError("This parcel's e-way bills are made out to different couriers - correct them in Admin > E-way bills");
+        }
+
         const etd = parseEtd(body.courier_etd);
-        const shipment = await bookFromWarehouse(supabase, plan, dispatch.id, body.courier_id ?? null, {
+        const shipment = await bookFromWarehouse(supabase, plan, dispatch.id, ewayCouriers[0] ?? body.courier_id ?? null, {
           shipment_type: "warehouse_to_customer",
           order_id: dispatch.order_id,
           dispatch_id: dispatch.id,
           vendor_order_id: leadVendorOrderId,
           estimated_delivery_date: etd,
         });
+        await markEwayBillsUsed(supabase, ewayBills.map((b) => b.id), shipment.id);
         await supabase.from("warehouse_dispatches").update({ status: "booked" }).eq("id", dispatch.id);
         if (dispatch.purpose === "order" && etd) {
           await supabase.from("orders").update({ estimated_delivery_date: etd }).eq("id", dispatch.order_id);
@@ -817,7 +864,7 @@ Deno.serve(async (req) => {
     }
   } catch (e) {
     console.error("warehouse-actions error", e);
-    return jsonResponse({ error: errorMessage(e) }, e instanceof ActionError ? e.status : 500);
+    return jsonResponse({ error: errorMessage(e) }, e instanceof ActionError || e instanceof InvoiceError ? e.status : 500);
   }
 });
 

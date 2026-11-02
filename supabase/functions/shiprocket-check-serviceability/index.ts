@@ -10,6 +10,7 @@ import {
   errorMessage,
 } from "../_shared/shiprocket.ts";
 import { getWarehouse } from "../_shared/warehouse.ts";
+import { ewayBillPreview } from "../_shared/ewayBill.ts";
 
 // Step 1 of "Ship Now": before booking anything, show the vendor which
 // couriers actually service this pickup->delivery route and at what
@@ -104,6 +105,13 @@ Deno.serve(async (req) => {
     // for nearly every courier regardless of how this specific order will
     // actually be paid, and confusingly labeled "COD" next to a prepaid
     // order's freight-only rate before this fix.
+    // Over the e-way bill limit: the dialog explains the wait, and once the
+    // e-way bill is in, offers only the courier it is made out to.
+    // (Exchange replacements aren't covered yet.)
+    const ewayBill = return_request_id
+      ? null
+      : await ewayBillPreview(supabase, vendor_order_id, warehouse ? "boutique_to_warehouse" : "boutique_to_customer");
+
     return jsonResponse({
       couriers,
       weightKg,
@@ -111,6 +119,7 @@ Deno.serve(async (req) => {
       destination: warehouse
         ? { kind: "warehouse", name: warehouse.name, city: warehouse.address.city, pincode: warehouse.address.pincode }
         : { kind: "customer", pincode: deliveryPincode },
+      eway_bill: ewayBill,
     });
   } catch (e) {
     console.error("shiprocket-check-serviceability error", e);

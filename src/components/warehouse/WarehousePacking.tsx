@@ -25,6 +25,8 @@ import { PackingSlipButton, PackingSlipData } from "./PackingSlip";
 import { PromptDialog } from "./PromptDialog";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseInfo, WarehouseViewProps } from "./shared";
 import { boutiqueDiscountShare } from "@/lib/coupons";
+import { EwayBillPreview } from "@/lib/ewayBill";
+import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -107,6 +109,7 @@ function slipFor(
   if (dispatch.purpose === "order") {
     groups = parts.map((p) => ({
       boutique: p.vendor_name,
+      ewayBill: parcelEwayBill(p, dispatch),
       items: p.items.map((i) => ({
         title: i.product_title,
         detail: [i.variant_title, i.size && `Size ${i.size}`, i.color].filter(Boolean).join(" · ") || null,
@@ -151,9 +154,24 @@ function slipFor(
   };
 }
 
+// The e-way bill a part travels on in this parcel: the one its booking used,
+// or (not booked yet) the one waiting for the booking.
+function parcelEwayBill(part: WhVendorOrder, dispatch: WhDispatch) {
+  const bill = part.ewayBills.find(
+    (b) =>
+      b.leg === "warehouse_to_customer" &&
+      b.status === "active" &&
+      (dispatch.shipment ? b.shipment_id === dispatch.shipment.id : !b.shipment_id),
+  );
+  return bill?.ewb_number ? { number: bill.ewb_number, document: bill.document_number } : null;
+}
+
 const ratesLoader = (dispatchId: string) => async () => {
-  const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number }>("parcel_rates", { dispatch_id: dispatchId });
-  return res && res.couriers ? res : null;
+  const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; eway_bills?: EwayBillPreview[] }>(
+    "parcel_rates",
+    { dispatch_id: dispatchId },
+  );
+  return res && res.couriers ? { ...res, ewayBills: res.eway_bills ?? [] } : null;
 };
 
 function PackedParcel({
@@ -182,6 +200,14 @@ function PackedParcel({
       </div>
       <div className="flex flex-wrap gap-2">
         <PackingSlipButton data={slipFor(dispatch, order, parts, warehouse, rr)} />
+        {/* Parts over the e-way bill limit travel on a delivery challan - print it for the parcel. */}
+        {parts.flatMap((p) =>
+          p.ewayBills
+            .filter((b) => b.leg === "warehouse_to_customer" && b.challan_id && !b.shipment_id)
+            .map((b) => (
+              <DeliveryChallanButton key={b.challan_id} challanId={b.challan_id!} label={parts.length > 1 ? `Challan - ${p.vendor_name}` : "Challan"} />
+            )),
+        )}
         <PackParcelDialog
           triggerLabel="Edit size"
           variant="outline"
@@ -220,10 +246,22 @@ function PackedParcel({
           title={`Book ${orderRef(order.id)} to ${order.customer_name}`}
           description={`From the warehouse to ${order.shipping_address?.city ?? ""} ${order.shipping_address?.pincode ?? ""}.`}
           loadRates={ratesLoader(dispatch.id)}
-          onBook={async (courierId, etd) => {
-            const res = await runAction("book_dispatch", { dispatch_id: dispatch.id, courier_id: courierId, courier_etd: etd }, "Booked - pickup requested");
-            if (res) onChange();
-            return !!res;
+          onBook={async (courierId, etd, courierName) => {
+            const res = await runAction<{ eway_bill_pending?: boolean; eway_bills?: EwayBillPreview[] }>("book_dispatch", {
+              dispatch_id: dispatch.id,
+              courier_id: courierId,
+              courier_name: courierName,
+              courier_etd: etd,
+            });
+            if (!res) return false;
+            if (res.eway_bill_pending) {
+              toast.info("E-way bill asked for - book again once it's in");
+              onChange(); // its delivery challan can be printed now
+              return { ewayBills: res.eway_bills ?? [] };
+            }
+            toast.success("Booked - pickup requested");
+            onChange();
+            return true;
           }}
         />
       </div>

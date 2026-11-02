@@ -5,6 +5,7 @@ import { FileText, Printer } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { formatWeightKg } from "@/lib/weight";
 import { formatDate } from "@/lib/dates";
+import { formatEwbNumber } from "@/lib/ewayBill";
 
 export interface PackingSlipData {
   title: string; // "Packing slip", "Exchange replacement", ...
@@ -14,7 +15,12 @@ export interface PackingSlipData {
   warehouse: { name: string; address: Record<string, string> } | null;
   // Grouped by boutique; boutique names stay on the slip so the packer can
   // check each boutique's items against its invoice.
-  groups: { boutique: string; items: { title: string; detail: string | null; sku: string | null; quantity: number }[] }[];
+  groups: {
+    boutique: string;
+    items: { title: string; detail: string | null; sku: string | null; quantity: number }[];
+    // Over the e-way bill limit: the part travels on this delivery challan and e-way bill.
+    ewayBill?: { number: string; document: string } | null;
+  }[];
   codAmount: number | null; // null = prepaid
   parcel: { weightKg: number; lengthCm: number; breadthCm: number; heightCm: number };
   courier: { name: string | null; awb: string | null } | null;
@@ -38,7 +44,11 @@ export function packingSlipHtml(d: PackingSlipData, autoPrint = false): string {
   const rows = d.groups
     .map(
       (g) => `
-      <tr class="group"><td colspan="3">${esc(g.boutique)}</td></tr>
+      <tr class="group"><td colspan="3">${esc(g.boutique)}${
+        g.ewayBill
+          ? `<div class="ewb">E-way bill ${esc(formatEwbNumber(g.ewayBill.number))} &middot; challan ${esc(g.ewayBill.document)} - both go with the parcel</div>`
+          : ""
+      }</td></tr>
       ${g.items
         .map(
           (i) => `<tr>
@@ -69,6 +79,7 @@ export function packingSlipHtml(d: PackingSlipData, autoPrint = false): string {
   th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #8a8a8a; border-bottom: 2px solid #1a1a1a; padding: 6px 4px; }
   td { padding: 8px 4px; border-bottom: 1px solid #f0ebe6; vertical-align: top; }
   tr.group td { background: #f9f6f2; font-weight: 700; color: #7a2e22; }
+  tr.group .ewb { font-weight: 400; color: #1a1a1a; font-size: 12px; margin-top: 2px; }
   .qty { text-align: center; width: 60px; font-weight: 700; }
   .mono { font-family: "Courier New", monospace; font-size: 12px; width: 160px; }
   .muted { color: #8a8a8a; font-size: 12px; }

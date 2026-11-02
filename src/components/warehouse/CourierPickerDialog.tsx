@@ -15,19 +15,23 @@ import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
+import { EwayBillPreview } from "@/lib/ewayBill";
+import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface CourierPickerDialogProps {
   triggerLabel: string;
   title: string;
   description: string;
   disabled?: boolean;
-  loadRates: () => Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number } | null>;
-  onBook: (courierId: number, etd: string | null) => Promise<boolean>;
+  loadRates: () => Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; ewayBills?: EwayBillPreview[] } | null>;
+  // { ewayBills }: not booked - the parcel waits for these e-way bills.
+  onBook: (courierId: number, etd: string | null, courierName: string | null) => Promise<boolean | { ewayBills: EwayBillPreview[] }>;
 }
 
 // Couriers and fares from the warehouse for one parcel - staff pick one,
 // then the booking is made with exactly that courier (same idea as the
-// boutique's Ship Now).
+// boutique's Ship Now). A boutique part over the e-way bill limit makes the
+// parcel wait for its e-way bill, which fixes the courier.
 export function CourierPickerDialog({ triggerLabel, title, description, disabled, loadRates, onBook }: CourierPickerDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,10 +40,24 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
   const [isCod, setIsCod] = useState(false);
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [ewayBills, setEwayBills] = useState<EwayBillPreview[]>([]);
+
+  const lockedCourierId = ewayBills.find((p) => p.bill?.courier_id)?.bill?.courier_id ?? null;
+  const shownCouriers = lockedCourierId ? couriers.filter((c) => c.courierId === lockedCourierId) : couriers;
+  const waiting = ewayBills.some((p) => p.bill?.status === "pending");
+  const notAskedYet = ewayBills.some((p) => !p.bill);
+  const lockedCourierGone = !!lockedCourierId && !loading && shownCouriers.length === 0;
+
+  const applyEwayBills = (previews: EwayBillPreview[]) => {
+    setEwayBills(previews);
+    const locked = previews.find((p) => p.bill?.courier_id)?.bill?.courier_id;
+    if (locked) setSelected(locked);
+  };
 
   const openDialog = async () => {
     setOpen(true);
     setLoading(true);
+    setEwayBills([]);
     const result = await loadRates();
     setLoading(false);
     if (!result) {
@@ -50,14 +68,17 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
     setIsCod(result.isCod);
     setWeightKg(result.weightKg ?? null);
     setSelected(result.couriers.find((c) => c.recommended)?.courierId ?? result.couriers[0]?.courierId ?? null);
+    applyEwayBills(result.ewayBills ?? []);
   };
 
   const confirm = async () => {
     if (!selected) return;
     setBooking(true);
-    const ok = await onBook(selected, couriers.find((c) => c.courierId === selected)?.etd ?? null);
+    const courier = couriers.find((c) => c.courierId === selected);
+    const result = await onBook(selected, courier?.etd ?? null, courier?.courierName ?? null);
     setBooking(false);
-    if (ok) setOpen(false);
+    if (result === true) setOpen(false);
+    else if (result && typeof result === "object") applyEwayBills(result.ewayBills);
   };
 
   return (
@@ -66,7 +87,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
         <Truck className="h-3 w-3" />
         {triggerLabel}
       </Button>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -77,6 +98,15 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
           </div>
         ) : (
           <>
+            {ewayBills.map((p) => (
+              <EwayBillNotice key={p.vendor_order_id} preview={p} boutique={ewayBills.length > 1 ? p.vendor_name : undefined} />
+            ))}
+            {lockedCourierGone && (
+              <p className="text-sm text-destructive">
+                The e-way bill is made out to a courier that doesn't serve this route right now - change the courier on it in
+                Admin &gt; E-way bills.
+              </p>
+            )}
             {weightKg != null && (
               <p className="text-sm -mt-2">
                 Parcel weight for these rates: <span className="font-medium">{formatWeightKg(weightKg)}</span>
@@ -93,7 +123,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
               onValueChange={(v) => setSelected(Number(v))}
               className="space-y-2 max-h-[50vh] overflow-y-auto"
             >
-              {couriers.map((c) => (
+              {shownCouriers.map((c) => (
                 <Label
                   key={c.courierId}
                   htmlFor={`wh-courier-${c.courierId}`}
@@ -124,9 +154,9 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
           <Button variant="outline" onClick={() => setOpen(false)} disabled={booking}>
             Cancel
           </Button>
-          <Button onClick={confirm} disabled={!selected || booking || loading}>
+          <Button onClick={confirm} disabled={!selected || booking || loading || (waiting && !notAskedYet) || lockedCourierGone}>
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Confirm &amp; Book
+            {notAskedYet ? "Ask for e-way bill" : waiting ? "Waiting for e-way bill" : <>Confirm &amp; Book</>}
           </Button>
         </DialogFooter>
       </DialogContent>
