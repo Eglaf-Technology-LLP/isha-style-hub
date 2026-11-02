@@ -4,7 +4,8 @@ import { LEGAL_PATHS } from "./legal";
 // the admin panel (and the warehouse tool), a boutique only its vendor area -
 // the customer storefront isn't open to them. Shoppers are unaffected. All
 // the storefront code is kept; set to false to let staff use the store again.
-export const STAFF_ONLY_MODE = true;
+// Off since 2026-11-03: the store is open to everyone, staff included.
+export const STAFF_ONLY_MODE = false;
 
 export type StaffRole = "admin" | "vendor" | "customer" | "guest";
 
