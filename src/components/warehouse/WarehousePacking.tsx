@@ -256,6 +256,7 @@ function PackedParcel({
             if (!res) return false;
             if (res.eway_bill_pending) {
               toast.info("E-way bill asked for - book again once it's in");
+              onChange(); // its delivery challan can be printed now
               return { ewayBills: res.eway_bills ?? [] };
             }
             toast.success("Booked - pickup requested");
