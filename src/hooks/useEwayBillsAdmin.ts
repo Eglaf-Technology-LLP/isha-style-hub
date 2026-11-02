@@ -28,19 +28,28 @@ export function useEwayBillsAdmin() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Everything still open (waiting for a number, or made but not booked);
+    // the rest only from the last 30 days.
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [{ data: rows, error }, { data: setupRows }, { data: courierRows }] = await Promise.all([
+    const [{ data: open, error }, { data: recent }, { data: setupRows }, { data: courierRows }] = await Promise.all([
       supabase
         .from("eway_bills")
         .select("*")
-        .or(`status.neq.cancelled,created_at.gte."${since}"`)
-        .order("created_at", { ascending: true })
+        .or("status.eq.pending,and(status.eq.active,shipment_id.is.null)")
+        .order("created_at"),
+      supabase
+        .from("eway_bills")
+        .select("*")
+        .neq("status", "pending")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
         .limit(500),
       supabase.from("vendor_eway_bill_setup").select("*"),
       supabase.from("courier_transporters").select("*").order("courier_name"),
     ]);
     if (error) console.error("eway bills load failed", error);
-    const list = rows ?? [];
+    const openIds = new Set((open ?? []).map((b) => b.id));
+    const list = [...(open ?? []), ...(recent ?? []).reverse().filter((b) => !openIds.has(b.id))];
 
     const ids = <K extends keyof EwayBillRow>(key: K) =>
       [...new Set(list.map((b) => b[key]).filter((v): v is NonNullable<EwayBillRow[K]> => v != null))] as string[];
