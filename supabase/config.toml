@@ -75,3 +75,8 @@ verify_jwt = true
 # Checks can_operate_warehouse itself.
 [functions.warehouse-actions]
 verify_jwt = true
+
+# Admin > E-way bills: record / cancel e-way bill numbers. Admin-only, checked
+# in the function.
+[functions.eway-bill-actions]
+verify_jwt = true

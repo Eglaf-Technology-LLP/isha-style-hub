@@ -13,6 +13,7 @@ export const links = {
   adminReturn: (returnRequestId: string) => `/admin?tab=returns&focus=${returnRequestId}`,
   adminPayouts: () => `/admin?tab=vendor-payouts`,
   adminVendor: () => `/admin?tab=vendors&sub=applications`,
+  adminEwayBill: (ewayBillId: string) => `/admin?tab=eway-bills&focus=${ewayBillId}`,
   customerOrder: (orderId: string) => `/orders?focus=${orderId}`,
 };
 
