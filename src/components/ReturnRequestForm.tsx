@@ -21,7 +21,14 @@ import { ImageDropzone } from "@/components/ImageDropzone";
 import { uploadUserFile } from "@/lib/userPhotoUpload";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatMoney } from "@/lib/format";
+import { RefundMethodPicker } from "@/components/RefundMethodPicker";
+import { BANK_REFUND_DAYS, CHARGE_FREE_RETURN_REASONS, RefundMethod, refundOptions } from "@/lib/wallet";
+import { useRefundCharge } from "@/hooks/useWallet";
+import { COMPANY } from "@/lib/company";
 
+// Front, back and a close-up of the tag (the database checks the same:
+// enforce_return_evidence).
+const MIN_PHOTOS_PER_ITEM = 3;
 const MAX_PHOTOS_PER_ITEM = 5;
 const MAX_VIDEO_MB = 50;
 
@@ -43,6 +50,8 @@ interface OrderItem {
 
 interface ReturnRequestFormProps {
   orderId: string;
+  // How the order was paid - decides the refund choices.
+  paymentMethod: string;
   orderItems: OrderItem[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -71,6 +80,7 @@ interface ExchangeTarget {
 
 export function ReturnRequestForm({
   orderId,
+  paymentMethod,
   orderItems,
   open,
   onOpenChange,
@@ -91,6 +101,11 @@ export function ReturnRequestForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customisedSelected]);
   const [submitting, setSubmitting] = useState(false);
+  const refundChoices = refundOptions(paymentMethod);
+  const refundCharge = useRefundCharge();
+  const [refundMethod, setRefundMethod] = useState<RefundMethod | null>(
+    refundChoices.length === 1 ? refundChoices[0] : null,
+  );
 
   const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string[]>>({});
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -192,8 +207,13 @@ export function ReturnRequestForm({
     const chosen = orderItems.filter((item) => selectedItems[item.id]);
     if (chosen.length === 0 || !reason) return;
 
-    if (evidenceRequired && chosen.some((item) => !(itemPhotoUrls[item.id]?.length))) {
-      toast.error("Please add at least one photo (with the tag attached) for every selected item");
+    if (evidenceRequired && chosen.some((item) => (itemPhotoUrls[item.id]?.length ?? 0) < MIN_PHOTOS_PER_ITEM)) {
+      toast.error(`Please add ${MIN_PHOTOS_PER_ITEM} photos of every selected item: the front, the back and the tag`);
+      return;
+    }
+
+    if (requestType === "return" && !refundMethod) {
+      toast.error("Please choose how you'd like your refund");
       return;
     }
 
@@ -239,9 +259,16 @@ export function ReturnRequestForm({
       additional_notes: additionalNotes || undefined,
       items,
       evidence_video_url: videoUrl,
+      refund_method: requestType === "return" ? refundMethod : null,
     });
 
     setSubmitting(false);
+    if (success && requestType === "return" && refundMethod === "bank") {
+      toast.info(
+        `Please email your bank details (account holder name, account number, bank name, IFSC code) to ${COMPANY.supportEmail} with order #${orderId.slice(0, 8).toUpperCase()}. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.`,
+        { duration: 15000 },
+      );
+    }
     if (success) {
       onOpenChange(false);
       onSuccess?.();
@@ -294,11 +321,21 @@ export function ReturnRequestForm({
           {/* Tag instruction - required for either request type */}
           <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800">
-              Please photograph each item together with its original tag still attached.{" "}
-              <strong>Do not remove or damage the tag</strong> - items without a visible, intact
-              tag can't be accepted for return or exchange.
-            </p>
+            <div className="text-xs text-amber-800 space-y-1">
+              <p className="font-medium">Before you take the photos</p>
+              <ul className="list-disc pl-4 space-y-0.5">
+                <li>
+                  <strong>Keep the original tag attached.</strong> Don't cut, remove or break it - items without an
+                  intact tag can't be accepted for return or exchange.
+                </li>
+                <li>
+                  Add {MIN_PHOTOS_PER_ITEM} clear photos of every item: the <strong>front</strong>, the{" "}
+                  <strong>back</strong>, and a <strong>close-up of the tag</strong>.
+                </li>
+                <li>The item must be unused, unwashed and unaltered, with its original packaging if you still have it.</li>
+                <li>Pack it the same way for the courier pickup - we check it against these photos.</li>
+              </ul>
+            </div>
           </div>
 
           {/* Select Items */}
@@ -398,7 +435,7 @@ export function ReturnRequestForm({
 
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1 block">
-                            Photos with tag attached ({evidenceRequired ? "at least 1 required" : "optional"}, up to {MAX_PHOTOS_PER_ITEM})
+                            Photos - front, back and the tag ({evidenceRequired ? `${MIN_PHOTOS_PER_ITEM} required` : "optional"}, up to {MAX_PHOTOS_PER_ITEM})
                           </Label>
                           <ImageDropzone
                             folder="vendor-uploads"
@@ -476,6 +513,18 @@ export function ReturnRequestForm({
             </RadioGroup>
           </div>
 
+          {requestType === "return" && (
+            <RefundMethodPicker
+              options={refundChoices}
+              value={refundMethod}
+              onChange={setRefundMethod}
+              context="return"
+              orderId={orderId}
+              // No charge when the fault was the boutique's.
+              charge={CHARGE_FREE_RETURN_REASONS.includes(reason) ? null : refundCharge}
+            />
+          )}
+
           {/* Additional Notes */}
           <div>
             <Label className="text-sm font-medium mb-2 block">Additional Notes (Optional)</Label>
@@ -500,7 +549,7 @@ export function ReturnRequestForm({
           <Button
             className="w-full"
             onClick={handleSubmit}
-            disabled={submitting || !hasSelection || !reason || uploadingVideo}
+            disabled={submitting || !hasSelection || !reason || uploadingVideo || (requestType === "return" && !refundMethod)}
           >
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Submit {requestType === "return" ? "Return" : "Exchange"} Request

@@ -19,6 +19,7 @@ import {
   Lock,
   ShieldCheck,
   Package,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { useCartStore, CartItem, cartLineKey } from "@/stores/cartStore";
@@ -47,6 +48,8 @@ import { formatINR } from "@/lib/format";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
+import { useWallet } from "@/hooks/useWallet";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -121,6 +124,11 @@ export default function Checkout() {
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
   const clearCart = buyNow ? clearBuyNow : cart.clearCart;
   const { user, loading: authLoading } = useAuth();
+  // Refunds the customer took as wallet balance pay first, up to the whole
+  // order. On by default whenever there's a balance; they can switch it off.
+  const wallet = useWallet(user?.id);
+  const [payFromWallet, setPayFromWallet] = useState(true);
+  const walletOn = payFromWallet && (wallet.balance ?? 0) > 0;
   const {
     addresses: savedAddresses,
     defaultAddress,
@@ -450,7 +458,12 @@ export default function Checkout() {
   }, [shippingAddress.pincode, etaVendorItems, goodsDue]);
   const codFee = paymentMethod === "cod" && codQuote.status === "ready" ? codQuote.amount : 0;
   const total = goodsDue + codFee;
-  const belowOnlineMinimum = total > 0 && total < MIN_ONLINE_PAYMENT_AMOUNT;
+  // Paid from the wallet, and what's left to pay now. A whole-wallet order
+  // needs no other payment (saved as payment_method "wallet").
+  const walletUse = walletOn ? Math.min(wallet.balance ?? 0, total) : 0;
+  const payNow = Math.round((total - walletUse) * 100) / 100;
+  const paidByWallet = walletUse > 0 && payNow <= 0;
+  const belowOnlineMinimum = payNow > 0 && payNow < MIN_ONLINE_PAYMENT_AMOUNT;
 
   // COD is a single payment method for the whole cart, not per-item - if
   // any boutique in the cart has turned it off, or any product's listing
@@ -462,9 +475,12 @@ export default function Checkout() {
     .map((g) => g.vendorName ?? "A boutique");
   // No courier collects cash at this PIN code.
   const codOffAtPin = codQuote.status === "unavailable";
-  const codDisabled = codOffVendors.length > 0 || codOffProducts.length > 0 || codOffAtPin;
+  // The courier can't collect "the rest" of a part-wallet order, so the
+  // wallet and Cash on Delivery don't mix (apply_wallet_to_order agrees).
+  const codDisabled = codOffVendors.length > 0 || codOffProducts.length > 0 || codOffAtPin || walletOn;
   const codUnavailableReason = codDisabled
     ? [
+        walletOn && "Cash on Delivery can't be combined with your wallet balance - untick the wallet to pay on delivery",
         codOffAtPin && "Cash on Delivery isn't available for this PIN code",
         codOffProducts.length > 0 &&
           `Cash on Delivery isn't available for ${codOffProducts.map((n) => `"${n}"`).join(", ")}`,
@@ -481,7 +497,7 @@ export default function Checkout() {
     !belowOnlineMinimum &&
     (emiMethods.cardless ||
       emiMethods.paylater ||
-      (emiMethods.card && (emiMethods.min_amount == null || total >= emiMethods.min_amount)));
+      (emiMethods.card && (emiMethods.min_amount == null || payNow >= emiMethods.min_amount)));
 
   // A discount applied after "Pay Online" was already selected can drop the
   // total below Razorpay's minimum - switch back to COD automatically
@@ -811,19 +827,21 @@ export default function Checkout() {
       // insert) - simplest to keep one insert shape rather than a
       // SELECT-back path that isn't needed for anything else here.
       const newOrderId = crypto.randomUUID();
+      // Covered wholly by the wallet: nothing else is charged.
+      const orderPaymentMethod = paidByWallet ? "wallet" : paymentMethod;
 
       // For online payment, create the Razorpay order *before* writing
       // anything of ours, so we can store its id on our own order row.
       let razorpayOrderId: string | null = null;
       let razorpayKeyId: string | null = null;
-      if (paymentMethod === "razorpay") {
+      if (orderPaymentMethod === "razorpay") {
         if (belowOnlineMinimum) {
           toast.error(`Online payment needs at least ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - please choose Cash on Delivery instead`);
           setIsPlacingOrder(false);
           return;
         }
         const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
-          body: { receiptId: newOrderId, amount: total },
+          body: { receiptId: newOrderId, amount: payNow },
         });
         if (error || !data?.razorpayOrderId) {
           throw new Error("Could not start online payment. Please try again.");
@@ -845,7 +863,7 @@ export default function Checkout() {
           customer_phone: customerInfo.phone,
           // State saved in the dropdown's spelling - the GST invoice compares it.
           shipping_address: { ...shippingAddress, state: normalizeState(shippingAddress.state) },
-          payment_method: paymentMethod,
+          payment_method: orderPaymentMethod,
           payment_status: "pending",
           order_status: "pending",
           subtotal: subtotal,
@@ -1002,13 +1020,28 @@ export default function Checkout() {
         .from("payments")
         .insert({
           order_id: newOrderId,
-          amount: total,
-          payment_method: paymentMethod,
+          amount: paidByWallet ? walletUse : payNow,
+          payment_method: orderPaymentMethod,
           payment_status: "pending",
         });
 
       if (paymentError) throw paymentError;
-      if (paymentMethod === "razorpay") unpaidOnlineOrderId = newOrderId;
+      if (orderPaymentMethod === "razorpay") unpaidOnlineOrderId = newOrderId;
+
+      // The wallet's part, taken now - all of it or the order stops (the
+      // balance changed since the page loaded, e.g. in another tab). A
+      // whole-wallet order is paid by this.
+      if (walletUse > 0) {
+        const { error: walletError } = await supabase.rpc("apply_wallet_to_order", {
+          _order_id: newOrderId,
+          _amount: walletUse,
+        });
+        if (walletError) {
+          await supabase.rpc("cancel_pending_order", { _order_id: newOrderId });
+          wallet.refresh();
+          throw new Error(walletError.message);
+        }
+      }
 
       // Save this address for next time (skipped if it's an unedited reuse
       // of one already saved) - independent of payment method/outcome,
@@ -1023,6 +1056,16 @@ export default function Checkout() {
         if (discountError) {
           console.error("Error incrementing discount usage:", discountError);
         }
+      }
+
+      if (paidByWallet) {
+        await sendConfirmationEmail(newOrderId);
+        await sendVendorOrderEmail(newOrderId);
+        clearCart();
+        toast.success("Order placed - paid from your wallet");
+        setIsPlacingOrder(false);
+        showPlaced(newOrderId);
+        return;
       }
 
       if (paymentMethod === "cod") {
@@ -1043,7 +1086,7 @@ export default function Checkout() {
       savePendingPayment({ orderId: newOrderId, userId: user.id, buyNow, startedAt: Date.now() });
       await openRazorpayCheckout({
         key: razorpayKeyId!,
-        amount: Math.round(total * 100),
+        amount: Math.round(payNow * 100),
         currency: "INR",
         order_id: razorpayOrderId!,
         name: "AllBoutiqs",
@@ -1207,12 +1250,14 @@ export default function Checkout() {
 
   const itemCount = items.reduce((n, item) => n + item.quantity, 0);
   const placeOrderLabel = isPlacingOrder
-    ? paymentMethod === "razorpay"
+    ? paymentMethod === "razorpay" && !paidByWallet
       ? "Processing payment…"
       : "Placing order…"
-    : paymentMethod === "razorpay"
-      ? `Pay ${formatINR(total)}`
-      : `Place order · ${formatINR(total)}`;
+    : paidByWallet
+      ? "Place order · paid from wallet"
+      : paymentMethod === "razorpay"
+        ? `Pay ${formatINR(payNow)}`
+        : `Place order · ${formatINR(payNow)}`;
 
   return (
     <CheckoutShell
@@ -1221,8 +1266,8 @@ export default function Checkout() {
         // Phones: total + place order, always in reach
         <div className="store-container flex items-center gap-4 py-3">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Total</p>
-            <p className="font-serif text-xl leading-tight">{formatINR(total)}</p>
+            <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
+            <p className="font-serif text-xl leading-tight">{formatINR(payNow)}</p>
           </div>
           <button
             type="button"
@@ -1231,7 +1276,7 @@ export default function Checkout() {
             className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isPlacingOrder ? "Please wait…" : paymentMethod === "razorpay" ? "Pay now" : "Place order"}
+            {isPlacingOrder ? "Please wait…" : paymentMethod === "razorpay" && !paidByWallet ? "Pay now" : "Place order"}
           </button>
         </div>
       }
@@ -1426,6 +1471,35 @@ export default function Checkout() {
 
             {/* Payment Method */}
             <CheckoutSection number={3} title="Payment">
+              {(wallet.balance ?? 0) > 0 && (
+                <label
+                  htmlFor="pay-from-wallet"
+                  className={cn(
+                    "mb-3 flex cursor-pointer items-center gap-4 border p-4 transition-colors md:p-5",
+                    payFromWallet ? "border-foreground bg-ivory" : "border-border hover:border-foreground/40",
+                  )}
+                >
+                  <Checkbox
+                    id="pay-from-wallet"
+                    checked={payFromWallet}
+                    onCheckedChange={(checked) => setPayFromWallet(checked === true)}
+                  />
+                  <Wallet className="h-5 w-5 shrink-0 text-gold" strokeWidth={1.5} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">
+                      Use my wallet balance · {formatINR(wallet.balance ?? 0)} available
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                      {!payFromWallet
+                        ? "Your refund balance can pay for part of this order or all of it."
+                        : paidByWallet
+                          ? `Your wallet covers this whole order - ${formatINR(walletUse)} will be taken from it.`
+                          : `${formatINR(walletUse)} from your wallet - pay the remaining ${formatINR(payNow)} online.`}
+                    </span>
+                  </span>
+                </label>
+              )}
+              {!paidByWallet && (
               <RadioGroup
                 value={paymentChoice}
                 onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
@@ -1495,6 +1569,7 @@ export default function Checkout() {
                   />
                 )}
               </RadioGroup>
+              )}
             </CheckoutSection>
 
             {/* Order Notes */}
@@ -1665,6 +1740,18 @@ export default function Checkout() {
                   <span className="font-serif text-3xl">{formatINR(total)}</span>
                 </div>
                 <p className="-mt-4 text-right text-xs text-muted-foreground">Inclusive of all taxes</p>
+                {walletUse > 0 && (
+                  <dl className="space-y-2.5 text-sm">
+                    <div className="flex justify-between text-primary">
+                      <dt>Paid from your wallet</dt>
+                      <dd>-{formatINR(walletUse)}</dd>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <dt>To pay</dt>
+                      <dd>{formatINR(payNow)}</dd>
+                    </div>
+                  </dl>
+                )}
 
                 {deliveryEta && (
                   <p className="flex items-center gap-2 border border-emerald-700/20 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">

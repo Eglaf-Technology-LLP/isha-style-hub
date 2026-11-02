@@ -10,12 +10,16 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { vendor_order_ids, reason } = await req.json();
+    const { vendor_order_ids, reason, refund_method } = await req.json();
     if (!Array.isArray(vendor_order_ids) || vendor_order_ids.length === 0) {
       return jsonResponse({ error: "vendor_order_ids is required" }, 400);
     }
     if (!reason || typeof reason !== "string" || !reason.trim()) {
       return jsonResponse({ error: "A reason is required" }, 400);
+    }
+    // A paid order's refund: the customer's wallet or the original payment.
+    if (refund_method != null && refund_method !== "wallet" && refund_method !== "original") {
+      return jsonResponse({ error: "refund_method must be wallet or original" }, 400);
     }
 
     const userId = await getCallerUserId(req);
@@ -65,6 +69,9 @@ Deno.serve(async (req) => {
         order,
         cancelledBy: userId,
         reason,
+        refundMethod: refund_method ?? undefined,
+        // An admin cancelling on the customer's behalf doesn't charge them.
+        chargeRefundFee: order.user_id === userId,
       });
       results.push(result);
     }
@@ -115,6 +122,8 @@ Deno.serve(async (req) => {
         .map((r) => ({
           vendor_order_id: r.vendorOrderId,
           refund_id: r.refundId,
+          wallet_refund: r.walletRefund,
+          refund_charge: r.refundCharge,
           refund_error: r.refundError,
           was_already_shipped: r.wasAlreadyShipped,
         })),

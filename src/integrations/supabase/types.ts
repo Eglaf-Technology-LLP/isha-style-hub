@@ -988,7 +988,10 @@ export type Database = {
           id: string
           order_id: string
           reason: string | null
+          refund_fee: number
+          refund_fee_gst: number
           refund_id: string | null
+          refund_method: string | null
           vendor_order_id: string
           was_already_shipped: boolean
         }
@@ -998,7 +1001,10 @@ export type Database = {
           id?: string
           order_id: string
           reason?: string | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_id?: string | null
+          refund_method?: string | null
           vendor_order_id: string
           was_already_shipped?: boolean
         }
@@ -1008,7 +1014,10 @@ export type Database = {
           id?: string
           order_id?: string
           reason?: string | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_id?: string | null
+          refund_method?: string | null
           vendor_order_id?: string
           was_already_shipped?: boolean
         }
@@ -1169,6 +1178,7 @@ export type Database = {
           updated_at: string
           user_id: string | null
           vendor_email_sent_at: string | null
+          wallet_amount: number
           warehouse_id: string | null
         }
         Insert: {
@@ -1197,6 +1207,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           vendor_email_sent_at?: string | null
+          wallet_amount?: number
           warehouse_id?: string | null
         }
         Update: {
@@ -1225,6 +1236,7 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           vendor_email_sent_at?: string | null
+          wallet_amount?: number
           warehouse_id?: string | null
         }
         Relationships: [
@@ -1413,6 +1425,8 @@ export type Database = {
           payout_auto_send: boolean
           payout_rail: string
           payout_settlement_days: number
+          refund_charge_gst_pct: number
+          refund_charge_pct: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
           review_images_require_approval: boolean
@@ -1432,6 +1446,8 @@ export type Database = {
           payout_auto_send?: boolean
           payout_rail?: string
           payout_settlement_days?: number
+          refund_charge_gst_pct?: number
+          refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -1451,6 +1467,8 @@ export type Database = {
           payout_auto_send?: boolean
           payout_rail?: string
           payout_settlement_days?: number
+          refund_charge_gst_pct?: number
+          refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -1949,6 +1967,9 @@ export type Database = {
           received_at_warehouse_at: string | null
           received_by: string | null
           refund_amount: number | null
+          refund_fee: number
+          refund_fee_gst: number
+          refund_method: string | null
           replacement_qc_notes: string | null
           replacement_qc_status: string | null
           replacement_received_at: string | null
@@ -1980,6 +2001,9 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           refund_amount?: number | null
+          refund_fee?: number
+          refund_fee_gst?: number
+          refund_method?: string | null
           replacement_qc_notes?: string | null
           replacement_qc_status?: string | null
           replacement_received_at?: string | null
@@ -2011,6 +2035,9 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           refund_amount?: number | null
+          refund_fee?: number
+          refund_fee_gst?: number
+          refund_method?: string | null
           replacement_qc_notes?: string | null
           replacement_qc_status?: string | null
           replacement_received_at?: string | null
@@ -3309,6 +3336,70 @@ export type Database = {
         }
         Relationships: []
       }
+      wallet_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          note: string | null
+          order_id: string | null
+          return_request_id: string | null
+          source_key: string
+          user_id: string | null
+          vendor_order_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          order_id?: string | null
+          return_request_id?: string | null
+          source_key: string
+          user_id?: string | null
+          vendor_order_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          order_id?: string | null
+          return_request_id?: string | null
+          source_key?: string
+          user_id?: string | null
+          vendor_order_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wallet_transactions_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       warehouse_dispatches: {
         Row: {
           breadth_cm: number
@@ -3509,6 +3600,10 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_adjust_wallet: {
+        Args: { _amount: number; _note: string; _user_id: string }
+        Returns: string
+      }
       admin_list_warehouse_staff: {
         Args: never
         Returns: {
@@ -3532,6 +3627,10 @@ export type Database = {
         Returns: undefined
       }
       apply_shipment_cod: { Args: { _shipment_id: string }; Returns: undefined }
+      apply_wallet_to_order: {
+        Args: { _amount: number; _order_id: string }
+        Returns: number
+      }
       assert_warehouse_operator: { Args: never; Returns: undefined }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
@@ -3635,6 +3734,7 @@ export type Database = {
         }
         Returns: number
       }
+      my_wallet_balance: { Args: never; Returns: number }
       next_boutique_invoice_number: {
         Args: { _at: string; _vendor_id: string }
         Returns: string
@@ -3702,6 +3802,7 @@ export type Database = {
         Returns: boolean
       }
       order_ref: { Args: { _order_id: string }; Returns: string }
+      order_refundable_amount: { Args: { _order_id: string }; Returns: number }
       pickup_address_problem: { Args: { _addr: Json }; Returns: string }
       prepare_vendor_payouts: {
         Args: { _payout_date?: string }
@@ -3905,6 +4006,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      wallet_balance: { Args: { _user_id: string }; Returns: number }
+      wallet_refund: {
+        Args: {
+          _amount: number
+          _created_by?: string
+          _kind: string
+          _note?: string
+          _order_id: string
+          _return_request_id?: string
+          _source_key: string
+          _vendor_order_id?: string
+        }
+        Returns: string
       }
       warehouse_cancel_dispatch: {
         Args: { _dispatch_id: string }

@@ -13,22 +13,33 @@ export function ReturnSettingsCard() {
   const [evidenceRequired, setEvidenceRequired] = useState<boolean | null>(null);
   const [slaHours, setSlaHours] = useState<number | null>(null);
   const [slaDraft, setSlaDraft] = useState("");
+  // Refund charge on refunds to the bank / original payment (the wallet is free).
+  const [charge, setCharge] = useState<{ pct: number; gstPct: number } | null>(null);
+  const [chargeDraft, setChargeDraft] = useState({ pct: "", gstPct: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     supabase
       .from("platform_settings")
-      .select("return_evidence_required, return_vendor_sla_hours")
+      .select("return_evidence_required, return_vendor_sla_hours, refund_charge_pct, refund_charge_gst_pct")
       .maybeSingle()
       .then(({ data }) => {
         if (!data) return;
         setEvidenceRequired(data.return_evidence_required);
         setSlaHours(data.return_vendor_sla_hours);
         setSlaDraft(String(data.return_vendor_sla_hours));
+        const loaded = { pct: Number(data.refund_charge_pct), gstPct: Number(data.refund_charge_gst_pct) };
+        setCharge(loaded);
+        setChargeDraft({ pct: String(loaded.pct), gstPct: String(loaded.gstPct) });
       });
   }, []);
 
-  const save = async (patch: { return_evidence_required?: boolean; return_vendor_sla_hours?: number }) => {
+  const save = async (patch: {
+    return_evidence_required?: boolean;
+    return_vendor_sla_hours?: number;
+    refund_charge_pct?: number;
+    refund_charge_gst_pct?: number;
+  }) => {
     setSaving(true);
     const { error } = await supabase
       .from("platform_settings")
@@ -59,6 +70,18 @@ export function ReturnSettingsCard() {
     toast.success(`Boutiques now have ${hours} hours to respond`);
   };
 
+  const saveCharge = async () => {
+    const pct = Number(chargeDraft.pct);
+    const gstPct = Number(chargeDraft.gstPct);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 50 || !Number.isFinite(gstPct) || gstPct < 0 || gstPct > 50) {
+      toast.error("Enter percentages between 0 and 50");
+      return;
+    }
+    if (!(await save({ refund_charge_pct: pct, refund_charge_gst_pct: gstPct }))) return;
+    setCharge({ pct, gstPct });
+    toast.success(`Refund charge is now ${pct}% + ${gstPct}% GST`);
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -69,7 +92,8 @@ export function ReturnSettingsCard() {
           <div>
             <p className="text-sm font-medium">Photo evidence mandatory</p>
             <p className="text-xs text-muted-foreground">
-              On: customers must add at least one photo per item. Off: photos are optional. A video is always optional.
+              On: customers must add 3 photos of every item (front, back and the tag). Off: photos are optional. A video
+              is always optional.
             </p>
           </div>
           <Switch
@@ -107,6 +131,57 @@ export function ReturnSettingsCard() {
               variant="outline"
               onClick={saveSla}
               disabled={saving || slaHours === null || Number(slaDraft) === slaHours}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-medium">Refund charge</p>
+            <p className="text-xs text-muted-foreground">
+              Kept from refunds to the customer's bank account or original payment. Refunds to the AllBoutiqs wallet are
+              free, and so are returns of damaged, wrong or not-as-described items and cancellations by a boutique or by
+              you.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              max={50}
+              step="0.01"
+              value={chargeDraft.pct}
+              onChange={(e) => setChargeDraft((d) => ({ ...d, pct: e.target.value }))}
+              className="w-20 h-9"
+              aria-label="Refund charge percent"
+              disabled={charge === null}
+            />
+            <span className="text-sm text-muted-foreground">% +</span>
+            <Input
+              type="number"
+              min={0}
+              max={50}
+              step="0.01"
+              value={chargeDraft.gstPct}
+              onChange={(e) => setChargeDraft((d) => ({ ...d, gstPct: e.target.value }))}
+              className="w-20 h-9"
+              aria-label="GST on the refund charge, percent"
+              disabled={charge === null}
+            />
+            <span className="text-sm text-muted-foreground">% GST</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={saveCharge}
+              disabled={
+                saving ||
+                charge === null ||
+                (Number(chargeDraft.pct) === charge.pct && Number(chargeDraft.gstPct) === charge.gstPct)
+              }
             >
               Save
             </Button>

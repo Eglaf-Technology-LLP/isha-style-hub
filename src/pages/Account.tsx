@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { Heart, KeyRound, Loader2, LogOut, MapPin, Package, User } from "lucide-react";
+import { Heart, KeyRound, Loader2, LogOut, MapPin, Package, User, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { AddressSection } from "@/components/account/AddressSection";
 import { OrdersSection } from "@/components/account/OrdersSection";
+import { WalletSection } from "@/components/account/WalletSection";
 import { SignInSecurity } from "@/components/auth/SignInSecurity";
 import { AccountAction, AccountHero, AccountSectionTitle, SignInCard } from "@/components/storefront/account/AccountKit";
 import { userContact } from "@/lib/authIdentifier";
@@ -16,6 +17,7 @@ const TABS = [
   { value: "profile", label: "Profile", icon: User },
   { value: "addresses", label: "Addresses", icon: MapPin },
   { value: "orders", label: "Recent orders", icon: Package },
+  { value: "wallet", label: "Wallet", icon: Wallet },
   { value: "security", label: "Sign-in & security", icon: KeyRound },
 ] as const;
 type Tab = (typeof TABS)[number]["value"];
@@ -24,7 +26,7 @@ export default function Account() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user, loading, isAuthenticated, signOut } = useAuth();
-  // ?tab=addresses / ?tab=orders / ?tab=security opens that tab directly.
+  // ?tab=addresses / ?tab=orders / ?tab=wallet / ?tab=security opens that tab directly.
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const t = params.get("tab");
     return TABS.some((x) => x.value === t) ? (t as Tab) : "profile";
@@ -112,6 +114,7 @@ export default function Account() {
             {activeTab === "profile" && <ProfileSection />}
             {activeTab === "addresses" && <AddressSection />}
             {activeTab === "orders" && <OrdersSection />}
+            {activeTab === "wallet" && <WalletSection />}
             {activeTab === "security" && (
               <div className="max-w-2xl">
                 <AccountSectionTitle

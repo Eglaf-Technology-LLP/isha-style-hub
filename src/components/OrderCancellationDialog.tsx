@@ -15,6 +15,9 @@ import { Loader2, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { formatMoney } from "@/lib/format";
+import { RefundMethodPicker } from "@/components/RefundMethodPicker";
+import { RefundMethod } from "@/lib/wallet";
+import { useRefundCharge } from "@/hooks/useWallet";
 
 // vendorOrderId/vendorOrderStatus are internal grouping keys only - the
 // customer never sees a vendor name or grouping label anywhere in this
@@ -33,8 +36,11 @@ export interface CancellableOrderItem {
 }
 
 interface OrderCancellationDialogProps {
+  orderId: string;
   items: CancellableOrderItem[];
   isPaidOnline: boolean;
+  // Paid wholly from the AllBoutiqs wallet: the refund goes back there.
+  isPaidFromWallet?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -52,8 +58,10 @@ const CANCEL_REASONS = [
 const BLOCKED_STATUSES = ["delivered", "cancelled", "returned", "dispatched"];
 
 export function OrderCancellationDialog({
+  orderId,
   items,
   isPaidOnline,
+  isPaidFromWallet = false,
   open,
   onOpenChange,
   onSuccess,
@@ -81,6 +89,10 @@ export function OrderCancellationDialog({
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // A paid order: the customer chooses their wallet or the original payment.
+  const [refundMethod, setRefundMethod] = useState<RefundMethod | null>(isPaidFromWallet ? "wallet" : null);
+  const needsRefundChoice = isPaidOnline && !isPaidFromWallet;
+  const refundCharge = useRefundCharge();
 
   const toggleGroup = (vendorOrderId: string) => {
     setSelectedGroupIds((prev) => ({ ...prev, [vendorOrderId]: !prev[vendorOrderId] }));
@@ -90,15 +102,29 @@ export function OrderCancellationDialog({
 
   const handleSubmit = async () => {
     if (!reason || !hasSelection) return;
+    if (needsRefundChoice && !refundMethod) {
+      toast.error("Please choose how you'd like your refund");
+      return;
+    }
     setSubmitting(true);
 
     const fullReason = reason === "Other" && notes.trim() ? notes.trim() : reason;
     const vendorOrderIds = groups.filter((g) => selectedGroupIds[g.vendorOrderId]).map((g) => g.vendorOrderId);
 
     const { data, errorMessage } = await invokeEdgeFunction<{
-      cancelled: { vendor_order_id: string; refund_id: string | null; refund_error: string | null }[];
+      cancelled: {
+        vendor_order_id: string;
+        refund_id: string | null;
+        wallet_refund: number;
+        refund_charge: number;
+        refund_error: string | null;
+      }[];
       skipped: { vendor_order_id: string; reason: string }[];
-    }>("cancel-order-items", { vendor_order_ids: vendorOrderIds, reason: fullReason });
+    }>("cancel-order-items", {
+      vendor_order_ids: vendorOrderIds,
+      reason: fullReason,
+      refund_method: needsRefundChoice || isPaidFromWallet ? refundMethod : undefined,
+    });
 
     setSubmitting(false);
 
@@ -110,6 +136,10 @@ export function OrderCancellationDialog({
     const cancelledCount = data?.cancelled.length ?? 0;
     const skippedCount = data?.skipped.length ?? 0;
     const anyRefundError = data?.cancelled.some((c) => c.refund_error);
+    const walletRefund = (data?.cancelled ?? []).reduce((sum, c) => sum + Number(c.wallet_refund ?? 0), 0);
+    const refundCharged = (data?.cancelled ?? []).reduce((sum, c) => sum + Number(c.refund_charge ?? 0), 0);
+    const walletNote = walletRefund > 0 ? ` ${formatMoney(walletRefund)} has been added to your wallet.` : "";
+    const chargeNote = refundCharged > 0 ? ` A refund charge of ${formatMoney(refundCharged)} (incl. GST) was deducted.` : "";
 
     if (cancelledCount === 0) {
       toast.error("Nothing could be cancelled - those items have already progressed too far.");
@@ -118,9 +148,11 @@ export function OrderCancellationDialog({
         "Order cancelled, but your refund couldn't be processed automatically. Our team has been notified and will follow up.",
       );
     } else if (skippedCount > 0) {
-      toast.success(`${cancelledCount} item${cancelledCount > 1 ? "s" : ""} cancelled. ${skippedCount} item${skippedCount > 1 ? "s" : ""} had already progressed too far to cancel.`);
+      toast.success(`${cancelledCount} item${cancelledCount > 1 ? "s" : ""} cancelled. ${skippedCount} item${skippedCount > 1 ? "s" : ""} had already progressed too far to cancel.${walletNote}${chargeNote}`);
+    } else if (walletNote) {
+      toast.success(`Order cancelled.${walletNote}${chargeNote}`);
     } else {
-      toast.success(isPaidOnline ? "Order cancelled. Your refund is on its way." : "Order cancelled.");
+      toast.success(isPaidOnline ? `Order cancelled. Your refund is on its way.${chargeNote}` : "Order cancelled.");
     }
 
     setReason("");
@@ -205,18 +237,22 @@ export function OrderCancellationDialog({
             </div>
           )}
 
-          {isPaidOnline && (
-            <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-              This order was paid online - your refund will be initiated automatically to your
-              original payment method as soon as you confirm.
-            </p>
+          {(needsRefundChoice || isPaidFromWallet) && (
+            <RefundMethodPicker
+              options={isPaidFromWallet ? ["wallet"] : ["wallet", "original"]}
+              value={refundMethod}
+              onChange={setRefundMethod}
+              context="cancel"
+              orderId={orderId}
+              charge={refundCharge}
+            />
           )}
 
           <Button
             className="w-full"
             variant="destructive"
             onClick={handleSubmit}
-            disabled={submitting || !reason || !hasSelection}
+            disabled={submitting || !reason || !hasSelection || (needsRefundChoice && !refundMethod)}
           >
             {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Ban className="h-4 w-4 mr-2" />}
             Confirm Cancellation

@@ -578,6 +578,12 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     <span>Total</span>
                     <span>{formatMoney(selectedOrder.total)}</span>
                   </div>
+                  {Number(selectedOrder.wallet_amount) > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Paid from customer's wallet</span>
+                      <span>{formatMoney(selectedOrder.wallet_amount)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {selectedOrder.notes && (
