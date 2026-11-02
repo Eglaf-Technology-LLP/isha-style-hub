@@ -312,7 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
         const { data: cancellation } = vendorOrderId
           ? await supabase
               .from("order_cancellations")
-              .select("refund_id")
+              .select("refund_id, refund_fee, refund_fee_gst")
               .eq("vendor_order_id", vendorOrderId)
               .order("created_at", { ascending: false })
               .limit(1)
@@ -323,6 +323,8 @@ const handler = async (req: Request): Promise<Response> => {
         if (order.payment_method === "razorpay" && (walletRefund === 0 || cancellation?.refund_id)) {
           refundNote += " If you paid online, your refund will be credited to your original payment method within a few business days.";
         }
+        const refundCharge = Number(cancellation?.refund_fee ?? 0) + Number(cancellation?.refund_fee_gst ?? 0);
+        if (refundCharge > 0) refundNote += ` A refund charge of ${money(refundCharge)} (incl. GST) was deducted from it.`;
         const why = cancelReason ? ` ${escapeHtml(cancelReason)}` : "";
         if (isPartialCancellation) {
           subject = `Part of Your Order Cancelled - #${orderNumber} | AllBoutiqs`;

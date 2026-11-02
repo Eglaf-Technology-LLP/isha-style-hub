@@ -37,3 +37,33 @@ export const WALLET_KIND_LABEL: Record<string, string> = {
   order_payment_released: "Payment not completed - returned",
   adjustment: "Adjustment by AllBoutiqs",
 };
+
+// Returns where the fault isn't the customer's: refunded in full, whichever
+// way the money goes. Same list as supabase/functions/_shared/refundMethod.ts.
+export const CHARGE_FREE_RETURN_REASONS = [
+  "Defective or damaged product",
+  "Wrong item received",
+  "Product not as described",
+  "Colour is different from what was shown",
+];
+
+// The refund charge on money sent back to the bank / original payment
+// (platform_settings.refund_charge_pct, plus GST on it). The wallet is free.
+export interface RefundCharge {
+  pct: number;
+  gstPct: number;
+}
+
+export const DEFAULT_REFUND_CHARGE: RefundCharge = { pct: 3, gstPct: 18 };
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export function refundChargeOn(gross: number, charge: RefundCharge | null): { fee: number; gst: number } {
+  if (!charge || gross <= 0) return { fee: 0, gst: 0 };
+  const fee = round2((gross * charge.pct) / 100);
+  return { fee, gst: round2((fee * charge.gstPct) / 100) };
+}
+
+// "3% + 18% GST (3.54% in all)"
+export const refundChargeLabel = (charge: RefundCharge) =>
+  `${charge.pct}% + ${charge.gstPct}% GST (${round2(charge.pct * (1 + charge.gstPct / 100))}% in all)`;

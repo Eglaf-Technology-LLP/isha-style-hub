@@ -18,7 +18,15 @@ import {
   WarehouseRow,
 } from "../_shared/shiprocket.ts";
 import { addWorkingDays, getWarehouse, istToday, loadHolidays, loadWarehouseSettings, PARCEL_DEFAULTS, toShiprocketItems } from "../_shared/warehouse.ts";
-import { refundCustomer, RefundValidationError, returnRefundMethod } from "../_shared/refunds.ts";
+import {
+  CHARGE_FREE_RETURN_REASONS,
+  loadRefundCharge,
+  RefundCharge,
+  refundChargeOn,
+  refundCustomer,
+  RefundValidationError,
+  returnRefundMethod,
+} from "../_shared/refunds.ts";
 import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
@@ -440,7 +448,10 @@ async function refundReturn(
   userId: string,
   notes: string | null,
   method: "wallet" | "original",
-) {
+  charge: RefundCharge | null,
+): Promise<{ fee: number; feeGst: number }> {
+  let fee = 0;
+  let feeGst = 0;
   const lineById = new Map(ctx.lines.map((l) => [l.id, l]));
   const valueByVendorOrder = new Map<string, number>();
   for (const item of (ctx.rr.items ?? []) as any[]) {
@@ -456,7 +467,7 @@ async function refundReturn(
     const share = i === groups.length - 1 ? remaining : round2(totalValue > 0 ? (amount * value) / totalValue : amount / groups.length);
     remaining = round2(remaining - share);
     if (share <= 0) continue;
-    await refundCustomer(supabase, {
+    const result = await refundCustomer(supabase, {
       orderId: ctx.rr.order_id,
       amount: share,
       method,
@@ -466,8 +477,12 @@ async function refundReturn(
       initiatedBy: userId,
       returnRequestId: ctx.rr.id,
       vendorOrderId: vendorOrderId || null,
+      charge,
     });
+    fee = round2(fee + result.fee);
+    feeGst = round2(feeGst + result.feeGst);
   }
+  return { fee, feeGst };
 }
 
 function returnEmail(supabase: Db, returnRequestId: string, newStatus: string, extra: Record<string, unknown> = {}) {
@@ -618,19 +633,35 @@ Deno.serve(async (req) => {
         // is done by hand once they email their bank details.
         const method = returnRefundMethod(ctx.rr, ctx.order);
         const automatic = method === "wallet" || (method === "original" && ctx.order.payment_method === "razorpay");
+        // Refund charge on money back to the bank / original payment, unless
+        // the fault was the boutique's.
+        const charge =
+          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(ctx.rr.reason) ? await loadRefundCharge(supabase) : null;
         let refundError: string | null = null;
+        let charged = { fee: 0, feeGst: 0 };
         if (automatic && amount > 0) {
           try {
-            await refundReturn(supabase, ctx, amount, userId, notes, method as "wallet" | "original");
+            charged = await refundReturn(supabase, ctx, amount, userId, notes, method as "wallet" | "original", charge);
           } catch (e) {
             refundError = e instanceof RefundValidationError ? e.message : errorMessage(e);
             console.error("warehouse-actions: return refund failed", refundError);
           }
+        } else if (method === "bank") {
+          const { fee, gst } = refundChargeOn(amount, charge);
+          charged = { fee, feeGst: gst };
         }
         const refunded = automatic && !refundError;
+        const toCustomer = round2(amount - charged.fee - charged.feeGst);
         await supabase
           .from("return_requests")
-          .update({ ...stamp, warehouse_qc_status: "passed", refund_amount: amount, status: refunded || amount <= 0 ? "completed" : "qc_passed" })
+          .update({
+            ...stamp,
+            warehouse_qc_status: "passed",
+            refund_amount: amount,
+            refund_fee: charged.fee,
+            refund_fee_gst: charged.feeGst,
+            status: refunded || amount <= 0 ? "completed" : "qc_passed",
+          })
           .eq("id", ctx.rr.id);
         await createReturnSendBacks(supabase, ctx, "return_forward", notes);
 
@@ -644,7 +675,7 @@ Deno.serve(async (req) => {
             title: refundError ? "Return refund failed" : "Refund this return by hand",
             body: refundError
               ? `The return on order ${ref} passed inspection but the ₹${amount} refund failed: ${refundError}. Retry from Returns (Mark Completed).`
-              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery and the customer chose a bank transfer - they email their bank details to ${COMPANY.supportEmail}. Transfer ₹${amount} within 5 working days, then mark the return completed.`,
+              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery and the customer chose a bank transfer - they email their bank details to ${COMPANY.supportEmail}. Transfer ₹${toCustomer}${toCustomer < amount ? ` (₹${amount} less the ₹${round2(amount - toCustomer)} refund charge)` : ""} within 5 working days, then mark the return completed.`,
             link: links.adminReturn(ctx.rr.id),
             category: "order",
           });

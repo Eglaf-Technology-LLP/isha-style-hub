@@ -8,6 +8,12 @@
 -- The other refund options stay as they were: a prepaid order goes back to
 -- the original card/UPI through Razorpay; a Cash on Delivery order is paid
 -- by bank transfer by hand, once the customer emails their bank details.
+-- Those two carry a refund charge (3% + 18% GST by default); the wallet is
+-- free. No charge when the fault isn't the customer's (damaged, wrong or
+-- not-as-described items; a cancellation by the boutique or AllBoutiqs).
+--
+-- The boutique's payment-gateway fee is charged only on the part of an
+-- order actually paid online, not on the part paid from the wallet.
 
 -- ---------------------------------------------------------------------------
 -- 1. The ledger: one row per credit or debit, never edited. Balance = sum.
@@ -139,6 +145,7 @@ AS $$
 DECLARE
   o public.orders;
   v_balance numeric;
+  v_vendor_order record;
 BEGIN
   _amount := round(coalesce(_amount, 0), 2);
   IF _amount <= 0 THEN
@@ -184,6 +191,12 @@ BEGIN
     WHERE order_id = o.id AND payment_status = 'pending';
     UPDATE public.orders SET wallet_amount = _amount WHERE id = o.id;
   END IF;
+
+  -- The boutiques' fees were worked out when the items were saved, before
+  -- the wallet part was known; the gateway fee is only on the online part.
+  FOR v_vendor_order IN SELECT id FROM public.vendor_orders WHERE order_id = o.id LOOP
+    PERFORM public.compute_vendor_order_fees(v_vendor_order.id);
+  END LOOP;
   RETURN _amount;
 END;
 $$;
@@ -226,10 +239,14 @@ BEGIN
     WHERE order_id = o.id AND payment_status IN ('paid', 'partially_refunded', 'refunded');
   END IF;
 
+  -- Refunded, plus the refund charges kept back (they were paid, and are
+  -- not owed back either).
   SELECT coalesce((SELECT sum(amount) FROM public.refunds
                    WHERE order_id = o.id AND status IN ('initiated', 'processing', 'processed')), 0)
        + coalesce((SELECT sum(amount) FROM public.wallet_transactions
                    WHERE order_id = o.id AND kind IN ('return_refund', 'cancellation_refund')), 0)
+       + coalesce((SELECT sum(refund_fee + refund_fee_gst) FROM public.return_requests WHERE order_id = o.id), 0)
+       + coalesce((SELECT sum(refund_fee + refund_fee_gst) FROM public.order_cancellations WHERE order_id = o.id), 0)
   INTO v_refunded;
 
   RETURN greatest(round(v_wallet + v_other - v_refunded, 2), 0);
@@ -389,6 +406,23 @@ ALTER TABLE public.return_requests
 ALTER TABLE public.order_cancellations
   ADD COLUMN IF NOT EXISTS refund_method text CHECK (refund_method IN ('wallet', 'original'));
 
+-- The refund charge kept from a refund to the bank / original payment, and
+-- the GST on it (AllBoutiqs' own supply to the customer). The customer
+-- receives refund_amount - refund_fee - refund_fee_gst.
+ALTER TABLE public.return_requests
+  ADD COLUMN IF NOT EXISTS refund_fee numeric(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS refund_fee_gst numeric(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_cancellations
+  ADD COLUMN IF NOT EXISTS refund_fee numeric(12,2) NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS refund_fee_gst numeric(12,2) NOT NULL DEFAULT 0;
+
+-- The charge, set by the admin (Return settings).
+ALTER TABLE public.platform_settings
+  ADD COLUMN IF NOT EXISTS refund_charge_pct numeric(5,2) NOT NULL DEFAULT 3
+    CHECK (refund_charge_pct >= 0 AND refund_charge_pct <= 50),
+  ADD COLUMN IF NOT EXISTS refund_charge_gst_pct numeric(5,2) NOT NULL DEFAULT 18
+    CHECK (refund_charge_gst_pct >= 0 AND refund_charge_gst_pct <= 50);
+
 -- A customer's request is checked against their own order: the order is
 -- theirs, each item is on it, and its price is what the piece actually cost
 -- them (less its share of any coupon) - not whatever the browser sent. The
@@ -417,6 +451,8 @@ BEGIN
       RAISE EXCEPTION 'An item in this request isn''t on the order';
     END IF;
     NEW.refund_amount := 0;
+    NEW.refund_fee := 0;
+    NEW.refund_fee_gst := 0;
     NEW.items := (
       SELECT coalesce(jsonb_agg(
         e || jsonb_build_object(
@@ -474,3 +510,163 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- 5. Boutique fees: the gateway fee only on the online part of an order
+--    (as 20261025180000_cod_charge_to_customer, plus that)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.compute_vendor_order_fees(_vendor_order_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  vo public.vendor_orders;
+  o public.orders;
+  r public.platform_rates;
+  it record;
+  v_gstin text;
+  v_pan text;
+  v_constitution text;
+  v_supply text;
+  v_gross numeric;
+  v_disc numeric;
+  v_net numeric;
+  v_rate numeric;
+  v_taxable numeric;
+  v_goods numeric := 0;
+  v_product numeric := 0;
+  v_gst numeric := 0;
+  v_hsn_missing boolean := false;
+  v_commission_pct numeric;
+  v_commission numeric;
+  v_tech numeric;
+  v_fee_gst numeric;
+  v_gateway_rate numeric := 0;
+  v_gateway numeric := 0;
+  v_ship_to_boutique boolean;
+  v_shipping_credit numeric;
+  v_courier numeric;
+  v_tcs numeric;
+  v_tds_rate numeric;
+  v_fy_sales numeric;
+  v_fy_start date;
+  v_tds numeric;
+BEGIN
+  SELECT * INTO vo FROM vendor_orders WHERE id = _vendor_order_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  -- Money already sent (or batched for sending) stays as it was.
+  IF vo.rzp_transfer_id IS NOT NULL OR vo.payout_id IS NOT NULL THEN RETURN; END IF;
+  SELECT * INTO o FROM orders WHERE id = vo.order_id;
+  r := rates_on(coalesce(o.created_at, now()));
+  IF r.id IS NULL THEN RETURN; END IF;
+
+  SELECT coalesce(k.gstin, v.gst_number), coalesce(k.pan, v.pan_number), k.business_constitution
+  INTO v_gstin, v_pan, v_constitution
+  FROM vendors v LEFT JOIN vendor_kyc k ON k.vendor_id = v.id
+  WHERE v.id = vo.vendor_id;
+  v_supply := CASE WHEN v_gstin IS NOT NULL AND left(v_gstin, 2) = gst_state_code(o.shipping_address->>'state')
+                   THEN 'intra_state' ELSE 'inter_state' END;
+
+  FOR it IN
+    SELECT oi.price, oi.quantity, oi.discount_amount, c.hsn_code_id
+    FROM order_items oi
+    LEFT JOIN products p ON p.id::text = oi.product_id::text
+    LEFT JOIN categories c ON c.id = p.category_id
+    WHERE oi.vendor_order_id = vo.id
+  LOOP
+    v_gross := it.price * it.quantity;
+    -- The coupon share checkout recorded for this line (only the lines the
+    -- coupon covered have one); orders from before that share it by value.
+    v_disc := coalesce(it.discount_amount,
+      CASE WHEN coalesce(o.subtotal, 0) > 0 THEN round(coalesce(o.discount_amount, 0) * v_gross / o.subtotal, 2) ELSE 0 END);
+    v_net := v_gross - v_disc;
+    v_rate := gst_rate_for(it.hsn_code_id, v_net / greatest(it.quantity, 1));
+    IF v_rate IS NULL THEN
+      v_hsn_missing := true;
+      v_rate := 0;
+    END IF;
+    v_taxable := round(v_net / (1 + v_rate / 100), 2);
+    v_goods := v_goods + v_net;
+    v_product := v_product + v_taxable;
+    v_gst := v_gst + (v_net - v_taxable);
+  END LOOP;
+
+  v_commission_pct := effective_commission_pct(vo.vendor_id, coalesce(o.created_at, now()));
+  v_commission := round(v_product * v_commission_pct / 100, 2);
+  v_tech := round(v_product * r.technology_fee_pct / 100, 2);
+  v_fee_gst := round((v_commission + v_tech) * r.fee_gst_pct / 100, 2);
+
+  -- Courier: when AllBoutiqs bears it, the customer's shipping charge is
+  -- AllBoutiqs' too; when charged to the boutique, the boutique gets the
+  -- shipping charge and pays the courier cost (filled in once booked).
+  v_ship_to_boutique := r.charge_courier_to_boutique;
+  v_shipping_credit := CASE WHEN v_ship_to_boutique THEN coalesce(vo.shipping_cost, 0) ELSE 0 END;
+  v_courier := CASE WHEN v_ship_to_boutique THEN coalesce(vo.courier_charge, 0) ELSE 0 END;
+
+  -- Only the part paid online carries the gateway fee - not what the
+  -- customer paid from their wallet (no gateway took that).
+  IF o.payment_method = 'razorpay' THEN
+    v_gateway_rate := r.payment_gateway_fee_pct;
+    v_gateway := round((v_goods + coalesce(vo.shipping_cost, 0)) * v_gateway_rate / 100
+                       * CASE WHEN coalesce(o.total, 0) > 0
+                              THEN greatest(o.total - coalesce(o.wallet_amount, 0), 0) / o.total
+                              ELSE 1 END, 2);
+  END IF;
+
+  v_tcs := round(v_product * r.gst_tcs_pct / 100, 2);
+
+  -- Income-tax TDS (194-O): no PAN -> higher rate; individuals
+  -- (proprietorships) and HUFs with PAN are free until their sales this
+  -- financial year pass the limit; firms and companies from the first order.
+  IF v_pan IS NULL THEN
+    v_tds_rate := r.tds_no_pan_pct;
+  ELSIF coalesce(v_constitution, 'proprietorship') IN ('proprietorship', 'huf') THEN
+    v_fy_start := make_date(
+      CASE WHEN extract(month FROM (coalesce(o.created_at, now()) AT TIME ZONE 'Asia/Kolkata')) >= 4
+           THEN extract(year FROM (coalesce(o.created_at, now()) AT TIME ZONE 'Asia/Kolkata'))::int
+           ELSE extract(year FROM (coalesce(o.created_at, now()) AT TIME ZONE 'Asia/Kolkata'))::int - 1 END, 4, 1);
+    SELECT coalesce(sum(x.product_value), 0) INTO v_fy_sales
+    FROM vendor_orders x JOIN orders xo ON xo.id = x.order_id
+    WHERE x.vendor_id = vo.vendor_id AND x.id <> vo.id AND x.status <> 'cancelled'
+      AND (xo.created_at AT TIME ZONE 'Asia/Kolkata')::date >= v_fy_start
+      AND xo.created_at <= coalesce(o.created_at, now());
+    v_tds_rate := CASE WHEN v_fy_sales + v_product > r.tds_individual_exempt_upto THEN r.tds_pct ELSE 0 END;
+  ELSE
+    v_tds_rate := r.tds_pct;
+  END IF;
+  v_tds := round(v_product * v_tds_rate / 100, 2);
+
+  PERFORM set_config('app.vendor_order_fee_calc', 'on', true);
+  UPDATE vendor_orders SET
+    rates_effective_from = r.effective_from,
+    goods_value = v_goods,
+    product_value = v_product,
+    goods_gst = v_gst,
+    supply_type = v_supply,
+    commission_rate = v_commission_pct,
+    commission_amount = v_commission,
+    tech_fee_rate = r.technology_fee_pct,
+    tech_fee_amount = v_tech,
+    fee_gst_rate = r.fee_gst_pct,
+    fee_gst_amount = v_fee_gst,
+    gateway_fee_rate = v_gateway_rate,
+    gateway_fee_amount = v_gateway,
+    shipping_to_boutique = v_ship_to_boutique,
+    tcs_rate = r.gst_tcs_pct,
+    tcs_amount = v_tcs,
+    tds_rate = v_tds_rate,
+    tds_amount = v_tds,
+    hsn_missing = v_hsn_missing,
+    net_payable = round(v_goods + v_shipping_credit - v_commission - v_tech - v_fee_gst - v_gateway
+                        - v_courier
+                        -- The customer paid the COD charge at checkout (Extra
+                        -- list M): the boutique doesn't pay it as well.
+                        - CASE WHEN coalesce(o.cod_charge, 0) > 0 THEN 0 ELSE coalesce(vo.cod_handling_charge, 0) END
+                        - v_tcs - v_tds, 2),
+    fees_computed_at = now()
+  WHERE id = vo.id;
+  PERFORM set_config('app.vendor_order_fee_calc', 'off', true);
+END;
+$function$;

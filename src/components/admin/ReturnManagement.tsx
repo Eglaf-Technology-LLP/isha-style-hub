@@ -48,7 +48,15 @@ import { ShipNowDialog } from "./ShipNowDialog";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { COMPANY } from "@/lib/company";
-import { BANK_REFUND_DAYS, REFUND_METHOD_LABEL, RefundMethod } from "@/lib/wallet";
+import {
+  BANK_REFUND_DAYS,
+  CHARGE_FREE_RETURN_REASONS,
+  REFUND_METHOD_LABEL,
+  RefundMethod,
+  refundChargeLabel,
+  refundChargeOn,
+} from "@/lib/wallet";
+import { useRefundCharge } from "@/hooks/useWallet";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -87,6 +95,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
   const [savingDestination, setSavingDestination] = useState(false);
   const [slaHours, setSlaHours] = useState(48);
   const [vendorNote, setVendorNote] = useState("");
+  const refundCharge = useRefundCharge();
 
   useEffect(() => {
     supabase
@@ -309,23 +318,27 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
       // on; this is the fix, same create-razorpay-refund path the admin
       // Payments tab uses.
       // The refund goes where the customer chose: their wallet or the
-      // original payment (create-razorpay-refund routes it). A Cash on
-      // Delivery bank transfer is done by hand before marking it completed.
-      if (status === "completed" && refundVal > 0 && selectedRequest.refund_method === "bank") {
-        toast.info(`Marked completed - make sure ${formatMoney(refundVal)} has been transferred to the customer's bank.`);
-      } else if (status === "completed" && refundVal > 0) {
+      // original payment (create-razorpay-refund routes it and takes off the
+      // refund charge). A Cash on Delivery bank transfer is done by hand -
+      // the server records the charge and says how much to transfer.
+      if (status === "completed" && refundVal > 0) {
         const { data, errorMessage } = await invokeEdgeFunction<{
           wallet_amount?: number;
           gateway_amount?: number;
           already_refunded?: number;
+          refund_charge?: number;
+          bank_transfer?: number;
         }>("create-razorpay-refund", {
           order_id: selectedRequest.order_id,
           amount: refundVal,
           reason: adminNotes || selectedRequest.reason,
           return_request_id: selectedRequest.id,
         });
+        const charged = Number(data?.refund_charge) > 0 ? ` (${formatMoney(data?.refund_charge)} refund charge kept)` : "";
         if (errorMessage) {
           toast.error(`Marked completed, but the refund failed: ${errorMessage}`);
+        } else if (data?.bank_transfer != null) {
+          toast.info(`Marked completed - make sure ${formatMoney(data.bank_transfer)} has been transferred to the customer's bank${charged}.`);
         } else if (data?.already_refunded != null) {
           toast.info(`This return was already refunded (${formatMoney(data.already_refunded)})`);
         } else {
@@ -333,7 +346,7 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
             Number(data?.gateway_amount) > 0 && `${formatMoney(data?.gateway_amount)} refund submitted to Razorpay`,
             Number(data?.wallet_amount) > 0 && `${formatMoney(data?.wallet_amount)} added to the customer's wallet`,
           ].filter(Boolean);
-          toast.success(parts.length ? parts.join(" · ") : `${formatMoney(refundVal)} refund submitted`);
+          toast.success((parts.length ? parts.join(" · ") : `${formatMoney(refundVal)} refund submitted`) + charged);
         }
       }
 
@@ -762,6 +775,27 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                           onChange={(e) => setRefundAmount(e.target.value)}
                           placeholder="0"
                         />
+                        {(() => {
+                          // What the customer actually receives: the wallet is free; the bank /
+                          // original payment loses the refund charge unless the fault was the
+                          // boutique's. Once charged, the recorded charge.
+                          const method = selectedRequest.refund_method;
+                          if (!method || method === "wallet") return null;
+                          const recorded = Number(selectedRequest.refund_fee) + Number(selectedRequest.refund_fee_gst);
+                          const waived = CHARGE_FREE_RETURN_REASONS.includes(selectedRequest.reason);
+                          const gross = parseFloat(refundAmount) || 0;
+                          const { fee, gst } = refundChargeOn(gross, waived ? null : refundCharge);
+                          const kept = recorded > 0 ? recorded : fee + gst;
+                          return (
+                            <p className="text-xs mt-1">
+                              {kept > 0
+                                ? `Customer receives ${formatMoney(gross - kept)} - ${formatMoney(kept)} refund charge (${refundChargeLabel(refundCharge)}) kept.`
+                                : waived
+                                  ? "No refund charge - the fault was the boutique's (damaged, wrong or not as described)."
+                                  : null}
+                            </p>
+                          );
+                        })()}
                         <p className="text-xs text-muted-foreground mt-1">
                           {selectedRequest.return_destination === "warehouse"
                             ? "Refunded automatically when the warehouse passes the items - to the wallet or the original payment, as the customer chose. For a bank transfer, or if that refund fails, mark it Completed here once refunded."

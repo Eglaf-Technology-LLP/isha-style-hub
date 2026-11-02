@@ -16,3 +16,27 @@ export function returnRefundMethod(
   }
   return order.payment_method === "cod" ? "bank" : "original";
 }
+
+// Returns where the fault isn't the customer's: refunded in full, whichever
+// way the money goes. Same list as src/lib/wallet.ts.
+export const CHARGE_FREE_RETURN_REASONS = [
+  "Defective or damaged product",
+  "Wrong item received",
+  "Product not as described",
+  "Colour is different from what was shown",
+];
+
+// The refund charge on money sent back to the bank / original payment
+// (platform_settings.refund_charge_pct, plus GST on it). The wallet is free.
+export interface RefundCharge {
+  pct: number;
+  gstPct: number;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export function refundChargeOn(gross: number, charge: RefundCharge | null): { fee: number; gst: number } {
+  if (!charge || gross <= 0) return { fee: 0, gst: 0 };
+  const fee = round2((gross * charge.pct) / 100);
+  return { fee, gst: round2((fee * charge.gstPct) / 100) };
+}

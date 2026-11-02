@@ -1,7 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { errorMessage } from "./auth.ts";
 import { cancelShiprocketShipment } from "./shiprocket.ts";
-import { refundCustomer, RefundValidationError } from "./refunds.ts";
+import { loadRefundCharge, refundCustomer, RefundValidationError } from "./refunds.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 
 // A vendor_order past this point already finished its own lifecycle -
@@ -21,6 +21,10 @@ export interface CancelOneVendorOrderParams {
   // The customer's choice for a paid order: their wallet (instant) or the
   // original payment. An order paid from the wallet always goes back there.
   refundMethod?: "wallet" | "original";
+  // The customer cancelling their own order and taking the money back to
+  // the original payment pays the refund charge. Not when the boutique or
+  // AllBoutiqs cancels.
+  chargeRefundFee?: boolean;
   // Warehouse decisions (an item failing inspection, an undelivered parcel
   // the admin cancels) cancel boutique orders past the normal cut-off and
   // record their own send-back to the boutique.
@@ -34,6 +38,8 @@ export interface CancelOneVendorOrderResult {
   refundId: string | null;
   // The part refunded into the customer's wallet.
   walletRefund: number;
+  // The refund charge kept back, GST included.
+  refundCharge: number;
   refundError: string | null;
   wasAlreadyShipped: boolean;
   cancellationId: string | null;
@@ -50,13 +56,14 @@ export async function cancelOneVendorOrder(
   supabase: SupabaseClient,
   params: CancelOneVendorOrderParams,
 ): Promise<CancelOneVendorOrderResult> {
-  const { vendorOrder, order, cancelledBy, reason, refundMethod, force = false } = params;
+  const { vendorOrder, order, cancelledBy, reason, refundMethod, chargeRefundFee = false, force = false } = params;
   const skip = (skippedReason: string): CancelOneVendorOrderResult => ({
     vendorOrderId: vendorOrder.id,
     cancelled: false,
     skippedReason,
     refundId: null,
     walletRefund: 0,
+    refundCharge: 0,
     refundError: null,
     wasAlreadyShipped: false,
     cancellationId: null,
@@ -157,6 +164,8 @@ export async function cancelOneVendorOrder(
   let refundId: string | null = null;
   let refundError: string | null = null;
   let walletRefund = 0;
+  let fee = 0;
+  let feeGst = 0;
   const { data: discountRows } = await supabase
     .from("order_items")
     .select("discount_amount")
@@ -180,9 +189,12 @@ export async function cancelOneVendorOrder(
         reason: `Order cancelled by customer: ${reason}`,
         initiatedBy: cancelledBy,
         vendorOrderId: vendorOrder.id,
+        charge: chargeRefundFee && method === "original" ? await loadRefundCharge(supabase) : null,
       });
       refundId = result.refundId;
       walletRefund = result.walletAmount;
+      fee = result.fee;
+      feeGst = result.feeGst;
     } catch (e) {
       // Must not undo the cancellation already applied above. Surfaced to
       // the caller instead so it can tell a human, rather than being
@@ -202,6 +214,8 @@ export async function cancelOneVendorOrder(
       was_already_shipped: wasAlreadyShipped,
       refund_id: refundId,
       refund_method: refundId || walletRefund > 0 ? method : null,
+      refund_fee: fee,
+      refund_fee_gst: feeGst,
     })
     .select("id")
     .single();
@@ -224,6 +238,7 @@ export async function cancelOneVendorOrder(
     skippedReason: null,
     refundId,
     walletRefund,
+    refundCharge: Math.round((fee + feeGst) * 100) / 100,
     refundError,
     wasAlreadyShipped,
     cancellationId: cancellationRow.id,

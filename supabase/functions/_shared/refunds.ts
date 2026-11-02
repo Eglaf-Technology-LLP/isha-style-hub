@@ -2,7 +2,14 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
 import { reverseVendorShare } from "./razorpayRoute.ts";
 import { money } from "./money.ts";
-export { returnRefundMethod, type RefundMethod } from "./refundMethod.ts";
+import { RefundCharge, refundChargeOn } from "./refundMethod.ts";
+export {
+  CHARGE_FREE_RETURN_REASONS,
+  refundChargeOn,
+  returnRefundMethod,
+  type RefundCharge,
+  type RefundMethod,
+} from "./refundMethod.ts";
 
 // Thrown for anything wrong with the request itself (no payment, wrong
 // status, amount exceeds what's left) - before executeRefund ever touches
@@ -205,8 +212,17 @@ export async function executeRefund(
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// What's left of the order's Razorpay payment itself - the same sum
-// executeRefund checks against.
+// The admin's refund charge (Return settings).
+export async function loadRefundCharge(supabase: SupabaseClient): Promise<RefundCharge> {
+  const { data } = await supabase
+    .from("platform_settings")
+    .select("refund_charge_pct, refund_charge_gst_pct")
+    .maybeSingle();
+  return { pct: Number(data?.refund_charge_pct ?? 3), gstPct: Number(data?.refund_charge_gst_pct ?? 18) };
+}
+
+// What's left of the order's Razorpay payment itself - what executeRefund
+// checks against, less refund charges already kept back from it.
 async function gatewayRefundable(supabase: SupabaseClient, orderId: string): Promise<number> {
   const { data: payment, error } = await supabase
     .from("payments")
@@ -223,7 +239,16 @@ async function gatewayRefundable(supabase: SupabaseClient, orderId: string): Pro
     .eq("payment_id", payment.id)
     .in("status", ["initiated", "processing", "processed"]);
   if (refundsErr) throw refundsErr;
-  return Math.max(0, round2(Number(payment.amount) - (committed ?? []).reduce((s, r) => s + Number(r.amount), 0)));
+  const [{ data: returnCharges }, { data: cancelCharges }] = await Promise.all([
+    supabase.from("return_requests").select("refund_fee, refund_fee_gst").eq("order_id", orderId).eq("refund_method", "original"),
+    supabase.from("order_cancellations").select("refund_fee, refund_fee_gst").eq("order_id", orderId).eq("refund_method", "original"),
+  ]);
+  const kept = [...(returnCharges ?? []), ...(cancelCharges ?? [])].reduce(
+    (s, r) => s + Number(r.refund_fee) + Number(r.refund_fee_gst),
+    0,
+  );
+  const refunded = (committed ?? []).reduce((s, r) => s + Number(r.amount), 0);
+  return Math.max(0, round2(Number(payment.amount) - refunded - kept));
 }
 
 export interface RefundCustomerParams {
@@ -238,19 +263,28 @@ export interface RefundCustomerParams {
   initiatedBy: string | null;
   returnRequestId?: string | null;
   vendorOrderId?: string | null;
+  // The refund charge on the part going back to the original payment
+  // (null: none - the wallet part is never charged).
+  charge?: RefundCharge | null;
 }
 
 export interface RefundCustomerResult {
   walletAmount: number;
+  // Sent to Razorpay - after the refund charge.
   gatewayAmount: number;
+  // The refund charge kept back, and its GST. The caller records them on
+  // the return / cancellation.
+  fee: number;
+  feeGst: number;
   // The Razorpay refund's `refunds` row, if part of it went that way.
   refundId: string | null;
 }
 
 // Refund the customer the way they chose. "original" goes back to the
-// Razorpay payment as far as that payment covers it; anything beyond was
-// paid from the wallet, so it goes back to the wallet. The database caps
-// wallet refunds at what the customer actually paid on the order.
+// Razorpay payment as far as that payment covers it, less any refund
+// charge; anything beyond was paid from the wallet, so it goes back to the
+// wallet, free. The database caps wallet refunds at what the customer
+// actually paid on the order.
 export async function refundCustomer(
   supabase: SupabaseClient,
   params: RefundCustomerParams,
@@ -263,11 +297,13 @@ export async function refundCustomer(
     .single();
   if (error) throw error;
 
-  const gatewayAmount =
+  const gatewayGross =
     params.method === "original" && order.payment_method === "razorpay"
       ? Math.min(amount, await gatewayRefundable(supabase, params.orderId))
       : 0;
-  const walletAmount = round2(amount - gatewayAmount);
+  const { fee, gst: feeGst } = refundChargeOn(gatewayGross, params.charge ?? null);
+  const gatewayAmount = round2(gatewayGross - fee - feeGst);
+  const walletAmount = round2(amount - gatewayGross);
 
   let refundId: string | null = null;
   if (gatewayAmount > 0) {
@@ -280,6 +316,11 @@ export async function refundCustomer(
       vendorOrderId: params.vendorOrderId,
     });
     refundId = result.refundId;
+  }
+  // The boutique doesn't keep its share of the charge either - it's
+  // AllBoutiqs' (executeRefund only reversed the share of what was refunded).
+  if (fee + feeGst > 0 && params.vendorOrderId) {
+    await reverseVendorShare(supabase, params.vendorOrderId, round2(fee + feeGst));
   }
 
   if (walletAmount > 0) {
@@ -299,5 +340,5 @@ export async function refundCustomer(
     if (params.vendorOrderId) await reverseVendorShare(supabase, params.vendorOrderId, walletAmount);
   }
 
-  return { walletAmount, gatewayAmount, refundId };
+  return { walletAmount, gatewayAmount, fee, feeGst, refundId };
 }

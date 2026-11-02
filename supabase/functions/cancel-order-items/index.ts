@@ -70,6 +70,8 @@ Deno.serve(async (req) => {
         cancelledBy: userId,
         reason,
         refundMethod: refund_method ?? undefined,
+        // An admin cancelling on the customer's behalf doesn't charge them.
+        chargeRefundFee: order.user_id === userId,
       });
       results.push(result);
     }
@@ -121,6 +123,7 @@ Deno.serve(async (req) => {
           vendor_order_id: r.vendorOrderId,
           refund_id: r.refundId,
           wallet_refund: r.walletRefund,
+          refund_charge: r.refundCharge,
           refund_error: r.refundError,
           was_already_shipped: r.wasAlreadyShipped,
         })),

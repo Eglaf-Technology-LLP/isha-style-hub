@@ -743,8 +743,11 @@ export default function OrderHistory() {
                                       <div className="flex items-center gap-2">
                                         {!!rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
                                           <span className="text-xs font-medium text-emerald-700">
-                                            Refund: {formatMoney(rr.refund_amount)}
+                                            Refund:{" "}
+                                            {formatMoney(rr.refund_amount - Number(rr.refund_fee ?? 0) - Number(rr.refund_fee_gst ?? 0))}
                                             {rr.refund_method === "wallet" && " to your wallet"}
+                                            {Number(rr.refund_fee) > 0 &&
+                                              ` (after a ${formatMoney(Number(rr.refund_fee) + Number(rr.refund_fee_gst))} refund charge)`}
                                           </span>
                                         )}
                                         <StatusPill className={statusInfo.className}>{statusInfo.label}</StatusPill>

@@ -138,13 +138,18 @@ const handler = async (req: Request): Promise<Response> => {
     const { heading, color } = content;
     let { message } = content;
     const refundMethod = returnReq.request_type === "return" ? returnRefundMethod(returnReq, order) : null;
-    const refundValue = money(refundAmount || returnReq.refund_amount || 0);
+    // What reached the customer: the refund less the refund charge (bank /
+    // original payment only, never the wallet).
+    const refundCharge = Number(returnReq.refund_fee ?? 0) + Number(returnReq.refund_fee_gst ?? 0);
+    const refundGross = Number(refundAmount || returnReq.refund_amount || 0);
+    const refundValue = money(refundGross - refundCharge);
+    const chargeNote = refundCharge > 0 ? ` A refund charge of ${money(refundCharge)} (incl. GST) was deducted.` : "";
     if (newStatus === "completed" && refundMethod === "wallet") {
       message = `Your return has been completed and ${refundValue} has been added to your AllBoutiqs wallet. You can use it on your next order.`;
     } else if (newStatus === "completed" && refundMethod === "bank") {
-      message = `Your return has been completed and ${refundValue} has been transferred to your bank account.`;
+      message = `Your return has been completed and ${refundValue} has been transferred to your bank account.${chargeNote}`;
     } else if (newStatus === "completed" && refundMethod === "original") {
-      message = `Your return has been completed and ${refundValue} has been refunded to your original payment method. Banks usually take 5-7 working days to show it.`;
+      message = `Your return has been completed and ${refundValue} has been refunded to your original payment method.${chargeNote} Banks usually take 5-7 working days to show it.`;
     }
 
     const orderNumber = order.id.slice(0, 8).toUpperCase();
@@ -167,7 +172,8 @@ const handler = async (req: Request): Promise<Response> => {
     const refundHtml =
       newStatus === "completed" && returnReq.request_type === "return" && (refundAmount || returnReq.refund_amount)
         ? `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
-            <p style="margin: 0; color: #166534; font-weight: bold;">Refund Amount: ${money((refundAmount || returnReq.refund_amount || 0))}</p>
+            <p style="margin: 0; color: #166534; font-weight: bold;">Refund Amount: ${refundValue}</p>
+            ${refundCharge > 0 ? `<p style="margin: 6px 0 0; color: #166534; font-size: 13px;">${money(refundGross)} less a ${money(refundCharge)} refund charge (incl. GST)</p>` : ""}
            </div>`
         : "";
 

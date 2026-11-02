@@ -988,6 +988,8 @@ export type Database = {
           id: string
           order_id: string
           reason: string | null
+          refund_fee: number
+          refund_fee_gst: number
           refund_id: string | null
           refund_method: string | null
           vendor_order_id: string
@@ -999,6 +1001,8 @@ export type Database = {
           id?: string
           order_id: string
           reason?: string | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_id?: string | null
           refund_method?: string | null
           vendor_order_id: string
@@ -1010,6 +1014,8 @@ export type Database = {
           id?: string
           order_id?: string
           reason?: string | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_id?: string | null
           refund_method?: string | null
           vendor_order_id?: string
@@ -1419,6 +1425,8 @@ export type Database = {
           payout_auto_send: boolean
           payout_rail: string
           payout_settlement_days: number
+          refund_charge_gst_pct: number
+          refund_charge_pct: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
           review_images_require_approval: boolean
@@ -1438,6 +1446,8 @@ export type Database = {
           payout_auto_send?: boolean
           payout_rail?: string
           payout_settlement_days?: number
+          refund_charge_gst_pct?: number
+          refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -1457,6 +1467,8 @@ export type Database = {
           payout_auto_send?: boolean
           payout_rail?: string
           payout_settlement_days?: number
+          refund_charge_gst_pct?: number
+          refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
           review_images_require_approval?: boolean
@@ -1955,6 +1967,8 @@ export type Database = {
           received_at_warehouse_at: string | null
           received_by: string | null
           refund_amount: number | null
+          refund_fee: number
+          refund_fee_gst: number
           refund_method: string | null
           replacement_qc_notes: string | null
           replacement_qc_status: string | null
@@ -1987,6 +2001,8 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           refund_amount?: number | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_method?: string | null
           replacement_qc_notes?: string | null
           replacement_qc_status?: string | null
@@ -2019,6 +2035,8 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           refund_amount?: number | null
+          refund_fee?: number
+          refund_fee_gst?: number
           refund_method?: string | null
           replacement_qc_notes?: string | null
           replacement_qc_status?: string | null

@@ -2,7 +2,14 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Landmark, RotateCcw, Wallet } from "lucide-react";
 import { COMPANY } from "@/lib/company";
-import { BANK_DETAILS_FIELDS, BANK_REFUND_DAYS, REFUND_METHOD_LABEL, RefundMethod } from "@/lib/wallet";
+import {
+  BANK_DETAILS_FIELDS,
+  BANK_REFUND_DAYS,
+  REFUND_METHOD_LABEL,
+  RefundCharge,
+  RefundMethod,
+  refundChargeLabel,
+} from "@/lib/wallet";
 
 interface RefundMethodPickerProps {
   options: RefundMethod[];
@@ -12,11 +19,14 @@ interface RefundMethodPickerProps {
   // "cancel": refunded as soon as the order is cancelled.
   context: "return" | "cancel";
   orderId: string;
+  // The refund charge on the bank / original-payment options; null when
+  // there's none (e.g. a damaged or wrong item). The wallet is always free.
+  charge: RefundCharge | null;
 }
 
 // The customer chooses where their refund goes. Nothing is picked for them -
 // each option says plainly how long it takes.
-export function RefundMethodPicker({ options, value, onChange, context, orderId }: RefundMethodPickerProps) {
+export function RefundMethodPicker({ options, value, onChange, context, orderId, charge }: RefundMethodPickerProps) {
   const orderRef = `#${orderId.slice(0, 8).toUpperCase()}`;
   const when = context === "return" ? "as soon as your items pass our quality check" : "as soon as you cancel";
 
@@ -29,13 +39,18 @@ export function RefundMethodPicker({ options, value, onChange, context, orderId 
     );
   }
 
+  const chargeText = charge
+    ? ` A refund charge of ${refundChargeLabel(charge)} is deducted.`
+    : " No refund charge on this one.";
   const text: Record<RefundMethod, string> = {
-    wallet: `Instant - added to your wallet ${when}. Use the full amount on your next order.`,
+    wallet: `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
     original:
-      context === "return"
+      (context === "return"
         ? "Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days."
-        : "Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.",
-    bank: `Email us your bank details. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.`,
+        : "Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.") + chargeText,
+    bank:
+      `Email us your bank details. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.` +
+      chargeText,
   };
   const icon = { wallet: Wallet, original: RotateCcw, bank: Landmark };
 

@@ -22,7 +22,8 @@ import { uploadUserFile } from "@/lib/userPhotoUpload";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatMoney } from "@/lib/format";
 import { RefundMethodPicker } from "@/components/RefundMethodPicker";
-import { BANK_REFUND_DAYS, RefundMethod, refundOptions } from "@/lib/wallet";
+import { BANK_REFUND_DAYS, CHARGE_FREE_RETURN_REASONS, RefundMethod, refundOptions } from "@/lib/wallet";
+import { useRefundCharge } from "@/hooks/useWallet";
 import { COMPANY } from "@/lib/company";
 
 // Front, back and a close-up of the tag (the database checks the same:
@@ -101,6 +102,7 @@ export function ReturnRequestForm({
   }, [customisedSelected]);
   const [submitting, setSubmitting] = useState(false);
   const refundChoices = refundOptions(paymentMethod);
+  const refundCharge = useRefundCharge();
   const [refundMethod, setRefundMethod] = useState<RefundMethod | null>(
     refundChoices.length === 1 ? refundChoices[0] : null,
   );
@@ -518,6 +520,8 @@ export function ReturnRequestForm({
               onChange={setRefundMethod}
               context="return"
               orderId={orderId}
+              // No charge when the fault was the boutique's.
+              charge={CHARGE_FREE_RETURN_REASONS.includes(reason) ? null : refundCharge}
             />
           )}
 

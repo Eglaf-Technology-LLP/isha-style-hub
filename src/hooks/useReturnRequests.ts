@@ -30,6 +30,10 @@ export interface ReturnRequest {
   refund_amount: number;
   // Where the refund goes - the customer's choice (see src/lib/wallet.ts).
   refund_method: "wallet" | "original" | "bank" | null;
+  // The refund charge kept back (bank / original payment only) and its GST:
+  // the customer receives refund_amount minus both.
+  refund_fee: number;
+  refund_fee_gst: number;
   evidence_video_url: string | null;
   // Boutique-first workflow: "vendor" until the boutique decides or the
   // SLA passes (then escalated_at is set and it becomes "admin").

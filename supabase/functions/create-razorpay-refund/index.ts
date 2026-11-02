@@ -1,5 +1,13 @@
 import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, errorMessage } from "../_shared/auth.ts";
-import { executeRefund, refundCustomer, RefundValidationError, returnRefundMethod } from "../_shared/refunds.ts";
+import {
+  CHARGE_FREE_RETURN_REASONS,
+  executeRefund,
+  loadRefundCharge,
+  refundChargeOn,
+  refundCustomer,
+  RefundValidationError,
+  returnRefundMethod,
+} from "../_shared/refunds.ts";
 import { money } from "../_shared/money.ts";
 
 // Admin-only, by design: this is where staff move money back to a
@@ -74,13 +82,14 @@ Deno.serve(async (req) => {
     try {
       // A return is refunded the way the customer chose: their wallet, or
       // the original payment (whatever the wallet paid goes back to the
-      // wallet). The amount is the return's whole refund - anything already
-      // refunded for it (e.g. part of a warehouse refund that went through
-      // before another part failed) isn't paid again.
+      // wallet), less the refund charge unless the fault was the boutique's.
+      // The amount is the return's whole refund before that charge -
+      // anything already refunded for it (e.g. part of a warehouse refund
+      // that went through before another part failed) isn't paid again.
       if (return_request_id) {
         const { data: rr } = await supabase
           .from("return_requests")
-          .select("refund_method")
+          .select("refund_method, reason, refund_fee, refund_fee_gst")
           .eq("id", return_request_id)
           .maybeSingle();
         const { data: order, error: orderErr } = await supabase
@@ -90,17 +99,23 @@ Deno.serve(async (req) => {
           .single();
         if (orderErr) throw orderErr;
         const method = returnRefundMethod(rr ?? {}, order);
+        const charge =
+          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(rr?.reason ?? "") ? await loadRefundCharge(supabase) : null;
+        // Cash on Delivery by bank transfer: done by hand. Record the charge
+        // and say how much to transfer.
         if (method === "bank") {
-          return jsonResponse(
-            { error: "The customer chose a bank transfer for this Cash on Delivery order - transfer it by hand, then mark the return completed" },
-            400,
-          );
+          const { fee, gst } = refundChargeOn(refundAmount, charge);
+          await supabase.from("return_requests").update({ refund_fee: fee, refund_fee_gst: gst }).eq("id", return_request_id);
+          return jsonResponse({ bank_transfer: Math.round((refundAmount - fee - gst) * 100) / 100, refund_charge: fee + gst });
         }
         const [{ data: credited }, { data: refunded }] = await Promise.all([
           supabase.from("wallet_transactions").select("amount").eq("return_request_id", return_request_id).eq("kind", "return_refund"),
           supabase.from("refunds").select("amount").eq("return_request_id", return_request_id).in("status", ["initiated", "processing", "processed"]),
         ]);
-        const already = [...(credited ?? []), ...(refunded ?? [])].reduce((sum, r) => sum + Number(r.amount), 0);
+        const already =
+          [...(credited ?? []), ...(refunded ?? [])].reduce((sum, r) => sum + Number(r.amount), 0) +
+          Number(rr?.refund_fee ?? 0) +
+          Number(rr?.refund_fee_gst ?? 0);
         const due = Math.round((refundAmount - already) * 100) / 100;
         if (due <= 0) {
           return jsonResponse({ id: null, wallet_amount: 0, gateway_amount: 0, already_refunded: already });
@@ -114,8 +129,23 @@ Deno.serve(async (req) => {
           reason,
           initiatedBy: userId,
           returnRequestId: return_request_id,
+          charge,
         });
-        return jsonResponse({ id: result.refundId, wallet_amount: result.walletAmount, gateway_amount: result.gatewayAmount });
+        if (result.fee + result.feeGst > 0) {
+          await supabase
+            .from("return_requests")
+            .update({
+              refund_fee: Math.round((Number(rr?.refund_fee ?? 0) + result.fee) * 100) / 100,
+              refund_fee_gst: Math.round((Number(rr?.refund_fee_gst ?? 0) + result.feeGst) * 100) / 100,
+            })
+            .eq("id", return_request_id);
+        }
+        return jsonResponse({
+          id: result.refundId,
+          wallet_amount: result.walletAmount,
+          gateway_amount: result.gatewayAmount,
+          refund_charge: result.fee + result.feeGst,
+        });
       }
 
       const result = await executeRefund(supabase, {

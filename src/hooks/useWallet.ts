@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { DEFAULT_REFUND_CHARGE, RefundCharge } from "@/lib/wallet";
 
 export interface WalletTransaction {
   id: string;
@@ -47,4 +48,19 @@ export function useWallet(userId: string | null | undefined, { withHistory = fal
   }, [refresh]);
 
   return { balance, transactions, loading, refresh };
+}
+
+// The admin's refund charge on refunds to the bank / original payment.
+export function useRefundCharge() {
+  const [charge, setCharge] = useState<RefundCharge>(DEFAULT_REFUND_CHARGE);
+  useEffect(() => {
+    supabase
+      .from("platform_settings")
+      .select("refund_charge_pct, refund_charge_gst_pct")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCharge({ pct: Number(data.refund_charge_pct), gstPct: Number(data.refund_charge_gst_pct) });
+      });
+  }, []);
+  return charge;
 }

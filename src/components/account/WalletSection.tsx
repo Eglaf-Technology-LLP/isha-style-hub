@@ -1,16 +1,17 @@
 import { Link } from "react-router-dom";
 import { Loader2, Wallet } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useWallet } from "@/hooks/useWallet";
+import { useRefundCharge, useWallet } from "@/hooks/useWallet";
 import { AccountSectionTitle } from "@/components/storefront/account/AccountKit";
 import { formatMoney } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
-import { WALLET_KIND_LABEL } from "@/lib/wallet";
+import { refundChargeLabel, WALLET_KIND_LABEL } from "@/lib/wallet";
 import { cn } from "@/lib/utils";
 
 export function WalletSection() {
   const { user } = useAuth();
   const { balance, transactions, loading } = useWallet(user?.id, { withHistory: true });
+  const refundCharge = useRefundCharge();
 
   return (
     <div className="max-w-3xl">
@@ -45,13 +46,15 @@ export function WalletSection() {
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-foreground">How your wallet works</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            When you return an item or cancel a paid order, you can take the refund in your wallet. It's added instantly -
-            for a return, as soon as the items pass our quality check.
+            When you return an item or cancel a paid order, you can take the refund in your wallet - free of any charge.
+            It's added instantly: for a return, as soon as the items pass our quality check.
           </li>
           <li>At checkout, your balance can pay for part of an order or the whole of it.</li>
           <li>
             Wallet balance can't be topped up, withdrawn to a bank account or transferred to someone else. If you'd rather
-            have a refund back in your bank, choose that option when you return or cancel.
+            have a refund back in your bank, choose that option when you return or cancel - a refund charge of{" "}
+            {refundChargeLabel(refundCharge)} is deducted (not when the item arrived damaged, was the wrong item or wasn't
+            as described).
           </li>
         </ul>
       </div>
