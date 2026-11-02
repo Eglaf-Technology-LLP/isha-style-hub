@@ -114,15 +114,18 @@ export async function ewayBillPreview(supabase: SupabaseClient, vendorOrderId: s
   const settings = await loadEwayBillSettings(supabase);
   const value = await invoiceValue(supabase, vendorOrderId);
   if (value == null || value <= settings.threshold) return null;
-  const { data: vo } = await supabase.from("vendor_orders").select("vendor_id").eq("id", vendorOrderId).single();
+  const { data: vo } = await supabase.from("vendor_orders").select("order_id, vendor_id").eq("id", vendorOrderId).single();
   const [open, setup] = await Promise.all([findOpenEwayBill(supabase, vendorOrderId, leg), loadVendorSetup(supabase, vo!.vendor_id)]);
   return {
     vendor_order_id: vendorOrderId,
+    order_id: vo!.order_id as string,
     value,
     threshold: settings.threshold,
     made_by: setup.mode === "self" ? "boutique" : "allboutiqs",
     email: settings.email,
     bill: open ? ewayBillSummary(open) : null,
+    // A boutique making its own needs the courier's ID for Part B.
+    transporter_id: open ? await transporterId(supabase, open.courier_id) : null,
   };
 }
 

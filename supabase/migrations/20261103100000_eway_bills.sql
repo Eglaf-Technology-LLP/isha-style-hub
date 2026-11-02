@@ -19,7 +19,10 @@ ALTER TABLE public.platform_settings
   ADD COLUMN IF NOT EXISTS eway_bill_threshold numeric(12,2) NOT NULL DEFAULT 50000
     CHECK (eway_bill_threshold >= 0),
   -- Where a boutique that makes its own e-way bills sends the number.
-  ADD COLUMN IF NOT EXISTS eway_bill_email text NOT NULL DEFAULT 'support@allboutiqs.com';
+  ADD COLUMN IF NOT EXISTS eway_bill_email text NOT NULL DEFAULT 'support@allboutiqs.com',
+  -- The mobile a boutique puts on the sub-user it creates for AllBoutiqs,
+  -- so the portal's sign-in codes come to AllBoutiqs.
+  ADD COLUMN IF NOT EXISTS eway_bill_subuser_mobile text;
 
 -- ---------- each boutique's portal set-up ----------
 

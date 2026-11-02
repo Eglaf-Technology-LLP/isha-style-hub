@@ -62,6 +62,10 @@ import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { NewOrdersBanner } from "@/components/NewOrdersBanner";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
+import { EwayBillSetupCard } from "@/components/vendor/EwayBillSetupCard";
+import { EwayBillStatusLine } from "@/components/vendor/EwayBillStatusLine";
+import { useEwayBills } from "@/hooks/useEwayBills";
+import { formatEwbNumber } from "@/lib/ewayBill";
 import { formatShortDate, vendorOrderStatusColors, vendorOrderStatusLabel } from "@/lib/warehouse";
 import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
@@ -446,6 +450,15 @@ export default function VendorDashboard() {
   const { forwardShipmentFor, actioningId, checkServiceability, shipNow, cancelShipment } = useShipments(
     orders.map((o) => o.id)
   );
+  const { requiredValue: ewayBillValue, openForwardBill, billForShipment, refetch: refetchEwayBills } = useEwayBills(
+    orders.map((o) => o.id)
+  );
+  // Ship Now may only ask for an e-way bill - show where it stands right away.
+  const shipNowAndTrack: typeof shipNow = async (...args) => {
+    const outcome = await shipNow(...args);
+    if (outcome.status !== "failed") refetchEwayBills();
+    return outcome;
+  };
 
   const statusColors: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800",
@@ -953,6 +966,7 @@ export default function VendorDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <EwayBillSetupCard vendorId={vendor.id} className="mb-4" />
                 {dataLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -1173,9 +1187,10 @@ export default function VendorDashboard() {
                                             vendorOrderId={o.id}
                                             actioning={actioningId === o.id}
                                             checkServiceability={checkServiceability}
-                                            shipNow={shipNow}
+                                            shipNow={shipNowAndTrack}
                                             triggerLabel={o.via_warehouse ? "Ship to warehouse" : "Ship Now"}
                                           />
+                                          <EwayBillStatusLine value={ewayBillValue.get(o.id)} bill={openForwardBill(o.id)} />
                                           {o.via_warehouse && o.ready_by && (
                                             <div className="text-[11px] text-muted-foreground whitespace-nowrap">
                                               Hand to courier by {formatShortDate(o.ready_by)}
@@ -1198,7 +1213,7 @@ export default function VendorDashboard() {
                                         vendorOrderId={o.id}
                                         actioning={actioningId === o.id}
                                         checkServiceability={checkServiceability}
-                                        shipNow={shipNow}
+                                        shipNow={shipNowAndTrack}
                                         triggerLabel="Ship replacement to warehouse"
                                       />
                                     </div>
@@ -1209,6 +1224,11 @@ export default function VendorDashboard() {
                                     <div className="font-medium">{shipment.courier_name || "Courier assigned"}</div>
                                     {shipment.awb_code && (
                                       <div className="font-mono text-muted-foreground">AWB {shipment.awb_code}</div>
+                                    )}
+                                    {billForShipment(shipment.id)?.ewb_number && (
+                                      <div className="font-mono text-muted-foreground">
+                                        E-way bill {formatEwbNumber(billForShipment(shipment.id)?.ewb_number)}
+                                      </div>
                                     )}
                                     <div className="flex items-center gap-2">
                                       {shipment.label_url && (

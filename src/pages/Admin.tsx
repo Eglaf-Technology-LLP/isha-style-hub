@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   Star,
   Warehouse as WarehouseIcon,
+  FileCheck2,
 } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -73,7 +74,9 @@ import { VendorPayoutManagement } from "@/components/admin/VendorPayoutManagemen
 import { ReviewModeration } from "@/components/admin/ReviewModeration";
 import { RazorpayXPanel } from "@/components/admin/RazorpayXPanel";
 import { ReturnSettingsCard } from "@/components/admin/ReturnSettingsCard";
+import { EwayBillsManagement } from "@/components/admin/EwayBillsManagement";
 import { useUrlTab } from "@/hooks/useDeepLink";
+import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import logo from "@/assets/logo.png";
@@ -113,6 +116,16 @@ export default function Admin() {
   const pendingOrdersCount = orders.filter((o) => o.order_status === "pending").length;
   const pendingReturnsCount = returnRequests.filter((r) => r.status === "pending").length;
   const pendingModerationCount = products.filter((p) => p.approval_status === "pending_review").length;
+  // Parcels that can't be booked until their e-way bill number is entered.
+  const [pendingEwayBillsCount, setPendingEwayBillsCount] = useState(0);
+  useEffect(() => {
+    if (!isAdmin) return;
+    supabase
+      .from("eway_bills")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .then(({ count }) => setPendingEwayBillsCount(count ?? 0));
+  }, [isAdmin, tab]);
   
   const paymentStats = getPaymentStats();
 
@@ -294,6 +307,15 @@ export default function Admin() {
               <Ban className="h-4 w-4" />
               <span className="hidden sm:inline">Cancelled</span>
             </TabsTrigger>
+            <TabsTrigger value="eway-bills" className="flex items-center gap-1 relative">
+              <FileCheck2 className="h-4 w-4" />
+              <span className="hidden sm:inline">E-way bills</span>
+              {pendingEwayBillsCount > 0 && (
+                <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  {pendingEwayBillsCount}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="promotions" className="flex items-center gap-1">
               <Sparkles className="h-4 w-4" />
               <span className="hidden sm:inline">Promotions</span>
@@ -439,6 +461,11 @@ export default function Admin() {
           {/* Cancelled Orders Tab */}
           <TabsContent value="cancelled">
             <CancelledOrdersManagement isAdmin={isAdmin} />
+          </TabsContent>
+
+          {/* E-way bills: parcels over the limit wait here for their number */}
+          <TabsContent value="eway-bills">
+            <EwayBillsManagement />
           </TabsContent>
 
           {/* Promotions Tab */}

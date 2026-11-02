@@ -58,7 +58,15 @@ Deno.serve(async (req) => {
         const number = String(body.ewb_number ?? "").replace(/\s/g, "");
         if (!/^\d{12}$/.test(number)) throw new ActionError("An e-way bill number has 12 digits");
         if (bill.status === "cancelled") throw new ActionError("This request was cancelled");
-        if (bill.shipment_id) throw new ActionError("The parcel is already booked with this e-way bill");
+        // Once booked, only its dates can still be filled in (validity starts
+        // when the courier fills Part B).
+        const changesTheBill =
+          number !== bill.ewb_number ||
+          (body.courier_id != null && Number(body.courier_id) !== bill.courier_id) ||
+          (body.document_number != null && String(body.document_number).trim() !== bill.document_number);
+        if (bill.shipment_id && changesTheBill) {
+          throw new ActionError("The parcel is already booked with this e-way bill - only its dates can change now");
+        }
 
         const ewbDate = parseMoment(body.ewb_date, "Generated on") ?? new Date().toISOString();
         const validUntil = parseMoment(body.valid_until, "Valid until");
@@ -69,8 +77,7 @@ Deno.serve(async (req) => {
           ewb_number: number,
           ewb_date: ewbDate,
           valid_until: validUntil,
-          entered_by: userId,
-          entered_at: new Date().toISOString(),
+          ...(changesTheBill ? { entered_by: userId, entered_at: new Date().toISOString() } : {}),
         };
         // Made out to another courier than requested (the boutique's choice
         // changed, or the portal entry was corrected).
@@ -99,7 +106,8 @@ Deno.serve(async (req) => {
           }
           throw error;
         }
-        await announceReady(supabase, saved as EwayBill);
+        // Dates filled in later don't need telling anyone.
+        if (changesTheBill) await announceReady(supabase, saved as EwayBill);
         return jsonResponse({ eway_bill: saved });
       }
 

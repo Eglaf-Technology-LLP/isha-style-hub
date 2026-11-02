@@ -72,6 +72,35 @@ export type Database = {
         }
         Relationships: []
       }
+      boutique_document_series: {
+        Row: {
+          doc_kind: string
+          fiscal_year: string
+          last_serial: number
+          vendor_id: string
+        }
+        Insert: {
+          doc_kind: string
+          fiscal_year: string
+          last_serial?: number
+          vendor_id: string
+        }
+        Update: {
+          doc_kind?: string
+          fiscal_year?: string
+          last_serial?: number
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "boutique_document_series_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       boutique_send_backs: {
         Row: {
           created_at: string
@@ -194,6 +223,120 @@ export type Database = {
           },
         ]
       }
+      courier_transporters: {
+        Row: {
+          courier_id: number
+          courier_name: string
+          transporter_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          courier_id: number
+          courier_name: string
+          transporter_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          courier_id?: number
+          courier_name?: string
+          transporter_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      delivery_challans: {
+        Row: {
+          challan_number: string
+          created_at: string
+          dispatch_from_address: Json
+          dispatch_from_name: string
+          dispatch_id: string | null
+          id: string
+          invoice_id: string
+          issued_at: string
+          order_id: string
+          reason: string
+          ship_to_address: Json
+          ship_to_name: string
+          value: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Insert: {
+          challan_number: string
+          created_at?: string
+          dispatch_from_address: Json
+          dispatch_from_name: string
+          dispatch_id?: string | null
+          id?: string
+          invoice_id: string
+          issued_at?: string
+          order_id: string
+          reason?: string
+          ship_to_address: Json
+          ship_to_name: string
+          value: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Update: {
+          challan_number?: string
+          created_at?: string
+          dispatch_from_address?: Json
+          dispatch_from_name?: string
+          dispatch_id?: string | null
+          id?: string
+          invoice_id?: string
+          issued_at?: string
+          order_id?: string
+          reason?: string
+          ship_to_address?: Json
+          ship_to_name?: string
+          value?: number
+          vendor_id?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_challans_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discounts: {
         Row: {
           category_ids: string[] | null
@@ -312,6 +455,158 @@ export type Database = {
             columns: ["payment_id"]
             isOneToOne: false
             referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      eway_bills: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          challan_id: string | null
+          courier_id: number | null
+          courier_name: string | null
+          created_at: string
+          dispatch_id: string | null
+          document_date: string
+          document_number: string
+          document_type: string
+          entered_at: string | null
+          entered_by: string | null
+          ewb_date: string | null
+          ewb_number: string | null
+          from_address: Json
+          from_name: string
+          id: string
+          invoice_id: string | null
+          leg: string
+          order_id: string
+          requested_by: string | null
+          shipment_id: string | null
+          status: string
+          to_address: Json
+          to_name: string
+          updated_at: string
+          valid_until: string | null
+          value: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          challan_id?: string | null
+          courier_id?: number | null
+          courier_name?: string | null
+          created_at?: string
+          dispatch_id?: string | null
+          document_date: string
+          document_number: string
+          document_type: string
+          entered_at?: string | null
+          entered_by?: string | null
+          ewb_date?: string | null
+          ewb_number?: string | null
+          from_address: Json
+          from_name: string
+          id?: string
+          invoice_id?: string | null
+          leg: string
+          order_id: string
+          requested_by?: string | null
+          shipment_id?: string | null
+          status?: string
+          to_address: Json
+          to_name: string
+          updated_at?: string
+          valid_until?: string | null
+          value: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          challan_id?: string | null
+          courier_id?: number | null
+          courier_name?: string | null
+          created_at?: string
+          dispatch_id?: string | null
+          document_date?: string
+          document_number?: string
+          document_type?: string
+          entered_at?: string | null
+          entered_by?: string | null
+          ewb_date?: string | null
+          ewb_number?: string | null
+          from_address?: Json
+          from_name?: string
+          id?: string
+          invoice_id?: string | null
+          leg?: string
+          order_id?: string
+          requested_by?: string | null
+          shipment_id?: string | null
+          status?: string
+          to_address?: Json
+          to_name?: string
+          updated_at?: string
+          valid_until?: string | null
+          value?: number
+          vendor_id?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eway_bills_challan_id_fkey"
+            columns: ["challan_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_challans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_dispatch_id_fkey"
+            columns: ["dispatch_id"]
+            isOneToOne: false
+            referencedRelation: "warehouse_dispatches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eway_bills_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -709,6 +1004,8 @@ export type Database = {
           seller_state: string | null
           seller_state_code: string | null
           sgst_amount: number
+          ship_to_address: Json | null
+          ship_to_name: string | null
           shipping_cost: number
           subtotal: number
           supply_type: string | null
@@ -742,6 +1039,8 @@ export type Database = {
           seller_state?: string | null
           seller_state_code?: string | null
           sgst_amount?: number
+          ship_to_address?: Json | null
+          ship_to_name?: string | null
           shipping_cost?: number
           subtotal: number
           supply_type?: string | null
@@ -775,6 +1074,8 @@ export type Database = {
           seller_state?: string | null
           seller_state_code?: string | null
           sgst_amount?: number
+          ship_to_address?: Json | null
+          ship_to_name?: string | null
           shipping_cost?: number
           subtotal?: number
           supply_type?: string | null
@@ -1420,6 +1721,9 @@ export type Database = {
         Row: {
           customer_shipping_enabled: boolean
           default_prep_days: number
+          eway_bill_email: string
+          eway_bill_subuser_mobile: string | null
+          eway_bill_threshold: number
           id: boolean
           launch_date: string | null
           payout_auto_send: boolean
@@ -1441,6 +1745,9 @@ export type Database = {
         Insert: {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
+          eway_bill_email?: string
+          eway_bill_subuser_mobile?: string | null
+          eway_bill_threshold?: number
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean
@@ -1462,6 +1769,9 @@ export type Database = {
         Update: {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
+          eway_bill_email?: string
+          eway_bill_subuser_mobile?: string | null
+          eway_bill_threshold?: number
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean
@@ -2568,6 +2878,47 @@ export type Database = {
             foreignKeyName: "vendor_documents_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_eway_bill_setup: {
+        Row: {
+          admin_notes: string | null
+          mode: string
+          submitted_at: string | null
+          subuser_username: string | null
+          updated_at: string
+          vendor_id: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          mode?: string
+          submitted_at?: string | null
+          subuser_username?: string | null
+          updated_at?: string
+          vendor_id: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          mode?: string
+          submitted_at?: string | null
+          subuser_username?: string | null
+          updated_at?: string
+          vendor_id?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_eway_bill_setup_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: true
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
@@ -3691,6 +4042,14 @@ export type Database = {
         Returns: number
       }
       escalate_overdue_return_requests: { Args: never; Returns: undefined }
+      eway_bill_requirements: {
+        Args: { _vendor_order_ids: string[] }
+        Returns: {
+          invoice_value: number
+          required: boolean
+          vendor_order_id: string
+        }[]
+      }
       fiscal_year_code: { Args: { _at: string }; Returns: string }
       generate_fee_invoices: { Args: { _upto?: string }; Returns: number }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
@@ -3735,6 +4094,10 @@ export type Database = {
         Returns: number
       }
       my_wallet_balance: { Args: never; Returns: number }
+      next_boutique_challan_number: {
+        Args: { _at: string; _vendor_id: string }
+        Returns: string
+      }
       next_boutique_invoice_number: {
         Args: { _at: string; _vendor_id: string }
         Returns: string
@@ -3873,6 +4236,19 @@ export type Database = {
         Args: { _request_id: string }
         Returns: string
       }
+      save_eway_bill_subuser: {
+        Args: { _username: string; _vendor_id: string }
+        Returns: {
+          admin_notes: string | null
+          mode: string
+          submitted_at: string | null
+          subuser_username: string | null
+          updated_at: string
+          vendor_id: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+      }
       statement_lines: {
         Args: { _from: string; _to: string; _vendor_id: string }
         Returns: {
@@ -3922,6 +4298,10 @@ export type Database = {
       vendor_optional_documents: {
         Args: { _constitution: string }
         Returns: string[]
+      }
+      vendor_order_invoice_value: {
+        Args: { _vendor_order_id: string }
+        Returns: number
       }
       vendor_order_items_snapshot: {
         Args: { _vendor_order_id: string }

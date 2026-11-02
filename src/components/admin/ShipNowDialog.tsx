@@ -12,18 +12,23 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Truck, Star } from "lucide-react";
-import { CourierOption, ShipDestination } from "@/hooks/useShipments";
+import { CourierOption, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
+import { EwayBillPreview } from "@/lib/ewayBill";
+import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface ShipNowDialogProps {
   vendorOrderId: string;
   actioning: boolean;
-  checkServiceability: (
+  checkServiceability: (vendorOrderId: string, returnRequestId?: string) => Promise<ServiceabilityResult | null>;
+  shipNow: (
     vendorOrderId: string,
+    courierId?: number,
+    courierEtd?: string | null,
     returnRequestId?: string,
-  ) => Promise<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; destination?: ShipDestination } | null>;
-  shipNow: (vendorOrderId: string, courierId?: number, courierEtd?: string | null, returnRequestId?: string) => Promise<boolean>;
+    courierName?: string | null,
+  ) => Promise<ShipNowOutcome>;
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
   // Books an exchange's replacement to the warehouse instead of the order itself.
@@ -33,6 +38,9 @@ interface ShipNowDialogProps {
 // The real ask: don't let Shiprocket silently auto-assign a courier - show
 // the vendor the real available couriers and their fares for this route,
 // let them pick one, then book with exactly that choice.
+//
+// Over the e-way bill limit, confirming first asks for the e-way bill (made
+// out to the courier picked); once it's in, only that courier can be booked.
 export function ShipNowDialog({
   vendorOrderId,
   actioning,
@@ -50,12 +58,25 @@ export function ShipNowDialog({
   const [weightKg, setWeightKg] = useState<number | null>(null);
   const [selectedCourierId, setSelectedCourierId] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
+  const [ewayBill, setEwayBill] = useState<EwayBillPreview | null>(null);
+
+  // The courier an e-way bill (asked for or made) is made out to.
+  const lockedCourierId = ewayBill?.bill?.courier_id ?? null;
+  const shownCouriers = couriers && lockedCourierId ? couriers.filter((c) => c.courierId === lockedCourierId) : couriers;
+  const waitingForEwayBill = ewayBill?.bill?.status === "pending";
+  const lockedCourierGone = !!lockedCourierId && !!couriers && shownCouriers?.length === 0;
+
+  const applyEwayBill = (preview: EwayBillPreview | null) => {
+    setEwayBill(preview);
+    if (preview?.bill?.courier_id) setSelectedCourierId(preview.bill.courier_id);
+  };
 
   const openDialog = async () => {
     setOpen(true);
     setLoading(true);
     setCouriers(null);
     setSelectedCourierId(null);
+    setEwayBill(null);
     const result = await checkServiceability(vendorOrderId, returnRequestId);
     setLoading(false);
     if (result) {
@@ -64,6 +85,7 @@ export function ShipNowDialog({
       setDestination(result.destination ?? null);
       setWeightKg(result.weightKg ?? null);
       setSelectedCourierId(result.couriers[0]?.courierId ?? null);
+      applyEwayBill(result.ewayBill ?? null);
     } else {
       setOpen(false);
     }
@@ -72,10 +94,11 @@ export function ShipNowDialog({
   const confirmShip = async () => {
     if (!selectedCourierId) return;
     setBooking(true);
-    const selectedEtd = couriers?.find((c) => c.courierId === selectedCourierId)?.etd ?? null;
-    const success = await shipNow(vendorOrderId, selectedCourierId, selectedEtd, returnRequestId);
+    const selected = couriers?.find((c) => c.courierId === selectedCourierId);
+    const outcome = await shipNow(vendorOrderId, selectedCourierId, selected?.etd ?? null, returnRequestId, selected?.courierName ?? null);
     setBooking(false);
-    if (success) setOpen(false);
+    if (outcome.status === "booked") setOpen(false);
+    if (outcome.status === "pending") applyEwayBill(outcome.ewayBill);
   };
 
   return (
@@ -104,6 +127,13 @@ export function ShipNowDialog({
           </div>
         ) : couriers && couriers.length > 0 ? (
           <>
+            {ewayBill && <EwayBillNotice preview={ewayBill} />}
+            {lockedCourierGone && (
+              <p className="text-sm text-destructive">
+                The e-way bill is made out to {ewayBill?.bill?.courier_name ?? "another courier"}, which doesn't serve this
+                route right now - ask AllBoutiqs to change the courier on the e-way bill.
+              </p>
+            )}
             {/* Whether THIS order is COD, not whether a courier merely offers
                 COD as a general capability - the old per-courier "COD" badge
                 (sourced from codAvailable, true for nearly every courier
@@ -138,7 +168,7 @@ export function ShipNowDialog({
               onValueChange={(v) => setSelectedCourierId(Number(v))}
               className="space-y-2 max-h-[50vh] overflow-y-auto"
             >
-              {couriers.map((c) => (
+              {(shownCouriers ?? []).map((c) => (
                 <Label
                   key={c.courierId}
                   htmlFor={`courier-${c.courierId}`}
@@ -185,9 +215,16 @@ export function ShipNowDialog({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={booking}>
             Cancel
           </Button>
-          <Button onClick={confirmShip} disabled={!selectedCourierId || booking || loading}>
+          <Button
+            onClick={confirmShip}
+            disabled={!selectedCourierId || booking || loading || waitingForEwayBill || lockedCourierGone}
+          >
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Confirm &amp; Ship
+            {ewayBill && !ewayBill.bill
+              ? "Ask for e-way bill"
+              : waitingForEwayBill
+                ? "Waiting for e-way bill"
+                : <>Confirm &amp; Ship</>}
           </Button>
         </DialogFooter>
       </DialogContent>

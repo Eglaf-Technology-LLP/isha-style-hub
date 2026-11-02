@@ -7,6 +7,7 @@ import { amountInWords } from "@/lib/amountInWords";
 import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
+import { formatEwbNumber } from "@/lib/ewayBill";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
 
@@ -37,6 +38,9 @@ interface Invoice {
   billing_address: Address;
   billing_state: string | null;
   place_of_supply_code: string | null;
+  // Warehouse route: shipped to the AllBoutiqs warehouse (null = the billing address).
+  ship_to_name: string | null;
+  ship_to_address: Address;
 }
 
 interface InvoiceLine {
@@ -80,18 +84,24 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [loading, setLoading] = useState(false);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [lines, setLines] = useState<InvoiceLine[]>([]);
+  // E-way bills the goods travelled on under this invoice.
+  const [ewayBills, setEwayBills] = useState<{ ewb_number: string; ewb_date: string | null }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || invoice || loading) return;
     setLoading(true);
     setError(null);
-    invokeEdgeFunction<{ invoice: Invoice; lines: InvoiceLine[] }>("generate-invoice", { vendor_order_id: vendorOrderId }).then(
+    invokeEdgeFunction<{ invoice: Invoice; lines: InvoiceLine[]; eway_bills?: { ewb_number: string; ewb_date: string | null }[] }>(
+      "generate-invoice",
+      { vendor_order_id: vendorOrderId },
+    ).then(
       ({ data, errorMessage }) => {
         if (errorMessage || !data) setError(errorMessage || "Could not generate invoice");
         else {
           setInvoice(data.invoice);
           setLines(data.lines ?? []);
+          setEwayBills(data.eway_bills ?? []);
         }
         setLoading(false);
       },
@@ -149,6 +159,13 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       {invoice.order_date && ` · ${formatDate(new Date(invoice.order_date))}`}
                     </p>
                   )}
+                  {ewayBills.map((b) => (
+                    <p key={b.ewb_number}>
+                      <span className="text-muted-foreground">E-way bill: </span>
+                      <span className="font-mono">{formatEwbNumber(b.ewb_number)}</span>
+                      {b.ewb_date && ` · ${formatDate(new Date(b.ewb_date))}`}
+                    </p>
+                  ))}
                 </div>
               </div>
 
@@ -171,7 +188,9 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                   {invoice.seller_pan && <p>PAN: <span className="font-mono">{invoice.seller_pan}</span></p>}
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Bill to / Ship to</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {invoice.ship_to_name ? "Bill to" : "Bill to / Ship to"}
+                  </p>
                   <p className="text-sm font-semibold">{invoice.billing_name}</p>
                   {addressLines(invoice.billing_address).map((l) => (
                     <p key={l}>{l}</p>
@@ -186,6 +205,16 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                   </p>
                   <p>Tax payable on reverse charge: No</p>
                 </div>
+                {invoice.ship_to_name && (
+                  <div className="space-y-0.5 sm:col-start-2">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ship to</p>
+                    <p className="text-sm font-semibold">{invoice.ship_to_name}</p>
+                    {addressLines(invoice.ship_to_address).map((l) => (
+                      <p key={l}>{l}</p>
+                    ))}
+                    <p className="text-muted-foreground">For quality check and onward delivery to the customer</p>
+                  </div>
+                )}
               </div>
 
               <div className="invoice-scroll overflow-x-auto">
