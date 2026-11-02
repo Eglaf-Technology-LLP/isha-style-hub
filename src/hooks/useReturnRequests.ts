@@ -28,6 +28,8 @@ export interface ReturnRequest {
   exchange_details: ExchangeDetails | null;
   admin_notes: string | null;
   refund_amount: number;
+  // Where the refund goes - the customer's choice (see src/lib/wallet.ts).
+  refund_method: "wallet" | "original" | "bank" | null;
   evidence_video_url: string | null;
   // Boutique-first workflow: "vendor" until the boutique decides or the
   // SLA passes (then escalated_at is set and it becomes "admin").
@@ -154,6 +156,7 @@ export function useReturnRequests(isAdmin: boolean = false) {
     items: ReturnItem[];
     exchange_details?: ExchangeDetails;
     evidence_video_url?: string | null;
+    refund_method?: "wallet" | "original" | "bank" | null;
   }) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -173,7 +176,7 @@ export function useReturnRequests(isAdmin: boolean = false) {
 
       if (error) {
         if (error.message?.includes("Photo evidence is required")) {
-          toast.error("Please add at least one photo for every selected item");
+          toast.error("Please add 3 photos of every selected item: the front, the back and the tag");
           return false;
         }
         // Return window closed / not delivered yet (enforce_return_window).

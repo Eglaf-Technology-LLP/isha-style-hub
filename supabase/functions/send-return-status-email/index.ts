@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { money } from "../_shared/money.ts";
+import { COMPANY } from "../_shared/company.ts";
+import { returnRefundMethod } from "../_shared/refundMethod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,16 +128,24 @@ const handler = async (req: Request): Promise<Response> => {
     // Get order to find customer email
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("customer_email, customer_name, id")
+      .select("customer_email, customer_name, id, payment_method")
       .eq("id", returnReq.order_id)
       .single();
 
     if (orderError || !order) throw new Error("Order not found");
 
-    const { heading, message, color } = getStatusContent(
-      newStatus,
-      returnReq.request_type
-    );
+    const content = getStatusContent(newStatus, returnReq.request_type);
+    const { heading, color } = content;
+    let { message } = content;
+    const refundMethod = returnReq.request_type === "return" ? returnRefundMethod(returnReq, order) : null;
+    const refundValue = money(refundAmount || returnReq.refund_amount || 0);
+    if (newStatus === "completed" && refundMethod === "wallet") {
+      message = `Your return has been completed and ${refundValue} has been added to your AllBoutiqs wallet. You can use it on your next order.`;
+    } else if (newStatus === "completed" && refundMethod === "bank") {
+      message = `Your return has been completed and ${refundValue} has been transferred to your bank account.`;
+    } else if (newStatus === "completed" && refundMethod === "original") {
+      message = `Your return has been completed and ${refundValue} has been refunded to your original payment method. Banks usually take 5-7 working days to show it.`;
+    }
 
     const orderNumber = order.id.slice(0, 8).toUpperCase();
     const requestId = returnReq.id.slice(0, 8).toUpperCase();
@@ -158,6 +168,19 @@ const handler = async (req: Request): Promise<Response> => {
       newStatus === "completed" && returnReq.request_type === "return" && (refundAmount || returnReq.refund_amount)
         ? `<div style="background: #f0fdf4; padding: 16px; border-radius: 8px; margin: 16px 0;">
             <p style="margin: 0; color: #166534; font-weight: bold;">Refund Amount: ${money((refundAmount || returnReq.refund_amount || 0))}</p>
+           </div>`
+        : "";
+
+    // Cash on Delivery refund by bank transfer: the customer emails their
+    // bank details; the team transfers it within 5 working days of the
+    // quality check.
+    const bankDetailsHtml =
+      refundMethod === "bank" && !["completed", "rejected", "cancelled", "qc_failed", "returned_to_customer"].includes(newStatus)
+        ? `<div style="background: #fff7ed; padding: 16px; border-radius: 8px; margin: 16px 0; font-size: 14px; color: #7c2d12;">
+            <p style="margin: 0 0 8px; font-weight: bold;">For your bank refund</p>
+            <p style="margin: 0 0 8px;">Email these details to <a href="mailto:${COMPANY.supportEmail}" style="color:#7a2e22;">${COMPANY.supportEmail}</a> with your order number <strong>#${orderNumber}</strong>:</p>
+            <p style="margin: 0 0 8px;">Account holder name · Account number · Bank name · IFSC code</p>
+            <p style="margin: 0;">We transfer the refund within 5 working days after your items pass our quality check.</p>
            </div>`
         : "";
 
@@ -194,6 +217,7 @@ const handler = async (req: Request): Promise<Response> => {
         <tbody>${itemsHtml}</tbody>
       </table>
       ${refundHtml}
+      ${bankDetailsHtml}
       ${adminNotesHtml}
     `;
 

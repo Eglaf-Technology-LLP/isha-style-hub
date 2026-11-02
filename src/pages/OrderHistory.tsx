@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/accordion";
 import { Loader2, Package, ShoppingBag, RotateCcw, ArrowLeftRight, Ban, RefreshCw, Heart, User, Truck } from "lucide-react";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
+import { BankDetailsNote } from "@/components/RefundMethodPicker";
+import { REFUND_METHOD_LABEL } from "@/lib/wallet";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
@@ -84,6 +86,8 @@ interface Order {
   discount_amount: number;
   // Cash on Delivery charge paid by the customer (Extra list M).
   cod_charge?: number;
+  // The part paid from the customer's AllBoutiqs wallet.
+  wallet_amount?: number;
   customer_name: string;
   fulfilment_route: string;
   estimated_delivery_date: string | null;
@@ -197,6 +201,7 @@ export default function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
+  const [returnOrderPayment, setReturnOrderPayment] = useState("");
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
@@ -704,6 +709,12 @@ export default function OrderHistory() {
                                 <dt>Total</dt>
                                 <dd>{formatMoney(order.total)}</dd>
                               </div>
+                              {Number(order.wallet_amount) > 0 && (
+                                <div className="flex justify-between text-muted-foreground">
+                                  <dt>Paid from your wallet</dt>
+                                  <dd>{formatMoney(order.wallet_amount)}</dd>
+                                </div>
+                              )}
                             </dl>
                           </div>
 
@@ -731,7 +742,10 @@ export default function OrderHistory() {
                                       </div>
                                       <div className="flex items-center gap-2">
                                         {!!rr.refund_amount && rr.status === "completed" && rr.request_type === "return" && (
-                                          <span className="text-xs font-medium text-emerald-700">Refund: {formatMoney(rr.refund_amount)}</span>
+                                          <span className="text-xs font-medium text-emerald-700">
+                                            Refund: {formatMoney(rr.refund_amount)}
+                                            {rr.refund_method === "wallet" && " to your wallet"}
+                                          </span>
                                         )}
                                         <StatusPill className={statusInfo.className}>{statusInfo.label}</StatusPill>
                                         {rr.status === "pending" && (
@@ -745,6 +759,15 @@ export default function OrderHistory() {
                                         )}
                                       </div>
                                     </div>
+                                    {rr.request_type === "return" && rr.refund_method && (
+                                      <p className="text-xs text-muted-foreground">
+                                        Refund to: {REFUND_METHOD_LABEL[rr.refund_method]}
+                                      </p>
+                                    )}
+                                    {rr.refund_method === "bank" &&
+                                      !["completed", "rejected", "cancelled", "qc_failed", "returned_to_customer"].includes(rr.status) && (
+                                        <BankDetailsNote orderRef={`#${order.id.slice(0, 8).toUpperCase()}`} />
+                                      )}
                                     <div className="space-y-1.5 border-t border-border/60 pt-2">
                                       {(rr.items || []).map((item, idx) => {
                                         const exchangeTo =
@@ -804,6 +827,7 @@ export default function OrderHistory() {
                                 className="inline-flex h-11 items-center gap-2 border border-foreground px-5 text-[11px] font-medium uppercase tracking-[0.2em] transition-colors hover:bg-foreground hover:text-background"
                                 onClick={() => {
                                   setReturnOrderId(order.id);
+                                  setReturnOrderPayment(order.payment_method);
                                   setReturnOrderItems(returnWindow.items);
                                 }}
                               >
@@ -843,6 +867,7 @@ export default function OrderHistory() {
       {returnOrderId && (
         <ReturnRequestForm
           orderId={returnOrderId}
+          paymentMethod={returnOrderPayment}
           orderItems={returnOrderItems}
           open={!!returnOrderId}
           onOpenChange={(open) => {
@@ -873,7 +898,9 @@ export default function OrderHistory() {
                 image: item.image,
               };
             })}
+          orderId={cancellingOrder.id}
           isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
+          isPaidFromWallet={cancellingOrder.payment_method === "wallet" && cancellingOrder.payment_status === "paid"}
           open={!!cancellingOrder}
           onOpenChange={(open) => {
             if (!open) setCancellingOrder(null);

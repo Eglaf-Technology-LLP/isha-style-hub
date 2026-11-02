@@ -299,10 +299,30 @@ const handler = async (req: Request): Promise<Response> => {
         break;
       }
       case "cancelled": {
-        const refundNote =
-          order.payment_method === "razorpay"
-            ? " If you paid online, your refund will be credited to your original payment method within a few business days."
-            : "";
+        // Where this cancellation's refund went: the wallet (instantly), the
+        // original online payment, or both (a part-wallet order).
+        const { data: walletRows } = vendorOrderId
+          ? await supabase
+              .from("wallet_transactions")
+              .select("amount")
+              .eq("vendor_order_id", vendorOrderId)
+              .eq("kind", "cancellation_refund")
+          : { data: [] as { amount: number }[] };
+        const walletRefund = (walletRows ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+        const { data: cancellation } = vendorOrderId
+          ? await supabase
+              .from("order_cancellations")
+              .select("refund_id")
+              .eq("vendor_order_id", vendorOrderId)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : { data: null };
+        let refundNote =
+          walletRefund > 0 ? ` ${money(walletRefund)} has been added to your AllBoutiqs wallet - you can use it on your next order.` : "";
+        if (order.payment_method === "razorpay" && (walletRefund === 0 || cancellation?.refund_id)) {
+          refundNote += " If you paid online, your refund will be credited to your original payment method within a few business days.";
+        }
         const why = cancelReason ? ` ${escapeHtml(cancelReason)}` : "";
         if (isPartialCancellation) {
           subject = `Part of Your Order Cancelled - #${orderNumber} | AllBoutiqs`;
@@ -386,6 +406,14 @@ const handler = async (req: Request): Promise<Response> => {
             <td colspan="2" style="padding: 12px 16px 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">Total</td>
             <td style="padding: 12px 0; text-align: right; border-top: 2px solid #1a1a1a;">${money(order.total)}</td>
           </tr>
+          ${
+            Number(order.wallet_amount) > 0
+              ? `<tr>
+            <td colspan="2" style="padding: 0 16px 12px 0; text-align: right; color:#5a5a5a;">Paid from your AllBoutiqs wallet</td>
+            <td style="padding: 0 0 12px; text-align: right; color:#5a5a5a;">${money(order.wallet_amount)}</td>
+          </tr>`
+              : ""
+          }
         </tfoot>`
             : ""
         }

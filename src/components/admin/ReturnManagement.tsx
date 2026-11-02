@@ -47,6 +47,8 @@ import { useShipments } from "@/hooks/useShipments";
 import { ShipNowDialog } from "./ShipNowDialog";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { COMPANY } from "@/lib/company";
+import { BANK_REFUND_DAYS, REFUND_METHOD_LABEL, RefundMethod } from "@/lib/wallet";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "Pending", variant: "secondary" },
@@ -191,6 +193,20 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
     }
   };
 
+  // The customer can change their mind (e.g. emails asking for the wallet
+  // instead of a bank transfer) until the refund is made.
+  const changeRefundMethod = async (method: RefundMethod) => {
+    if (!selectedRequest) return;
+    const { error } = await supabase.from("return_requests").update({ refund_method: method }).eq("id", selectedRequest.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSelectedRequest((prev) => (prev ? { ...prev, refund_method: method } : prev));
+    toast.success(`Refund will go to: ${REFUND_METHOD_LABEL[method]}`);
+    refetch();
+  };
+
   const changeDestination = async (destination: "warehouse" | "boutique") => {
     if (!selectedRequest) return;
     setSavingDestination(true);
@@ -292,8 +308,17 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
       // written to return_requests.refund_amount, a number nobody acted
       // on; this is the fix, same create-razorpay-refund path the admin
       // Payments tab uses.
-      if (status === "completed" && refundVal > 0) {
-        const { errorMessage } = await invokeEdgeFunction("create-razorpay-refund", {
+      // The refund goes where the customer chose: their wallet or the
+      // original payment (create-razorpay-refund routes it). A Cash on
+      // Delivery bank transfer is done by hand before marking it completed.
+      if (status === "completed" && refundVal > 0 && selectedRequest.refund_method === "bank") {
+        toast.info(`Marked completed - make sure ${formatMoney(refundVal)} has been transferred to the customer's bank.`);
+      } else if (status === "completed" && refundVal > 0) {
+        const { data, errorMessage } = await invokeEdgeFunction<{
+          wallet_amount?: number;
+          gateway_amount?: number;
+          already_refunded?: number;
+        }>("create-razorpay-refund", {
           order_id: selectedRequest.order_id,
           amount: refundVal,
           reason: adminNotes || selectedRequest.reason,
@@ -301,8 +326,14 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
         });
         if (errorMessage) {
           toast.error(`Marked completed, but the refund failed: ${errorMessage}`);
+        } else if (data?.already_refunded != null) {
+          toast.info(`This return was already refunded (${formatMoney(data.already_refunded)})`);
         } else {
-          toast.success(`${formatMoney(refundVal)} refund submitted to Razorpay`);
+          const parts = [
+            Number(data?.gateway_amount) > 0 && `${formatMoney(data?.gateway_amount)} refund submitted to Razorpay`,
+            Number(data?.wallet_amount) > 0 && `${formatMoney(data?.wallet_amount)} added to the customer's wallet`,
+          ].filter(Boolean);
+          toast.success(parts.length ? parts.join(" · ") : `${formatMoney(refundVal)} refund submitted`);
         }
       }
 
@@ -691,6 +722,39 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                     </div>
                     {selectedRequest.request_type === "return" && (
                       <div>
+                        <Label className="text-xs text-muted-foreground">Refund to (customer's choice)</Label>
+                        {readOnly || ["completed", "rejected", "cancelled"].includes(selectedRequest.status) ? (
+                          <p className="text-sm font-medium">
+                            {selectedRequest.refund_method ? REFUND_METHOD_LABEL[selectedRequest.refund_method] : "Original payment method"}
+                          </p>
+                        ) : (
+                          <Select
+                            value={selectedRequest.refund_method ?? undefined}
+                            onValueChange={(v) => changeRefundMethod(v as RefundMethod)}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Original payment method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {(Object.keys(REFUND_METHOD_LABEL) as RefundMethod[]).map((m) => (
+                                <SelectItem key={m} value={m}>
+                                  {REFUND_METHOD_LABEL[m]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        {selectedRequest.refund_method === "bank" && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            The customer emails their bank details (account holder name, account number, bank name, IFSC
+                            code) to {COMPANY.supportEmail}. Transfer within {BANK_REFUND_DAYS} working days of the quality
+                            check, then mark this Completed.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {selectedRequest.request_type === "return" && (
+                      <div>
                         <Label className="text-xs text-muted-foreground">Refund Amount (₹)</Label>
                         <Input
                           type="number"
@@ -700,8 +764,8 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                         />
                         <p className="text-xs text-muted-foreground mt-1">
                           {selectedRequest.return_destination === "warehouse"
-                            ? "Refunded automatically when the warehouse passes the items. If that refund fails (or it was Cash on Delivery), mark it Completed here once refunded."
-                            : "Submitted to Razorpay as a real refund only once this request is marked Completed."}
+                            ? "Refunded automatically when the warehouse passes the items - to the wallet or the original payment, as the customer chose. For a bank transfer, or if that refund fails, mark it Completed here once refunded."
+                            : "Refunded the way the customer chose (wallet credit or a Razorpay refund) once this request is marked Completed. A bank transfer is done by hand."}
                         </p>
                       </div>
                     )}

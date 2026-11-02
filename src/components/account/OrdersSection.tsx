@@ -63,6 +63,8 @@ interface Order {
   discount_amount: number;
   // Cash on Delivery charge paid by the customer (Extra list M).
   cod_charge?: number;
+  // The part paid from the customer's AllBoutiqs wallet.
+  wallet_amount?: number;
   order_items: OrderItem[];
   vendor_orders: VendorOrderInfo[];
 }
@@ -117,7 +119,7 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount, cod_charge")
+        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount, cod_charge, wallet_amount")
         .eq("user_id", user.id)
         // An online checkout that was never paid isn't an order.
         .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
@@ -353,6 +355,12 @@ export function OrdersSection() {
                         <span>{formatMoney(order.cod_charge)}</span>
                       </div>
                     )}
+                    {Number(order.wallet_amount) > 0 && (
+                      <div className="mt-3 flex justify-between border-t border-border pt-3 text-xs">
+                        <span className="text-muted-foreground">Paid from your wallet</span>
+                        <span>{formatMoney(order.wallet_amount)}</span>
+                      </div>
+                    )}
                     {/* Return/Exchange status */}
                     {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-border pt-3">
@@ -425,7 +433,9 @@ export function OrdersSection() {
               image: item.image,
             };
           })}
+        orderId={cancellingOrder.id}
         isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
+        isPaidFromWallet={cancellingOrder.payment_method === "wallet" && cancellingOrder.payment_status === "paid"}
         open={!!cancellingOrder}
         onOpenChange={(open) => {
           if (!open) setCancellingOrder(null);

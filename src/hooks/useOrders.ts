@@ -46,6 +46,8 @@ export interface Order {
   discount_amount: number;
   // Cash on Delivery charge paid by the customer (Extra list M).
   cod_charge?: number;
+  // The part paid from the customer's AllBoutiqs wallet.
+  wallet_amount?: number;
   notes: string | null;
   // 'warehouse': boutique -> AllBoutiqs warehouse -> customer.
   fulfilment_route?: 'direct' | 'warehouse';

@@ -18,9 +18,10 @@ import {
   WarehouseRow,
 } from "../_shared/shiprocket.ts";
 import { addWorkingDays, getWarehouse, istToday, loadHolidays, loadWarehouseSettings, PARCEL_DEFAULTS, toShiprocketItems } from "../_shared/warehouse.ts";
-import { executeRefund, RefundValidationError } from "../_shared/refunds.ts";
+import { refundCustomer, RefundValidationError, returnRefundMethod } from "../_shared/refunds.ts";
 import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
+import { COMPANY } from "../_shared/company.ts";
 
 // The warehouse's own steps that need the courier or the payment gateway
 // (receiving, inspecting boutique parcels and packing are plain database RPCs
@@ -432,7 +433,14 @@ async function createReturnDispatch(supabase: Db, ctx: ReturnContext, purpose: "
 
 // The refund for a return that passed inspection, split per boutique so each
 // boutique's payout share is reversed for its own items.
-async function refundReturn(supabase: Db, ctx: ReturnContext, amount: number, userId: string, notes: string | null) {
+async function refundReturn(
+  supabase: Db,
+  ctx: ReturnContext,
+  amount: number,
+  userId: string,
+  notes: string | null,
+  method: "wallet" | "original",
+) {
   const lineById = new Map(ctx.lines.map((l) => [l.id, l]));
   const valueByVendorOrder = new Map<string, number>();
   for (const item of (ctx.rr.items ?? []) as any[]) {
@@ -448,9 +456,12 @@ async function refundReturn(supabase: Db, ctx: ReturnContext, amount: number, us
     const share = i === groups.length - 1 ? remaining : round2(totalValue > 0 ? (amount * value) / totalValue : amount / groups.length);
     remaining = round2(remaining - share);
     if (share <= 0) continue;
-    await executeRefund(supabase, {
+    await refundCustomer(supabase, {
       orderId: ctx.rr.order_id,
       amount: share,
+      method,
+      kind: "return_refund",
+      sourceKey: `return:${ctx.rr.id}:${vendorOrderId || "-"}`,
       reason: `Return passed inspection${notes ? `: ${notes}` : ""}`,
       initiatedBy: userId,
       returnRequestId: ctx.rr.id,
@@ -602,16 +613,21 @@ Deno.serve(async (req) => {
         // A return: refund now, then the items go on to the boutique(s).
         const itemsValue = ((ctx.rr.items ?? []) as any[]).reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0);
         const amount = round2(Number(ctx.rr.refund_amount) > 0 ? Number(ctx.rr.refund_amount) : itemsValue);
+        // The customer's choice: wallet (credited now) or the original
+        // online payment are automatic; a Cash on Delivery bank transfer
+        // is done by hand once they email their bank details.
+        const method = returnRefundMethod(ctx.rr, ctx.order);
+        const automatic = method === "wallet" || (method === "original" && ctx.order.payment_method === "razorpay");
         let refundError: string | null = null;
-        if (ctx.order.payment_method === "razorpay" && amount > 0) {
+        if (automatic && amount > 0) {
           try {
-            await refundReturn(supabase, ctx, amount, userId, notes);
+            await refundReturn(supabase, ctx, amount, userId, notes, method as "wallet" | "original");
           } catch (e) {
             refundError = e instanceof RefundValidationError ? e.message : errorMessage(e);
             console.error("warehouse-actions: return refund failed", refundError);
           }
         }
-        const refunded = ctx.order.payment_method === "razorpay" && !refundError;
+        const refunded = automatic && !refundError;
         await supabase
           .from("return_requests")
           .update({ ...stamp, warehouse_qc_status: "passed", refund_amount: amount, status: refunded || amount <= 0 ? "completed" : "qc_passed" })
@@ -628,7 +644,7 @@ Deno.serve(async (req) => {
             title: refundError ? "Return refund failed" : "Refund this return by hand",
             body: refundError
               ? `The return on order ${ref} passed inspection but the ₹${amount} refund failed: ${refundError}. Retry from Returns (Mark Completed).`
-              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery - refund ₹${amount} to the customer by bank transfer, then mark the return completed.`,
+              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery and the customer chose a bank transfer - they email their bank details to ${COMPANY.supportEmail}. Transfer ₹${amount} within 5 working days, then mark the return completed.`,
             link: links.adminReturn(ctx.rr.id),
             category: "order",
           });

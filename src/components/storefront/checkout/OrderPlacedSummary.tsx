@@ -15,6 +15,7 @@ interface PlacedOrder {
   discount_code: string | null;
   cod_charge: number;
   total: number;
+  wallet_amount: number;
   customer_name: string;
   shipping_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
   estimated_delivery_date: string | null;
@@ -37,7 +38,7 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
     supabase
       .from("orders")
       .select(
-        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_title, variant_title, quantity, price)",
+        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, wallet_amount, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_title, variant_title, quantity, price)",
       )
       .eq("id", orderId)
       .maybeSingle()
@@ -74,7 +75,9 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
         <p className="mt-4 text-muted-foreground">
           {order.payment_method === "cod"
             ? `Pay ${formatINR(order.total)} in cash when it arrives. We've emailed you the details.`
-            : "Your payment went through. We've emailed you the details."}
+            : order.payment_method === "wallet"
+              ? "Paid from your AllBoutiqs wallet. We've emailed you the details."
+              : "Your payment went through. We've emailed you the details."}
         </p>
         <p className="mt-6 inline-flex items-center gap-2 border border-border bg-ivory px-4 py-2 text-sm">
           Order <span className="font-mono font-medium">#{order.id.slice(0, 8).toUpperCase()}</span>
@@ -120,6 +123,12 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
             <dt>Total</dt>
             <dd className="tabular-nums">{formatINR(order.total)}</dd>
           </div>
+          {Number(order.wallet_amount) > 0 && (
+            <div className="flex justify-between text-muted-foreground">
+              <dt>Paid from your wallet</dt>
+              <dd className="tabular-nums">{formatINR(order.wallet_amount)}</dd>
+            </div>
+          )}
         </dl>
         <div className="mt-4 space-y-1 border-t border-border pt-4 text-muted-foreground">
           <p>

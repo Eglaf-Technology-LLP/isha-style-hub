@@ -2,6 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
 import { reverseVendorShare } from "./razorpayRoute.ts";
 import { money } from "./money.ts";
+export { returnRefundMethod, type RefundMethod } from "./refundMethod.ts";
 
 // Thrown for anything wrong with the request itself (no payment, wrong
 // status, amount exceeds what's left) - before executeRefund ever touches
@@ -200,4 +201,103 @@ export async function executeRefund(
   await reconcileRefundTotals(supabase, payment.id);
 
   return { refundId: refundRow.id, razorpayRefundId: rzpBody.id ?? null, status: newStatus };
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// What's left of the order's Razorpay payment itself - the same sum
+// executeRefund checks against.
+async function gatewayRefundable(supabase: SupabaseClient, orderId: string): Promise<number> {
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .select("id, amount, payment_status, transaction_id")
+    .eq("order_id", orderId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!payment?.transaction_id || !["paid", "partially_refunded"].includes(payment.payment_status)) return 0;
+  const { data: committed, error: refundsErr } = await supabase
+    .from("refunds")
+    .select("amount")
+    .eq("payment_id", payment.id)
+    .in("status", ["initiated", "processing", "processed"]);
+  if (refundsErr) throw refundsErr;
+  return Math.max(0, round2(Number(payment.amount) - (committed ?? []).reduce((s, r) => s + Number(r.amount), 0)));
+}
+
+export interface RefundCustomerParams {
+  orderId: string;
+  amount: number;
+  method: "wallet" | "original";
+  kind: "return_refund" | "cancellation_refund";
+  // Names this one refund (e.g. `cancel:<vendor order id>`) - a retry with
+  // the same key never credits the wallet twice.
+  sourceKey: string;
+  reason: string;
+  initiatedBy: string | null;
+  returnRequestId?: string | null;
+  vendorOrderId?: string | null;
+}
+
+export interface RefundCustomerResult {
+  walletAmount: number;
+  gatewayAmount: number;
+  // The Razorpay refund's `refunds` row, if part of it went that way.
+  refundId: string | null;
+}
+
+// Refund the customer the way they chose. "original" goes back to the
+// Razorpay payment as far as that payment covers it; anything beyond was
+// paid from the wallet, so it goes back to the wallet. The database caps
+// wallet refunds at what the customer actually paid on the order.
+export async function refundCustomer(
+  supabase: SupabaseClient,
+  params: RefundCustomerParams,
+): Promise<RefundCustomerResult> {
+  const amount = round2(params.amount);
+  const { data: order, error } = await supabase
+    .from("orders")
+    .select("payment_method")
+    .eq("id", params.orderId)
+    .single();
+  if (error) throw error;
+
+  const gatewayAmount =
+    params.method === "original" && order.payment_method === "razorpay"
+      ? Math.min(amount, await gatewayRefundable(supabase, params.orderId))
+      : 0;
+  const walletAmount = round2(amount - gatewayAmount);
+
+  let refundId: string | null = null;
+  if (gatewayAmount > 0) {
+    const result = await executeRefund(supabase, {
+      orderId: params.orderId,
+      amount: gatewayAmount,
+      reason: params.reason,
+      initiatedBy: params.initiatedBy,
+      returnRequestId: params.returnRequestId,
+      vendorOrderId: params.vendorOrderId,
+    });
+    refundId = result.refundId;
+  }
+
+  if (walletAmount > 0) {
+    const { error: walletErr } = await supabase.rpc("wallet_refund", {
+      _order_id: params.orderId,
+      _amount: walletAmount,
+      _kind: params.kind,
+      _source_key: params.sourceKey,
+      _return_request_id: params.returnRequestId ?? null,
+      _vendor_order_id: params.vendorOrderId ?? null,
+      _note: params.reason,
+      _created_by: params.initiatedBy,
+    });
+    // P0001: the database refused it (over what's left, no customer) -
+    // a problem with the request, not a server fault.
+    if (walletErr) throw walletErr.code === "P0001" ? new RefundValidationError(walletErr.message) : walletErr;
+    if (params.vendorOrderId) await reverseVendorShare(supabase, params.vendorOrderId, walletAmount);
+  }
+
+  return { walletAmount, gatewayAmount, refundId };
 }
