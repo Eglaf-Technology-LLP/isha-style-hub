@@ -7,14 +7,15 @@ import {
   errorMessage,
 } from "../_shared/auth.ts";
 import { InvoiceError } from "../_shared/invoice.ts";
-import { announceReady, EwayBill, resendRequestEmail } from "../_shared/ewayBill.ts";
+import { announceReady, EwayBill, releaseHeldReturnPickup, resendRequestEmail } from "../_shared/ewayBill.ts";
 
 // Admin > E-way bills: an admin makes the e-way bill on the government portal
 // (or the boutique emails one it made) and records it here.
 //
 //   record          type in the 12-digit number (and, when it differs from
 //                   the request, the courier or document it was made on);
-//                   the boutique / warehouse is told it can book
+//                   the boutique / warehouse is told it can book, and a
+//                   customer's return pickup held for it is requested
 //   cancel          close a request or a number that won't be used (the
 //                   number itself is cancelled on the portal)
 //   resend_request  email a boutique that makes its own the details again
@@ -58,13 +59,15 @@ Deno.serve(async (req) => {
         const number = String(body.ewb_number ?? "").replace(/\s/g, "");
         if (!/^\d{12}$/.test(number)) throw new ActionError("An e-way bill number has 12 digits");
         if (bill.status === "cancelled") throw new ActionError("This request was cancelled");
-        // Once booked, only its dates can still be filled in (validity starts
-        // when the courier fills Part B).
+        // Once in use by a booking, only its dates can still be filled in
+        // (validity starts when the courier fills Part B). A return pickup's
+        // request belongs to its booking from the start - it's the first
+        // number that releases it.
         const changesTheBill =
           number !== bill.ewb_number ||
           (body.courier_id != null && Number(body.courier_id) !== bill.courier_id) ||
           (body.document_number != null && String(body.document_number).trim() !== bill.document_number);
-        if (bill.shipment_id && changesTheBill) {
+        if (bill.shipment_id && bill.status === "active" && changesTheBill) {
           throw new ActionError("The parcel is already booked with this e-way bill - only its dates can change now");
         }
 
@@ -108,7 +111,20 @@ Deno.serve(async (req) => {
         }
         // Dates filled in later don't need telling anyone.
         if (changesTheBill) await announceReady(supabase, saved as EwayBill);
-        return jsonResponse({ eway_bill: saved });
+
+        // A customer's return pickup waits for its e-way bills - once they're
+        // all in, ask the courier to collect.
+        let pickupRequested = false;
+        let pickupError: string | null = null;
+        if (saved.shipment_id && saved.movement.startsWith("return:") && saved.leg.startsWith("customer_to_")) {
+          try {
+            pickupRequested = await releaseHeldReturnPickup(supabase, saved.shipment_id);
+          } catch (e) {
+            pickupError = errorMessage(e);
+            console.error("eway-bill-actions: pickup request failed", pickupError);
+          }
+        }
+        return jsonResponse({ eway_bill: saved, pickup_requested: pickupRequested, pickup_error: pickupError });
       }
 
       case "cancel": {

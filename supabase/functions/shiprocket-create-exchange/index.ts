@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     // warehouse sends it on to the customer once the old item passes
     // inspection and the replacement has arrived.
     if (returnRequest.return_destination === "warehouse") {
-      const { shipment, alreadyScheduled } = await bookReversePickup(supabase, return_request_id);
+      const { shipment, alreadyScheduled, ewayBillPending } = await bookReversePickup(supabase, return_request_id, userId);
       if (!alreadyScheduled) {
         const itemIds = ((returnRequest.items ?? []) as any[]).map((i) => i.order_item_id).filter(Boolean);
         const { data: lines } = await supabase.from("order_items").select("vendor_id, vendor_order_id").in("id", itemIds);
@@ -108,7 +108,12 @@ Deno.serve(async (req) => {
           });
         }
       }
-      return jsonResponse({ shipments: [shipment], already_scheduled: alreadyScheduled, via_warehouse: true });
+      return jsonResponse({
+        shipments: [shipment],
+        already_scheduled: alreadyScheduled,
+        via_warehouse: true,
+        eway_bill_pending: ewayBillPending,
+      });
     }
 
     const { data: existingShipments } = await supabase

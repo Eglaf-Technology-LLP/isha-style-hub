@@ -15,8 +15,8 @@ import {
   Consignee,
 } from "../_shared/shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS, toShiprocketItems, warehouseConsignee } from "../_shared/warehouse.ts";
-import { ensureInvoice, InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
+import { ensureExchangeInvoice, ensureInvoice, InvoiceError } from "../_shared/invoice.ts";
+import { EwayBill, ewayBillForBooking, ewayBillPreview, invoiceDocument, markEwayBillsUsed } from "../_shared/ewayBill.ts";
 
 // The "Ship Now" action: the boutique has packed the order, this call
 // creates the real Shiprocket order, assigns a courier, and books the
@@ -29,10 +29,11 @@ import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from
 // warehouse's own parcel to the customer). With return_request_id it books an
 // exchange's replacement to the warehouse instead.
 //
-// The goods leave on the boutique's tax invoice, issued here. A part worth
-// more than the e-way bill limit isn't booked until its e-way bill number is
-// in: the first press asks for one (eway_bill_pending), a later press books
-// the courier it is made out to.
+// The goods leave on the boutique's tax invoice, issued here (an exchange's
+// replacement on its own exchange invoice). A part worth more than the e-way
+// bill limit isn't booked until its e-way bill number is in: the first press
+// asks for one (eway_bill_pending), a later press books the courier it is
+// made out to.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -214,36 +215,48 @@ Deno.serve(async (req) => {
       ? lines.reduce((sum, l) => sum + l.price * l.quantity, 0)
       : Number(vendorOrder.subtotal);
 
-    // Replacements travel on the original order's paperwork for now.
-    let ewayBill: EwayBill | null = null;
-    if (!isReplacement) {
-      // Dated the day the goods leave. A problem with it only stops the
-      // booking when an e-way bill needs it (below); otherwise it can still be
-      // issued later, on first view.
-      try {
-        await ensureInvoice(supabase, vendorOrder.id);
-      } catch (e) {
-        console.error("shiprocket-create-shipment: invoice not issued", errorMessage(e));
-      }
-      const leg = warehouse ? "boutique_to_warehouse" : "boutique_to_customer";
-      const check = await ewayBillForBooking(supabase, {
-        vendorOrderId: vendorOrder.id,
-        leg,
-        courierId: courier_id ?? null,
-        courierName: courier_name ?? null,
-        from: { name: vendor.name, address: (vendor.address ?? {}) as Record<string, unknown> },
-        to: { name: consignee.name, address: consignee.address as Record<string, unknown> },
-        requestedBy: userId,
-      });
-      if (check.required && !check.ready) {
-        return jsonResponse({
-          eway_bill_pending: true,
-          eway_bill: await ewayBillPreview(supabase, vendorOrder.id, leg),
-          via_warehouse: !!warehouse,
-        });
-      }
-      if (check.required) ewayBill = check.bill;
+    // The goods leave on a tax invoice dated today: the part's own (a new one
+    // when it's sent again after its sale was undone - a failed
+    // inspection), or the exchange's. A problem with it only stops the
+    // booking when an e-way bill needs it (below); otherwise it can still be
+    // issued later, on first view.
+    let invoice: { id: string; total: number } | null = null;
+    try {
+      invoice = (
+        isReplacement
+          ? await ensureExchangeInvoice(supabase, return_request_id, vendorOrder.id)
+          : await ensureInvoice(supabase, vendorOrder.id)
+      ).invoice;
+    } catch (e) {
+      console.error("shiprocket-create-shipment: invoice not issued", errorMessage(e));
     }
+    const leg = warehouse ? "boutique_to_warehouse" : "boutique_to_customer";
+    const movement = isReplacement ? `exchange:${return_request_id}` : "order";
+    let ewayBill: EwayBill | null = null;
+    const check = await ewayBillForBooking(supabase, {
+      vendorOrderId: vendorOrder.id,
+      leg,
+      movement,
+      courierId: courier_id ?? null,
+      courierName: courier_name ?? null,
+      from: { name: vendor.name, address: (vendor.address ?? {}) as Record<string, unknown> },
+      to: { name: consignee.name, address: consignee.address as Record<string, unknown> },
+      value: isReplacement ? (invoice ? Number(invoice.total) : subTotal) : null,
+      document: isReplacement
+        ? async () => invoiceDocument((await ensureExchangeInvoice(supabase, return_request_id, vendorOrder.id)).invoice)
+        : undefined,
+      currentInvoiceId: invoice?.id ?? null,
+      returnRequestId: isReplacement ? return_request_id : null,
+      requestedBy: userId,
+    });
+    if (check.required && !check.ready) {
+      return jsonResponse({
+        eway_bill_pending: true,
+        eway_bill: await ewayBillPreview(supabase, vendorOrder.id, leg, movement, check.bill.value),
+        via_warehouse: !!warehouse,
+      });
+    }
+    if (check.required) ewayBill = check.bill;
 
     // Shiprocket treats this as an idempotency key on their side, not just
     // our own reference - confirmed live: reusing the bare vendor_order_id

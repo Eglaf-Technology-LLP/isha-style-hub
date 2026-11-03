@@ -3,6 +3,7 @@ import { errorMessage } from "./auth.ts";
 import { cancelShiprocketShipment } from "./shiprocket.ts";
 import { loadRefundCharge, refundCustomer, RefundValidationError } from "./refunds.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
+import { reverseCurrentInvoice } from "./invoice.ts";
 
 // A vendor_order past this point already finished its own lifecycle -
 // nothing left for a cancellation to do or undo.
@@ -128,6 +129,15 @@ export async function cancelOneVendorOrder(
     .update({ status: "cancelled" })
     .eq("id", vendorOrder.id);
   if (updateVoErr) throw updateVoErr;
+
+  // Invoiced already (it left the boutique): the boutique's return invoice
+  // takes the sale back. Nothing to do if it was never invoiced or already
+  // taken back (RTO, failed inspection). Best-effort, like the stock below.
+  try {
+    await reverseCurrentInvoice(supabase, vendorOrder.id, "order_cancelled");
+  } catch (e) {
+    console.error("cancelOneVendorOrder: return invoice not issued", errorMessage(e));
+  }
 
   // Stock only comes back if the vendor never actually sent it out - an
   // already-shipped item is only restored on a genuine RTO, handled

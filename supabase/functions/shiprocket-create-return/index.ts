@@ -7,6 +7,7 @@ import {
   errorMessage,
 } from "../_shared/shiprocket.ts";
 import { bookReversePickup, ReversePickupError } from "../_shared/reversePickup.ts";
+import { InvoiceError } from "../_shared/invoice.ts";
 
 // Booked when a return request is approved: the courier pickup from the
 // customer to the AllBoutiqs warehouse (the default on warehouse orders), or
@@ -32,10 +33,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "This is an exchange request - use shiprocket-create-exchange instead" }, 400);
     }
 
-    const { shipment, alreadyScheduled } = await bookReversePickup(supabase, return_request_id);
-    return jsonResponse({ shipment, already_scheduled: alreadyScheduled });
+    // eway_bill_pending: the courier is booked but its pickup waits for the
+    // e-way bill (Admin > E-way bills).
+    const { shipment, alreadyScheduled, ewayBillPending } = await bookReversePickup(supabase, return_request_id, userId);
+    return jsonResponse({ shipment, already_scheduled: alreadyScheduled, eway_bill_pending: ewayBillPending });
   } catch (e) {
     console.error("shiprocket-create-return error", e);
-    return jsonResponse({ error: errorMessage(e) }, e instanceof ReversePickupError ? 400 : 500);
+    return jsonResponse({ error: errorMessage(e) }, e instanceof ReversePickupError || e instanceof InvoiceError ? 400 : 500);
   }
 });

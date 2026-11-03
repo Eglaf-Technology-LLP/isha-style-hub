@@ -61,13 +61,19 @@ Deno.serve(async (req) => {
 
     // An exchange replacement weighs what the exchanged items weigh.
     let parcelItems: { product_id: string; quantity: number }[] = items;
+    let replacementValue = 0;
     if (return_request_id) {
       const { data: rr } = await supabase.from("return_requests").select("items").eq("id", return_request_id).maybeSingle();
-      const qtyByItem = new Map(((rr?.items ?? []) as any[]).map((i) => [i.order_item_id, i.quantity]));
+      const rrItems = (rr?.items ?? []) as any[];
+      const qtyByItem = new Map(rrItems.map((i) => [i.order_item_id, i.quantity]));
       parcelItems = items
         .filter((i) => qtyByItem.has(i.id))
         .map((i) => ({ product_id: i.product_id, quantity: qtyByItem.get(i.id) ?? i.quantity }));
       if (parcelItems.length === 0) return jsonResponse({ error: "None of this exchange's items are from this boutique" }, 400);
+      const mine = new Set(items.map((i) => i.id));
+      replacementValue = rrItems
+        .filter((i) => mine.has(i.order_item_id))
+        .reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0);
     }
 
     const pickupPincode = (vendor.address as any)?.pincode;
@@ -106,11 +112,25 @@ Deno.serve(async (req) => {
     // actually be paid, and confusingly labeled "COD" next to a prepaid
     // order's freight-only rate before this fix.
     // Over the e-way bill limit: the dialog explains the wait, and once the
-    // e-way bill is in, offers only the courier it is made out to.
-    // (Exchange replacements aren't covered yet.)
-    const ewayBill = return_request_id
-      ? null
-      : await ewayBillPreview(supabase, vendor_order_id, warehouse ? "boutique_to_warehouse" : "boutique_to_customer");
+    // e-way bill is in, offers only the courier it is made out to. An
+    // exchange replacement is valued at its exchange invoice (or, before
+    // that's issued, the items' prices).
+    const leg = warehouse ? "boutique_to_warehouse" : "boutique_to_customer";
+    let ewayBill;
+    if (return_request_id) {
+      const { data: exchangeInvoices } = await supabase
+        .from("invoices")
+        .select("total")
+        .eq("vendor_order_id", vendor_order_id)
+        .eq("return_request_id", return_request_id)
+        .eq("purpose", "exchange")
+        .order("issued_at", { ascending: false })
+        .limit(1);
+      const value = exchangeInvoices?.[0] ? Number(exchangeInvoices[0].total) : replacementValue;
+      ewayBill = await ewayBillPreview(supabase, vendor_order_id, leg, `exchange:${return_request_id}`, value);
+    } else {
+      ewayBill = await ewayBillPreview(supabase, vendor_order_id, leg);
+    }
 
     return jsonResponse({
       couriers,

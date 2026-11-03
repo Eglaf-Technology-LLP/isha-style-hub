@@ -3,16 +3,21 @@ import {
   bookedCourierCost,
   DEFAULT_ITEM_WEIGHT_GRAMS,
   ensurePickupLocation,
+  errorMessage,
   shiprocketRequest,
   toIntOrNull,
 } from "./shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS } from "./warehouse.ts";
+import { ensureInvoice, InvoiceError, issueReturnInvoice } from "./invoice.ts";
+import { ewayBillForBooking, releaseHeldReturnPickup, returnInvoiceDocument } from "./ewayBill.ts";
 
 export class ReversePickupError extends Error {}
 
 function formatShiprocketDate(iso: string): string {
   return iso.slice(0, 19).replace("T", " ");
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // Books the courier pickup FROM the customer for a return (or the old item of
 // an exchange that goes through the warehouse): to the AllBoutiqs warehouse
@@ -21,7 +26,12 @@ function formatShiprocketDate(iso: string): string {
 // sequence - their return API, unlike the Forward wrapper, doesn't bundle AWB
 // assignment or pickup scheduling: create the return order, assign a
 // courier/AWB, then request the pickup.
-export async function bookReversePickup(supabase: SupabaseClient, returnRequestId: string) {
+//
+// The goods go back on each boutique's return invoice (issued here, whatever
+// the value). A boutique's part over the e-way bill limit holds the pickup
+// until its e-way bill is in (eway-bill-actions then requests it); calling
+// again re-checks a held pickup.
+export async function bookReversePickup(supabase: SupabaseClient, returnRequestId: string, requestedBy: string | null = null) {
   const { data: returnRequest, error: rrErr } = await supabase
     .from("return_requests")
     .select("id, order_id, request_type, items, refund_amount, created_at, return_destination")
@@ -29,16 +39,6 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
     .maybeSingle();
   if (rrErr) throw rrErr;
   if (!returnRequest) throw new ReversePickupError("Return request not found");
-
-  const { data: existingShipment } = await supabase
-    .from("shipments")
-    .select("id, awb_code, shipment_type, status")
-    .eq("return_request_id", returnRequestId)
-    .in("shipment_type", ["return", "return_to_warehouse"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (existingShipment) return { shipment: existingShipment, alreadyScheduled: true };
 
   const { data: order, error: orderErr } = await supabase
     .from("orders")
@@ -65,6 +65,15 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
   const vendorOrderIds = [...new Set((orderItems ?? []).map((i) => i.vendor_order_id).filter(Boolean))];
   const vendorOrderId = vendorOrderIds.length === 1 ? vendorOrderIds[0] : null;
 
+  const { data: existingShipment } = await supabase
+    .from("shipments")
+    .select("id, awb_code, shipment_type, status, courier_id, courier_name")
+    .eq("return_request_id", returnRequestId)
+    .in("shipment_type", ["return", "return_to_warehouse"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   let destination: { name: string; address: Record<string, string>; email: string | null; phone: string | null };
   let warehouseId: string | null = null;
   if (toWarehouse) {
@@ -86,7 +95,7 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
     // Return orders address the vendor destination via explicit
     // shipping_* fields below, not a pickup_location name - this call is
     // only to guarantee the vendor is registered with Shiprocket at all.
-    await ensurePickupLocation(supabase, vendor as any);
+    if (!existingShipment) await ensurePickupLocation(supabase, vendor as any);
     destination = {
       name: vendor.name,
       address: (vendor.address ?? {}) as Record<string, string>,
@@ -96,6 +105,67 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
   }
 
   const customerAddress = order.shipping_address as Record<string, string>;
+
+  // Return invoices + e-way bills per boutique part; true while the pickup
+  // has to wait for an e-way bill.
+  const holdForEwayBills = async (shipment: { id: string; courier_id: number | null; courier_name: string | null }) => {
+    let held = false;
+    for (const partId of vendorOrderIds) {
+      const partItems = items.filter((i) => (orderItems ?? []).find((oi) => oi.id === i.order_item_id)?.vendor_order_id === partId);
+      const estimate = round2(partItems.reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0));
+      let returnInvoice: any = null;
+      let invoiceProblem: unknown = null;
+      try {
+        const { invoice } = await ensureInvoice(supabase, partId);
+        returnInvoice = (
+          await issueReturnInvoice(supabase, {
+            invoiceId: invoice.id,
+            reason: returnRequest.request_type === "exchange" ? "exchange_return" : "customer_return",
+            returnRequestId,
+            items: partItems.map((i) => ({ orderItemId: String(i.order_item_id), quantity: Number(i.quantity ?? 1) })),
+          })
+        ).returnInvoice;
+      } catch (e) {
+        // Below the e-way bill limit a missing return invoice mustn't stop the
+        // customer's return; above it the e-way bill can't be made without it.
+        invoiceProblem = e;
+        console.error("bookReversePickup: return invoice not issued", errorMessage(e));
+      }
+      const check = await ewayBillForBooking(supabase, {
+        vendorOrderId: partId,
+        leg: toWarehouse ? "customer_to_warehouse" : "customer_to_boutique",
+        movement: `return:${returnRequestId}`,
+        courierId: shipment.courier_id,
+        courierName: shipment.courier_name,
+        from: { name: order.customer_name, address: customerAddress },
+        to: { name: destination.name, address: destination.address },
+        value: returnInvoice ? Number(returnInvoice.total) : estimate,
+        document: async () => {
+          if (!returnInvoice) throw invoiceProblem ?? new InvoiceError("The return invoice couldn't be issued");
+          return returnInvoiceDocument(returnInvoice);
+        },
+        shipmentId: shipment.id,
+        returnRequestId,
+        requireCourier: false,
+        requestedBy,
+      });
+      if (check.required && !check.ready) held = true;
+    }
+    return held;
+  };
+
+  if (existingShipment) {
+    // A pickup held for e-way bills: check again (the number may be in now).
+    if (existingShipment.status === "awb_assigned") {
+      const held = await holdForEwayBills(existingShipment);
+      if (!held) await releaseHeldReturnPickup(supabase, existingShipment.id).catch((e) =>
+        console.error("bookReversePickup: pickup request failed", errorMessage(e)),
+      );
+      return { shipment: existingShipment, alreadyScheduled: true, ewayBillPending: held };
+    }
+    return { shipment: existingShipment, alreadyScheduled: true, ewayBillPending: false };
+  }
+
   const skuByOrderItemId = new Map((orderItems ?? []).map((i) => [i.id, i.sku]));
   const subTotal = items.reduce((sum, i) => sum + (i.price ?? 0) * i.quantity, 0);
   const weightKg = Math.max(items.reduce((sum, i) => sum + DEFAULT_ITEM_WEIGHT_GRAMS * i.quantity, 0) / 1000, 0.1);
@@ -163,6 +233,11 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
   // Shiprocket even if AWB assignment or pickup scheduling fails; the
   // admin can retry those from the shipment's tracking state rather
   // than the whole booking failing atomically.
+  let courier: { id: string; courier_id: number | null; courier_name: string | null } = {
+    id: shipment.id,
+    courier_id: null,
+    courier_name: null,
+  };
   try {
     const awbResult = await shiprocketRequest(supabase, "/courier/assign/awb", {
       method: "POST",
@@ -188,16 +263,21 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
           courier_cost: courierCost,
         })
         .eq("id", shipment.id);
-
-      await shiprocketRequest(supabase, "/courier/generate/pickup", {
-        method: "POST",
-        body: { shipment_id: [createResult.shipment_id] },
-      });
-      await supabase.from("shipments").update({ status: "pickup_scheduled" }).eq("id", shipment.id);
+      courier = { id: shipment.id, courier_id: courierId, courier_name: awbData.courier_name ?? null };
     }
   } catch (followUpErr) {
-    console.error("bookReversePickup: AWB/pickup follow-up failed", followUpErr);
+    console.error("bookReversePickup: AWB follow-up failed", followUpErr);
   }
 
-  return { shipment, alreadyScheduled: false };
+  // The e-way bill is made out to the courier Shiprocket just assigned.
+  const held = await holdForEwayBills(courier);
+  if (!held) {
+    try {
+      await releaseHeldReturnPickup(supabase, shipment.id);
+    } catch (pickupErr) {
+      console.error("bookReversePickup: pickup request failed", pickupErr);
+    }
+  }
+
+  return { shipment, alreadyScheduled: false, ewayBillPending: held };
 }

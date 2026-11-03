@@ -30,19 +30,36 @@ import {
 import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
-import { InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
+import {
+  cancelReturnInvoices,
+  currentInvoice,
+  ensureExchangeInvoice,
+  InvoiceError,
+  issueReturnInvoice,
+  ReturnReason,
+  reverseCurrentInvoice,
+} from "../_shared/invoice.ts";
+import {
+  createChallan,
+  EwayBill,
+  EwayBillLeg,
+  ewayBillForBooking,
+  ewayBillPreview,
+  markEwayBillsUsed,
+  MovementDocument,
+  returnInvoiceDocument,
+} from "../_shared/ewayBill.ts";
 
 // The warehouse's own steps that need the courier or the payment gateway
 // (receiving, inspecting boutique parcels and packing are plain database RPCs
 // - see the warehouse_logistics migration):
 //
 //   parcel_rates              couriers + fares from the warehouse for a parcel
-//   book_dispatch             book the warehouse's parcel to the customer (each
-//                             boutique part over the e-way bill limit waits for
-//                             its e-way bill - _shared/ewayBill.ts)
-//   cancel_dispatch_booking   undo that booking (before pickup) to rebook
+//   book_dispatch             book the warehouse's parcel to the customer
 //   book_send_back            book items back to a boutique
+//                             (both: each boutique part over the e-way bill
+//                             limit waits for its e-way bill - _shared/ewayBill.ts)
+//   cancel_dispatch_booking   undo that booking (before pickup) to rebook
 //   cancel_send_back_booking  undo that booking (before pickup)
 //   return_qc                 inspect a customer return: pass -> refund + forward
 //                             to the boutique; fail -> send back to the customer
@@ -190,21 +207,260 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
   return { dispatch, order, plan, leadVendorOrderId, vendorOrderIds };
 }
 
-// The e-way bills a parcel to the customer needs (one per boutique part over
-// the limit), as the booking dialog shows them.
-async function dispatchEwayBills(supabase: Db, vendorOrderIds: string[]) {
-  const previews = await Promise.all(vendorOrderIds.map((id) => ewayBillPreview(supabase, id, "warehouse_to_customer")));
+// ---------- e-way bills: what each boutique part travels on ----------
+
+// One boutique part in a parcel: which of its movements this is, the value
+// of its goods (null = its invoice value) and the document they go on -
+// issued only when an e-way bill needs it.
+interface PartMovement {
+  vendorOrderId: string;
+  movement: string;
+  value: number | null;
+  document?: () => Promise<MovementDocument>;
+  returnRequestId?: string | null;
+}
+
+const party = (p: { name: string; address: unknown }) => ({ name: p.name, address: (p.address ?? {}) as Record<string, unknown> });
+
+// The newest return invoice of a part for these reasons (cancelled ones too
+// when asked: a return that failed inspection goes back on its lines).
+async function latestReturnInvoice(
+  supabase: Db,
+  f: { vendorOrderId: string; reasons: ReturnReason[]; returnRequestId?: string | null; includeCancelled?: boolean },
+) {
+  let q = supabase.from("return_invoices").select("*").eq("vendor_order_id", f.vendorOrderId).in("reason", f.reasons);
+  if (f.returnRequestId) q = q.eq("return_request_id", f.returnRequestId);
+  if (!f.includeCancelled) q = q.eq("status", "issued");
+  const { data } = await q.order("issued_at", { ascending: false }).limit(1);
+  return data?.[0] ?? null;
+}
+
+async function latestExchangeInvoice(supabase: Db, returnRequestId: string, vendorOrderId: string) {
+  const { data } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("vendor_order_id", vendorOrderId)
+    .eq("return_request_id", returnRequestId)
+    .eq("purpose", "exchange")
+    .order("issued_at", { ascending: false })
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
+// The boutique parts in a parcel from the warehouse to the customer: an
+// order's parts (onward on a challan, the default), a failed return going
+// back (challan on the cancelled return invoice's lines) or an exchange
+// replacement (challan on its exchange invoice).
+async function dispatchMovements(
+  supabase: Db,
+  dispatch: { id: string; purpose: string; return_request_id: string | null },
+  plan: ParcelPlan,
+  vendorOrderIds: string[],
+): Promise<PartMovement[]> {
+  if (dispatch.purpose === "order") return vendorOrderIds.map((id) => ({ vendorOrderId: id, movement: "order", value: null }));
+  const rrId = dispatch.return_request_id!;
+  const { data: rr } = await supabase.from("return_requests").select("items").eq("id", rrId).single();
+  const rrItems = (rr?.items ?? []) as any[];
+  const { data: lines } = await supabase
+    .from("order_items")
+    .select("id, vendor_order_id")
+    .in("id", rrItems.map((i) => i.order_item_id).filter(Boolean));
+  const partOf = new Map((lines ?? []).map((l) => [l.id, l.vendor_order_id as string]));
+  const parts = [...new Set(rrItems.map((i) => partOf.get(i.order_item_id)).filter((v): v is string => !!v))];
+  const from = party(plan.warehouse);
+  const to = party(plan.consignee);
+
+  return Promise.all(
+    parts.map(async (vendorOrderId) => {
+      const estimate = round2(
+        rrItems
+          .filter((i) => partOf.get(i.order_item_id) === vendorOrderId)
+          .reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0),
+      );
+      if (dispatch.purpose === "exchange_replacement") {
+        const exchange = await latestExchangeInvoice(supabase, rrId, vendorOrderId);
+        return {
+          vendorOrderId,
+          movement: `exchange:${rrId}`,
+          value: exchange ? Number(exchange.total) : estimate,
+          returnRequestId: rrId,
+          document: async () => {
+            const { invoice } = await ensureExchangeInvoice(supabase, rrId, vendorOrderId);
+            return createChallan(supabase, {
+              vendorOrderId,
+              purpose: "to_customer",
+              invoiceId: invoice.id,
+              value: Number(invoice.total),
+              from,
+              to,
+              dispatchId: dispatch.id,
+              returnRequestId: rrId,
+            });
+          },
+        };
+      }
+      const returned = await latestReturnInvoice(supabase, {
+        vendorOrderId,
+        reasons: ["customer_return", "exchange_return"],
+        returnRequestId: rrId,
+        includeCancelled: true,
+      });
+      const value = returned ? Number(returned.total) : estimate;
+      return {
+        vendorOrderId,
+        movement: `return:${rrId}`,
+        value,
+        returnRequestId: rrId,
+        document: async () => {
+          const invoiceId = returned?.invoice_id ?? (await currentInvoice(supabase, vendorOrderId))?.invoice.id ?? null;
+          if (!invoiceId) throw new InvoiceError("These goods were never invoiced - an admin needs to check the order");
+          return createChallan(supabase, {
+            vendorOrderId,
+            purpose: "return_to_customer",
+            invoiceId,
+            returnInvoiceId: returned?.id ?? null,
+            value,
+            from,
+            to,
+            dispatchId: dispatch.id,
+            returnRequestId: rrId,
+          });
+        },
+      };
+    }),
+  );
+}
+
+// The e-way bills a parcel needs (one per boutique part over the limit), as
+// the booking dialog shows them.
+async function partsEwayBills(supabase: Db, leg: EwayBillLeg, parts: PartMovement[]) {
+  const previews = await Promise.all(parts.map((p) => ewayBillPreview(supabase, p.vendorOrderId, leg, p.movement, p.value)));
   const needed = previews.filter((p): p is NonNullable<typeof p> => !!p);
   if (!needed.length) return [];
-  const { data: parts } = await supabase.from("vendor_orders").select("id, vendors(name)").in("id", needed.map((p) => p.vendor_order_id));
-  const nameById = new Map((parts ?? []).map((p: any) => [p.id, p.vendors?.name ?? "Boutique"]));
+  const { data: rows } = await supabase.from("vendor_orders").select("id, vendors(name)").in("id", needed.map((p) => p.vendor_order_id));
+  const nameById = new Map((rows ?? []).map((p: any) => [p.id, p.vendors?.name ?? "Boutique"]));
   return needed.map((p) => ({ ...p, vendor_name: nameById.get(p.vendor_order_id) ?? "Boutique" }));
+}
+
+// Asks for (or finds) each part's e-way bill: the ones ready, and whether
+// any is still waiting.
+async function gateParts(
+  supabase: Db,
+  leg: EwayBillLeg,
+  parts: PartMovement[],
+  p: { courierId: number | null; courierName: string | null; from: ReturnType<typeof party>; to: ReturnType<typeof party>; dispatchId?: string; sendBackId?: string; userId: string },
+) {
+  const ready: EwayBill[] = [];
+  let waiting = false;
+  for (const part of parts) {
+    const check = await ewayBillForBooking(supabase, {
+      vendorOrderId: part.vendorOrderId,
+      leg,
+      movement: part.movement,
+      courierId: p.courierId,
+      courierName: p.courierName,
+      from: p.from,
+      to: p.to,
+      value: part.value,
+      document: part.document,
+      dispatchId: p.dispatchId ?? null,
+      sendBackId: p.sendBackId ?? null,
+      returnRequestId: part.returnRequestId ?? null,
+      requestedBy: p.userId,
+    });
+    if (!check.required) continue;
+    if (check.ready) ready.push(check.bill);
+    else waiting = true;
+  }
+  const couriers = [...new Set(ready.map((b) => b.courier_id))];
+  if (couriers.length > 1) {
+    throw new ActionError("This parcel's e-way bills are made out to different couriers - correct them in Admin > E-way bills");
+  }
+  return { ready, waiting, courierId: couriers[0] ?? null };
+}
+
+// ---------- send-backs: the return invoice ----------
+
+// Goods the customer returned (or the courier brought back) go on to the
+// boutique on a challan that refers to their return invoice; goods whose sale
+// is undone here travel on the return invoice itself.
+const FORWARD_SEND_BACK_REASONS: Record<string, ReturnReason> = {
+  return_forward: "customer_return",
+  exchange_forward: "exchange_return",
+  rto_cancelled: "rto",
+};
+const REVERSAL_SEND_BACK_REASONS: Record<string, ReturnReason> = {
+  qc_failed: "qc_failed",
+  qc_failed_replacement: "qc_failed",
+  order_cancelled: "order_cancelled",
+  replacement_qc_failed: "replacement_returned",
+  replacement_unused: "replacement_returned",
+};
+
+// The send-back's return invoice - found, or (issue) issued now. null when
+// the goods were never invoiced.
+async function sendBackReturnInvoice(supabase: Db, sb: any, issue: boolean) {
+  if (sb.return_invoice_id) {
+    const { data } = await supabase.from("return_invoices").select("*").eq("id", sb.return_invoice_id).maybeSingle();
+    if (data) return data;
+  }
+  if (!sb.vendor_order_id) return null;
+  const forward = FORWARD_SEND_BACK_REASONS[sb.reason];
+  const reason = forward ?? REVERSAL_SEND_BACK_REASONS[sb.reason];
+  if (!reason) return null;
+  const byRequest = reason === "customer_return" || reason === "exchange_return" || reason === "replacement_returned";
+  const found = await latestReturnInvoice(supabase, {
+    vendorOrderId: sb.vendor_order_id,
+    reasons: [reason],
+    returnRequestId: byRequest ? sb.return_request_id : null,
+  });
+  if (found || !issue) return found;
+  if (reason === "customer_return" || reason === "exchange_return") return null; // issued with the return pickup
+  if (reason === "replacement_returned") {
+    const exchange = await latestExchangeInvoice(supabase, sb.return_request_id, sb.vendor_order_id);
+    if (!exchange) return null;
+    return (await issueReturnInvoice(supabase, { invoiceId: exchange.id, reason, returnRequestId: sb.return_request_id })).returnInvoice;
+  }
+  return reverseCurrentInvoice(supabase, sb.vendor_order_id, reason as "rto" | "qc_failed" | "order_cancelled");
+}
+
+// An exchange's replacements going back to their boutiques unused: their
+// exchange invoices are taken back now (the boutique may send another before
+// the send-back is booked). By part; best-effort.
+async function reverseExchangeInvoices(supabase: Db, ctx: ReturnContext) {
+  const byPart = new Map<string, string>();
+  for (const vendorOrderId of new Set(ctx.lines.map((l) => l.vendor_order_id).filter(Boolean))) {
+    try {
+      const exchange = await latestExchangeInvoice(supabase, ctx.rr.id, vendorOrderId);
+      if (!exchange) continue;
+      const { returnInvoice } = await issueReturnInvoice(supabase, {
+        invoiceId: exchange.id,
+        reason: "replacement_returned",
+        returnRequestId: ctx.rr.id,
+      });
+      byPart.set(vendorOrderId, returnInvoice.id);
+    } catch (e) {
+      console.error("warehouse-actions: exchange invoice not taken back", errorMessage(e));
+    }
+  }
+  return byPart;
+}
+
+// The customer's return invoices for a return, by part (issued with the pickup).
+async function customerReturnInvoices(supabase: Db, ctx: ReturnContext, reason: "customer_return" | "exchange_return") {
+  const { data } = await supabase
+    .from("return_invoices")
+    .select("id, vendor_order_id")
+    .eq("return_request_id", ctx.rr.id)
+    .eq("reason", reason)
+    .eq("status", "issued");
+  return new Map((data ?? []).map((r) => [r.vendor_order_id as string, r.id as string]));
 }
 
 async function loadSendBackPlan(supabase: Db, sendBackId: string) {
   const { data: sendBack, error } = await supabase
     .from("boutique_send_backs")
-    .select("id, warehouse_id, vendor_id, order_id, vendor_order_id, return_request_id, reason, items, status, created_at")
+    .select("id, warehouse_id, vendor_id, order_id, vendor_order_id, return_request_id, reason, items, status, created_at, return_invoice_id")
     .eq("id", sendBackId)
     .maybeSingle();
   if (error) throw error;
@@ -377,8 +633,15 @@ async function loadReturn(supabase: Db, returnRequestId: string): Promise<Return
   return { rr, order, lines: lines ?? [] };
 }
 
-// One send-back per boutique for a return's items.
-async function createReturnSendBacks(supabase: Db, ctx: ReturnContext, reason: string, notes: string | null) {
+// One send-back per boutique for a return's items, with the return invoice
+// it goes on / refers to (by part), when known.
+async function createReturnSendBacks(
+  supabase: Db,
+  ctx: ReturnContext,
+  reason: string,
+  notes: string | null,
+  returnInvoiceByPart: Map<string, string> = new Map(),
+) {
   const lineById = new Map(ctx.lines.map((l) => [l.id, l]));
   const byVendor = new Map<string, { vendorOrderId: string | null; items: any[] }>();
   for (const item of (ctx.rr.items ?? []) as any[]) {
@@ -410,6 +673,7 @@ async function createReturnSendBacks(supabase: Db, ctx: ReturnContext, reason: s
       reason,
       items: group.items,
       notes,
+      return_invoice_id: group.vendorOrderId ? returnInvoiceByPart.get(group.vendorOrderId) ?? null : null,
     });
     if (error) throw error;
     await notifyVendorMembers(supabase, vendorId, {
@@ -530,17 +794,29 @@ Deno.serve(async (req) => {
     switch (action) {
       case "parcel_rates": {
         const dispatchPlan = body.dispatch_id ? await loadDispatchPlan(supabase, body.dispatch_id) : null;
-        const plan = dispatchPlan
-          ? dispatchPlan.plan
-          : body.send_back_id
-            ? (await loadSendBackPlan(supabase, body.send_back_id)).plan
-            : null;
+        const sendBackPlan = !dispatchPlan && body.send_back_id ? await loadSendBackPlan(supabase, body.send_back_id) : null;
+        const plan = dispatchPlan?.plan ?? sendBackPlan?.plan;
         if (!plan) throw new ActionError("dispatch_id or send_back_id is required");
         const couriers = await ratesFor(supabase, plan);
         if (couriers.length === 0) {
           throw new ActionError(`No courier currently services ${plan.warehouse.address.pincode} -> ${plan.consignee.address.pincode}`);
         }
-        const ewayBills = dispatchPlan ? await dispatchEwayBills(supabase, dispatchPlan.vendorOrderIds) : [];
+        // What the dialog shows about e-way bills - nothing is issued here.
+        let ewayBills: unknown[] = [];
+        if (dispatchPlan) {
+          const parts = await dispatchMovements(supabase, dispatchPlan.dispatch, plan, dispatchPlan.vendorOrderIds);
+          ewayBills = await partsEwayBills(supabase, "warehouse_to_customer", parts);
+        } else if (sendBackPlan?.sendBack.vendor_order_id) {
+          const sb = sendBackPlan.sendBack;
+          const returnInvoice = await sendBackReturnInvoice(supabase, sb, false);
+          ewayBills = await partsEwayBills(supabase, "warehouse_to_boutique", [
+            {
+              vendorOrderId: sb.vendor_order_id,
+              movement: `sendback:${sb.id}`,
+              value: returnInvoice ? Number(returnInvoice.total) : plan.subTotal,
+            },
+          ]);
+        }
         return jsonResponse({ couriers, isCod: plan.cod, weightKg: plan.weightKg, eway_bills: ewayBills });
       }
 
@@ -552,33 +828,22 @@ Deno.serve(async (req) => {
 
         // Each boutique part over the limit travels on its own e-way bill (on
         // a delivery challan from here); the parcel waits until all are in.
-        const ewayBills: EwayBill[] = [];
-        let waiting = false;
-        for (const vendorOrderId of vendorOrderIds) {
-          const check = await ewayBillForBooking(supabase, {
-            vendorOrderId,
-            leg: "warehouse_to_customer",
-            courierId: body.courier_id ?? null,
-            courierName: body.courier_name ?? null,
-            from: { name: plan.warehouse.name, address: plan.warehouse.address as Record<string, unknown> },
-            to: { name: plan.consignee.name, address: plan.consignee.address as Record<string, unknown> },
-            dispatchId: dispatch.id,
-            requestedBy: userId,
-          });
-          if (!check.required) continue;
-          if (check.ready) ewayBills.push(check.bill);
-          else waiting = true;
+        const parts = await dispatchMovements(supabase, dispatch, plan, vendorOrderIds);
+        const gate = await gateParts(supabase, "warehouse_to_customer", parts, {
+          courierId: body.courier_id ?? null,
+          courierName: body.courier_name ?? null,
+          from: party(plan.warehouse),
+          to: party(plan.consignee),
+          dispatchId: dispatch.id,
+          userId,
+        });
+        if (gate.waiting) {
+          return jsonResponse({ eway_bill_pending: true, eway_bills: await partsEwayBills(supabase, "warehouse_to_customer", parts) });
         }
-        if (waiting) {
-          return jsonResponse({ eway_bill_pending: true, eway_bills: await dispatchEwayBills(supabase, vendorOrderIds) });
-        }
-        const ewayCouriers = [...new Set(ewayBills.map((b) => b.courier_id))];
-        if (ewayCouriers.length > 1) {
-          throw new ActionError("This parcel's e-way bills are made out to different couriers - correct them in Admin > E-way bills");
-        }
+        const ewayBills = gate.ready;
 
         const etd = parseEtd(body.courier_etd);
-        const shipment = await bookFromWarehouse(supabase, plan, dispatch.id, ewayCouriers[0] ?? body.courier_id ?? null, {
+        const shipment = await bookFromWarehouse(supabase, plan, dispatch.id, gate.courierId ?? body.courier_id ?? null, {
           shipment_type: "warehouse_to_customer",
           order_id: dispatch.order_id,
           dispatch_id: dispatch.id,
@@ -614,13 +879,67 @@ Deno.serve(async (req) => {
         if (sendBack.status !== "required") throw new ActionError(`This send-back is already ${sendBack.status}`);
         const existing = await liveBooking(supabase, "send_back_id", sendBack.id);
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
-        const shipment = await bookFromWarehouse(supabase, plan, sendBack.id, body.courier_id ?? null, {
+
+        // The goods go back on the boutique's return invoice (issued now if the
+        // send-back didn't come with one), or on a challan referring to the
+        // customer's / RTO return invoice. Over the limit: an e-way bill first.
+        const returnInvoice = await sendBackReturnInvoice(supabase, sendBack, true).catch((e) => {
+          console.error("warehouse-actions: send-back return invoice", errorMessage(e));
+          return null;
+        });
+        if (returnInvoice && sendBack.return_invoice_id !== returnInvoice.id) {
+          await supabase.from("boutique_send_backs").update({ return_invoice_id: returnInvoice.id }).eq("id", sendBack.id);
+        }
+        let sendBackGate: Awaited<ReturnType<typeof gateParts>> = { ready: [], waiting: false, courierId: null };
+        if (sendBack.vendor_order_id) {
+          const value = returnInvoice ? Number(returnInvoice.total) : plan.subTotal;
+          const from = party(plan.warehouse);
+          const to = party(plan.consignee);
+          const forward = !!FORWARD_SEND_BACK_REASONS[sendBack.reason];
+          const parts: PartMovement[] = [
+            {
+              vendorOrderId: sendBack.vendor_order_id,
+              movement: `sendback:${sendBack.id}`,
+              value,
+              returnRequestId: sendBack.return_request_id,
+              document: async () => {
+                if (!returnInvoice) throw new InvoiceError("These goods have no return invoice to travel on - an admin needs to check the order");
+                if (!forward) return returnInvoiceDocument(returnInvoice);
+                return createChallan(supabase, {
+                  vendorOrderId: sendBack.vendor_order_id,
+                  purpose: "to_boutique",
+                  invoiceId: returnInvoice.invoice_id,
+                  returnInvoiceId: returnInvoice.id,
+                  value,
+                  from,
+                  to,
+                  returnRequestId: sendBack.return_request_id,
+                  sendBackId: sendBack.id,
+                });
+              },
+            },
+          ];
+          sendBackGate = await gateParts(supabase, "warehouse_to_boutique", parts, {
+            courierId: body.courier_id ?? null,
+            courierName: body.courier_name ?? null,
+            from,
+            to,
+            sendBackId: sendBack.id,
+            userId,
+          });
+          if (sendBackGate.waiting) {
+            return jsonResponse({ eway_bill_pending: true, eway_bills: await partsEwayBills(supabase, "warehouse_to_boutique", parts) });
+          }
+        }
+
+        const shipment = await bookFromWarehouse(supabase, plan, sendBack.id, sendBackGate.courierId ?? body.courier_id ?? null, {
           shipment_type: "warehouse_to_boutique",
           order_id: sendBack.order_id,
           vendor_order_id: sendBack.vendor_order_id,
           send_back_id: sendBack.id,
           estimated_delivery_date: parseEtd(body.courier_etd),
         });
+        await markEwayBillsUsed(supabase, sendBackGate.ready.map((b) => b.id), shipment.id);
         await supabase.from("boutique_send_backs").update({ status: "booked" }).eq("id", sendBack.id);
         return jsonResponse({ shipment, already_booked: false });
       }
@@ -652,10 +971,22 @@ Deno.serve(async (req) => {
         if (!body.passed) {
           if (!notes) throw new ActionError("Describe what is wrong with the items");
           await supabase.from("return_requests").update({ ...stamp, warehouse_qc_status: "failed", status: "qc_failed" }).eq("id", ctx.rr.id);
+          // The items go back to the customer: their return invoices are withdrawn.
+          await cancelReturnInvoices(
+            supabase,
+            { returnRequestId: ctx.rr.id, reasons: ["customer_return", "exchange_return"] },
+            "Failed inspection - going back to the customer",
+          ).catch((e) => console.error("warehouse-actions: return invoices not cancelled", errorMessage(e)));
           const dispatchId = await createReturnDispatch(supabase, ctx, "return_send_back", userId);
           // An exchange replacement already here is no longer needed.
           if (ctx.rr.request_type === "exchange" && ctx.rr.replacement_received_at) {
-            await createReturnSendBacks(supabase, ctx, "replacement_unused", "The old item failed inspection");
+            await createReturnSendBacks(
+              supabase,
+              ctx,
+              "replacement_unused",
+              "The old item failed inspection",
+              await reverseExchangeInvoices(supabase, ctx),
+            );
           }
           returnEmail(supabase, ctx.rr.id, "qc_failed", { adminNotes: notes });
           return jsonResponse({ passed: false, send_back_dispatch_id: dispatchId });
@@ -663,7 +994,7 @@ Deno.serve(async (req) => {
 
         if (ctx.rr.request_type === "exchange") {
           await supabase.from("return_requests").update({ ...stamp, warehouse_qc_status: "passed", status: "qc_passed" }).eq("id", ctx.rr.id);
-          await createReturnSendBacks(supabase, ctx, "exchange_forward", notes);
+          await createReturnSendBacks(supabase, ctx, "exchange_forward", notes, await customerReturnInvoices(supabase, ctx, "exchange_return"));
           let dispatchId: string | null = null;
           if (ctx.rr.replacement_qc_status === "passed") {
             dispatchId = await createReturnDispatch(supabase, { ...ctx, rr: { ...ctx.rr } }, "exchange_replacement", userId);
@@ -710,7 +1041,7 @@ Deno.serve(async (req) => {
             status: refunded || amount <= 0 ? "completed" : "qc_passed",
           })
           .eq("id", ctx.rr.id);
-        await createReturnSendBacks(supabase, ctx, "return_forward", notes);
+        await createReturnSendBacks(supabase, ctx, "return_forward", notes, await customerReturnInvoices(supabase, ctx, "customer_return"));
 
         const ref = `#${String(ctx.rr.order_id).slice(0, 8)}`;
         if (refunded || amount <= 0) {
@@ -744,8 +1075,9 @@ Deno.serve(async (req) => {
           return jsonResponse({ passed: true, replacement_dispatch_id: dispatchId });
         }
         if (!notes) throw new ActionError("Describe what is wrong with the replacement");
-        // Back to the boutique; they send another one.
-        await createReturnSendBacks(supabase, ctx, "replacement_qc_failed", notes);
+        // Back to the boutique on a return invoice taking back its exchange
+        // invoice; they send another one (on a new exchange invoice).
+        await createReturnSendBacks(supabase, ctx, "replacement_qc_failed", notes, await reverseExchangeInvoices(supabase, ctx));
         await supabase
           .from("return_requests")
           .update({ replacement_qc_status: null, replacement_qc_notes: notes, replacement_received_at: null })
@@ -772,6 +1104,17 @@ Deno.serve(async (req) => {
         if (!vo) throw new ActionError("Order not found", 404);
         if (vo.status !== "qc_failed") throw new ActionError("This item isn't waiting on an inspection decision");
         const ref = `#${String(vo.order_id).slice(0, 8)}`;
+        // Either way the sale it was invoiced on is undone: it goes back to the
+        // boutique on a return invoice (a replacement gets a new invoice).
+        const qcReturnInvoice = await reverseCurrentInvoice(supabase, vo.id, "qc_failed").catch((e) => {
+          console.error("warehouse-actions: qc return invoice not issued", errorMessage(e));
+          return null;
+        });
+        const linkSendBack = async (sendBackId: unknown) => {
+          if (qcReturnInvoice && typeof sendBackId === "string") {
+            await supabase.from("boutique_send_backs").update({ return_invoice_id: qcReturnInvoice.id }).eq("id", sendBackId);
+          }
+        };
 
         if (body.decision === "replacement") {
           const settings = await loadWarehouseSettings(supabase);
@@ -780,11 +1123,12 @@ Deno.serve(async (req) => {
           const readyBy = addWorkingDays(istToday(), vendor?.default_prep_days ?? settings.defaultPrepDays, holidays);
           const expected = new Date(`${readyBy}T00:00:00Z`);
           expected.setUTCDate(expected.getUTCDate() + settings.inboundTransitDays);
-          await supabase.rpc("create_boutique_send_back", {
+          const { data: sendBackId } = await supabase.rpc("create_boutique_send_back", {
             _vendor_order_id: vo.id,
             _reason: "qc_failed_replacement",
             _notes: vo.qc_notes,
           });
+          await linkSendBack(sendBackId);
           await supabase
             .from("vendor_orders")
             .update({
@@ -822,7 +1166,12 @@ Deno.serve(async (req) => {
           reason: `Failed quality inspection: ${vo.qc_notes ?? "item not acceptable"}`,
           force: true,
         });
-        await supabase.rpc("create_boutique_send_back", { _vendor_order_id: vo.id, _reason: "qc_failed", _notes: vo.qc_notes });
+        const { data: sendBackId } = await supabase.rpc("create_boutique_send_back", {
+          _vendor_order_id: vo.id,
+          _reason: "qc_failed",
+          _notes: vo.qc_notes,
+        });
+        await linkSendBack(sendBackId);
         await finishCancellation(supabase, vo.order_id, [result], "It didn't pass our quality check, so we didn't send it to you.");
         return jsonResponse({ decision: "cancel", refund_error: result.refundError });
       }
@@ -851,6 +1200,11 @@ Deno.serve(async (req) => {
         const reason = String(body.reason ?? "").trim() || "Could not be delivered";
         const results = [];
         for (const vo of vendorOrders ?? []) {
+          // Taken back on the RTO return invoice (usually issued when the RTO
+          // began); the items go on to the boutique on a challan.
+          await reverseCurrentInvoice(supabase, vo.id, "rto").catch((e) =>
+            console.error("warehouse-actions: rto return invoice not issued", errorMessage(e)),
+          );
           const result = await cancelOneVendorOrder(supabase, { vendorOrder: vo, order: order!, cancelledBy: userId, reason, force: true });
           await supabase.rpc("create_boutique_send_back", { _vendor_order_id: vo.id, _reason: "rto_cancelled", _notes: reason });
           results.push(result);

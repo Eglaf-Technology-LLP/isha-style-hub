@@ -5,21 +5,43 @@ import { emailTemplate, sendEmail } from "./email.ts";
 import { money } from "./money.ts";
 import { formatDate, formatDateTime } from "./dates.ts";
 import { errorMessage } from "./auth.ts";
+import { shiprocketRequest } from "./shiprocket.ts";
 
-// E-way bills for parcels over the limit (see the eway_bills migration).
-// Before any courier booking of a boutique part, the booking function asks
+// E-way bills for parcels over the limit (see the eway_bills migrations).
+// Before a courier booking of a boutique part, the booking function asks
 // ewayBillForBooking: below the limit nothing changes; above it the first
-// attempt issues the document (tax invoice / delivery challan), records an
-// e-way bill request for the courier chosen and tells AllBoutiqs (or the
-// boutique, if it makes its own); the booking goes ahead only once an admin
-// has typed the number in, with the courier the e-way bill is made out to.
+// attempt issues the movement's document (tax invoice, return invoice or
+// delivery challan), records an e-way bill request for the courier and tells
+// AllBoutiqs (or the boutique, if it makes its own); the booking goes ahead
+// only once an admin has typed the number in, with the courier the e-way
+// bill is made out to.
+//
+// A customer's return pickup is booked first (that's when Shiprocket names
+// the courier) and its pickup held until the number is in. An RTO parcel is
+// already moving: its e-way bill is asked for so it can be uploaded to
+// Shiprocket's RTO order.
 
-export type EwayBillLeg = "boutique_to_customer" | "boutique_to_warehouse" | "warehouse_to_customer";
+export type EwayBillLeg =
+  | "boutique_to_customer"
+  | "boutique_to_warehouse"
+  | "warehouse_to_customer"
+  | "customer_to_warehouse"
+  | "customer_to_boutique"
+  | "warehouse_to_boutique";
 
 export const LEG_LABELS: Record<EwayBillLeg, string> = {
   boutique_to_customer: "Boutique to customer",
   boutique_to_warehouse: "Boutique to AllBoutiqs warehouse",
   warehouse_to_customer: "AllBoutiqs warehouse to customer",
+  customer_to_warehouse: "Customer to AllBoutiqs warehouse",
+  customer_to_boutique: "Customer to boutique",
+  warehouse_to_boutique: "AllBoutiqs warehouse to boutique",
+};
+
+const DOCUMENT_LABELS: Record<string, string> = {
+  tax_invoice: "Tax Invoice",
+  delivery_challan: "Delivery Challan",
+  return_invoice: "Return Invoice",
 };
 
 export interface Party {
@@ -33,9 +55,13 @@ export interface EwayBill {
   vendor_order_id: string;
   vendor_id: string;
   leg: EwayBillLeg;
-  document_type: "tax_invoice" | "delivery_challan";
+  movement: string;
+  document_type: "tax_invoice" | "delivery_challan" | "return_invoice";
   invoice_id: string | null;
+  return_invoice_id: string | null;
   challan_id: string | null;
+  return_request_id: string | null;
+  send_back_id: string | null;
   document_number: string;
   document_date: string;
   value: number;
@@ -87,21 +113,134 @@ const istDate = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600_0
 
 export const orderRef = (orderId: string) => `#${orderId.slice(0, 8).toUpperCase()}`;
 
-// The invoice total for the part (or what it will be) - the limit is checked on it.
+// ---------- documents ----------
+
+// The document a movement travels on, as the e-way bill names it.
+export interface MovementDocument {
+  type: EwayBill["document_type"];
+  number: string;
+  date: string;
+  value: number;
+  invoiceId: string | null;
+  returnInvoiceId: string | null;
+  challanId: string | null;
+}
+
+export const invoiceDocument = (invoice: any): MovementDocument => ({
+  type: "tax_invoice",
+  number: invoice.invoice_number,
+  date: istDate(invoice.issued_at),
+  value: Number(invoice.total),
+  invoiceId: invoice.id,
+  returnInvoiceId: null,
+  challanId: null,
+});
+
+export const returnInvoiceDocument = (ri: any): MovementDocument => ({
+  type: "return_invoice",
+  number: ri.return_invoice_number,
+  date: istDate(ri.issued_at),
+  value: Number(ri.total),
+  invoiceId: ri.invoice_id,
+  returnInvoiceId: ri.id,
+  challanId: null,
+});
+
+// A delivery challan for goods already covered by a tax invoice (onward to
+// the customer) or a return invoice (onward to the boutique; back to the
+// customer when a return failed inspection).
+export async function createChallan(
+  supabase: SupabaseClient,
+  p: {
+    vendorOrderId: string;
+    purpose: "to_customer" | "return_to_customer" | "to_boutique";
+    invoiceId: string | null;
+    returnInvoiceId?: string | null;
+    value: number;
+    from: Party;
+    to: Party;
+    dispatchId?: string | null;
+    returnRequestId?: string | null;
+    sendBackId?: string | null;
+  },
+): Promise<MovementDocument> {
+  const { data: vo, error: voErr } = await supabase
+    .from("vendor_orders")
+    .select("id, order_id, vendor_id")
+    .eq("id", p.vendorOrderId)
+    .single();
+  if (voErr) throw voErr;
+  const issuedAt = new Date().toISOString();
+  const { data: number, error: numErr } = await supabase.rpc("next_boutique_challan_number", { _vendor_id: vo.vendor_id, _at: issuedAt });
+  if (numErr) throw numErr;
+  const { data: challan, error } = await supabase
+    .from("delivery_challans")
+    .insert({
+      challan_number: number,
+      vendor_order_id: vo.id,
+      order_id: vo.order_id,
+      vendor_id: vo.vendor_id,
+      invoice_id: p.invoiceId,
+      return_invoice_id: p.returnInvoiceId ?? null,
+      purpose: p.purpose,
+      dispatch_id: p.dispatchId ?? null,
+      return_request_id: p.returnRequestId ?? null,
+      send_back_id: p.sendBackId ?? null,
+      issued_at: issuedAt,
+      dispatch_from_name: p.from.name,
+      dispatch_from_address: p.from.address,
+      ship_to_name: p.to.name,
+      ship_to_address: p.to.address,
+      value: p.value,
+      reason:
+        p.purpose === "to_boutique"
+          ? "Goods taken back by the boutique (return invoice), going on to it"
+          : p.purpose === "return_to_customer"
+            ? "The customer's own goods going back: the return failed inspection"
+            : "Delivery of goods already invoiced to the customer",
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return {
+    type: "delivery_challan",
+    number: challan.challan_number,
+    date: istDate(issuedAt),
+    value: p.value,
+    invoiceId: p.invoiceId,
+    returnInvoiceId: p.returnInvoiceId ?? null,
+    challanId: challan.id,
+  };
+}
+
+// The invoice total for the part (or what it will be) - the limit is
+// checked on it unless the movement knows its own value.
 async function invoiceValue(supabase: SupabaseClient, vendorOrderId: string): Promise<number | null> {
   const { data, error } = await supabase.rpc("vendor_order_invoice_value", { _vendor_order_id: vendorOrderId });
   if (error) throw error;
   return data == null ? null : Number(data);
 }
 
-// A request not yet used by a live booking (a cancelled booking frees it).
-async function findOpenEwayBill(supabase: SupabaseClient, vendorOrderId: string, leg: EwayBillLeg): Promise<EwayBill | null> {
+// A request for this movement not yet used by a live booking (a cancelled
+// booking frees it) - or made for this very booking (a return pickup).
+async function findOpenEwayBill(
+  supabase: SupabaseClient,
+  vendorOrderId: string,
+  leg: EwayBillLeg,
+  movement: string,
+  shipmentId?: string | null,
+): Promise<EwayBill | null> {
   const { data } = await supabase
     .from("eway_bills")
     .select("*")
     .eq("vendor_order_id", vendorOrderId)
     .eq("leg", leg)
-    .or("status.eq.pending,and(status.eq.active,shipment_id.is.null)")
+    .eq("movement", movement)
+    .or(
+      shipmentId
+        ? `status.eq.pending,and(status.eq.active,or(shipment_id.is.null,shipment_id.eq.${shipmentId}))`
+        : "status.eq.pending,and(status.eq.active,shipment_id.is.null)",
+    )
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -110,12 +249,21 @@ async function findOpenEwayBill(supabase: SupabaseClient, vendorOrderId: string,
 
 // What the booking screens show before booking - null when no e-way bill is
 // needed. bill is null until the first booking attempt asks for one.
-export async function ewayBillPreview(supabase: SupabaseClient, vendorOrderId: string, leg: EwayBillLeg) {
+export async function ewayBillPreview(
+  supabase: SupabaseClient,
+  vendorOrderId: string,
+  leg: EwayBillLeg,
+  movement = "order",
+  knownValue?: number | null,
+) {
   const settings = await loadEwayBillSettings(supabase);
-  const value = await invoiceValue(supabase, vendorOrderId);
+  const value = knownValue ?? (await invoiceValue(supabase, vendorOrderId));
   if (value == null || value <= settings.threshold) return null;
   const { data: vo } = await supabase.from("vendor_orders").select("order_id, vendor_id").eq("id", vendorOrderId).single();
-  const [open, setup] = await Promise.all([findOpenEwayBill(supabase, vendorOrderId, leg), loadVendorSetup(supabase, vo!.vendor_id)]);
+  const [open, setup] = await Promise.all([
+    findOpenEwayBill(supabase, vendorOrderId, leg, movement),
+    loadVendorSetup(supabase, vo!.vendor_id),
+  ]);
   return {
     vendor_order_id: vendorOrderId,
     order_id: vo!.order_id as string,
@@ -133,26 +281,52 @@ export type EwayBillCheck =
   | { required: false }
   | { required: true; ready: boolean; bill: EwayBill; created: boolean };
 
-// The e-way bill a booking of this leg needs, if any. Throws InvoiceError
-// when the document can't be issued (no GSTIN, no HSN...).
+// The e-way bill a booking of this movement needs, if any. Throws
+// InvoiceError when the document can't be issued (no GSTIN, no HSN...).
 export async function ewayBillForBooking(
   supabase: SupabaseClient,
   p: {
     vendorOrderId: string;
     leg: EwayBillLeg;
+    // 'order' for the part's own journey; see the eway_bills migration.
+    movement?: string;
     courierId: number | null;
     courierName: string | null;
     from: Party;
     to: Party;
+    // Known value of the goods moving; else the part's invoice value.
+    value?: number | null;
+    // Issues (or finds) the document - only called when one is needed.
+    // Default: the part's tax invoice, or a delivery challan on it from the
+    // warehouse to the customer.
+    document?: () => Promise<MovementDocument>;
+    // The invoice the goods stand on now: a request made on an older one is
+    // replaced (a part sent again after its sale was undone).
+    currentInvoiceId?: string | null;
+    // A return pickup or RTO: the booking already exists, the e-way bill is
+    // made for it.
+    shipmentId?: string | null;
     dispatchId?: string | null;
-    requestedBy: string;
+    returnRequestId?: string | null;
+    sendBackId?: string | null;
+    // The courier isn't known when Shiprocket couldn't assign one.
+    requireCourier?: boolean;
+    requestedBy: string | null;
   },
 ): Promise<EwayBillCheck> {
+  const movement = p.movement ?? "order";
   const settings = await loadEwayBillSettings(supabase);
-  const estimate = await invoiceValue(supabase, p.vendorOrderId);
+  const estimate = p.value ?? (await invoiceValue(supabase, p.vendorOrderId));
   if (estimate == null || estimate <= settings.threshold) return { required: false };
 
-  const open = await findOpenEwayBill(supabase, p.vendorOrderId, p.leg);
+  let open = await findOpenEwayBill(supabase, p.vendorOrderId, p.leg, movement, p.shipmentId);
+  if (open && p.currentInvoiceId && open.document_type === "tax_invoice" && open.invoice_id !== p.currentInvoiceId) {
+    await supabase
+      .from("eway_bills")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString(), cancel_reason: "Replaced: the goods go on a new invoice" })
+      .eq("id", open.id);
+    open = null;
+  }
   if (open) {
     let bill = open;
     // Not made yet: it's made out to whichever courier was chosen last.
@@ -168,7 +342,9 @@ export async function ewayBillForBooking(
     return { required: true, ready: bill.status === "active", bill, created: false };
   }
 
-  if (!p.courierId) throw new InvoiceError("Choose a courier - the e-way bill is made out to it", 400);
+  if (!p.courierId && p.requireCourier !== false) {
+    throw new InvoiceError("Choose a courier - the e-way bill is made out to it", 400);
+  }
 
   const { data: vo, error: voErr } = await supabase
     .from("vendor_orders")
@@ -177,47 +353,22 @@ export async function ewayBillForBooking(
     .single();
   if (voErr) throw voErr;
 
-  // The goods travel on the tax invoice from the boutique, on a delivery
-  // challan from the warehouse.
-  const { invoice } = await ensureInvoice(supabase, p.vendorOrderId);
-  const value = Number(invoice.total);
-  if (value <= settings.threshold) return { required: false };
-
-  let documentType: EwayBill["document_type"] = "tax_invoice";
-  let documentNumber: string = invoice.invoice_number;
-  let documentDate = istDate(invoice.issued_at);
-  let challanId: string | null = null;
-  if (p.leg === "warehouse_to_customer") {
-    const issuedAt = new Date().toISOString();
-    const { data: challanNumber, error: numErr } = await supabase.rpc("next_boutique_challan_number", {
-      _vendor_id: vo.vendor_id,
-      _at: issuedAt,
-    });
-    if (numErr) throw numErr;
-    const { data: challan, error: challanErr } = await supabase
-      .from("delivery_challans")
-      .insert({
-        challan_number: challanNumber,
-        vendor_order_id: vo.id,
-        order_id: vo.order_id,
-        vendor_id: vo.vendor_id,
-        invoice_id: invoice.id,
-        dispatch_id: p.dispatchId ?? null,
-        issued_at: issuedAt,
-        dispatch_from_name: p.from.name,
-        dispatch_from_address: p.from.address,
-        ship_to_name: p.to.name,
-        ship_to_address: p.to.address,
-        value,
-      })
-      .select("id")
-      .single();
-    if (challanErr) throw challanErr;
-    documentType = "delivery_challan";
-    documentNumber = challanNumber as string;
-    documentDate = istDate(issuedAt);
-    challanId = challan.id;
-  }
+  const doc = p.document
+    ? await p.document()
+    : await (async () => {
+        const { invoice } = await ensureInvoice(supabase, p.vendorOrderId);
+        if (Number(invoice.total) <= settings.threshold || p.leg !== "warehouse_to_customer") return invoiceDocument(invoice);
+        return createChallan(supabase, {
+          vendorOrderId: p.vendorOrderId,
+          purpose: "to_customer",
+          invoiceId: invoice.id,
+          value: Number(invoice.total),
+          from: p.from,
+          to: p.to,
+          dispatchId: p.dispatchId,
+        });
+      })();
+  if (doc.value <= settings.threshold) return { required: false };
 
   const { data: inserted, error: insertErr } = await supabase
     .from("eway_bills")
@@ -226,19 +377,24 @@ export async function ewayBillForBooking(
       vendor_order_id: vo.id,
       vendor_id: vo.vendor_id,
       leg: p.leg,
-      document_type: documentType,
-      invoice_id: invoice.id,
-      challan_id: challanId,
-      document_number: documentNumber,
-      document_date: documentDate,
-      value,
+      movement,
+      document_type: doc.type,
+      invoice_id: doc.invoiceId,
+      return_invoice_id: doc.returnInvoiceId,
+      challan_id: doc.challanId,
+      document_number: doc.number,
+      document_date: doc.date,
+      value: doc.value,
       from_name: p.from.name,
       from_address: p.from.address,
       to_name: p.to.name,
       to_address: p.to.address,
       courier_id: p.courierId,
       courier_name: p.courierName,
+      shipment_id: p.shipmentId ?? null,
       dispatch_id: p.dispatchId ?? null,
+      return_request_id: p.returnRequestId ?? null,
+      send_back_id: p.sendBackId ?? null,
       requested_by: p.requestedBy,
     })
     .select("*")
@@ -246,12 +402,13 @@ export async function ewayBillForBooking(
   if (insertErr) {
     // Requested at the same moment by another click - use that one.
     if ((insertErr as { code?: string }).code === "23505") {
-      if (challanId) await supabase.from("delivery_challans").delete().eq("id", challanId);
+      if (doc.challanId) await supabase.from("delivery_challans").delete().eq("id", doc.challanId);
       const { data: raced } = await supabase
         .from("eway_bills")
         .select("*")
         .eq("vendor_order_id", p.vendorOrderId)
         .eq("leg", p.leg)
+        .eq("movement", movement)
         .eq("status", "pending")
         .maybeSingle();
       if (raced) return { required: true, ready: false, bill: raced as EwayBill, created: false };
@@ -260,11 +417,11 @@ export async function ewayBillForBooking(
   }
 
   const bill = inserted as EwayBill;
-  await announceRequest(supabase, bill, invoice, settings);
+  await announceRequest(supabase, bill, settings);
   return { required: true, ready: false, bill, created: true };
 }
 
-// The booking that used it - a later booking of this leg needs a new one.
+// The booking that used it - a later booking of this movement needs a new one.
 export async function markEwayBillsUsed(supabase: SupabaseClient, billIds: string[], shipmentId: string) {
   if (!billIds.length) return;
   const { error } = await supabase.from("eway_bills").update({ shipment_id: shipmentId }).in("id", billIds);
@@ -294,7 +451,50 @@ export function ewayBillSummary(bill: EwayBill) {
   };
 }
 
+// A customer's return pickup held for its e-way bills: once every one of them
+// is in, ask Shiprocket to collect. Returns whether the pickup was requested.
+export async function releaseHeldReturnPickup(supabase: SupabaseClient, shipmentId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from("eway_bills")
+    .select("id", { count: "exact", head: true })
+    .eq("shipment_id", shipmentId)
+    .eq("status", "pending");
+  if (count) return false;
+  const { data: shipment } = await supabase
+    .from("shipments")
+    .select("id, status, shiprocket_shipment_id, awb_code")
+    .eq("id", shipmentId)
+    .maybeSingle();
+  if (!shipment?.shiprocket_shipment_id || !shipment.awb_code || shipment.status !== "awb_assigned") return false;
+  await shiprocketRequest(supabase, "/courier/generate/pickup", {
+    method: "POST",
+    body: { shipment_id: [shipment.shiprocket_shipment_id] },
+  });
+  await supabase.from("shipments").update({ status: "pickup_scheduled" }).eq("id", shipment.id);
+  return true;
+}
+
 // ---------- telling people ----------
+
+type Kind = "forward" | "onward" | "return_pickup" | "rto" | "send_back" | "return_to_customer";
+
+function kindOf(bill: Pick<EwayBill, "leg" | "movement">): Kind {
+  if (bill.movement.startsWith("rto:")) return "rto";
+  if (bill.leg === "customer_to_warehouse" || bill.leg === "customer_to_boutique") return "return_pickup";
+  if (bill.leg === "warehouse_to_boutique") return "send_back";
+  if (bill.leg === "warehouse_to_customer") return bill.movement.startsWith("return:") ? "return_to_customer" : "onward";
+  return "forward";
+}
+
+// What happens once the number is in.
+const NEXT_STEP: Record<Kind, string> = {
+  forward: "you can book the courier",
+  onward: "the parcel leaves the AllBoutiqs warehouse",
+  return_pickup: "the courier collects the return from the customer",
+  rto: "it's added to the courier's returning parcel",
+  send_back: "the parcel is sent to you from the AllBoutiqs warehouse",
+  return_to_customer: "the parcel goes back to the customer",
+};
 
 async function adminEmails(supabase: SupabaseClient): Promise<string[]> {
   const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
@@ -323,42 +523,75 @@ async function transporterId(supabase: SupabaseClient, courierId: number | null)
   return data?.transporter_id ?? null;
 }
 
+// The facts behind a request: transaction, parties, items and totals, from
+// the document it travels on.
+async function documentFacts(supabase: SupabaseClient, bill: EwayBill) {
+  const { data: invoice } = bill.invoice_id
+    ? await supabase.from("invoices").select("*").eq("id", bill.invoice_id).maybeSingle()
+    : { data: null };
+  let challanPurpose: string | null = null;
+  let returnInvoiceId = bill.return_invoice_id;
+  if (bill.challan_id) {
+    const { data: challan } = await supabase.from("delivery_challans").select("purpose, return_invoice_id").eq("id", bill.challan_id).maybeSingle();
+    challanPurpose = challan?.purpose ?? null;
+    returnInvoiceId = returnInvoiceId ?? challan?.return_invoice_id ?? null;
+  }
+  const { data: returnInvoice } = returnInvoiceId
+    ? await supabase.from("return_invoices").select("*").eq("id", returnInvoiceId).maybeSingle()
+    : { data: null };
+  const totalsFrom = returnInvoice ?? invoice;
+  const { data: lines } = returnInvoice
+    ? await supabase.from("return_invoice_lines").select("*").eq("return_invoice_id", returnInvoice.id).order("line_no")
+    : await supabase.from("invoice_lines").select("*").eq("invoice_id", bill.invoice_id ?? "").order("line_no");
+  // Goods coming back to the boutique: the customer is the consignor.
+  const inward = bill.document_type === "return_invoice" || challanPurpose === "to_boutique";
+  const transaction =
+    bill.document_type === "return_invoice"
+      ? "Inward - Sales Return"
+      : challanPurpose === "to_boutique"
+        ? `Inward - Sales Return (taken back on return invoice ${returnInvoice?.return_invoice_number ?? ""})`
+        : challanPurpose === "return_to_customer"
+          ? "Outward - Others (the customer's own goods going back)"
+          : "Outward - Supply";
+  return { invoice, lines: lines ?? [], totalsFrom, inward, transaction };
+}
+
 // Everything the portal's "Generate New" form asks for, as an email table.
-async function detailsHtml(supabase: SupabaseClient, bill: EwayBill, invoice: any): Promise<string> {
-  const { data: lines } = await supabase
-    .from("invoice_lines")
-    .select("description, hsn_code, quantity, taxable_value, gst_rate")
-    .eq("invoice_id", invoice.id)
-    .order("line_no");
+async function detailsHtml(supabase: SupabaseClient, bill: EwayBill): Promise<string> {
+  const { invoice, lines, totalsFrom, inward, transaction } = await documentFacts(supabase, bill);
   const transporter = await transporterId(supabase, bill.courier_id);
   const row = (label: string, value: string) =>
     `<tr><td style="padding:4px 8px 4px 0; color:#8a8a8a; vertical-align:top; white-space:nowrap;">${esc(label)}</td><td style="padding:4px 0;">${value}</td></tr>`;
-  const intra = invoice.supply_type === "intra_state";
-  const items = (lines ?? [])
+  const intra = invoice?.supply_type === "intra_state";
+  const items = lines
     .map(
-      (l) =>
+      (l: any) =>
         `${esc(l.description)} - HSN ${esc(l.hsn_code ?? "-")}, qty ${l.quantity}, taxable ${esc(money(l.taxable_value))}, GST ${Number(l.gst_rate)}%`,
     )
     .join("<br>");
+  const boutique = `${esc(invoice?.seller_legal_name ?? invoice?.seller_name ?? "")}, GSTIN <strong>${esc(invoice?.seller_gstin ?? "")}</strong>`;
+  const customer = `${esc(invoice?.billing_name ?? "")} (unregistered - URP), ${esc(invoice?.billing_state ?? "")}`;
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:12px 16px; margin:16px 0; font-size:13px; width:100%;">
-    ${row("Transaction", "Outward - Supply")}
-    ${row("Document", `${bill.document_type === "tax_invoice" ? "Tax Invoice" : "Delivery Challan"} <strong>${esc(bill.document_number)}</strong>, ${esc(formatDate(bill.document_date))}`)}
-    ${row("Bill from", `${esc(invoice.seller_legal_name ?? invoice.seller_name)}, GSTIN <strong>${esc(invoice.seller_gstin)}</strong>`)}
+    ${row("Transaction", esc(transaction))}
+    ${row("Document", `${DOCUMENT_LABELS[bill.document_type]} <strong>${esc(bill.document_number)}</strong>, ${esc(formatDate(bill.document_date))}`)}
+    ${row("Bill from", inward ? customer : boutique)}
     ${row("Dispatch from", `${esc(bill.from_name)}, ${esc(addressText(bill.from_address))}`)}
-    ${row("Bill to", `${esc(invoice.billing_name)} (unregistered - URP), ${esc(invoice.billing_state ?? "")}`)}
+    ${row("Bill to", inward ? boutique : customer)}
     ${row("Ship to", `${esc(bill.to_name)}, ${esc(addressText(bill.to_address))}`)}
     ${row("Items", items)}
     ${row(
       "Totals",
-      `Taxable ${esc(money(invoice.taxable_value))}, ${
-        intra ? `CGST ${esc(money(invoice.cgst_amount))}, SGST ${esc(money(invoice.sgst_amount))}` : `IGST ${esc(money(invoice.igst_amount))}`
+      `Taxable ${esc(money(totalsFrom?.taxable_value))}, ${
+        intra
+          ? `CGST ${esc(money(totalsFrom?.cgst_amount))}, SGST ${esc(money(totalsFrom?.sgst_amount))}`
+          : `IGST ${esc(money(totalsFrom?.igst_amount))}`
       }, <strong>total ${esc(money(bill.value))}</strong>`,
     )}
     ${row("Transporter", `${esc(bill.courier_name ?? "-")}${transporter ? `, transporter ID <strong>${esc(transporter)}</strong>` : " (transporter ID: ask AllBoutiqs)"} - mode Road, leave the vehicle number blank`)}
   </table>`;
 }
 
-async function announceRequest(supabase: SupabaseClient, bill: EwayBill, invoice: any, settings: EwayBillSettings) {
+async function announceRequest(supabase: SupabaseClient, bill: EwayBill, settings: EwayBillSettings) {
   try {
     const [{ data: vendor }, setup] = await Promise.all([
       supabase.from("vendors").select("name, contact_email").eq("id", bill.vendor_id).single(),
@@ -367,16 +600,20 @@ async function announceRequest(supabase: SupabaseClient, bill: EwayBill, invoice
     const ref = orderRef(bill.order_id);
     const boutique = vendor?.name ?? "A boutique";
     const bySelf = setup.mode === "self";
+    const kind = kindOf(bill);
+    const next = NEXT_STEP[kind];
     const who = bySelf
       ? "The boutique makes this one itself and emails the number."
       : setup.subuser_username
         ? `Portal sub-user: ${setup.subuser_username}${setup.verified_at ? "" : " (not checked yet)"}.`
         : "This boutique hasn't set up its portal sub-user yet.";
+    const rtoNote = kind === "rto" ? " The parcel is already on its way back: upload the number on Shiprocket's RTO order." : "";
+    const details = await detailsHtml(supabase, bill);
 
     await notifyAllAdmins(supabase, {
       type: "eway_bill_needed",
       title: "E-way bill needed",
-      body: `${boutique} - order ${ref}, ${LEG_LABELS[bill.leg].toLowerCase()}, ${money(bill.value)}, courier ${bill.courier_name ?? "-"}. ${who}`,
+      body: `${boutique} - order ${ref}, ${LEG_LABELS[bill.leg].toLowerCase()}, ${money(bill.value)}, courier ${bill.courier_name ?? "-"}. ${who}${rtoNote}`,
       link: links.adminEwayBill(bill.id),
       category: "order",
     });
@@ -384,9 +621,9 @@ async function announceRequest(supabase: SupabaseClient, bill: EwayBill, invoice
     const adminHtml = emailTemplate({
       heading: "E-way bill needed",
       preheader: `${boutique} - order ${ref} - ${money(bill.value)}`,
-      bodyHtml: `<p>${esc(boutique)} wants to ship order <strong>${esc(ref)}</strong> (${esc(LEG_LABELS[bill.leg].toLowerCase())}). It is over ${esc(money(settings.threshold))}, so the courier can't be booked until its e-way bill number is entered.</p>
+      bodyHtml: `<p>Order <strong>${esc(ref)}</strong> from ${esc(boutique)} - ${esc(LEG_LABELS[bill.leg].toLowerCase())} - is over ${esc(money(settings.threshold))}, so it needs an e-way bill. Once its number is entered, ${esc(next)}.${esc(rtoNote)}</p>
         <p>${esc(who)}</p>
-        ${await detailsHtml(supabase, bill, invoice)}`,
+        ${details}`,
       ctaLabel: "Open E-way bills",
       ctaUrl: `https://allboutiqs.com${links.adminEwayBill(bill.id)}`,
     });
@@ -396,29 +633,18 @@ async function announceRequest(supabase: SupabaseClient, bill: EwayBill, invoice
       );
     }
 
-    const waiting = bill.leg === "warehouse_to_customer" ? "the parcel leaves the AllBoutiqs warehouse" : "you can book the courier";
     await notifyVendorMembers(supabase, bill.vendor_id, {
       type: "eway_bill_needed",
       title: bySelf ? "Make the e-way bill for this order" : "E-way bill in progress",
       body: bySelf
-        ? `Order ${ref} is over ${money(settings.threshold)}, so it needs an e-way bill. Make it on ewaybillgst.gov.in (details are in your email) and email the 12-digit number and its PDF to ${settings.email}. Once we enter it, ${waiting}.`
-        : `Order ${ref} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - we'll tell you when it's ready, then ${waiting}.`,
+        ? `Order ${ref} (${LEG_LABELS[bill.leg].toLowerCase()}) is over ${money(settings.threshold)}, so it needs an e-way bill. Make it on ewaybillgst.gov.in (details are in your email) and email the 12-digit number and its PDF to ${settings.email}. Once we enter it, ${next}.`
+        : `Order ${ref} (${LEG_LABELS[bill.leg].toLowerCase()}) is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - once it's in, ${next}.`,
       link: links.vendorOrder(bill.vendor_order_id),
     });
 
     if (bySelf && vendor?.contact_email) {
-      const html = emailTemplate({
-        heading: "Please make the e-way bill",
-        preheader: `Order ${ref} needs an e-way bill`,
-        bodyHtml: `<p>Order <strong>${esc(ref)}</strong> is over ${esc(money(settings.threshold))}, so the goods need an e-way bill (${esc(LEG_LABELS[bill.leg].toLowerCase())}).</p>
-          <p>Please make it on <a href="https://ewaybillgst.gov.in" style="color:#7a2e22;">ewaybillgst.gov.in</a> with these details:</p>
-          ${await detailsHtml(supabase, bill, invoice)}
-          <p>Then email the <strong>12-digit e-way bill number</strong> and its <strong>PDF</strong> to <a href="mailto:${esc(settings.email)}" style="color:#7a2e22;">${esc(settings.email)}</a> with the subject <strong>EWB - Order ${esc(ref)} - ${esc(bill.document_number)}</strong>. Once we enter it, ${esc(waiting)}.</p>`,
-        ctaLabel: "Open the order",
-        ctaUrl: `https://allboutiqs.com${links.vendorOrder(bill.vendor_order_id)}`,
-      });
-      await sendEmail(vendor.contact_email, `E-way bill needed - order ${ref} - ${bill.document_number}`, html).catch((e) =>
-        console.error("eway bill: boutique email failed", errorMessage(e)),
+      await sendEmail(vendor.contact_email, `E-way bill needed - order ${ref} - ${bill.document_number}`, requestEmailHtml(bill, settings, details)).catch(
+        (e) => console.error("eway bill: boutique email failed", errorMessage(e)),
       );
     }
   } catch (e) {
@@ -427,37 +653,48 @@ async function announceRequest(supabase: SupabaseClient, bill: EwayBill, invoice
   }
 }
 
+function requestEmailHtml(bill: EwayBill, settings: EwayBillSettings, details: string, reminder = false) {
+  const ref = orderRef(bill.order_id);
+  return emailTemplate({
+    heading: "Please make the e-way bill",
+    preheader: `Order ${ref} needs an e-way bill`,
+    bodyHtml: `<p>${reminder ? "A reminder: order" : "Order"} <strong>${esc(ref)}</strong> is over ${esc(money(settings.threshold))}, so the goods need an e-way bill (${esc(LEG_LABELS[bill.leg].toLowerCase())}).</p>
+      <p>Please make it on <a href="https://ewaybillgst.gov.in" style="color:#7a2e22;">ewaybillgst.gov.in</a> with these details:</p>
+      ${details}
+      <p>Then email the <strong>12-digit e-way bill number</strong> and its <strong>PDF</strong> to <a href="mailto:${esc(settings.email)}" style="color:#7a2e22;">${esc(settings.email)}</a> with the subject <strong>EWB - Order ${esc(ref)} - ${esc(bill.document_number)}</strong>. Once we enter it, ${esc(NEXT_STEP[kindOf(bill)])}.</p>`,
+    ctaLabel: "Open the order",
+    ctaUrl: `https://allboutiqs.com${links.vendorOrder(bill.vendor_order_id)}`,
+  });
+}
+
 // Sent again from the admin page (a boutique that makes its own lost the email).
 export async function resendRequestEmail(supabase: SupabaseClient, bill: EwayBill): Promise<string> {
   const settings = await loadEwayBillSettings(supabase);
   const { data: vendor } = await supabase.from("vendors").select("contact_email").eq("id", bill.vendor_id).single();
   if (!vendor?.contact_email) throw new InvoiceError("This boutique has no contact email", 400);
-  const { data: invoice } = await supabase.from("invoices").select("*").eq("id", bill.invoice_id).single();
-  const ref = orderRef(bill.order_id);
-  const html = emailTemplate({
-    heading: "Please make the e-way bill",
-    preheader: `Order ${ref} needs an e-way bill`,
-    bodyHtml: `<p>A reminder: order <strong>${esc(ref)}</strong> needs an e-way bill (${esc(LEG_LABELS[bill.leg].toLowerCase())}). Please make it on <a href="https://ewaybillgst.gov.in" style="color:#7a2e22;">ewaybillgst.gov.in</a> with these details:</p>
-      ${await detailsHtml(supabase, bill, invoice)}
-      <p>Then email the 12-digit number and its PDF to <a href="mailto:${esc(settings.email)}" style="color:#7a2e22;">${esc(settings.email)}</a> with the subject <strong>EWB - Order ${esc(ref)} - ${esc(bill.document_number)}</strong>.</p>`,
-  });
-  await sendEmail(vendor.contact_email, `E-way bill needed - order ${ref} - ${bill.document_number}`, html);
+  await sendEmail(
+    vendor.contact_email,
+    `E-way bill needed - order ${orderRef(bill.order_id)} - ${bill.document_number}`,
+    requestEmailHtml(bill, settings, await detailsHtml(supabase, bill), true),
+  );
   return vendor.contact_email;
 }
 
-// The number is in: the parcel can be booked.
+// The number is in: tell whoever books the parcel.
 export async function announceReady(supabase: SupabaseClient, bill: EwayBill) {
   const ref = orderRef(bill.order_id);
+  const kind = kindOf(bill);
   try {
-    if (bill.leg === "warehouse_to_customer") {
+    if (kind === "onward" || kind === "return_to_customer" || kind === "send_back") {
       await supabase.rpc("notify_warehouse", {
         _type: "eway_bill_ready",
         _title: "E-way bill ready - book the parcel",
-        _body: `E-way bill ${bill.ewb_number} for order ${ref} is in. Book the parcel with ${bill.courier_name ?? "the same courier"}.`,
-        _link: `/warehouse?tab=pack&focus=${bill.order_id}`,
+        _body: `E-way bill ${bill.ewb_number} for order ${ref} (${LEG_LABELS[bill.leg].toLowerCase()}) is in. Book the parcel with ${bill.courier_name ?? "the same courier"}.`,
+        _link: kind === "send_back" ? `/warehouse?tab=sendbacks&focus=${bill.send_back_id}` : `/warehouse?tab=pack&focus=${bill.order_id}`,
       });
       return;
     }
+    if (kind !== "forward") return; // return pickups and RTO need no one to act
     await notifyVendorMembers(supabase, bill.vendor_id, {
       type: "eway_bill_ready",
       title: "E-way bill ready - ship the order",

@@ -8,6 +8,9 @@ import {
   toIntOrNull,
 } from "../_shared/shiprocket.ts";
 import { links, notifyAllAdmins, notifyUsers, notifyVendorMembers } from "../_shared/notify.ts";
+import { getWarehouse } from "../_shared/warehouse.ts";
+import { reverseCurrentInvoice } from "../_shared/invoice.ts";
+import { ewayBillForBooking, returnInvoiceDocument } from "../_shared/ewayBill.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHIPMENT_COLUMNS =
@@ -215,7 +218,7 @@ Deno.serve(async (req) => {
 
     // ---------- the warehouse's parcel to the customer ----------
     if (type === "warehouse_to_customer" && shipment.dispatch_id) {
-      await handleLastMile(supabase, shipment.dispatch_id, s, newlyCancelled, statusRaw, awbCode);
+      await handleLastMile(supabase, shipment.dispatch_id, s, newlyCancelled, statusRaw, awbCode, shipment.id);
     }
 
     // ---------- returns (customer -> warehouse / boutique) ----------
@@ -407,6 +410,7 @@ async function handleLastMile(
   newlyCancelled: boolean,
   statusRaw: string,
   awbCode: string,
+  shipmentId: string,
 ) {
   const { data: dispatch } = await supabase
     .from("warehouse_dispatches")
@@ -462,6 +466,7 @@ async function handleLastMile(
         .not("status", "in", "(cancelled,delivered)");
     }
     if (s === "rto") {
+      await rtoPaperwork(supabase, dispatchId, shipmentId);
       await notifyWarehouseStaff(supabase, {
         type: "warehouse_rto",
         title: "Parcel couldn't be delivered",
@@ -488,5 +493,63 @@ async function handleLastMile(
       .update({ status: "returned_to_customer" })
       .eq("id", dispatch.return_request_id)
       .eq("status", "qc_failed");
+  }
+}
+
+// The courier is bringing an order parcel back to the warehouse: each
+// boutique's goods return on its RTO return invoice (withdrawn if the parcel
+// is sent again), and a part over the e-way bill limit needs an e-way bill to
+// upload on Shiprocket's RTO order (Admin > E-way bills). Safe to repeat for
+// every RTO scan; never fails the webhook.
+async function rtoPaperwork(supabase: ReturnType<typeof serviceClient>, dispatchId: string, shipmentId: string) {
+  try {
+    const { data: shipment } = await supabase
+      .from("shipments")
+      .select("id, order_id, courier_id, courier_name")
+      .eq("id", shipmentId)
+      .maybeSingle();
+    if (!shipment) return;
+    const [{ data: order }, { data: parts }] = await Promise.all([
+      supabase.from("orders").select("customer_name, shipping_address, warehouse_id").eq("id", shipment.order_id).single(),
+      supabase.from("vendor_orders").select("id").eq("dispatch_id", dispatchId),
+    ]);
+    if (!order?.warehouse_id) return;
+    const warehouse = await getWarehouse(supabase, order.warehouse_id);
+    for (const part of parts ?? []) {
+      try {
+        let returnInvoice = await reverseCurrentInvoice(supabase, part.id, "rto");
+        if (!returnInvoice) {
+          const { data: earlier } = await supabase
+            .from("return_invoices")
+            .select("*")
+            .eq("vendor_order_id", part.id)
+            .eq("reason", "rto")
+            .eq("status", "issued")
+            .order("issued_at", { ascending: false })
+            .limit(1);
+          returnInvoice = earlier?.[0] ?? null;
+        }
+        if (!returnInvoice) continue; // never invoiced
+        const ri = returnInvoice;
+        await ewayBillForBooking(supabase, {
+          vendorOrderId: part.id,
+          leg: "customer_to_warehouse",
+          movement: `rto:${shipmentId}`,
+          courierId: shipment.courier_id,
+          courierName: shipment.courier_name,
+          from: { name: order.customer_name, address: (order.shipping_address ?? {}) as Record<string, unknown> },
+          to: { name: warehouse.name, address: warehouse.address as Record<string, unknown> },
+          value: Number(ri.total),
+          document: async () => returnInvoiceDocument(ri),
+          shipmentId,
+          requireCourier: false,
+          requestedBy: null,
+        });
+      } catch (e) {
+        console.error("courier-tracking-webhook: RTO paperwork failed for part", part.id, errorMessage(e));
+      }
+    }
+  } catch (e) {
+    console.error("courier-tracking-webhook: RTO paperwork failed", errorMessage(e));
   }
 }
