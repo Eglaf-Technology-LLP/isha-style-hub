@@ -55,8 +55,13 @@ import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { colourCodes } from "@/lib/colors";
 import { hoursText, usePolicyHours } from "@/hooks/usePolicyHours";
 
+// Product links carry the product's id; anything else (an old or mistyped
+// link) is answered with "isn't available" without asking the database.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
+  const isProductId = !!handle && UUID_RE.test(handle);
   const location = useLocation();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
@@ -96,7 +101,7 @@ export default function ProductDetail() {
   // Star rating next to the title (the full reviews are further down).
   const { data: ratingSummary } = useQuery({
     queryKey: ["product-rating", handle],
-    enabled: !!handle,
+    enabled: isProductId,
     queryFn: async () => {
       const { data } = await supabase.from("product_reviews").select("rating").eq("product_id", handle!);
       const rows = data || [];
@@ -145,15 +150,24 @@ export default function ProductDetail() {
   useEffect(() => {
     async function loadProduct() {
       if (!handle) return;
+      if (!UUID_RE.test(handle)) {
+        setProduct(null);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const { data, error } = await supabase
           .from("products")
           .select("*, product_variants(*)")
           .eq("id", handle)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+          setProduct(null);
+          return;
+        }
 
         const typedProduct: Product = {
           ...data,
@@ -192,6 +206,7 @@ export default function ProductDetail() {
         }
       } catch (error) {
         console.error("Failed to fetch product:", error);
+        setProduct(null);
       } finally {
         setLoading(false);
       }
