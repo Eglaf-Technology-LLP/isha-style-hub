@@ -45,6 +45,7 @@ import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { useShipments } from "@/hooks/useShipments";
 import { ShipNowDialog } from "./ShipNowDialog";
+import { ReturnInvoiceButton } from "@/components/ReturnInvoiceButton";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { COMPANY } from "@/lib/company";
@@ -137,6 +138,10 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
   const [updating, setUpdating] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [hasShipment, setHasShipment] = useState<boolean | null>(null);
+  // Over the e-way bill limit the courier is booked but only collects once
+  // the e-way bill is in (Admin > E-way bills).
+  const [pickupHeld, setPickupHeld] = useState(false);
+  const [returnInvoices, setReturnInvoices] = useState<{ id: string; return_invoice_number: string; status: string }[]>([]);
   const [retrying, setRetrying] = useState(false);
 
   const visibleRequests = vendorFilter
@@ -177,8 +182,17 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
           : "0"
     );
     setHasShipment(null);
+    setPickupHeld(false);
+    setReturnInvoices([]);
     setVendorNote("");
     setIsDetailOpen(true);
+
+    supabase
+      .from("return_invoices")
+      .select("id, return_invoice_number, status")
+      .eq("return_request_id", request.id)
+      .order("issued_at")
+      .then(({ data }) => setReturnInvoices(data ?? []));
 
     setOrderRoute(null);
     supabase
@@ -193,14 +207,34 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
       // carries the same return_request_id.
       const { data } = await supabase
         .from("shipments")
-        .select("id")
+        .select("id, status")
         .eq("return_request_id", request.id)
         .in("shipment_type", ["return", "return_to_warehouse", "exchange_return"])
         .limit(1)
         .maybeSingle();
       setHasShipment(!!data);
+      if (data?.status === "awb_assigned") {
+        const { count } = await supabase
+          .from("eway_bills")
+          .select("id", { count: "exact", head: true })
+          .eq("shipment_id", data.id)
+          .eq("status", "pending");
+        setPickupHeld(!!count);
+      }
     }
   };
+
+  // Books the customer's pickup (or checks a held one again).
+  const bookPickup = async (request: ReturnRequest) => {
+    const fnName = request.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
+    const { data, errorMessage } = await invokeEdgeFunction<{ eway_bill_pending?: boolean }>(fnName, { return_request_id: request.id });
+    if (!errorMessage) setPickupHeld(!!data?.eway_bill_pending);
+    return { errorMessage, held: !!data?.eway_bill_pending };
+  };
+  const pickupBookedToast = (held: boolean) =>
+    held
+      ? toast.info("Courier booked - it collects once the e-way bill is in (Admin > E-way bills)")
+      : toast.success("Reverse pickup scheduled with the courier");
 
   // The customer can change their mind (e.g. emails asking for the wallet
   // instead of a bank transfer) until the refund is made.
@@ -240,14 +274,12 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
   const retryCourierBooking = async () => {
     if (!selectedRequest) return;
     setRetrying(true);
-    const fnName =
-      selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
-    const { errorMessage } = await invokeEdgeFunction(fnName, { return_request_id: selectedRequest.id });
+    const { errorMessage, held } = await bookPickup(selectedRequest);
     setRetrying(false);
     if (errorMessage) {
       toast.error(`Retry failed: ${errorMessage}`);
     } else {
-      toast.success("Reverse pickup scheduled with the courier");
+      pickupBookedToast(held);
       setHasShipment(true);
     }
   };
@@ -259,13 +291,11 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
     if (updated) {
       setSelectedRequest((prev) => (prev ? { ...prev, ...updated } : null));
       if (decision === "approved") {
-        const fnName =
-          selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
-        const { errorMessage } = await invokeEdgeFunction(fnName, { return_request_id: selectedRequest.id });
+        const { errorMessage, held } = await bookPickup(selectedRequest);
         if (errorMessage) {
           toast.error(`Accepted, but scheduling the courier pickup failed: ${errorMessage}`);
         } else {
-          toast.success("Reverse pickup scheduled with the courier");
+          pickupBookedToast(held);
         }
       }
       try {
@@ -299,15 +329,11 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
       // so a courier-side failure surfaces as a toast to retry, not a
       // rollback of the approval.
       if (status === "approved") {
-        const fnName =
-          selectedRequest.request_type === "exchange" ? "shiprocket-create-exchange" : "shiprocket-create-return";
-        const { errorMessage } = await invokeEdgeFunction(fnName, {
-          return_request_id: selectedRequest.id,
-        });
+        const { errorMessage, held } = await bookPickup(selectedRequest);
         if (errorMessage) {
           toast.error(`Approved, but scheduling the courier pickup failed: ${errorMessage}`);
         } else {
-          toast.success("Reverse pickup scheduled with the courier");
+          pickupBookedToast(held);
         }
       }
 
@@ -804,6 +830,32 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                       </div>
                     )}
                     <RefundHistory orderId={selectedRequest.order_id} />
+
+                    {pickupHeld && (
+                      <div className="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-lg p-3">
+                        <p className="text-xs text-amber-950 flex-1">
+                          The courier is booked, but over the e-way bill limit it collects only once the e-way bill
+                          number is entered (Admin &gt; E-way bills) - then the pickup is requested automatically.
+                        </p>
+                        <Button size="sm" variant="outline" onClick={retryCourierBooking} disabled={retrying} className="gap-1 shrink-0">
+                          {retrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Truck className="h-3 w-3" />}
+                          Check again
+                        </Button>
+                      </div>
+                    )}
+
+                    {returnInvoices.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">Return invoices:</span>
+                        {returnInvoices.map((ri) => (
+                          <ReturnInvoiceButton
+                            key={ri.id}
+                            returnInvoiceId={ri.id}
+                            label={`${ri.return_invoice_number}${ri.status === "cancelled" ? " (cancelled)" : ""}`}
+                          />
+                        ))}
+                      </div>
+                    )}
 
                     {selectedRequest.status === "approved" && hasShipment === false && (
                       <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3">

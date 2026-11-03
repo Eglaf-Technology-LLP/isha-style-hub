@@ -7,12 +7,21 @@ export type VendorEwayBillSetup = Tables<"vendor_eway_bill_setup">;
 export type CourierTransporter = Tables<"courier_transporters">;
 export type InvoiceRow = Tables<"invoices">;
 export type InvoiceLineRow = Tables<"invoice_lines">;
+export type ReturnInvoiceRow = Tables<"return_invoices">;
+// The goods on the document: a tax invoice's lines or a return invoice's.
+export type DocumentLine = Pick<
+  InvoiceLineRow,
+  "line_no" | "description" | "hsn_code" | "quantity" | "taxable_value" | "gst_rate" | "cgst_amount" | "sgst_amount" | "igst_amount" | "total"
+>;
 
 export interface AdminEwayBill extends EwayBillRow {
   vendorName: string;
   boutiqueCode: string | null;
   invoice: InvoiceRow | null;
-  lines: InvoiceLineRow[];
+  // The return invoice it travels on, or its challan refers to.
+  returnInvoice: ReturnInvoiceRow | null;
+  challanPurpose: string | null;
+  lines: DocumentLine[];
   partStatus: string | null; // the boutique part's own status (cancelled?)
   shipment: { awb_code: string | null; status: string } | null;
   transporterId: string | null;
@@ -54,6 +63,23 @@ export function useEwayBillsAdmin() {
     const ids = <K extends keyof EwayBillRow>(key: K) =>
       [...new Set(list.map((b) => b[key]).filter((v): v is NonNullable<EwayBillRow[K]> => v != null))] as string[];
     const invoiceIds = ids("invoice_id");
+    const challanIds = ids("challan_id");
+    const { data: challans } = challanIds.length
+      ? await supabase.from("delivery_challans").select("id, purpose, return_invoice_id").in("id", challanIds)
+      : { data: [] as { id: string; purpose: string; return_invoice_id: string | null }[] };
+    const challanById = new Map((challans ?? []).map((c) => [c.id, c]));
+    const returnInvoiceIds = [
+      ...new Set([...ids("return_invoice_id"), ...(challans ?? []).map((c) => c.return_invoice_id).filter((v): v is string => !!v)]),
+    ];
+    const [{ data: returnInvoices }, { data: returnLines }] = await Promise.all([
+      returnInvoiceIds.length
+        ? supabase.from("return_invoices").select("*").in("id", returnInvoiceIds)
+        : Promise.resolve({ data: [] as ReturnInvoiceRow[] }),
+      returnInvoiceIds.length
+        ? supabase.from("return_invoice_lines").select("*").in("return_invoice_id", returnInvoiceIds).order("line_no")
+        : Promise.resolve({ data: [] as Tables<"return_invoice_lines">[] }),
+    ]);
+    const returnInvoiceById = new Map((returnInvoices ?? []).map((r) => [r.id, r]));
     const [{ data: vendors }, { data: invoices }, { data: lines }, { data: parts }, { data: shipments }] = await Promise.all([
       ids("vendor_id").length
         ? supabase.from("vendors").select("id, name, boutique_code").in("id", ids("vendor_id"))
@@ -76,16 +102,25 @@ export function useEwayBillsAdmin() {
     const transporterByCourier = new Map((courierRows ?? []).map((c) => [c.courier_id, c.transporter_id]));
 
     setBills(
-      list.map((b) => ({
-        ...b,
-        vendorName: vendorById.get(b.vendor_id)?.name ?? "Boutique",
-        boutiqueCode: vendorById.get(b.vendor_id)?.boutique_code ?? null,
-        invoice: b.invoice_id ? invoiceById.get(b.invoice_id) ?? null : null,
-        lines: (lines ?? []).filter((l) => l.invoice_id === b.invoice_id),
-        partStatus: partById.get(b.vendor_order_id) ?? null,
-        shipment: b.shipment_id ? shipmentById.get(b.shipment_id) ?? null : null,
-        transporterId: b.courier_id != null ? transporterByCourier.get(b.courier_id) ?? null : null,
-      })),
+      list.map((b) => {
+        const challan = b.challan_id ? challanById.get(b.challan_id) : undefined;
+        const returnInvoiceId = b.return_invoice_id ?? challan?.return_invoice_id ?? null;
+        const returnInvoice = returnInvoiceId ? returnInvoiceById.get(returnInvoiceId) ?? null : null;
+        return {
+          ...b,
+          vendorName: vendorById.get(b.vendor_id)?.name ?? "Boutique",
+          boutiqueCode: vendorById.get(b.vendor_id)?.boutique_code ?? null,
+          invoice: b.invoice_id ? invoiceById.get(b.invoice_id) ?? null : null,
+          returnInvoice,
+          challanPurpose: challan?.purpose ?? null,
+          lines: returnInvoice
+            ? (returnLines ?? []).filter((l) => l.return_invoice_id === returnInvoice.id)
+            : (lines ?? []).filter((l) => l.invoice_id === b.invoice_id),
+          partStatus: partById.get(b.vendor_order_id) ?? null,
+          shipment: b.shipment_id ? shipmentById.get(b.shipment_id) ?? null : null,
+          transporterId: b.courier_id != null ? transporterByCourier.get(b.courier_id) ?? null : null,
+        };
+      }),
     );
     setSetups(new Map((setupRows ?? []).map((s) => [s.vendor_id, s])));
     setTransporters(courierRows ?? []);

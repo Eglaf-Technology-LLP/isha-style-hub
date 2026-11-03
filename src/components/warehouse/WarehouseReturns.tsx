@@ -10,6 +10,9 @@ import { formatShortDate, inr, returnStatusLabels, sendBackReasonLabels } from "
 import { CourierPickerDialog } from "./CourierPickerDialog";
 import { PromptDialog } from "./PromptDialog";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseViewProps } from "./shared";
+import { EwayBillPreview, formatEwbNumber } from "@/lib/ewayBill";
+import { ReturnInvoiceButton } from "@/components/ReturnInvoiceButton";
+import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
 
 const AWAITING_ARRIVAL = ["approved", "pickup_scheduled", "picked_up", "pickup_failed"];
 const DONE = ["completed", "returned_to_customer", "replacement_shipped"];
@@ -322,16 +325,46 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
                           title={`Send back to ${sb.vendor_name}`}
                           description="From the warehouse to the boutique's pickup address."
                           loadRates={async () => {
-                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number }>("parcel_rates", { send_back_id: sb.id });
-                            return res && res.couriers ? res : null;
+                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; eway_bills?: EwayBillPreview[] }>(
+                              "parcel_rates",
+                              { send_back_id: sb.id },
+                            );
+                            return res && res.couriers ? { ...res, ewayBills: res.eway_bills ?? [] } : null;
                           }}
-                          onBook={async (courierId, etd) => {
-                            const res = await runAction("book_send_back", { send_back_id: sb.id, courier_id: courierId, courier_etd: etd }, "Booked - pickup requested");
-                            if (res) data.refetch();
-                            return !!res;
+                          onBook={async (courierId, etd, courierName) => {
+                            const res = await runAction<{ eway_bill_pending?: boolean; eway_bills?: EwayBillPreview[] }>("book_send_back", {
+                              send_back_id: sb.id,
+                              courier_id: courierId,
+                              courier_name: courierName,
+                              courier_etd: etd,
+                            });
+                            if (!res) return false;
+                            data.refetch();
+                            if (res.eway_bill_pending) {
+                              toast.info("E-way bill asked for - book again once it's in");
+                              return { ewayBills: res.eway_bills ?? [] };
+                            }
+                            toast.success("Booked - pickup requested");
+                            return true;
                           }}
                         />
                       )}
+                      {/* The documents the goods travel on back to the boutique. */}
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {sb.return_invoice_id && <ReturnInvoiceButton returnInvoiceId={sb.return_invoice_id} />}
+                        {sb.ewayBills
+                          .filter((b) => b.challan_id)
+                          .map((b) => (
+                            <DeliveryChallanButton key={b.challan_id} challanId={b.challan_id!} />
+                          ))}
+                      </div>
+                      {sb.ewayBills
+                        .filter((b) => b.ewb_number)
+                        .map((b) => (
+                          <div key={b.ewb_number} className="text-[11px] text-muted-foreground font-mono">
+                            E-way bill {formatEwbNumber(b.ewb_number)}
+                          </div>
+                        ))}
                       {sb.status === "booked" && sb.shipment && ["pending", "awb_assigned", "pickup_scheduled"].includes(sb.shipment.status) && (
                         <PromptDialog
                           trigger={(open) => (

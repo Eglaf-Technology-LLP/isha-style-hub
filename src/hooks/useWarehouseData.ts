@@ -89,7 +89,10 @@ export interface WhEwayBill {
   ewb_number: string | null;
   document_number: string;
   challan_id: string | null;
+  return_invoice_id: string | null;
   shipment_id: string | null;
+  dispatch_id: string | null;
+  send_back_id: string | null;
 }
 
 export interface WhDispatch {
@@ -106,6 +109,8 @@ export interface WhDispatch {
   rto_received_at: string | null;
   created_at: string;
   shipment: WhShipment | null;
+  // Its boutique parts' e-way bills (over the limit), with their challans.
+  ewayBills: WhEwayBill[];
 }
 
 export interface WhReturnItem {
@@ -153,6 +158,9 @@ export interface WhSendBack {
   notes: string | null;
   created_at: string;
   shipment: WhShipment | null;
+  // The return invoice it goes back on (or its challan refers to).
+  return_invoice_id: string | null;
+  ewayBills: WhEwayBill[];
 }
 
 const SHIPMENT_COLUMNS =
@@ -247,7 +255,7 @@ export function useWarehouseData(enabled: boolean) {
         supabase.from("warehouse_dispatches").select("*").in("order_id", orderIds).neq("status", "cancelled"),
         supabase
           .from("eway_bills")
-          .select("vendor_order_id, leg, status, ewb_number, document_number, challan_id, shipment_id")
+          .select("vendor_order_id, leg, status, ewb_number, document_number, challan_id, return_invoice_id, shipment_id, dispatch_id, send_back_id")
           .in("order_id", orderIds)
           .neq("status", "cancelled")
           .order("created_at"),
@@ -287,6 +295,7 @@ export function useWarehouseData(enabled: boolean) {
           .map((d) => ({
             ...d,
             shipment: shipments.find((s) => s.dispatch_id === d.id && s.shipment_type === "warehouse_to_customer") ?? null,
+            ewayBills: (ewayRows ?? []).filter((b) => b.dispatch_id === d.id),
           }))
           .sort(latestFirst),
       );
@@ -311,6 +320,7 @@ export function useWarehouseData(enabled: boolean) {
           vendor_name: vendorName.get(sb.vendor_id) ?? "Boutique",
           items: (sb.items ?? []) as WhSendBack["items"],
           shipment: shipments.find((s) => s.send_back_id === sb.id) ?? null,
+          ewayBills: (ewayRows ?? []).filter((b) => b.send_back_id === sb.id),
         })),
       );
     } catch (e: any) {

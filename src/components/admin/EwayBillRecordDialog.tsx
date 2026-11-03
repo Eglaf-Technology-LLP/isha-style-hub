@@ -71,7 +71,7 @@ export function EwayBillRecordDialog({
   const save = async () => {
     setSaving(true);
     const courier = transporters.find((t) => String(t.courier_id) === courierId);
-    const { errorMessage } = await invokeEdgeFunction("eway-bill-actions", {
+    const { data, errorMessage } = await invokeEdgeFunction<{ pickup_requested?: boolean; pickup_error?: string | null }>("eway-bill-actions", {
       action: "record",
       eway_bill_id: bill.id,
       ewb_number: digits,
@@ -85,11 +85,19 @@ export function EwayBillRecordDialog({
       toast.error(errorMessage);
       return;
     }
-    toast.success(
-      bill.leg === "warehouse_to_customer"
-        ? "Saved - the warehouse can book the parcel now"
-        : `Saved - ${bill.vendorName} has been told to ship`,
-    );
+    if (data?.pickup_error) toast.error(`Saved, but the courier pickup couldn't be requested: ${data.pickup_error}`);
+    else
+      toast.success(
+        data?.pickup_requested
+          ? "Saved - the courier will collect the return from the customer"
+          : bill.movement.startsWith("rto:")
+            ? "Saved - now upload it on Shiprocket's RTO order"
+            : bill.leg.startsWith("warehouse_to_")
+              ? "Saved - the warehouse can book the parcel now"
+              : bill.leg.startsWith("customer_to_")
+                ? "Saved"
+                : `Saved - ${bill.vendorName} has been told to ship`,
+      );
     setOpen(false);
     onSaved();
   };

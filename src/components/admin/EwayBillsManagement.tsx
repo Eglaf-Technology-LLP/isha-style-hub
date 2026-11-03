@@ -10,9 +10,10 @@ import { useFlashFocus, useUrlTab } from "@/hooks/useDeepLink";
 import { formatMoney } from "@/lib/format";
 import { formatDateTime } from "@/lib/dates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { EWAY_LEG_LABELS, EwayBillLeg, formatEwbNumber, orderRefOf } from "@/lib/ewayBill";
+import { EWAY_LEG_LABELS, EwayBillLeg, formatEwbNumber, movementLabel, orderRefOf } from "@/lib/ewayBill";
 import { PromptDialog } from "@/components/warehouse/PromptDialog";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
+import { ReturnInvoiceButton } from "@/components/ReturnInvoiceButton";
 import { EwayBillRequestCard } from "./EwayBillRequestCard";
 import { EwayBillRecordDialog } from "./EwayBillRecordDialog";
 import { EwayBoutiquesTab, EwayCouriersTab, EwaySettingsTab } from "./EwayBillSetupTabs";
@@ -194,7 +195,7 @@ export function EwayBillsManagement() {
                                 <div className="text-muted-foreground">{b.vendorName}</div>
                               </TableCell>
                               <TableCell className="text-xs">
-                                {EWAY_LEG_LABELS[b.leg as EwayBillLeg]}
+                                {movementLabel(b.movement)} · {EWAY_LEG_LABELS[b.leg as EwayBillLeg]}
                                 <div className="text-muted-foreground">{formatMoney(b.value)}</div>
                               </TableCell>
                               <TableCell className="text-xs font-mono">{b.document_number}</TableCell>
@@ -215,6 +216,7 @@ export function EwayBillsManagement() {
                                 <div className="flex flex-wrap gap-1 items-center">
                                   <EwayBillRecordDialog bill={b} transporters={transporters} onSaved={refetch} />
                                   {b.challan_id && <DeliveryChallanButton challanId={b.challan_id} />}
+                                  {b.returnInvoice && <ReturnInvoiceButton returnInvoiceId={b.returnInvoice.id} />}
                                   {(!b.shipment || b.shipment.status === "cancelled") && (
                                     <CancelButton bill={b} label="Cancel" onDone={refetch} />
                                   )}

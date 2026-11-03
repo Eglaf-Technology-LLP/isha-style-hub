@@ -109,6 +109,7 @@ export type Database = {
           notes: string | null
           order_id: string
           reason: string
+          return_invoice_id: string | null
           return_request_id: string | null
           status: string
           updated_at: string
@@ -123,6 +124,7 @@ export type Database = {
           notes?: string | null
           order_id: string
           reason: string
+          return_invoice_id?: string | null
           return_request_id?: string | null
           status?: string
           updated_at?: string
@@ -137,6 +139,7 @@ export type Database = {
           notes?: string | null
           order_id?: string
           reason?: string
+          return_invoice_id?: string | null
           return_request_id?: string | null
           status?: string
           updated_at?: string
@@ -255,10 +258,14 @@ export type Database = {
           dispatch_from_name: string
           dispatch_id: string | null
           id: string
-          invoice_id: string
+          invoice_id: string | null
           issued_at: string
           order_id: string
+          purpose: string
           reason: string
+          return_invoice_id: string | null
+          return_request_id: string | null
+          send_back_id: string | null
           ship_to_address: Json
           ship_to_name: string
           value: number
@@ -272,10 +279,14 @@ export type Database = {
           dispatch_from_name: string
           dispatch_id?: string | null
           id?: string
-          invoice_id: string
+          invoice_id?: string | null
           issued_at?: string
           order_id: string
+          purpose?: string
           reason?: string
+          return_invoice_id?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
           ship_to_address: Json
           ship_to_name: string
           value: number
@@ -289,10 +300,14 @@ export type Database = {
           dispatch_from_name?: string
           dispatch_id?: string | null
           id?: string
-          invoice_id?: string
+          invoice_id?: string | null
           issued_at?: string
           order_id?: string
+          purpose?: string
           reason?: string
+          return_invoice_id?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
           ship_to_address?: Json
           ship_to_name?: string
           value?: number
@@ -481,8 +496,12 @@ export type Database = {
           id: string
           invoice_id: string | null
           leg: string
+          movement: string
           order_id: string
           requested_by: string | null
+          return_invoice_id: string | null
+          return_request_id: string | null
+          send_back_id: string | null
           shipment_id: string | null
           status: string
           to_address: Json
@@ -514,8 +533,12 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           leg: string
+          movement?: string
           order_id: string
           requested_by?: string | null
+          return_invoice_id?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
           shipment_id?: string | null
           status?: string
           to_address: Json
@@ -547,8 +570,12 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           leg?: string
+          movement?: string
           order_id?: string
           requested_by?: string | null
+          return_invoice_id?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
           shipment_id?: string | null
           status?: string
           to_address?: Json
@@ -996,6 +1023,8 @@ export type Database = {
           order_id: string
           order_number: string | null
           place_of_supply_code: string | null
+          purpose: string
+          return_request_id: string | null
           seller_address: Json | null
           seller_gstin: string | null
           seller_legal_name: string | null
@@ -1031,6 +1060,8 @@ export type Database = {
           order_id: string
           order_number?: string | null
           place_of_supply_code?: string | null
+          purpose?: string
+          return_request_id?: string | null
           seller_address?: Json | null
           seller_gstin?: string | null
           seller_legal_name?: string | null
@@ -1066,6 +1097,8 @@ export type Database = {
           order_id?: string
           order_number?: string | null
           place_of_supply_code?: string | null
+          purpose?: string
+          return_request_id?: string | null
           seller_address?: Json | null
           seller_gstin?: string | null
           seller_legal_name?: string | null
@@ -2257,6 +2290,173 @@ export type Database = {
             columns: ["return_request_id"]
             isOneToOne: false
             referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      return_invoice_lines: {
+        Row: {
+          cgst_amount: number
+          color: string | null
+          description: string
+          discount: number
+          gst_rate: number
+          hsn_code: string | null
+          id: string
+          igst_amount: number
+          line_no: number
+          order_item_id: string | null
+          quantity: number
+          return_invoice_id: string
+          sgst_amount: number
+          size: string | null
+          taxable_value: number
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          cgst_amount?: number
+          color?: string | null
+          description: string
+          discount?: number
+          gst_rate: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          line_no: number
+          order_item_id?: string | null
+          quantity: number
+          return_invoice_id: string
+          sgst_amount?: number
+          size?: string | null
+          taxable_value: number
+          total: number
+          unit_price: number
+        }
+        Update: {
+          cgst_amount?: number
+          color?: string | null
+          description?: string
+          discount?: number
+          gst_rate?: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          line_no?: number
+          order_item_id?: string | null
+          quantity?: number
+          return_invoice_id?: string
+          sgst_amount?: number
+          size?: string | null
+          taxable_value?: number
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_invoice_lines_return_invoice_id_fkey"
+            columns: ["return_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "return_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      return_invoices: {
+        Row: {
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cgst_amount: number
+          created_at: string
+          id: string
+          igst_amount: number
+          invoice_id: string
+          issued_at: string
+          order_id: string
+          reason: string
+          return_invoice_number: string
+          return_request_id: string | null
+          sgst_amount: number
+          status: string
+          taxable_value: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cgst_amount?: number
+          created_at?: string
+          id?: string
+          igst_amount?: number
+          invoice_id: string
+          issued_at?: string
+          order_id: string
+          reason: string
+          return_invoice_number: string
+          return_request_id?: string | null
+          sgst_amount?: number
+          status?: string
+          taxable_value: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cgst_amount?: number
+          created_at?: string
+          id?: string
+          igst_amount?: number
+          invoice_id?: string
+          issued_at?: string
+          order_id?: string
+          reason?: string
+          return_invoice_number?: string
+          return_request_id?: string | null
+          sgst_amount?: number
+          status?: string
+          taxable_value?: number
+          total?: number
+          vendor_id?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "return_invoices_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_invoices_return_request_id_fkey"
+            columns: ["return_request_id"]
+            isOneToOne: false
+            referencedRelation: "return_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "return_invoices_vendor_order_id_fkey"
+            columns: ["vendor_order_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4074,6 +4274,7 @@ export type Database = {
         Returns: undefined
       }
       inr: { Args: { _amount: number }; Returns: string }
+      invoice_is_reversed: { Args: { _invoice_id: string }; Returns: boolean }
       invoke_edge_function: {
         Args: { _body: Json; _name: string }
         Returns: undefined
@@ -4096,6 +4297,10 @@ export type Database = {
       my_wallet_balance: { Args: never; Returns: number }
       next_boutique_challan_number: {
         Args: { _at: string; _vendor_id: string }
+        Returns: string
+      }
+      next_boutique_document_number: {
+        Args: { _at: string; _doc_kind: string; _vendor_id: string }
         Returns: string
       }
       next_boutique_invoice_number: {

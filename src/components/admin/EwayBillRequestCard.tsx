@@ -5,50 +5,69 @@ import { Copy, ExternalLink } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { addressText, EWAY_DOCUMENT_LABELS, EWAY_LEG_LABELS, EwayBillLeg, orderRefOf } from "@/lib/ewayBill";
+import { addressText, EWAY_DOCUMENT_LABELS, EWAY_LEG_LABELS, EwayBillLeg, movementLabel, orderRefOf } from "@/lib/ewayBill";
 import type { AdminEwayBill, CourierTransporter } from "@/hooks/useEwayBillsAdmin";
 import { PromptDialog } from "@/components/warehouse/PromptDialog";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
+import { ReturnInvoiceButton } from "@/components/ReturnInvoiceButton";
 import { EwayBillRecordDialog } from "./EwayBillRecordDialog";
 
 type Address = Record<string, string | null | undefined> | null;
 
 const pin = (a: unknown) => ((a as Address)?.pincode ?? "") as string;
 
-// The portal's "Generate New" form, field by field, in its order.
+// The portal's "Generate New" form, field by field, in its order. Goods
+// coming back to the boutique (a return invoice, or a challan on one) are an
+// inward sales return: the customer is the consignor.
 function portalFields(bill: AdminEwayBill): [string, string][] {
   const inv = bill.invoice;
+  const totals = bill.returnInvoice ?? inv;
   const intra = inv?.supply_type !== "inter_state";
+  const inward = bill.document_type === "return_invoice" || bill.challanPurpose === "to_boutique";
+  const transaction =
+    bill.document_type === "return_invoice"
+      ? "Inward · Sales Return"
+      : bill.challanPurpose === "to_boutique"
+        ? `Inward · Sales Return (taken back on return invoice ${bill.returnInvoice?.return_invoice_number ?? ""})`
+        : bill.challanPurpose === "return_to_customer"
+          ? "Outward · Others (the customer's own goods going back)"
+          : "Outward · Supply";
+  const boutique: [string, string][] = [
+    ["name", inv?.seller_legal_name ?? inv?.seller_name ?? bill.vendorName],
+    ["GSTIN", inv?.seller_gstin ?? "-"],
+    ["state", inv?.seller_state ?? "-"],
+  ];
+  const customer: [string, string][] = [
+    ["name", inv?.billing_name ?? "-"],
+    ["GSTIN", "URP (unregistered)"],
+    ["state", inv?.billing_state ?? "-"],
+  ];
   const items = bill.lines.map(
     (l) =>
       `${l.description} | HSN ${l.hsn_code ?? "-"} | qty ${l.quantity} | taxable ${Number(l.taxable_value).toFixed(2)} | ` +
       (intra ? `CGST ${Number(l.gst_rate) / 2}% + SGST ${Number(l.gst_rate) / 2}%` : `IGST ${Number(l.gst_rate)}%`),
   );
   return [
-    ["Transaction type", "Outward · Supply"],
+    ["Transaction type", transaction],
     ["Document type", EWAY_DOCUMENT_LABELS[bill.document_type] ?? bill.document_type],
     ["Document no.", bill.document_number],
     ["Document date", formatDate(bill.document_date)],
-    ["Bill from - name", inv?.seller_legal_name ?? inv?.seller_name ?? bill.vendorName],
-    ["Bill from - GSTIN", inv?.seller_gstin ?? "-"],
-    ["Bill from - state", inv?.seller_state ?? "-"],
+    ...(inward ? customer : boutique).map(([k, v]) => [`Bill from - ${k}`, v] as [string, string]),
     ["Dispatch from", `${bill.from_name}, ${addressText(bill.from_address as Address)}`],
     ["Dispatch from - PIN", pin(bill.from_address)],
-    ["Bill to - name", inv?.billing_name ?? "-"],
-    ["Bill to - GSTIN", "URP (unregistered)"],
-    ["Bill to - state", inv?.billing_state ?? "-"],
+    ...(inward ? boutique : customer).map(([k, v]) => [`Bill to - ${k}`, v] as [string, string]),
     ["Ship to", `${bill.to_name}, ${addressText(bill.to_address as Address)}`],
     ["Ship to - PIN", pin(bill.to_address)],
     ...items.map((text, i) => [`Item ${i + 1}`, text] as [string, string]),
-    ["Taxable amount", Number(inv?.taxable_value ?? 0).toFixed(2)],
+    ["Taxable amount", Number(totals?.taxable_value ?? 0).toFixed(2)],
     ...(intra
       ? ([
-          ["CGST amount", Number(inv?.cgst_amount ?? 0).toFixed(2)],
-          ["SGST amount", Number(inv?.sgst_amount ?? 0).toFixed(2)],
+          ["CGST amount", Number(totals?.cgst_amount ?? 0).toFixed(2)],
+          ["SGST amount", Number(totals?.sgst_amount ?? 0).toFixed(2)],
         ] as [string, string][])
-      : ([["IGST amount", Number(inv?.igst_amount ?? 0).toFixed(2)]] as [string, string][])),
+      : ([["IGST amount", Number(totals?.igst_amount ?? 0).toFixed(2)]] as [string, string][])),
     ["Total invoice value", Number(bill.value).toFixed(2)],
-    ["Transporter", bill.courier_name ?? "-"],
+    ["Transporter", bill.courier_name ?? "- (not assigned yet: Shiprocket couldn't book a courier)"],
     ["Transporter ID", bill.transporterId ?? "not saved - add it in the Couriers tab"],
     ["Mode / vehicle", "Road · leave the vehicle number blank (the courier fills Part B)"],
   ];
@@ -89,8 +108,17 @@ export function EwayBillRequestCard({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-sm font-medium">
-            Order {orderRefOf(bill.order_id)} · {EWAY_LEG_LABELS[bill.leg as EwayBillLeg]} · {formatMoney(bill.value)}
+            Order {orderRefOf(bill.order_id)} · {movementLabel(bill.movement)} · {EWAY_LEG_LABELS[bill.leg as EwayBillLeg]} ·{" "}
+            {formatMoney(bill.value)}
           </p>
+          {bill.movement.startsWith("rto:") && (
+            <p className="text-xs text-destructive">
+              The parcel is already coming back - after entering the number here, upload it on Shiprocket's RTO order too.
+            </p>
+          )}
+          {bill.movement.startsWith("return:") && bill.leg.startsWith("customer_to_") && (
+            <p className="text-xs text-muted-foreground">The courier collects from the customer as soon as the number is in.</p>
+          )}
           <p className="text-xs text-muted-foreground">
             Asked for {formatDateTime(bill.created_at)} · courier {bill.courier_name ?? "-"}
           </p>
@@ -139,6 +167,7 @@ export function EwayBillRequestCard({
           Open the portal <ExternalLink className="h-3 w-3" />
         </a>
         {bill.challan_id && <DeliveryChallanButton challanId={bill.challan_id} />}
+        {bill.returnInvoice && <ReturnInvoiceButton returnInvoiceId={bill.returnInvoice.id} />}
         {madeBy === "boutique" && (
           <Button
             size="sm"

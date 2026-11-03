@@ -118,9 +118,11 @@ function slipFor(
       })),
     }));
   } else {
+    const bill = dispatch.ewayBills.find((b) => b.status === "active" && b.ewb_number);
     groups = [
       {
         boutique: rr?.vendorNames.join(", ") || "Boutique",
+        ewayBill: bill?.ewb_number ? { number: bill.ewb_number, document: bill.document_number } : null,
         items: (rr?.items ?? []).map((i) => {
           const replacement = dispatch.purpose === "exchange_replacement";
           const size = replacement ? i.exchange_to?.size ?? i.size : i.size;
@@ -201,13 +203,18 @@ function PackedParcel({
       <div className="flex flex-wrap gap-2">
         <PackingSlipButton data={slipFor(dispatch, order, parts, warehouse, rr)} />
         {/* Parts over the e-way bill limit travel on a delivery challan - print it for the parcel. */}
-        {parts.flatMap((p) =>
-          p.ewayBills
-            .filter((b) => b.leg === "warehouse_to_customer" && b.challan_id && !b.shipment_id)
-            .map((b) => (
-              <DeliveryChallanButton key={b.challan_id} challanId={b.challan_id!} label={parts.length > 1 ? `Challan - ${p.vendor_name}` : "Challan"} />
-            )),
-        )}
+        {dispatch.ewayBills
+          .filter((b) => b.challan_id && !b.shipment_id)
+          .map((b) => {
+            const part = parts.find((p) => p.ewayBills.some((x) => x.challan_id === b.challan_id));
+            return (
+              <DeliveryChallanButton
+                key={b.challan_id}
+                challanId={b.challan_id!}
+                label={dispatch.ewayBills.length > 1 && part ? `Challan - ${part.vendor_name}` : "Challan"}
+              />
+            );
+          })}
         <PackParcelDialog
           triggerLabel="Edit size"
           variant="outline"

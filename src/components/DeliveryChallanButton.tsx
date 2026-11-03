@@ -16,17 +16,26 @@ const money = (n: number) => Number(n).toLocaleString("en-IN", { minimumFraction
 const addressLines = (a: Address) =>
   a ? [[a.address_line1, a.address_line2].filter(Boolean).join(", "), [a.city, a.state, a.pincode].filter(Boolean).join(", ")].filter(Boolean) : [];
 
+type Line = Pick<
+  Tables<"invoice_lines">,
+  "line_no" | "description" | "size" | "hsn_code" | "quantity" | "taxable_value" | "gst_rate" | "cgst_amount" | "sgst_amount" | "igst_amount" | "total"
+>;
+
 interface Loaded {
   challan: Tables<"delivery_challans">;
   invoice: Tables<"invoices">;
-  lines: Tables<"invoice_lines">[];
+  returnInvoice: Tables<"return_invoices"> | null;
+  lines: Line[];
   ewbNumbers: string[];
 }
 
-// The delivery challan a boutique's goods travel on from the AllBoutiqs
-// warehouse to the customer (they were invoiced to the customer when they
-// left the boutique). Issued for parts over the e-way bill limit, whose
-// e-way bill is made on it. Prints like the invoice.
+// The delivery challan goods travel on from the AllBoutiqs warehouse when
+// they're already covered by another document: onward to the customer
+// (invoiced when they left the boutique), onward to the boutique (taken back
+// on a return invoice), or back to the customer when a return failed
+// inspection (its cancelled return invoice lists them). Issued for parts over
+// the e-way bill limit, whose e-way bill is made on it. Prints like the
+// invoice.
 export function DeliveryChallanButton({ challanId, label = "Challan" }: { challanId: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Loaded | null>(null);
@@ -40,9 +49,16 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
         setError(challanErr?.message ?? "Challan not found");
         return;
       }
+      const { data: returnInvoice } = challan.return_invoice_id
+        ? await supabase.from("return_invoices").select("*").eq("id", challan.return_invoice_id).maybeSingle()
+        : { data: null };
+      const invoiceId = challan.invoice_id ?? returnInvoice?.invoice_id ?? "";
       const [{ data: invoice }, { data: lines }, { data: bills }] = await Promise.all([
-        supabase.from("invoices").select("*").eq("id", challan.invoice_id).maybeSingle(),
-        supabase.from("invoice_lines").select("*").eq("invoice_id", challan.invoice_id).order("line_no"),
+        supabase.from("invoices").select("*").eq("id", invoiceId).maybeSingle(),
+        // The goods it covers: the return invoice's lines when it refers to one.
+        returnInvoice
+          ? supabase.from("return_invoice_lines").select("*").eq("return_invoice_id", returnInvoice.id).order("line_no")
+          : supabase.from("invoice_lines").select("*").eq("invoice_id", invoiceId).order("line_no"),
         supabase.from("eway_bills").select("ewb_number").eq("challan_id", challanId).eq("status", "active"),
       ]);
       if (!invoice) {
@@ -52,13 +68,15 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
       setData({
         challan,
         invoice,
-        lines: lines ?? [],
+        returnInvoice: returnInvoice ?? null,
+        lines: (lines ?? []) as Line[],
         ewbNumbers: (bills ?? []).map((b) => b.ewb_number).filter((n): n is string => !!n),
       });
     })();
   }, [open, data, challanId]);
 
   const intra = data?.invoice.supply_type !== "inter_state";
+  const toBoutique = data?.challan.purpose === "to_boutique";
 
   return (
     <>
@@ -96,6 +114,13 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
                     <span className="text-muted-foreground">Against invoice: </span>
                     <span className="font-mono">{data.invoice.invoice_number}</span> · {formatDate(new Date(data.invoice.issued_at))}
                   </p>
+                  {data.returnInvoice && (
+                    <p>
+                      <span className="text-muted-foreground">Return invoice: </span>
+                      <span className="font-mono">{data.returnInvoice.return_invoice_number}</span>
+                      {data.returnInvoice.status === "cancelled" && " (cancelled)"}
+                    </p>
+                  )}
                   {data.invoice.order_number && (
                     <p>
                       <span className="text-muted-foreground">Order No: </span>
@@ -113,7 +138,9 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-0.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Supplier (bill from)</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {toBoutique ? "Boutique (goods taken back)" : "Supplier (bill from)"}
+                  </p>
                   <p className="text-sm font-semibold">{data.invoice.seller_legal_name ?? data.invoice.seller_name}</p>
                   {addressLines(data.invoice.seller_address as Address).map((l) => (
                     <p key={l}>{l}</p>
@@ -132,7 +159,7 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
                   ))}
                 </div>
                 <div className="space-y-0.5">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Bill to</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{toBoutique ? "Returned by" : "Bill to"}</p>
                   <p className="text-sm font-semibold">{data.invoice.billing_name}</p>
                   <p>
                     Unregistered · Place of supply: {data.invoice.billing_state ?? "—"}
@@ -195,8 +222,11 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
 
               <div className="border-t border-border pt-3 space-y-1 text-[11px]">
                 <p>
-                  Not a tax invoice: these goods were invoiced to the customer on {data.invoice.invoice_number}. This challan
-                  covers their movement from the AllBoutiqs warehouse to the customer.
+                  {data.challan.purpose === "to_boutique"
+                    ? `Not a tax invoice: these goods were taken back from the customer on return invoice ${data.returnInvoice?.return_invoice_number ?? ""}. This challan covers their movement from the AllBoutiqs warehouse to the boutique.`
+                    : data.challan.purpose === "return_to_customer"
+                      ? `Not a tax invoice: the customer's own goods (invoiced on ${data.invoice.invoice_number}) going back after their return failed inspection.`
+                      : `Not a tax invoice: these goods were invoiced to the customer on ${data.invoice.invoice_number}. This challan covers their movement from the AllBoutiqs warehouse to the customer.`}
                 </p>
                 <p className="font-medium">
                   Issued on behalf of the supplier through {COMPANY.legalName}, GSTIN {COMPANY.gstin}
