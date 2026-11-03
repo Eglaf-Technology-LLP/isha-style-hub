@@ -67,11 +67,47 @@ const cardRows = (data: unknown) => (data || []) as CardRow[];
 const liveProducts = () =>
   supabase.from("products").select(CARD_SELECT).eq("is_active", true).eq("approval_status", "approved");
 
+// The shop's snapshot (supabase/functions/storefront-snapshot): the
+// catalogue, menu, categories and boutiques written every minute as files
+// the CDN serves, so busy days don't land on the database. Read first; the
+// database is asked only when a file is missing or over 10 minutes old.
+const SNAPSHOT_URL = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/storefront`;
+const SNAPSHOT_MAX_AGE = 10 * 60 * 1000;
+
+async function readSnapshot<T>(file: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${SNAPSHOT_URL}/${file}`);
+    if (!res.ok) return null;
+    const body = await res.json();
+    const at = Date.parse(body?.generated_at ?? "");
+    return Date.now() - at <= SNAPSHOT_MAX_AGE ? (body as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+interface MenuSnapshot {
+  menu: StoreMenuRow[];
+  categories: StoreCategory[];
+  boutiques: StoreBoutique[];
+}
+
+// menu.json feeds three hooks - read once a minute at most.
+let menuFile: { at: number; file: Promise<MenuSnapshot | null> } | null = null;
+function menuSnapshot() {
+  if (!menuFile || Date.now() - menuFile.at > 60_000) {
+    menuFile = { at: Date.now(), file: readSnapshot<MenuSnapshot>("menu.json") };
+  }
+  return menuFile.file;
+}
+
 export function useStoreProducts() {
   return useQuery({
     queryKey: ["storefront", "products"],
     staleTime: STALE,
     queryFn: async (): Promise<StoreProduct[]> => {
+      const snapshot = await readSnapshot<{ products: CardRow[] }>("catalogue.json");
+      if (snapshot) return cardRows(snapshot.products).map(toStoreProduct);
       const rows: CardRow[] = [];
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await liveProducts()
@@ -156,6 +192,8 @@ export function useStoreMenu() {
     queryKey: ["storefront", "menu"],
     staleTime: STALE,
     queryFn: async (): Promise<StoreMenuRow[]> => {
+      const snapshot = await menuSnapshot();
+      if (snapshot) return snapshot.menu;
       const { data, error } = await supabase.rpc("storefront_menu");
       if (error) throw error;
       return (data || []) as StoreMenuRow[];
@@ -168,6 +206,8 @@ export function useStoreCategories() {
     queryKey: ["storefront", "categories"],
     staleTime: STALE,
     queryFn: async (): Promise<StoreCategory[]> => {
+      const snapshot = await menuSnapshot();
+      if (snapshot) return snapshot.categories;
       const { data, error } = await supabase
         .from("categories")
         .select("id, name, slug, description, image_url")
@@ -194,6 +234,8 @@ export function useStoreBoutiques() {
     queryKey: ["storefront", "boutiques"],
     staleTime: STALE,
     queryFn: async (): Promise<StoreBoutique[]> => {
+      const snapshot = await menuSnapshot();
+      if (snapshot) return snapshot.boutiques;
       const { data, error } = await supabase
         .from("vendors")
         .select("id, name, slug, description, logo_url, banner_url, is_verified, is_founding, is_trusted")
