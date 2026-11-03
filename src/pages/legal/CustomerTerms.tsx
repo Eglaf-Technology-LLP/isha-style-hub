@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { GrievanceContact, LegalPage, type LegalSection } from "@/components/legal/LegalPage";
 import { COMPANY } from "@/lib/company";
 import { LEGAL_PATHS } from "@/lib/legal";
+import { BANK_REFUND_DAYS, DEFAULT_REFUND_CHARGE, refundChargeLabel } from "@/lib/wallet";
 
 const link = "text-primary underline-offset-4 hover:underline";
 
@@ -91,7 +92,44 @@ const sections: LegalSection[] = [
           must be unused, with its tags.
         </li>
         <li>A customised piece can be returned only if it arrives damaged or is the wrong item, within 24 hours of delivery.</li>
-        <li>Refunds go back to your original payment method once the returned piece is received and checked.</li>
+        <li>
+          A refund is due once a returned piece passes our check, or when a paid order is cancelled. You choose how to
+          get it: as AllBoutiqs Wallet balance, straight away; back to the card or UPI you paid with (online
+          payments); or by bank transfer (Cash on Delivery) - email your account holder name, account number, bank
+          name and IFSC code to{" "}
+          <a href={`mailto:${COMPANY.supportEmail}`} className={link}>
+            {COMPANY.supportEmail}
+          </a>{" "}
+          and we transfer it within {BANK_REFUND_DAYS} working days. An order paid from the wallet is refunded to the
+          wallet.
+        </li>
+        <li>
+          Refunds to your bank or original payment have a refund charge of {refundChargeLabel(DEFAULT_REFUND_CHARGE)}{" "}
+          of the amount; refunds to the wallet have none. There is no charge when the piece arrives damaged, is the
+          wrong item, is not as described or is a different colour from the one shown, or when the boutique or
+          AllBoutiqs cancels the order.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    id: "wallet",
+    title: "AllBoutiqs Wallet",
+    body: (
+      <ul>
+        <li>Your wallet balance comes only from refunds you choose to take as wallet balance.</li>
+        <li>
+          It can be spent on AllBoutiqs orders: it pays first, and anything left is paid online (not with Cash on
+          Delivery).
+        </li>
+        <li>It can't be topped up, withdrawn to a bank account or transferred to anyone else.</li>
+        <li>
+          You can see your balance and every entry in{" "}
+          <Link to="/account?tab=wallet" className={link}>
+            My Account
+          </Link>
+          .
+        </li>
       </ul>
     ),
   },
