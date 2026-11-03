@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 
@@ -19,35 +19,40 @@ export interface AppNotification {
 // general bucket, wired and ready, currently unpopulated). Polls rather
 // than using Supabase Realtime - simplest reliable way to get "visible
 // without an extra click" without adding a new moving part this pass.
+//
+// One shared query for every bell and banner on the page (the header alone
+// has two), every 2 minutes, only while the tab is in front - react-query
+// skips background polls and refetches when the tab gets focus again.
+const POLL_MS = 2 * 60 * 1000;
+
 export function useNotifications() {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const queryKey = ["notifications", user?.id ?? null];
 
-  const fetchNotifications = useCallback(async () => {
-    if (!user) {
-      setNotifications([]);
-      setLoading(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (!error) setNotifications((data ?? []) as AppNotification[]);
-    setLoading(false);
-  }, [user]);
+  const { data: notifications = [], isLoading, refetch } = useQuery({
+    queryKey,
+    enabled: !!user,
+    refetchInterval: POLL_MS,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as AppNotification[];
+    },
+  });
 
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  const showRead = (ids: string[], now: string) =>
+    queryClient.setQueryData<AppNotification[]>(queryKey, (prev) =>
+      prev?.map((n) => (ids.includes(n.id) ? { ...n, read_at: now } : n)),
+    );
 
   const markRead = async (id: string) => {
     const now = new Date().toISOString();
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read_at: now } : n)));
+    showRead([id], now);
     await supabase.from("notifications").update({ read_at: now }).eq("id", id);
   };
 
@@ -55,7 +60,7 @@ export function useNotifications() {
     const now = new Date().toISOString();
     const ids = notifications.filter((n) => n.category === category && !n.read_at).map((n) => n.id);
     if (ids.length === 0) return;
-    setNotifications((prev) => prev.map((n) => (ids.includes(n.id) ? { ...n, read_at: now } : n)));
+    showRead(ids, now);
     await supabase.from("notifications").update({ read_at: now }).in("id", ids);
   };
 
@@ -69,7 +74,7 @@ export function useNotifications() {
     unreadOtherCount: otherNotifications.filter((n) => !n.read_at).length,
     markRead,
     markAllRead,
-    loading,
-    refetch: fetchNotifications,
+    loading: isLoading,
+    refetch,
   };
 }
