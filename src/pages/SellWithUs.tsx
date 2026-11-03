@@ -262,7 +262,7 @@ export default function SellWithUs() {
     free_shipping_threshold: "999",
     return_window_days: "7",
     return_policy:
-      "7-day easy returns. Items must be unused with original tags and packaging intact.",
+      "Returns within 24 hours of delivery. Items must be unused with original tags and packaging intact.",
   });
   const [constitution, setConstitution] = useState<BusinessConstitution | null>(null);
   // Boutique / Brand Name vs Legal Business Name (Part 7, 3.1-3.2).
@@ -1175,16 +1175,10 @@ export default function SellWithUs() {
                       onChange={(e) => set("free_shipping_threshold", e.target.value)}
                     />
                   </div>
+                  {/* The return window is AllBoutiqs' own, the same for every boutique. */}
                   <div className="space-y-2">
-                    <Label className={accountLabelClass} htmlFor="return_window_days">Return window (days)</Label>
-                    <Input
-                      id="return_window_days"
-                      className={accountFieldClass}
-                      type="number"
-                      min={0}
-                      value={form.return_window_days}
-                      onChange={(e) => set("return_window_days", e.target.value)}
-                    />
+                    <p className={accountLabelClass}>Return window</p>
+                    <p className="text-sm text-muted-foreground">Within 24 hours of delivery - the same for every boutique on AllBoutiqs.</p>
                   </div>
                 </div>
                 <div className="space-y-2">

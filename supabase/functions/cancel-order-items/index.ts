@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_method, payment_status")
+      .select("id, user_id, payment_method, payment_status, created_at")
       .eq("id", orderId)
       .maybeSingle();
     if (orderErr) throw orderErr;
@@ -59,8 +59,22 @@ Deno.serve(async (req) => {
 
     // Order-owner-or-admin only, same as before - a vendor cancelling
     // their own sale already has shiprocket-cancel-shipment.
-    const authorized = order.user_id === userId || (await isAdmin(supabase, userId));
+    const admin = await isAdmin(supabase, userId);
+    const authorized = order.user_id === userId || admin;
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
+
+    // A customer can cancel only within the first hours after ordering (24 by
+    // default, an admin setting); after that, a return once it's delivered.
+    if (!admin) {
+      const { data: settings } = await supabase.from("platform_settings").select("customer_cancel_hours").maybeSingle();
+      const hours = Number(settings?.customer_cancel_hours ?? 24);
+      if (Date.now() - new Date(order.created_at).getTime() > hours * 3_600_000) {
+        return jsonResponse(
+          { error: `Orders can be cancelled within ${hours} hours of placing them. You can ask for a return once it's delivered.` },
+          400,
+        );
+      }
+    }
 
     const results = [];
     for (const vendorOrder of requestedVendorOrders) {

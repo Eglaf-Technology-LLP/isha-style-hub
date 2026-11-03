@@ -53,6 +53,7 @@ import { discountPercent, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { colourCodes } from "@/lib/colors";
+import { hoursText, usePolicyHours } from "@/hooks/usePolicyHours";
 
 export default function ProductDetail() {
   const { handle } = useParams<{ handle: string }>();
@@ -291,6 +292,8 @@ export default function ProductDetail() {
   // Same rule OrderHistory applies after purchase: the product's own flag
   // AND the vendor's store-wide returns switch must both allow it.
   const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
+  // The same return window for every boutique (24 hours by default).
+  const policyHours = usePolicyHours();
   // Same rule checkout applies: the product and its boutique must both allow COD.
   const codAvailable = (product?.cod_available ?? true) && vendorInfo?.cod_enabled !== false;
   // A variant with its own photo (e.g. a color swatch) replaces the shared
@@ -505,7 +508,7 @@ export default function ProductDetail() {
   const services = [
     { icon: Truck, title: shippingTitle, text: shippingText },
     isRefundable
-      ? { icon: RotateCcw, title: "Easy returns", text: `${vendorInfo?.return_window_days ?? 7}-day return policy` }
+      ? { icon: RotateCcw, title: "Easy returns", text: `Return or exchange within ${hoursText(policyHours.returnHours)} of delivery` }
       : { icon: RotateCcw, title: "Non-refundable", text: "Not eligible for return & refund - exchange only" },
     codAvailable
       ? { icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }
@@ -805,7 +808,7 @@ export default function ProductDetail() {
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Returns</dt>
                           <dd className="mt-0.5 text-sm">
-                            {isRefundable ? `${vendorInfo.return_window_days}-day window` : "Non-refundable (exchange only)"}
+                            {isRefundable ? `Within ${hoursText(policyHours.returnHours)} of delivery` : "Non-refundable (exchange only)"}
                           </dd>
                         </div>
                       )}

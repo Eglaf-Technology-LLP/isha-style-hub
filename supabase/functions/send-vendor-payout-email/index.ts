@@ -108,7 +108,7 @@ serve(async (req) => {
         : "";
       const why =
         (hold > 0
-          ? `This is after the ${hold}-day return window, so any return can be settled before you're paid.`
+          ? "This is after the customer's return window, so any return can be settled before you're paid."
           : "Nothing in this order is returnable, so there's no return-window wait.") + weekly;
       built = blocked
         ? {

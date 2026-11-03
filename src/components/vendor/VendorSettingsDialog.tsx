@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import type { Vendor } from "@/hooks/useVendor";
 import { SingleImageDropzone } from "@/components/ImageDropzone";
 import { titleCase } from "@/lib/text";
+import { hoursText, usePolicyHours } from "@/hooks/usePolicyHours";
 
 interface Props {
   open: boolean;
@@ -34,6 +35,7 @@ interface Props {
 // and the protect_vendor_admin_fields DB trigger enforces that
 // regardless of what this form ever sends.
 export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Props) {
+  const policyHours = usePolicyHours();
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -311,15 +313,13 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   onChange={(e) => set("free_shipping_threshold", e.target.value)}
                 />
               </div>
+              {/* The return window is AllBoutiqs' own, the same for every boutique. */}
               <div className="space-y-2">
-                <Label htmlFor="vs-window">Return window (days)</Label>
-                <Input
-                  id="vs-window"
-                  type="number"
-                  min={0}
-                  value={form.return_window_days}
-                  onChange={(e) => set("return_window_days", e.target.value)}
-                />
+                <Label>Return window</Label>
+                <p className="text-sm text-muted-foreground">
+                  Customers can ask for a return within {hoursText(policyHours.returnHours)} of delivery - the same for every
+                  boutique.
+                </p>
               </div>
             </div>
             <div className="space-y-2">

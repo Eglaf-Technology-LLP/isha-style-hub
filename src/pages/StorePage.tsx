@@ -11,6 +11,7 @@ import { useStoreBoutiques, useStoreCategories, useStoreProducts } from "@/hooks
 import { ProductListing } from "@/components/storefront/listing/ProductListing";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
+import { hoursText, usePolicyHours } from "@/hooks/usePolicyHours";
 
 interface StoreVendor {
   id: string;
@@ -31,6 +32,7 @@ interface StoreVendor {
 }
 
 export default function StorePage() {
+  const policyHours = usePolicyHours();
   const { shippingCharged } = useCustomerShipping();
   const { slug } = useParams<{ slug: string }>();
   const [vendor, setVendor] = useState<StoreVendor | null>(null);
@@ -151,7 +153,7 @@ export default function StorePage() {
                 </div>
                 <div className="flex items-start gap-3">
                   <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-                  <span className="text-muted-foreground">{vendor.return_policy || `${vendor.return_window_days}-day returns & exchanges`}</span>
+                  <span className="text-muted-foreground">Returns &amp; exchanges within {hoursText(policyHours.returnHours)} of delivery</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />

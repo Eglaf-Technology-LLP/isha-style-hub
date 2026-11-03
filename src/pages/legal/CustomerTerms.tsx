@@ -85,10 +85,10 @@ const sections: LegalSection[] = [
     title: "Cancellations, returns and refunds",
     body: (
       <ul>
-        <li>You can cancel an order from My Orders until it is delivered; after that, ask for a return.</li>
+        <li>You can cancel an order from My Orders within 24 hours of placing it. After that it can't be cancelled.</li>
         <li>
-          Returns and exchanges follow the return policy shown on each product page. Request them from My Orders with
-          photos of the piece; it must be unused, with its tags.
+          You can ask for a return or exchange from My Orders within 24 hours of delivery, with photos of the piece; it
+          must be unused, with its tags.
         </li>
         <li>A customised piece can be returned only if it arrives damaged or is the wrong item, within 24 hours of delivery.</li>
         <li>Refunds go back to your original payment method once the returned piece is received and checked.</li>

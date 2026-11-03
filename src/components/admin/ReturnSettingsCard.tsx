@@ -16,12 +16,16 @@ export function ReturnSettingsCard() {
   // Refund charge on refunds to the bank / original payment (the wallet is free).
   const [charge, setCharge] = useState<{ pct: number; gstPct: number } | null>(null);
   const [chargeDraft, setChargeDraft] = useState({ pct: "", gstPct: "" });
+  // The customer's cancel window (hours after ordering) and return window
+  // (hours after delivery) - the same for every boutique.
+  const [windows, setWindows] = useState<{ cancel: number; ret: number } | null>(null);
+  const [windowsDraft, setWindowsDraft] = useState({ cancel: "", ret: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     supabase
       .from("platform_settings")
-      .select("return_evidence_required, return_vendor_sla_hours, refund_charge_pct, refund_charge_gst_pct")
+      .select("return_evidence_required, return_vendor_sla_hours, refund_charge_pct, refund_charge_gst_pct, customer_cancel_hours, return_window_hours")
       .maybeSingle()
       .then(({ data }) => {
         if (!data) return;
@@ -31,6 +35,8 @@ export function ReturnSettingsCard() {
         const loaded = { pct: Number(data.refund_charge_pct), gstPct: Number(data.refund_charge_gst_pct) };
         setCharge(loaded);
         setChargeDraft({ pct: String(loaded.pct), gstPct: String(loaded.gstPct) });
+        setWindows({ cancel: data.customer_cancel_hours, ret: data.return_window_hours });
+        setWindowsDraft({ cancel: String(data.customer_cancel_hours), ret: String(data.return_window_hours) });
       });
   }, []);
 
@@ -39,6 +45,8 @@ export function ReturnSettingsCard() {
     return_vendor_sla_hours?: number;
     refund_charge_pct?: number;
     refund_charge_gst_pct?: number;
+    customer_cancel_hours?: number;
+    return_window_hours?: number;
   }) => {
     setSaving(true);
     const { error } = await supabase
@@ -68,6 +76,18 @@ export function ReturnSettingsCard() {
     if (!(await save({ return_vendor_sla_hours: hours }))) return;
     setSlaHours(hours);
     toast.success(`Boutiques now have ${hours} hours to respond`);
+  };
+
+  const saveWindows = async () => {
+    const cancel = Math.round(Number(windowsDraft.cancel));
+    const ret = Math.round(Number(windowsDraft.ret));
+    if (!Number.isFinite(cancel) || cancel < 0 || cancel > 720 || !Number.isFinite(ret) || ret < 1 || ret > 720) {
+      toast.error("Enter hours between 0 and 720 (the return window at least 1)");
+      return;
+    }
+    if (!(await save({ customer_cancel_hours: cancel, return_window_hours: ret }))) return;
+    setWindows({ cancel, ret });
+    toast.success(`Cancel within ${cancel} hours of ordering; return within ${ret} hours of delivery`);
   };
 
   const saveCharge = async () => {
@@ -102,6 +122,56 @@ export function ReturnSettingsCard() {
             onCheckedChange={toggleEvidence}
             aria-label="Photo evidence mandatory"
           />
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-medium">Cancel and return windows</p>
+            <p className="text-xs text-muted-foreground">
+              Customers can cancel within this many hours of ordering, and ask for a return or exchange within this many
+              hours of delivery - every boutique, customised pieces too. Applies to parts delivered from now on; the
+              terms pages say 24 hours.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">Cancel</span>
+            <Input
+              type="number"
+              min={0}
+              max={720}
+              value={windowsDraft.cancel}
+              onChange={(e) => setWindowsDraft((d) => ({ ...d, cancel: e.target.value }))}
+              className="w-20 h-9"
+              aria-label="Cancel window in hours"
+              disabled={windows === null}
+            />
+            <span className="text-sm text-muted-foreground">h · Return</span>
+            <Input
+              type="number"
+              min={1}
+              max={720}
+              value={windowsDraft.ret}
+              onChange={(e) => setWindowsDraft((d) => ({ ...d, ret: e.target.value }))}
+              className="w-20 h-9"
+              aria-label="Return window in hours"
+              disabled={windows === null}
+            />
+            <span className="text-sm text-muted-foreground">h</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={saveWindows}
+              disabled={
+                saving ||
+                windows === null ||
+                (Number(windowsDraft.cancel) === windows.cancel && Number(windowsDraft.ret) === windows.ret)
+              }
+            >
+              Save
+            </Button>
+          </div>
         </div>
 
         <Separator />

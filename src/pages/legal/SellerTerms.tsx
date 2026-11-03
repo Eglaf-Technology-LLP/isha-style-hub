@@ -88,8 +88,9 @@ const sections: LegalSection[] = [
     body: (
       <ul>
         <li>
-          Customers can return or exchange pieces under the return policy shown on the product page. A customised
-          piece can be returned only if it arrives damaged or is the wrong item, within 24 hours of delivery.
+          Customers can cancel an order within 24 hours of placing it, and return or exchange pieces within 24 hours
+          of delivery - the same windows for every boutique. A customised piece can be returned only if it arrives
+          damaged or is the wrong item.
         </li>
         <li>
           Returned pieces are checked when they come back. Where a return is because of you - a damaged, wrong or

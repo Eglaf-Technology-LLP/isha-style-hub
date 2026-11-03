@@ -389,14 +389,10 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                     onChange={(e) => set("commission_rate", e.target.value)}
                   />
                 </div>
+                {/* One return window for every boutique: Returns > Return settings. */}
                 <div className="space-y-2">
-                  <Label htmlFor="vd-return-days">Return window (days)</Label>
-                  <Input
-                    id="vd-return-days"
-                    type="number"
-                    value={form.return_window_days}
-                    onChange={(e) => set("return_window_days", e.target.value)}
-                  />
+                  <Label>Return window</Label>
+                  <p className="text-sm text-muted-foreground">Same for every boutique - set in Returns &gt; Return settings.</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

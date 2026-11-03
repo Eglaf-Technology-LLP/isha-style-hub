@@ -19,6 +19,7 @@ import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDate } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
+import { canCustomerCancel, usePolicyHours } from "@/hooks/usePolicyHours";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -94,6 +95,7 @@ const returnStatusConfig: Record<string, { label: string; className: string }> =
 };
 
 export function OrdersSection() {
+  const policyHours = usePolicyHours();
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,9 +243,11 @@ export function OrdersSection() {
               .filter((g) => g.vendorOrder);
             const showGroupLabels = shipmentGroups.length > 1;
 
-            const hasCancellableItems = order.vendor_orders.some(
-              (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
-            );
+            // Cancelling is open for the first hours after ordering (24 by
+            // default) - after that, a return once it's delivered.
+            const hasCancellableItems =
+              canCustomerCancel(order.created_at, policyHours.cancelHours) &&
+              order.vendor_orders.some((vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status));
 
             return (
             <article key={order.id} className="border border-border">

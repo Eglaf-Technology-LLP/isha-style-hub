@@ -1752,6 +1752,7 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          customer_cancel_hours: number
           customer_shipping_enabled: boolean
           default_prep_days: number
           eway_bill_email: string
@@ -1766,6 +1767,7 @@ export type Database = {
           refund_charge_pct: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
+          return_window_hours: number
           review_images_require_approval: boolean
           updated_at: string
           updated_by: string | null
@@ -1777,6 +1779,7 @@ export type Database = {
           warehouse_routing_enabled: boolean
         }
         Insert: {
+          customer_cancel_hours?: number
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
@@ -1791,6 +1794,7 @@ export type Database = {
           refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
+          return_window_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -1802,6 +1806,7 @@ export type Database = {
           warehouse_routing_enabled?: boolean
         }
         Update: {
+          customer_cancel_hours?: number
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
@@ -1816,6 +1821,7 @@ export type Database = {
           refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
+          return_window_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -3303,6 +3309,7 @@ export type Database = {
           received_at_warehouse_at: string | null
           received_by: string | null
           reminder_sent_at: string | null
+          return_window_ends_at: string | null
           return_window_ends_on: string | null
           rzp_released_at: string | null
           rzp_reversed_amount: number
@@ -3372,6 +3379,7 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           reminder_sent_at?: string | null
+          return_window_ends_at?: string | null
           return_window_ends_on?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
@@ -3441,6 +3449,7 @@ export type Database = {
           received_at_warehouse_at?: string | null
           received_by?: string | null
           reminder_sent_at?: string | null
+          return_window_ends_at?: string | null
           return_window_ends_on?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number

@@ -1,5 +1,6 @@
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { Truck, RotateCcw, Shield, HeadphonesIcon } from "lucide-react";
+import { hoursText, usePolicyHours } from "@/hooks/usePolicyHours";
 
 const features = [
   {
@@ -11,7 +12,8 @@ const features = [
   {
     icon: RotateCcw,
     title: "Easy Returns",
-    description: "7 days return policy",
+    description: "Within 24 hours of delivery",
+    // Replaced below with the admin's return window.
   },
   {
     icon: Shield,
@@ -27,12 +29,14 @@ const features = [
 
 export function FeaturesSection() {
   const { shippingCharged } = useCustomerShipping();
+  const { returnHours } = usePolicyHours();
   return (
     <section className="py-12 bg-muted/30">
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 divide-y divide-border lg:divide-y-0 lg:divide-x">
           {features
             .map((f) => (f.title === "Free Shipping" && !shippingCharged ? { ...f, description: "On all orders" } : f))
+            .map((f) => (f.title === "Easy Returns" ? { ...f, description: `Within ${hoursText(returnHours)} of delivery` } : f))
             .map((feature) => (
             <div
               key={feature.title}

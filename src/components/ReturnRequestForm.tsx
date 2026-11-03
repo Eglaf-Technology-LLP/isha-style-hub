@@ -59,8 +59,8 @@ interface ReturnRequestFormProps {
 }
 
 // A customised piece can only come back if it arrived damaged or was the
-// wrong item, within 24 hours of delivery (the database checks the same:
-// enforce_return_window).
+// wrong item - within the same window as everything else, 24 hours of
+// delivery by default (the database checks the same: enforce_return_window).
 const RETURN_REASONS_CUSTOMISED = ["Defective or damaged product", "Wrong item received"];
 
 const RETURN_REASONS = [
@@ -497,8 +497,7 @@ export function ReturnRequestForm({
             <Label className="text-sm font-medium mb-2 block">Reason</Label>
             {customisedSelected && (
               <p className="mb-2 text-xs text-muted-foreground">
-                Customised pieces can be returned only if they arrived damaged or were the wrong item, within 24
-                hours of delivery.
+                Customised pieces can be returned only if they arrived damaged or were the wrong item.
               </p>
             )}
             <RadioGroup value={reason} onValueChange={setReason} className="space-y-2">

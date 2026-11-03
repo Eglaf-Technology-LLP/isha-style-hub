@@ -54,7 +54,7 @@ const handler = async (req: Request): Promise<Response> => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     )
       .from("platform_settings")
-      .select("customer_shipping_enabled")
+      .select("customer_shipping_enabled, return_window_hours")
       .maybeSingle();
     const freeShippingLine = settings?.customer_shipping_enabled
       ? "Free shipping on orders above ₹999"
@@ -84,7 +84,7 @@ const handler = async (req: Request): Promise<Response> => {
           <p style="margin:0 0 8px; font-weight:700; font-size:13px; color:#1a1a1a;">Why shop with us?</p>
           <ul style="color: #5a5a5a; margin: 0; padding-left: 18px; font-size: 13px; line-height:1.7;">
             <li>${freeShippingLine}</li>
-            <li>Easy 7-day returns</li>
+            <li>Easy returns within ${settings?.return_window_hours ?? 24} hours of delivery</li>
             <li>100% authentic products</li>
           </ul>
         </td></tr>

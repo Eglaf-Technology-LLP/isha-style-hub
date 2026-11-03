@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
-import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
+import { formatDate, formatDateTime, formatDateWithDay } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
 
 const corsHeaders = {
@@ -170,7 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: vendorOrders } = await supabase
       .from("vendor_orders")
-      .select("id, dispatch_id, status, vendor:vendors(name, return_window_days)")
+      .select("id, dispatch_id, status, return_window_ends_at, vendor:vendors(name)")
       .eq("order_id", orderId);
     const thisVendorOrder = (vendorOrders ?? []).find((v: any) => v.id === vendorOrderId) as any;
     const viaWarehouse = order.fulfilment_route === "warehouse";
@@ -290,11 +290,12 @@ const handler = async (req: Request): Promise<Response> => {
         if (trackingUrl) cta = { label: "Track Your Package", url: trackingUrl };
         break;
       case "delivered": {
-        const windowDays = thisVendorOrder?.vendor?.return_window_days;
+        // The return window: 24 hours from delivery by default.
+        const windowEndsAt = thisVendorOrder?.return_window_ends_at;
         subject = `Delivered - your order #${orderNumber} | AllBoutiqs`;
         heading = "Your order has been delivered!";
         message = `We hope you love it! If something isn't right, you can request a return or exchange from My Orders${
-          windowDays ? ` within ${windowDays} days` : ""
+          windowEndsAt ? ` until ${formatDateTime(windowEndsAt)}` : ""
         }.`;
         break;
       }
