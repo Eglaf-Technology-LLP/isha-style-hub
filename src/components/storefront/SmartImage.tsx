@@ -12,20 +12,23 @@ interface SmartImageProps {
   priority?: boolean;
 }
 
-// An <img> that is resized by Supabase Storage when it can be, fades in once
-// loaded, and swaps to a designed fallback when the photo is missing/broken.
+// An <img> that is resized by Supabase Storage when it can be (the photo
+// itself when resizing isn't available), fades in once loaded, and swaps to
+// a designed fallback when the photo is missing/broken.
 export function SmartImage({ src, alt, width = 800, className, fallback, priority = false }: SmartImageProps) {
   const [failed, setFailed] = useState(false);
+  const [original, setOriginal] = useState(false);
   const [loaded, setLoaded] = useState(false);
   if (!src || failed) return <>{fallback}</>;
+  const resized = getOptimizedImageUrl(src, { width }) ?? src;
   return (
     <img
-      src={getOptimizedImageUrl(src, { width }) ?? src}
+      src={original ? src : resized}
       alt={alt}
       loading={priority ? "eager" : "lazy"}
       decoding="async"
       onLoad={() => setLoaded(true)}
-      onError={() => setFailed(true)}
+      onError={() => (!original && resized !== src ? setOriginal(true) : setFailed(true))}
       className={cn("transition-opacity duration-700", loaded ? "opacity-100" : "opacity-0", className)}
     />
   );

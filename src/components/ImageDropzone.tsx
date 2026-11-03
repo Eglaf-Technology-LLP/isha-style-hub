@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Loader2, Upload, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageFile } from "@/hooks/useProducts";
+import { compressImage } from "@/lib/compressImage";
 
 interface ImageDropzoneProps {
   // "products" for admin uploads, "vendor-uploads" for anything a vendor
@@ -18,6 +19,10 @@ interface ImageDropzoneProps {
   // from that path to a displayable (signed) URL.
   uploadFile?: (file: File) => Promise<string | null>;
   previewUrl?: (value: string) => string | undefined;
+  // Upload the files exactly as chosen (AI-declared products' original
+  // photos); otherwise photos are made smaller first (compressImage), so a
+  // phone photo over the size limit still goes through.
+  keepOriginal?: boolean;
 }
 
 const MAX_FILE_SIZE_MB = 5;
@@ -36,6 +41,7 @@ export function ImageDropzone({
   className = "",
   uploadFile,
   previewUrl,
+  keepOriginal = false,
 }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -50,6 +56,7 @@ export function ImageDropzone({
     }
     if (!multiple) files = files.slice(0, 1);
     if (maxFiles) files = files.slice(0, Math.max(0, maxFiles - value.length));
+    if (!keepOriginal) files = await Promise.all(files.map(compressImage));
     const oversized = files.find((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
     if (oversized) {
       toast.error(`${oversized.name} is over ${MAX_FILE_SIZE_MB}MB - please use a smaller image`);

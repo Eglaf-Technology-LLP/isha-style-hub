@@ -30,6 +30,7 @@ export function AiOriginalPhotosField({ ownerFolder, value, onChange }: AiOrigin
         onChange={onChange}
         uploadFile={(file) => uploadProductOriginal(file, ownerFolder)}
         previewUrl={(path) => signedUrls[path]}
+        keepOriginal
       />
     </div>
   );

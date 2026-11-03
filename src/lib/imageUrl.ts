@@ -1,3 +1,5 @@
+import type { SyntheticEvent } from "react";
+
 const STORAGE_OBJECT_PATH = "/storage/v1/object/public/";
 const STORAGE_RENDER_PATH = "/storage/v1/render/image/public/";
 
@@ -20,4 +22,18 @@ export function getOptimizedImageUrl(
   const rewritten = url.slice(0, idx) + STORAGE_RENDER_PATH + url.slice(idx + STORAGE_OBJECT_PATH.length);
   const separator = rewritten.includes("?") ? "&" : "?";
   return `${rewritten}${separator}width=${opts.width}&quality=${quality}`;
+}
+
+// Image resizing is a paid Supabase feature - where it isn't on, the resized
+// url fails. Show the photo itself then (uploads are already made small by
+// compressImage) rather than nothing. For an <img> showing
+// getOptimizedImageUrl(original, ...).
+export function showOriginalOnError(original: string | null | undefined) {
+  return (e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (original && img.dataset.original !== "1") {
+      img.dataset.original = "1";
+      img.src = original;
+    }
+  };
 }

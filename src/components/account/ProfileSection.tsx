@@ -6,6 +6,7 @@ import { Loader2, Camera, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { compressImage } from "@/lib/compressImage";
 import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
 import { userContact } from "@/lib/authIdentifier";
 
@@ -88,10 +89,11 @@ export function ProfileSection() {
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
+    const picked = event.target.files?.[0];
+    if (!picked || !user) return;
 
     try {
+      const file = await compressImage(picked);
       const fileExt = file.name.split(".").pop();
       const filePath = `${user.id}/avatar.${fileExt}`;
 

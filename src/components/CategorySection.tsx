@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowRight } from "lucide-react";
-import { getOptimizedImageUrl } from "@/lib/imageUrl";
+import { getOptimizedImageUrl, showOriginalOnError } from "@/lib/imageUrl";
 
 interface Category {
   id: string;
@@ -112,6 +112,7 @@ export function CategorySection() {
                 <>
                   <img
                     src={getOptimizedImageUrl(category.image_url, { width: 500 })}
+                    onError={showOriginalOnError(category.image_url)}
                     alt={category.name}
                     loading="lazy"
                     decoding="async"

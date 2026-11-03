@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { compressImage } from "@/lib/compressImage";
 
 export interface Category {
   id: string;
@@ -56,12 +57,13 @@ export function useCategories() {
       let image_url = imageUrl || null;
 
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
+        const image = await compressImage(imageFile);
+        const fileExt = image.name.split('.').pop();
         const fileName = `${slug}-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('category-images')
-          .upload(fileName, imageFile);
+          .upload(fileName, image);
 
         if (uploadError) throw uploadError;
 
@@ -108,12 +110,13 @@ export function useCategories() {
       let image_url = updates.image_url;
 
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
+        const image = await compressImage(imageFile);
+        const fileExt = image.name.split('.').pop();
         const fileName = `${updates.name?.toLowerCase().replace(/\s+/g, '-') || id}-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('category-images')
-          .upload(fileName, imageFile);
+          .upload(fileName, image);
 
         if (uploadError) throw uploadError;
 

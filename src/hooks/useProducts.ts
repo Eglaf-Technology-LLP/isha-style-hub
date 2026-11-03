@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import type { CustomisationOption } from "@/lib/customisation";
 import { supabase } from "@/integrations/supabase/client";
+import { compressImage } from "@/lib/compressImage";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
 import type { AiContentStatus } from "@/lib/aiContent";
@@ -185,7 +186,9 @@ export async function uploadProductImages(images: File[]): Promise<string[]> {
 // prefix - "products" for admin uploads, "vendor-uploads" for vendor
 // uploads, since the bucket's RLS only allows vendors to write under
 // that specific prefix (they can't write to "products" at all).
-export async function uploadImageFile(image: File, folder: "products" | "vendor-uploads"): Promise<string | null> {
+// Photos are made smaller first (compressImage); videos go up as they are.
+export async function uploadImageFile(file: File, folder: "products" | "vendor-uploads"): Promise<string | null> {
+  const image = await compressImage(file);
   const fileName = `${Date.now()}-${image.name}`;
   const { error: uploadError } = await supabase.storage
     .from("category-images")

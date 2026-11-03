@@ -4,7 +4,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ChevronLeft, ChevronRight, Expand, Play, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
-import { getOptimizedImageUrl } from "@/lib/imageUrl";
+import { getOptimizedImageUrl, showOriginalOnError } from "@/lib/imageUrl";
 import { cn } from "@/lib/utils";
 
 type MediaItem = { kind: "image"; src: string } | { kind: "video"; src: string };
@@ -98,10 +98,10 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
               aria-label={item.kind === "video" ? "View video" : `View image ${index + 1}`}
             >
               {item.kind === "image" ? (
-                <img src={sized(item.src, 160)} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img src={sized(item.src, 160)} onError={showOriginalOnError(item.src)} alt="" className="h-full w-full object-cover" loading="lazy" />
               ) : (
                 <>
-                  {poster ? <img src={sized(poster, 160)} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-ink" />}
+                  {poster ? <img src={sized(poster, 160)} onError={showOriginalOnError(poster)} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-ink" />}
                   <span className="absolute inset-0 flex items-center justify-center bg-ink/35">
                     <Play className="h-5 w-5 fill-ivory text-ivory" />
                   </span>
@@ -132,6 +132,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                     >
                       <img
                         src={sized(item.src, 1200)}
+                        onError={showOriginalOnError(item.src)}
                         alt={index === 0 ? productName : `${productName} - view ${index + 1}`}
                         loading={index === 0 ? "eager" : "lazy"}
                         className="h-full w-full object-cover transition-transform duration-300 ease-out"
@@ -361,7 +362,7 @@ function FullscreenViewer({
                 aria-label={`View ${i + 1}`}
               >
                 {item.kind === "image" ? (
-                  <img src={sized(item.src, 160)} alt="" className="h-full w-full object-cover" />
+                  <img src={sized(item.src, 160)} onError={showOriginalOnError(item.src)} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <span className="flex h-full w-full items-center justify-center bg-ink">
                     <Play className="h-4 w-4 fill-ivory text-ivory" />

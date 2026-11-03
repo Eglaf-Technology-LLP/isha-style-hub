@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Scale, X, ArrowRight, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getOptimizedImageUrl } from "@/lib/imageUrl";
+import { getOptimizedImageUrl, showOriginalOnError } from "@/lib/imageUrl";
 import {
   Sheet,
   SheetContent,
@@ -122,6 +122,7 @@ export function CompareDrawer() {
                             {product.images?.[0] ? (
                               <img
                                 src={getOptimizedImageUrl(product.images[0], { width: 200 })}
+                                onError={showOriginalOnError(product.images[0])}
                                 alt={product.name}
                                 loading="lazy"
                                 decoding="async"
