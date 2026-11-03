@@ -80,8 +80,9 @@ export function useAuth() {
   // in an existing account or creates a new one. The function returns a
   // one-time token that becomes a normal Supabase session here. Supabase's
   // own email sending isn't used (no SMTP set up there).
-  const sendEmailCode = async (email: string) => {
-    const { data, error } = await callEmailOtp({ action: "send", email });
+  // captchaToken: the bot check's token (useCaptcha), when it's switched on.
+  const sendEmailCode = async (email: string, captchaToken?: string) => {
+    const { data, error } = await callEmailOtp({ action: "send", email, ...(captchaToken ? { captcha_token: captchaToken } : {}) });
     return { error, retryAfter: (data?.retry_after ?? data?.resend_after ?? null) as number | null };
   };
 
@@ -94,8 +95,8 @@ export function useAuth() {
 
   // Mobile numbers go through Supabase Auth's own phone sign-in, which
   // texts the code with Twilio Verify. A new number becomes a new account.
-  const sendPhoneCode = async (phone: string) => {
-    const { error } = await supabase.auth.signInWithOtp({ phone, options: { channel: "sms" } });
+  const sendPhoneCode = async (phone: string, captchaToken?: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ phone, options: { channel: "sms", captchaToken } });
     return authError(error);
   };
 
@@ -105,9 +106,11 @@ export function useAuth() {
   };
 
   // Email or mobile + the password the person chose themselves.
-  const signInWithPassword = async (id: Identifier, password: string) => {
+  const signInWithPassword = async (id: Identifier, password: string, captchaToken?: string) => {
     const { error } = await supabase.auth.signInWithPassword(
-      id.kind === "email" ? { email: id.value, password } : { phone: id.value, password },
+      id.kind === "email"
+        ? { email: id.value, password, options: { captchaToken } }
+        : { phone: id.value, password, options: { captchaToken } },
     );
     return { error: authError(error).error };
   };

@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ConsentFields, CONSENT_REQUIRED_MESSAGE } from "@/components/auth/ConsentFields";
 import { savePendingConsent, type ConsentKind } from "@/lib/consent";
+import { CAPTCHA_WAIT_MESSAGE, useCaptcha } from "@/components/auth/useCaptcha";
 
 const CODE_LENGTH = 6;
 const PHONE_RESEND_SECONDS = 60;
@@ -87,6 +88,7 @@ export function InlineSignInForm({
   const [marketing, setMarketing] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const codeInput = useRef<HTMLInputElement>(null);
+  const captcha = useCaptcha();
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -106,9 +108,12 @@ export function InlineSignInForm({
   };
 
   const sendCode = async (id: Identifier, savePassword: string | null) => {
+    if (!captcha.ready) return setError(CAPTCHA_WAIT_MESSAGE);
     setBusy(true);
     setError(null);
-    const result = id.kind === "email" ? await sendEmailCode(id.value) : await sendPhoneCode(id.value);
+    const result =
+      id.kind === "email" ? await sendEmailCode(id.value, captcha.token) : await sendPhoneCode(id.value, captcha.token);
+    captcha.reset();
     setBusy(false);
     if (result.retryAfter) setResendIn(result.retryAfter);
     if (result.error) {
@@ -142,9 +147,11 @@ export function InlineSignInForm({
       return;
     }
     if (tab === "signin" && method === "password" && !resetting) {
+      if (!captcha.ready) return setError(CAPTCHA_WAIT_MESSAGE);
       setBusy(true);
       setError(null);
-      const { error } = await signInWithPassword(parsed, password);
+      const { error } = await signInWithPassword(parsed, password, captcha.token);
+      captcha.reset();
       setBusy(false);
       if (error) return setError(error);
       rememberMethod("password");
@@ -259,6 +266,7 @@ export function InlineSignInForm({
           {verifying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
           Verify and continue
         </Button>
+        {captcha.widget}
         <div className="text-center text-sm text-muted-foreground">
           Didn't get it? {target.kind === "email" ? "Check spam, or" : "Check the number, or"}{" "}
           {resendIn > 0 ? (
@@ -440,6 +448,8 @@ export function InlineSignInForm({
           {error}
         </p>
       )}
+
+      {captcha.widget}
 
       <Button type="submit" className={submitClass} disabled={busy || !identifier.trim() || (passwordRequired && !password)}>
         {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
