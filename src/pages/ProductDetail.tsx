@@ -42,7 +42,7 @@ import { useRecentlyViewed } from "@/hooks/useRecentlyViewed";
 import { SocialShareButtons } from "@/components/SocialShareButtons";
 import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
-import { AI_SIZE_FINDER_ENABLED, VIRTUAL_TRY_ON_ENABLED } from "@/lib/aiFeatures";
+import { AI_SIZE_FINDER_ENABLED, COMPLETE_THE_LOOK_ENABLED, VIRTUAL_TRY_ON_ENABLED } from "@/lib/aiFeatures";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
@@ -906,8 +906,8 @@ export default function ProductDetail() {
           </div>
         </div>
 
-        {/* AI Complete the Look */}
-        <CompleteTheLook productId={product.id} />
+        {/* AI Complete the Look (hidden for now - src/lib/aiFeatures.ts) */}
+        {COMPLETE_THE_LOOK_ENABLED && <CompleteTheLook productId={product.id} />}
 
         {/* Product Reviews Section */}
         <section id="reviews" className="scroll-mt-32 border-t border-border py-14 md:py-20">
