@@ -246,6 +246,7 @@ DECLARE
   v_covered numeric := 0;
   v_covered_lines integer := 0;
   v_discount numeric := 0;
+  v_counted boolean;
   v_left numeric;
   v_share numeric;
   v_i integer := 0;
@@ -266,14 +267,17 @@ BEGIN
   SELECT coalesce(round(sum(price * quantity), 2), 0) INTO v_subtotal
   FROM public.order_items WHERE order_id = o.id;
 
-  -- Coupon.
+  -- Coupon. Its use is counted here, once per order (an order already
+  -- carrying a discount was counted when it got it); abandon_checkout gives
+  -- the use back.
+  v_counted := coalesce(o.discount_amount, 0) > 0;
   UPDATE public.order_items SET discount_amount = 0 WHERE order_id = o.id AND discount_amount IS DISTINCT FROM 0;
   IF nullif(btrim(o.discount_code), '') IS NOT NULL THEN
     SELECT * INTO d FROM public.discounts WHERE code = upper(btrim(o.discount_code)) AND is_active;
     IF NOT FOUND
        OR (d.starts_at IS NOT NULL AND d.starts_at > now())
        OR (d.expires_at IS NOT NULL AND d.expires_at < now())
-       OR (d.max_uses IS NOT NULL AND d.used_count >= d.max_uses) THEN
+       OR (NOT v_counted AND d.max_uses IS NOT NULL AND d.used_count >= d.max_uses) THEN
       RAISE EXCEPTION 'The coupon % can''t be used any more - please remove it and try again.', o.discount_code
         USING ERRCODE = 'check_violation';
     END IF;
@@ -298,6 +302,15 @@ BEGIN
     v_discount := CASE WHEN d.discount_type = 'percentage'
       THEN round(v_covered * least(greatest(d.discount_value, 0), 100) / 100, 2)
       ELSE round(least(greatest(d.discount_value, 0), v_covered), 2) END;
+
+    IF NOT v_counted AND v_discount > 0 THEN
+      UPDATE public.discounts SET used_count = used_count + 1
+      WHERE id = d.id AND (max_uses IS NULL OR used_count < max_uses);
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'The coupon % can''t be used any more - please remove it and try again.', o.discount_code
+          USING ERRCODE = 'check_violation';
+      END IF;
+    END IF;
 
     v_left := v_discount;
     FOR it IN

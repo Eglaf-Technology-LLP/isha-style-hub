@@ -985,9 +985,8 @@ export default function Checkout() {
         );
       }
 
-      // Decrement real inventory per line item. Unlike increment_discount_usage
-      // below, a failure here must stop the order rather than being logged and
-      // ignored - letting checkout continue after a stock call fails would
+      // Decrement real inventory per line item. A failure here must stop the
+      // order - letting checkout continue after a stock call fails would
       // mean charging for something that was never actually reserved.
       for (const item of items) {
         // Cart items without a real matched variant (product has no
@@ -1065,15 +1064,8 @@ export default function Checkout() {
       // since the shipping details themselves are already locked in.
       await saveAddressIfNew();
 
-      // Increment discount usage if applied
-      if (appliedDiscount) {
-        const { error: discountError } = await supabase.rpc("increment_discount_usage", {
-          _discount_id: appliedDiscount.id,
-        });
-        if (discountError) {
-          console.error("Error incrementing discount usage:", discountError);
-        }
-      }
+      // The coupon's use was counted by the database when it priced the
+      // items (price_order).
 
       if (paidByWallet) {
         await sendConfirmationEmail(newOrderId);
