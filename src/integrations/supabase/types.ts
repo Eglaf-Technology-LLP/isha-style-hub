@@ -4505,6 +4505,16 @@ export type Database = {
           vendor_order_id: string
         }[]
       }
+      storefront_menu: {
+        Args: never
+        Returns: {
+          category_id: string
+          cover: string
+          on_sale: boolean
+          products: number
+          vendor_id: string
+        }[]
+      }
       submit_vendor_application: { Args: { _app: Json }; Returns: string }
       value_from_price: {
         Args: { _category_id: string; _price: number }

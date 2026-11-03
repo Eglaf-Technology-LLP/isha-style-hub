@@ -6,19 +6,17 @@ import { ProductCard } from "@/components/ProductCard";
 import { ProductRail } from "@/components/storefront/ProductRail";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useAuth } from "@/hooks/useAuth";
-import { useStoreCategories, useStoreProducts } from "@/hooks/useStorefront";
+import { useLatestStoreProducts, useStoreCategories, useStoreProductsByIds } from "@/hooks/useStorefront";
 
 export default function Wishlist() {
   const { user, loading: authLoading } = useAuth();
   const { wishlistItems, loading: wishlistLoading } = useWishlist();
-  const { data: products = [], isLoading: productsLoading } = useStoreProducts();
+  const savedIds = wishlistItems.map((item) => item.product_id);
+  const { data: wishlistProducts = [], isLoading: productsLoading } = useStoreProductsByIds(savedIds);
   const { data: categories = [] } = useStoreCategories();
 
-  const loading = authLoading || wishlistLoading || productsLoading;
-
-  const wishlistProducts = products.filter((product) =>
-    wishlistItems.some((item) => item.product_id === product.id)
-  );
+  const loading = authLoading || wishlistLoading || (savedIds.length > 0 && productsLoading);
+  const { data: latest = [] } = useLatestStoreProducts(!loading && wishlistProducts.length === 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,7 +97,7 @@ export default function Wishlist() {
               title="New"
               accent="arrivals"
               action={{ label: "Shop new in", href: "/category/all?sort=newest" }}
-              products={products.slice(0, 12)}
+              products={latest}
               className="border-t border-border py-14 md:py-20"
             />
           </>

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ProductRail } from "@/components/storefront/ProductRail";
-import { useStoreProducts } from "@/hooks/useStorefront";
+import { useRelatedStoreProducts } from "@/hooks/useStorefront";
 
 interface RelatedProductsProps {
   currentProductId: string;
@@ -10,15 +10,16 @@ interface RelatedProductsProps {
 }
 
 // Product page rows: "More from <boutique>" and "You may also like" (same
-// category, topped up with the newest pieces), from the cached catalogue.
+// category, topped up with the newest pieces).
 export function RelatedProducts({ currentProductId, categoryId, categorySlug, vendor }: RelatedProductsProps) {
-  const { data: products = [], isLoading } = useStoreProducts();
+  const { data, isLoading } = useRelatedStoreProducts(categoryId, vendor?.id ?? null);
 
   const { fromBoutique, similar } = useMemo(() => {
-    const others = products.filter((p) => p.id !== currentProductId);
-    const fromBoutique = vendor ? others.filter((p) => p.vendor_id === vendor.id).slice(0, 12) : [];
+    const notThis = <T extends { id: string }>(list: T[] = []) => list.filter((p) => p.id !== currentProductId);
+    const others = notThis(data?.latest);
+    const fromBoutique = vendor ? notThis(data?.fromBoutique).slice(0, 12) : [];
     const shown = new Set(fromBoutique.map((p) => p.id));
-    const sameCategory = categoryId ? others.filter((p) => p.category_id === categoryId) : [];
+    const sameCategory = categoryId ? notThis(data?.sameCategory) : [];
     const fresh = sameCategory.filter((p) => !shown.has(p.id));
     let similar = fresh.length >= 4 ? fresh : sameCategory;
     if (similar.length < 8) {
@@ -26,7 +27,7 @@ export function RelatedProducts({ currentProductId, categoryId, categorySlug, ve
       similar = [...similar, ...others.filter((p) => !ids.has(p.id) && !shown.has(p.id))].slice(0, 12);
     }
     return { fromBoutique, similar: similar.slice(0, 12) };
-  }, [products, currentProductId, categoryId, vendor]);
+  }, [data, currentProductId, categoryId, vendor]);
 
   return (
     <>

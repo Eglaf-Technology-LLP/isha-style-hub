@@ -18,7 +18,7 @@ import { NotificationBell } from "./NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { useVendor } from "@/hooks/useVendor";
 import { useAdmin } from "@/hooks/useAdmin";
-import { categoryCover, StoreCategory, useMenuCategories, useStoreBoutiques, useStoreProducts } from "@/hooks/useStorefront";
+import { StoreCategory, useMenuCategories, useStoreBoutiques, useStoreMenu } from "@/hooks/useStorefront";
 import { useUiStore } from "@/stores/uiStore";
 import { AnnouncementBar } from "@/components/storefront/AnnouncementBar";
 import { SearchPanel } from "@/components/storefront/SearchPanel";
@@ -51,7 +51,7 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
 
   const { data: categories } = useMenuCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
-  const { data: products = [] } = useStoreProducts();
+  const { data: menu = [] } = useStoreMenu();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -79,15 +79,16 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
   // Boutiques selling in each category, for the category mega menus.
   const boutiquesByCategory = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const p of products) {
-      if (!p.category_id || !p.vendor_id) continue;
-      if (!map.has(p.category_id)) map.set(p.category_id, new Set());
-      map.get(p.category_id)!.add(p.vendor_id);
+    for (const r of menu) {
+      if (!r.category_id || !r.vendor_id) continue;
+      if (!map.has(r.category_id)) map.set(r.category_id, new Set());
+      map.get(r.category_id)!.add(r.vendor_id);
     }
     return map;
-  }, [products]);
-  const hasSale = products.some((p) => p.compare_at_price && p.compare_at_price > p.price);
-  const liveBoutiques = boutiques.filter((b) => products.some((p) => p.vendor_id === b.id));
+  }, [menu]);
+  const hasSale = menu.some((r) => r.on_sale);
+  const liveBoutiques = boutiques.filter((b) => menu.some((r) => r.vendor_id === b.id));
+  const categoryCover = (categoryId: string) => menu.find((r) => r.category_id === categoryId && r.cover)?.cover ?? null;
 
   if (variant === "seller") {
     return (
@@ -348,7 +349,7 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
                   category={megaCategory}
                   categories={categories}
                   boutiques={liveBoutiques.filter((b) => boutiquesByCategory.get(megaCategory.id)?.has(b.id))}
-                  cover={megaCategory.image_url || categoryCover(megaCategory.id, products)}
+                  cover={megaCategory.image_url || categoryCover(megaCategory.id)}
                 />
               ) : (
                 <BoutiqueMega boutiques={liveBoutiques} />
