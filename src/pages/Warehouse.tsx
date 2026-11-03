@@ -60,7 +60,7 @@ export default function Warehouse() {
       supabase
         .from("platform_settings")
         .select(
-          "warehouse_routing_enabled, default_prep_days, warehouse_handling_days, warehouse_cutoff_hour, warehouse_max_wait_days, warehouse_inbound_transit_days",
+          "warehouse_routing_enabled, default_prep_days, warehouse_handling_days, warehouse_cutoff_hour, warehouse_max_wait_days, warehouse_inbound_transit_days, warehouse_dispatch_mode",
         )
         .maybeSingle(),
       supabase
@@ -84,6 +84,7 @@ export default function Warehouse() {
       cutoffHour: settings?.warehouse_cutoff_hour ?? 17,
       maxWaitDays: settings?.warehouse_max_wait_days ?? 3,
       holidays: new Set(holidays.map((h) => h.holiday_date)),
+      dispatchMode: settings?.warehouse_dispatch_mode === "combined" ? "combined" : "as_ready",
     }),
     [settings, holidays],
   );

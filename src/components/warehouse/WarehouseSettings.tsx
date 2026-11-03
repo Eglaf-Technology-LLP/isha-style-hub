@@ -7,6 +7,7 @@ import { StateSelect } from "@/components/StateSelect";
 import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DIRECT_ROUTE_ENABLED, formatShortDate } from "@/lib/warehouse";
@@ -19,6 +20,7 @@ export interface WarehouseSettingsRow {
   warehouse_cutoff_hour: number;
   warehouse_max_wait_days: number;
   warehouse_inbound_transit_days: number;
+  warehouse_dispatch_mode: string;
 }
 
 interface Props {
@@ -50,6 +52,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
   const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
   const [rules, setRules] = useState<Record<string, string>>({});
   const [routing, setRouting] = useState(true);
+  const [dispatchMode, setDispatchMode] = useState("as_ready");
   const [saving, setSaving] = useState<string | null>(null);
   const [holidayDate, setHolidayDate] = useState("");
   const [holidayName, setHolidayName] = useState("");
@@ -71,6 +74,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
   useEffect(() => {
     if (settings) {
       setRouting(settings.warehouse_routing_enabled);
+      setDispatchMode(settings.warehouse_dispatch_mode ?? "as_ready");
       setRules({
         default_prep_days: String(settings.default_prep_days),
         warehouse_handling_days: String(settings.warehouse_handling_days),
@@ -128,6 +132,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
         warehouse_cutoff_hour: n("warehouse_cutoff_hour"),
         warehouse_max_wait_days: n("warehouse_max_wait_days"),
         warehouse_inbound_transit_days: n("warehouse_inbound_transit_days"),
+        warehouse_dispatch_mode: dispatchMode,
       })
       .eq("id", true);
     setSaving(null);
@@ -240,6 +245,23 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
                 Every order goes through the warehouse. Shipping straight from the boutique is switched off for now.
               </p>
             )}
+            <div className="space-y-1.5">
+              <Label htmlFor="wr-dispatch-mode">An order with parts from several boutiques</Label>
+              <Select value={dispatchMode} onValueChange={setDispatchMode}>
+                <SelectTrigger id="wr-dispatch-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="as_ready">Send each part as soon as it's in and passed</SelectItem>
+                  <SelectItem value="combined">Wait for every part, one parcel</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {dispatchMode === "as_ready"
+                  ? "Whatever is ready goes out - parts ready at the same time share a parcel. More parcels, faster for the customer."
+                  : "The order waits (up to the wait limit) and goes in one parcel. Only an admin can send part of it."}
+              </p>
+            </div>
             <div className="grid sm:grid-cols-2 gap-4">
               {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 1).", 10)}
               {ruleField("warehouse_cutoff_hour", "Cut-off hour (0-23)", "Parcels received from this hour count from the next day (agreed: 17 = 5pm).", 23)}

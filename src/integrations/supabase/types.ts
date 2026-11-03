@@ -1770,6 +1770,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           warehouse_cutoff_hour: number
+          warehouse_dispatch_mode: string
           warehouse_handling_days: number
           warehouse_inbound_transit_days: number
           warehouse_max_wait_days: number
@@ -1794,6 +1795,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           warehouse_cutoff_hour?: number
+          warehouse_dispatch_mode?: string
           warehouse_handling_days?: number
           warehouse_inbound_transit_days?: number
           warehouse_max_wait_days?: number
@@ -1818,6 +1820,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           warehouse_cutoff_hour?: number
+          warehouse_dispatch_mode?: string
           warehouse_handling_days?: number
           warehouse_inbound_transit_days?: number
           warehouse_max_wait_days?: number

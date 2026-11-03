@@ -423,11 +423,17 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
 
               {ready.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {missing.length === 0 ? (
+                  {/* Send-as-ready: whatever is in and passed goes now, without
+                      waiting for the rest of the order. */}
+                  {missing.length === 0 || timing.dispatchMode === "as_ready" ? (
                     <PackParcelDialog
-                      triggerLabel="Pack parcel"
+                      triggerLabel={missing.length === 0 ? "Pack parcel" : `Pack the ${ready.length} ready part(s)`}
                       title={`Pack order ${orderRef(o.id)}`}
-                      description="Every part is in and passed. Pack everything in one AllBoutiqs parcel, then weigh and measure it."
+                      description={
+                        missing.length === 0
+                          ? "Every part is in and passed. Pack everything in one AllBoutiqs parcel, then weigh and measure it."
+                          : `These ${ready.length} part(s) are in and passed - pack them in one AllBoutiqs parcel now. The rest follows in its own parcel when it arrives.`
+                      }
                       initial={suggestParcel(ready, productParcelData)}
                       note={SUGGESTED_NOTE}
                       onSubmit={async (s) => {
@@ -440,6 +446,7 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                             _length_cm: s.lengthCm,
                             _breadth_cm: s.breadthCm,
                             _height_cm: s.heightCm,
+                            _allow_partial: missing.length > 0,
                           },
                           "Packed - print the slip and book the courier",
                         );

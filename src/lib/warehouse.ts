@@ -95,6 +95,9 @@ export interface WarehouseTiming {
   cutoffHour: number;
   maxWaitDays: number;
   holidays: Set<string>;
+  // as_ready: each boutique's part goes as soon as it's in and passed;
+  // combined: the order waits for every part (admin may send part of it).
+  dispatchMode: "as_ready" | "combined";
 }
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
