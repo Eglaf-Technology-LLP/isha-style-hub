@@ -49,15 +49,31 @@ Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-
 | Category listing with Sort and Filter, boutique shop | `src/screens/CategoryScreen.tsx`, `StoreScreen.tsx`, `src/components/Listing.tsx` |
 | Product page, Search, Bag | `src/screens/ProductScreen.tsx`, `SearchScreen.tsx`, `BagScreen.tsx` |
 | Catalogue queries (same as the website's `src/hooks/useStorefront.ts`) | `src/lib/catalog.ts` |
-| Bag and wishlist, saved on the phone | `src/lib/stores.ts` |
+| Bag (on the phone) and wishlist (phone + account `wishlists` table when signed in) | `src/lib/stores.ts` |
+| Sign in / Create account: email code (`auth-email-otp` function), mobile code (Supabase SMS), password; customers only | `src/lib/auth.ts`, `src/screens/SignInScreen.tsx` |
+| Terms consent at sign-up, or once after sign-in (`accept_terms` RPC) | `src/components/ConsentGate.tsx` |
+| My orders and order detail | `src/lib/orders.ts`, `src/screens/OrdersScreen.tsx`, `OrderScreen.tsx` |
+| Supabase backend: migrations and edge functions (copied from `Live-Vendor`) | `supabase/` |
 | Colours, fonts | `src/theme.ts` |
 | App icon, launch screen, deep link filters | `android/app/src/main/res`, `AndroidManifest.xml` |
 
 Screens open by website path: `go('/category/all?sale=1')` from `useGo()` in `src/navigation.tsx`.
 
-## Not built yet (phase 2)
+## Customers only
 
-- Sign-in (email/phone OTP, as on the website) and wishlist sync to the account.
-- Checkout with Razorpay (`react-native-razorpay`) using the website's `create-razorpay-order` function and server-side prices. Until then the Bag's "Place order" explains it is coming.
-- Orders, returns, cancellations in the app (Profile opens them on the website for now).
-- Push notifications; iOS app icon and launch screen (do on a Mac in Xcode).
+The app is for shoppers. A boutique (vendor) or admin account that signs in is signed out straight away with a note to use the website: admins are found with the `has_role` RPC, boutique members in `vendor_members`. There are no seller or admin screens in the app.
+
+## Backend (`supabase/`)
+
+Copied from the `Live-Vendor` branch, which runs on the live project (`allboutiqs-marketplace-live`). It is shared with the website and the seller/admin areas. Deploy backend changes from **one** branch only (today: `Live-Vendor`) and copy them here, so the two copies don't drift. Never run `supabase db push` from this branch against live without checking it matches `Live-Vendor`.
+
+The app uses: `auth-email-otp` (email codes), `accept_terms`, `has_role`, and the `products`, `categories`, `vendors`, `wishlists`, `orders`, `order_items`, `vendor_orders` tables under their row-level security.
+
+## Not built yet
+
+- Checkout with Razorpay (`react-native-razorpay`) using the website's `create-razorpay-order` / `verify-razorpay-payment` functions and server-side prices. Signed out, "Place order" opens Sign in; signed in it says checkout is coming.
+- Cancel and return requests in the app (the order page has WhatsApp help for now).
+- Set or change password, add a mobile number or email to the account.
+- Saved addresses, wallet, push notifications.
+- Terms and Privacy open on the website.
+- iOS app icon and launch screen (do on a Mac in Xcode).

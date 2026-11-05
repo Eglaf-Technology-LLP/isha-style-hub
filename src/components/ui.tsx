@@ -69,7 +69,8 @@ export function Button({
 }: {
   label: string;
   onPress?: () => void;
-  variant?: 'primary' | 'outline' | 'dark';
+  // light: outline on a dark (maroon) band.
+  variant?: 'primary' | 'outline' | 'dark' | 'light';
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   icon?: ReactNode;
@@ -95,9 +96,9 @@ export function Button({
       style={[
         s.button,
         { backgroundColor: bg },
-        variant === 'outline' && {
+        (variant === 'outline' || variant === 'light') && {
           borderWidth: 1,
-          borderColor: colors.foreground,
+          borderColor: variant === 'light' ? colors.ivory : colors.foreground,
         },
         style,
       ]}

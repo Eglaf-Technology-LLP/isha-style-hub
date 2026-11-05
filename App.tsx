@@ -7,14 +7,20 @@ import { ColorValue, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tap } from '@/lib/haptics';
 import { linking, RootParams, TabParams } from '@/navigation';
+import { ConsentGate } from '@/components/ConsentGate';
+import { startSession } from '@/lib/auth';
+import { syncWishlist } from '@/lib/stores';
 import BagScreen from '@/screens/BagScreen';
 import BoutiquesScreen from '@/screens/BoutiquesScreen';
 import CategoriesScreen from '@/screens/CategoriesScreen';
 import CategoryScreen from '@/screens/CategoryScreen';
 import HomeScreen from '@/screens/HomeScreen';
+import OrderScreen from '@/screens/OrderScreen';
+import OrdersScreen from '@/screens/OrdersScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
+import SignInScreen from '@/screens/SignInScreen';
 import StoreScreen from '@/screens/StoreScreen';
 import WishlistScreen from '@/screens/WishlistScreen';
 import { colors, fonts } from '@/theme';
@@ -22,6 +28,10 @@ import { colors, fonts } from '@/theme';
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 2, refetchOnWindowFocus: false } },
 });
+
+// Signed-in state and the account wishlist, from the first frame.
+syncWishlist();
+startSession();
 
 const Stack = createNativeStackNavigator<RootParams>();
 const Tab = createBottomTabNavigator<TabParams>();
@@ -131,7 +141,15 @@ export default function App() {
               component={BagScreen}
               options={{ animation: 'slide_from_bottom' }}
             />
+            <Stack.Screen
+              name="SignIn"
+              component={SignInScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
+            <Stack.Screen name="Orders" component={OrdersScreen} />
+            <Stack.Screen name="Order" component={OrderScreen} />
           </Stack.Navigator>
+          <ConsentGate />
         </NavigationContainer>
       </SafeAreaProvider>
     </QueryClientProvider>

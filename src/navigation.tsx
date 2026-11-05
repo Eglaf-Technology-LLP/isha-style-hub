@@ -33,6 +33,9 @@ export type RootParams = {
   Store: { slug: string };
   Search: undefined;
   Bag: undefined;
+  SignIn: { mode?: string } | undefined;
+  Orders: undefined;
+  Order: { id: string };
 };
 
 // https://allboutiqs.com/product/<id> (and allboutiqs://...) open the same
@@ -59,6 +62,9 @@ export const linking: LinkingOptions<RootParams> = {
       Store: 'store/:slug',
       Search: 'search',
       Bag: 'bag',
+      SignIn: 'signin',
+      Orders: 'orders',
+      Order: 'order/:id',
     },
   },
 };
@@ -105,6 +111,10 @@ export function useGo() {
         [name, routeParams] = ['Store', { slug: id }];
       else if (section === 'search') name = 'Search';
       else if (section === 'bag') name = 'Bag';
+      else if (section === 'signin') [name, routeParams] = ['SignIn', params];
+      else if (section === 'orders') name = 'Orders';
+      else if (section === 'order' && id)
+        [name, routeParams] = ['Order', { id }];
       if (!name) return;
       navigation.dispatch(
         opts.replace

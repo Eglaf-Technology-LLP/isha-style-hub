@@ -1,0 +1,82 @@
+project_id = "whycxtnjhdbewgyugfax"
+
+# Shiprocket's own servers call this, not our frontend - it can't carry a
+# Supabase user JWT. Authenticity is checked in-function via the x-api-key
+# header instead (see supabase/functions/courier-tracking-webhook/index.ts).
+# Named "courier-tracking-webhook", not "shiprocket-webhook" - Shiprocket's
+# own dashboard rejects webhook URLs containing "shiprocket"/"kartrocket"/
+# "sr"/"kr" (confirmed 2026-09-11 via their support), so the function name
+# can never contain those substrings even though it's still Shiprocket
+# calling it.
+[functions.courier-tracking-webhook]
+verify_jwt = false
+
+# These all check caller identity themselves (admin/vendor-membership) via
+# getCallerUserId in _shared/shiprocket.ts, but still need the platform's
+# own JWT gate in front of that - explicit here because an earlier deploy
+# mistake left them at verify_jwt=false remotely and the setting doesn't
+# revert just by omitting --no-verify-jwt on a later deploy.
+[functions.shiprocket-register-pickup]
+verify_jwt = true
+[functions.shiprocket-create-shipment]
+verify_jwt = true
+[functions.shiprocket-cancel-shipment]
+verify_jwt = true
+[functions.shiprocket-create-return]
+verify_jwt = true
+[functions.shiprocket-create-exchange]
+verify_jwt = true
+[functions.shiprocket-ndr-action]
+verify_jwt = true
+[functions.shiprocket-check-serviceability]
+verify_jwt = true
+[functions.create-razorpay-refund]
+verify_jwt = true
+[functions.cancel-order-items]
+verify_jwt = true
+[functions.generate-vendor-payouts]
+verify_jwt = true
+[functions.generate-invoice]
+verify_jwt = true
+
+# Called only server-to-server from cancel-vendor-order (via the
+# service-role client, whose key is itself a valid JWT) - never invoked
+# directly by the frontend, but still gets the platform's JWT gate rather
+# than the webhook-style x-api-key exception, since the caller here is
+# always our own backend, not an external service.
+[functions.send-order-cancellation-notice]
+verify_jwt = true
+
+# Razorpay's own servers call this, not our frontend - same exception as
+# courier-tracking-webhook above. Authenticity is the HMAC signature over
+# the raw body (see supabase/functions/razorpay-webhook/index.ts), not a JWT.
+[functions.razorpay-webhook]
+verify_jwt = false
+
+[functions.send-vendor-payout-email]
+verify_jwt = true
+
+[functions.razorpay-route-onboard]
+verify_jwt = true
+
+[functions.razorpay-route-release]
+verify_jwt = true
+
+# Email-code sign-in: the caller isn't signed in yet, so there's no user JWT.
+# Abuse limits (per email / per IP, attempts per code) are in the function.
+[functions.auth-email-otp]
+verify_jwt = false
+
+[functions.razorpay-payment-methods]
+verify_jwt = true
+
+# Warehouse staff / admin actions that need the courier or the payment
+# gateway (booking parcels from the warehouse, return inspection refunds).
+# Checks can_operate_warehouse itself.
+[functions.warehouse-actions]
+verify_jwt = true
+
+# Admin > E-way bills: record / cancel e-way bill numbers. Admin-only, checked
+# in the function.
+[functions.eway-bill-actions]
+verify_jwt = true

@@ -12,6 +12,7 @@ import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
+import { useSession } from '@/lib/auth';
 import { formatINR } from '@/lib/format';
 import { cartCount, cartTotal, useCart } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
@@ -23,13 +24,16 @@ export default function Bag() {
   const count = cartCount(items);
   const total = cartTotal(items);
 
+  const signedIn = useSession(st => st.status === 'signed-in');
+  // Signed out: sign in first. Payment (Razorpay, with the website's
+  // create-razorpay-order function and server-side prices) is the next step.
   const checkout = () =>
-    // Phase 2: sign-in + Razorpay in the app (same create-razorpay-order
-    // function and server-side prices as the website).
-    Alert.alert(
-      'Checkout is coming to the app',
-      'Your bag is saved. In-app checkout with UPI, cards and cash on delivery arrives in the next update.',
-    );
+    signedIn
+      ? Alert.alert(
+          'Checkout is coming to the app',
+          'Your bag is saved. In-app checkout with UPI, cards and cash on delivery arrives in the next update.',
+        )
+      : go('/signin');
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
