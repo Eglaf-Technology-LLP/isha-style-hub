@@ -1,0 +1,5 @@
+# Shell scripts and Gradle wrapper must keep LF endings to run on macOS/Linux/CI.
+gradlew text eol=lf
+*.sh text eol=lf
+# Windows batch files keep CRLF.
+*.bat text eol=crlf

@@ -1,0 +1,10 @@
+<resources>
+
+    <!-- Base application theme. Light only: the storefront has no dark mode. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- The launch screen, until React draws the first page. -->
+        <item name="android:windowBackground">@drawable/launch_screen</item>
+    </style>
+
+</resources>

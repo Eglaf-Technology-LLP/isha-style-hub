@@ -1,50 +1,63 @@
-# AllBoutiqs
+# AllBoutiqs app (React Native CLI)
 
-Indian ethnic and western fashion marketplace, with AI styling and virtual try-on.
+The shopper app for Android and iOS. Plain React Native 0.88 (`@react-native-community/cli`, no Expo), React Navigation, Supabase. Same Supabase data, rules and design (maroon, ivory, antique gold; Jost and Playfair Display) as the AllBoutiqs website. The website and the Supabase backend (migrations, edge functions) live on the other branches (`main`, `Live-Vendor`); this branch holds only the app.
 
-## Stack
-
-- Vite + React + TypeScript
-- shadcn-ui + Tailwind CSS
-- Supabase (Postgres, Auth, Storage, Edge Functions) — product catalogue, orders, vendors, everything
-- Google Gemini (AI styling, size recommendation, virtual try-on)
-
-## Local setup
+## Run
 
 ```sh
-# 1. Install dependencies
-npm i
-
-# 2. Copy the env template and fill in real values (see below)
-cp .env.example .env
-
-# 3. Start the dev server
-npm run dev
+npm install
+npm start                    # Metro, in its own terminal
+npm run android              # npx react-native run-android: debug build on an emulator or USB phone
+npm run ios                  # Mac only: cd ios && bundle install && bundle exec pod install first
 ```
 
-## Environment variables
-
-| Variable | Purpose |
-|---|---|
-| `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key |
-| `VITE_SUPABASE_PROJECT_ID` | Supabase project ref |
-
-Edge function secrets (set via `supabase secrets set`, not `.env`):
-
-| Secret | Purpose |
-|---|---|
-| `GEMINI_API_KEY` | Google Gemini API key, used by `complete-the-look`, `ai-size-recommender`, `virtual-try-on` |
-| `RESEND_API_KEY` | Transactional email (order/return confirmations) |
-| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Set automatically by Supabase for edge functions |
-
-## Supabase
-
-Schema and edge functions live in [supabase/](supabase/). To apply migrations to a project:
+Release builds (JS is bundled by Gradle, no Metro needed):
 
 ```sh
-supabase link --project-ref <your-project-ref>
-supabase db push
-supabase functions deploy
-supabase secrets set GEMINI_API_KEY=<key> RESEND_API_KEY=<key>
+npm run apk                  # android/app/build/outputs/apk/release/app-release.apk
+npm run aab                  # android/app/build/outputs/bundle/release/app-release.aab (Play Store)
 ```
+
+Needs JDK 21 (`JAVA_HOME` = Android Studio's `jbr` folder works) and the Android SDK.
+
+Release signing: the template signs release builds with the debug key. Before the Play Store, create an upload key once, keep it out of git, set it in `android/app/build.gradle` (`signingConfigs.release`) and never lose it.
+
+### Windows: "Filename longer than 260 characters"
+
+The native C++ build creates very long paths. Once per machine:
+
+1. Windows long paths on: registry `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 1` (admin).
+2. A CMake whose `ninja` is 1.12 or newer (the SDK's CMake 3.22.1 ships ninja 1.10.2, which fails). Android Studio: SDK Manager > SDK Tools > Show Package Details > CMake, install the newest; check `<sdk>\cmake\<version>\bin\ninja.exe --version`; then in `android/local.properties`:
+   ```
+   cmake.dir=C\:/Users/<you>/AppData/Local/Android/Sdk/cmake/<version>
+   ```
+
+A short repo path (for example `C:\ab`) also helps.
+
+## Settings
+
+`src/config.ts`: Supabase project (live by default), website URL, WhatsApp link. These are public values, the same ones the website ships.
+
+Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-Regular'` works on both platforms). After adding one: `npm run link-assets`.
+
+## Code map
+
+| What | Where |
+|---|---|
+| Navigation: tabs, stack, deep links (`https://allboutiqs.com/product/<id>` opens the app) | `App.tsx`, `src/navigation.tsx` |
+| Home, Categories, Boutiques, Wishlist, Profile tabs | `src/screens/*Screen.tsx` |
+| Category listing with Sort and Filter, boutique shop | `src/screens/CategoryScreen.tsx`, `StoreScreen.tsx`, `src/components/Listing.tsx` |
+| Product page, Search, Bag | `src/screens/ProductScreen.tsx`, `SearchScreen.tsx`, `BagScreen.tsx` |
+| Catalogue queries (same as the website's `src/hooks/useStorefront.ts`) | `src/lib/catalog.ts` |
+| Bag and wishlist, saved on the phone | `src/lib/stores.ts` |
+| Colours, fonts | `src/theme.ts` |
+| App icon, launch screen, deep link filters | `android/app/src/main/res`, `AndroidManifest.xml` |
+
+Screens open by website path: `go('/category/all?sale=1')` from `useGo()` in `src/navigation.tsx`.
+
+## Not built yet (phase 2)
+
+- Sign-in (email/phone OTP, as on the website) and wishlist sync to the account.
+- Checkout with Razorpay (`react-native-razorpay`) using the website's `create-razorpay-order` function and server-side prices. Until then the Bag's "Place order" explains it is coming.
+- Orders, returns, cancellations in the app (Profile opens them on the website for now).
+- Push notifications; iOS app icon and launch screen (do on a Mac in Xcode).

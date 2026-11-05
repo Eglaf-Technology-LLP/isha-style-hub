@@ -1,0 +1,5 @@
+<resources>
+    <!-- AllBoutiqs storefront ivory and maroon (src/theme.ts) -->
+    <color name="ivory">#FCFBF8</color>
+    <color name="maroon">#7E3626</color>
+</resources>
