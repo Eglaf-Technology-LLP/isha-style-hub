@@ -7,7 +7,7 @@ export const colors = {
   foreground: '#231F1A', // --foreground 30 15% 12%
   ivory: '#FCFBF8', // --ivory 40 45% 98%
   primary: '#7E3626', // --primary 11 54% 32% (maroon)
-  primaryForeground: '#F8F5EF',
+  primaryForeground: '#F8F6F1',
   maroonDeep: '#4E1D13', // --maroon-deep 10 60% 19%
   gold: '#B58A4A', // --gold 36 42% 50%
   goldSoft: 'rgba(181,138,74,0.35)',
@@ -15,7 +15,7 @@ export const colors = {
   muted: '#EBE7E0', // --muted 40 20% 90%
   mutedForeground: '#6B6157', // --muted-foreground 30 10% 38%
   accent: '#EFEAE1', // --accent 40 30% 91%
-  border: '#DEDAD3', // --border 40 15% 85%
+  border: '#DEDBD3', // --border 40 15% 85%
   destructive: '#AB382B',
   success: '#2F6B3F',
   white: '#FFFFFF',
