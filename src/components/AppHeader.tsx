@@ -1,8 +1,16 @@
-import { ArrowLeft, Heart, Search, ShoppingBag } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Bell,
+  Heart,
+  Search,
+  ShoppingBag,
+} from 'lucide-react-native';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { useBack, useGo } from '@/navigation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import logo from '../../assets/logo.png';
+import { useSession } from '@/lib/auth';
+import { useUnreadCount } from '@/lib/notifications';
 import { cartCount, useCart } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
 import { Serif, Touch } from './ui';
@@ -22,6 +30,8 @@ export function AppHeader({
   const back = useBack();
   const insets = useSafeAreaInsets();
   const count = useCart(st => cartCount(st.items));
+  const signedIn = useSession(st => st.status === 'signed-in');
+  const unread = useUnreadCount();
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top }]}>
@@ -57,6 +67,23 @@ export function AppHeader({
         >
           <Search size={22} color={colors.foreground} strokeWidth={1.7} />
         </Touch>
+        {signedIn ? (
+          <Touch
+            hitSlop={8}
+            style={styles.icon}
+            onPress={() => go('/notifications')}
+            accessibilityLabel={`Notifications, ${unread} unread`}
+          >
+            <Bell size={22} color={colors.foreground} strokeWidth={1.7} />
+            {unread > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unread > 9 ? '9+' : unread}
+                </Text>
+              </View>
+            ) : null}
+          </Touch>
+        ) : null}
         <Touch
           hitSlop={8}
           style={styles.icon}

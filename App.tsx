@@ -22,6 +22,7 @@ import MyProfileScreen from '@/screens/MyProfileScreen';
 import AddressesScreen from '@/screens/AddressesScreen';
 import WalletScreen from '@/screens/WalletScreen';
 import InvoiceScreen from '@/screens/InvoiceScreen';
+import NotificationsScreen from '@/screens/NotificationsScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
@@ -158,6 +159,10 @@ export default function App() {
             <Stack.Screen name="Addresses" component={AddressesScreen} />
             <Stack.Screen name="Wallet" component={WalletScreen} />
             <Stack.Screen name="Invoice" component={InvoiceScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+            />
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>

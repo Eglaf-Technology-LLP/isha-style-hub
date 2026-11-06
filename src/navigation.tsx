@@ -37,6 +37,7 @@ export type RootParams = {
   Addresses: undefined;
   Wallet: undefined;
   Invoice: { id: string };
+  Notifications: undefined;
 };
 
 // https://allboutiqs.com/product/<id> (and allboutiqs://...) open the same
@@ -71,6 +72,7 @@ export const linking: LinkingOptions<RootParams> = {
       Addresses: 'account/addresses',
       Wallet: 'account/wallet',
       Invoice: 'invoice/:id',
+      Notifications: 'notifications',
     },
   },
 };
@@ -127,6 +129,7 @@ export function useGo() {
         [name, routeParams] = ['Store', { slug: id }];
       else if (section === 'search') name = 'Search';
       else if (section === 'bag') name = 'Bag';
+      else if (section === 'notifications') name = 'Notifications';
       else if (section === 'signin') [name, routeParams] = ['SignIn', params];
       else if (section === 'orders') name = 'Orders';
       else if (section === 'order' && id)
