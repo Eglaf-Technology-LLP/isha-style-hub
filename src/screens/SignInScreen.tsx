@@ -125,18 +125,20 @@ export default function SignInScreen() {
       back();
     }
   }, [status, verifying, back]);
-  // Signed back out as a boutique / admin account: say so plainly.
+  // Not a customer account (signed straight back out): the same red error
+  // line as any other sign-in problem, back on the form - nothing that says
+  // whose account it is.
   useEffect(() => {
-    if (!notice || !pendingMsg.current) return;
+    if (!notice) return;
     pendingMsg.current = null;
     closing.current = false;
     setVerifying(false);
     setBusy(false);
     setCode('');
     setView('form');
-    tap();
-    Alert.alert('Customer accounts only', notice);
-  }, [notice]);
+    setError(notice);
+    clearNotice();
+  }, [notice, clearNotice]);
 
   const parsed = parseIdentifier(identifier);
   const resetting = view === 'reset';
@@ -415,8 +417,6 @@ export default function SignInScreen() {
         </View>
       )}
 
-      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-
       <Text style={styles.label}>Email or mobile number</Text>
       <View style={styles.field}>
         <IdIcon size={17} color={colors.mutedForeground} />
@@ -680,17 +680,6 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   tabTextActive: { color: colors.foreground },
-  notice: {
-    fontFamily: fonts.sans,
-    fontSize: 13,
-    lineHeight: 19,
-    color: colors.foreground,
-    backgroundColor: colors.accent,
-    borderLeftWidth: 3,
-    borderLeftColor: colors.gold,
-    padding: 12,
-    marginBottom: 16,
-  },
   labelRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

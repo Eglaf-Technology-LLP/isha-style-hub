@@ -233,8 +233,9 @@ export const useSession = create<SessionState>(set => ({
   markConsented: () => set({ needsConsent: false }),
 }));
 
-const STAFF_NOTICE =
-  'This is a boutique or admin account. The AllBoutiqs app is for shopping - please use the website for the seller and admin areas, or sign in with a customer account.';
+// Deliberately generic: the app never says an account belongs to a boutique
+// or an admin.
+const STAFF_NOTICE = 'No account found with this email or mobile number.';
 
 // Admin (has_role) or boutique member (vendor_members) - not allowed in the app.
 async function isStaff(userId: string): Promise<boolean> {
