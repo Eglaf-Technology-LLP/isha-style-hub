@@ -1,13 +1,14 @@
 import { useRef, useState } from "react";
 import { Loader2, Upload, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
-import { uploadImageFile } from "@/hooks/useProducts";
+import { uploadImageFile, type UploadFolder } from "@/hooks/useProducts";
 
 interface ImageDropzoneProps {
   // "products" for admin uploads, "vendor-uploads" for anything a vendor
   // (or admin acting on a vendor's behalf) writes - the bucket's RLS only
-  // allows vendors to write under that specific prefix.
-  folder: "products" | "vendor-uploads";
+  // allows vendors to write under that specific prefix. "hero" for the home
+  // page banners (admins only).
+  folder: UploadFolder;
   value: string[];
   onChange: (urls: string[]) => void;
   multiple?: boolean;
@@ -163,7 +164,7 @@ export function SingleImageDropzone({
   onChange,
   className,
 }: {
-  folder: "products" | "vendor-uploads";
+  folder: UploadFolder;
   value: string | null;
   onChange: (url: string | null) => void;
   className?: string;

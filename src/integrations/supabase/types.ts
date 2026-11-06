@@ -831,6 +831,75 @@ export type Database = {
         }
         Relationships: []
       }
+      hero_slides: {
+        Row: {
+          align: string
+          created_at: string
+          cta_href: string | null
+          cta_label: string | null
+          ends_at: string | null
+          eyebrow: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          mobile_image_url: string | null
+          position: number
+          secondary_cta_href: string | null
+          secondary_cta_label: string | null
+          show_overlay: boolean
+          starts_at: string | null
+          subtitle: string | null
+          title: string | null
+          title_accent: string | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          align?: string
+          created_at?: string
+          cta_href?: string | null
+          cta_label?: string | null
+          ends_at?: string | null
+          eyebrow?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          mobile_image_url?: string | null
+          position?: number
+          secondary_cta_href?: string | null
+          secondary_cta_label?: string | null
+          show_overlay?: boolean
+          starts_at?: string | null
+          subtitle?: string | null
+          title?: string | null
+          title_accent?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          align?: string
+          created_at?: string
+          cta_href?: string | null
+          cta_label?: string | null
+          ends_at?: string | null
+          eyebrow?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          mobile_image_url?: string | null
+          position?: number
+          secondary_cta_href?: string | null
+          secondary_cta_label?: string | null
+          show_overlay?: boolean
+          starts_at?: string | null
+          subtitle?: string | null
+          title?: string | null
+          title_accent?: string | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
       hsn_codes: {
         Row: {
           code: string

@@ -185,7 +185,11 @@ export async function uploadProductImages(images: File[]): Promise<string[]> {
 // prefix - "products" for admin uploads, "vendor-uploads" for vendor
 // uploads, since the bucket's RLS only allows vendors to write under
 // that specific prefix (they can't write to "products" at all).
-export async function uploadImageFile(image: File, folder: "products" | "vendor-uploads"): Promise<string | null> {
+// "hero" holds the home page banner photos (Admin > Home Banner); like
+// "products", only admins can write there.
+export type UploadFolder = "products" | "vendor-uploads" | "hero";
+
+export async function uploadImageFile(image: File, folder: UploadFolder): Promise<string | null> {
   const fileName = `${Date.now()}-${image.name}`;
   const { error: uploadError } = await supabase.storage
     .from("category-images")

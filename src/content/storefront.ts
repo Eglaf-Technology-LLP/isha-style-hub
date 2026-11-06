@@ -1,25 +1,34 @@
 import heroFashion from "@/assets/hero-fashion.jpg";
 
-// Static storefront content: hero slides, curated tiles and brand copy.
-// Everything here is editorial - products, categories and boutiques always
-// come live from the database. To change a banner, swap its `image` (or add
-// a `video` mp4 URL) and text here; anything without an image falls back to
-// the on-brand pattern design.
+// Static storefront content: curated tiles and brand copy. Everything here
+// is editorial - products, categories and boutiques always come live from
+// the database.
+//
+// The home page hero slides are edited by admins (Admin > Home Banner,
+// table hero_slides). HERO_SLIDES below is only the fallback shown if that
+// table can't be read; anything without an image falls back to the on-brand
+// pattern design.
 
 export interface HeroSlide {
   id: string;
-  eyebrow: string;
-  title: string;
+  eyebrow?: string;
+  title?: string;
   // Second line, set in italic.
   titleAccent?: string;
-  subtitle: string;
-  cta: { label: string; href: string };
+  subtitle?: string;
+  // A link without a label makes the whole slide clickable, with no button.
+  cta?: { label?: string; href: string };
   secondaryCta?: { label: string; href: string };
   image?: string;
+  // Used instead of `image` on phones, for a portrait crop.
+  mobileImage?: string;
   // Optional muted, looping background video (mp4); the image is its poster.
   video?: string;
   // Where the text sits over the picture.
   align?: "left" | "center";
+  // Darkening over the picture so white text reads; off for banners whose
+  // text is already in the picture. Default on.
+  overlay?: boolean;
 }
 
 export const HERO_SLIDES: HeroSlide[] = [

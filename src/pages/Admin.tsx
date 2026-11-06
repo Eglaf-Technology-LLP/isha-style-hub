@@ -34,7 +34,9 @@ import {
   Star,
   Warehouse as WarehouseIcon,
   FileCheck2,
+  GalleryHorizontalEnd,
 } from "lucide-react";
+import { HeroSlidesManagement } from "@/components/admin/HeroSlidesManagement";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -285,6 +287,10 @@ export default function Admin() {
               <FolderOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Categories</span>
             </TabsTrigger>
+            <TabsTrigger value="home-banner" className="flex items-center gap-1">
+              <GalleryHorizontalEnd className="h-4 w-4" />
+              <span className="hidden sm:inline">Home Banner</span>
+            </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-1 relative">
               <ShoppingCart className="h-4 w-4" />
               <span className="hidden sm:inline">Orders</span>
@@ -445,6 +451,11 @@ export default function Admin() {
           <TabsContent value="categories" className="space-y-6">
             <CategoryManagement />
             <HsnManagement />
+          </TabsContent>
+
+          {/* Home page hero carousel */}
+          <TabsContent value="home-banner">
+            <HeroSlidesManagement />
           </TabsContent>
 
           {/* Orders Tab */}
