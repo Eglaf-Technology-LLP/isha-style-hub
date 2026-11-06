@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { acceptTerms, signOut, useSession } from '@/lib/auth';
+import { friendly } from '@/lib/errors';
 import { LegalKind, LegalModal } from '@/screens/LegalScreen';
 import { Checkbox } from '@/screens/SignInScreen';
 import { colors, fonts } from '@/theme';
@@ -26,7 +27,8 @@ export function ConsentGate() {
     setSaving(true);
     const { error: e } = await acceptTerms(marketing);
     setSaving(false);
-    if (e) return setError(e.message);
+    if (e)
+      return setError(friendly(e, "Couldn't save that. Please try again."));
     markConsented();
   };
 

@@ -1,4 +1,4 @@
-import { Check, MapPin, Plus } from 'lucide-react-native';
+import { Check, ChevronDown, MapPin } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { create } from 'zustand';
 import { Address, useAddressActions, useAddresses } from '@/lib/account';
@@ -50,32 +50,42 @@ export function DeliverTo() {
 
   return (
     <View style={styles.wrap}>
-      {address ? (
-        <View style={styles.row}>
-          <MapPin size={18} color={colors.primary} strokeWidth={1.6} />
-          <View style={styles.flex}>
-            <Text style={styles.to} numberOfLines={1}>
-              Deliver to:{' '}
-              <Text style={styles.strong}>
-                {address.full_name}, {address.pincode}
+      {/* Always a dropdown: the chosen address, or "Select a delivery
+          address" when there is none - tap for the list and Add new. */}
+      <Touch
+        style={styles.row}
+        onPress={() => open('pick')}
+        accessibilityRole="button"
+        accessibilityLabel={
+          address
+            ? `Deliver to ${address.full_name}, ${address.pincode}. Change`
+            : 'Select a delivery address'
+        }
+      >
+        <MapPin size={18} color={colors.primary} strokeWidth={1.6} />
+        <View style={styles.flex}>
+          {address ? (
+            <>
+              <Text style={styles.to} numberOfLines={1}>
+                Deliver to:{' '}
+                <Text style={styles.strong}>
+                  {address.full_name}, {address.pincode}
+                </Text>
               </Text>
+              <Sans style={styles.line} numberOfLines={1}>
+                {[address.address_line_1, address.address_line_2, address.city]
+                  .filter(Boolean)
+                  .join(', ')}
+              </Sans>
+            </>
+          ) : (
+            <Text style={styles.selectText}>
+              {loading ? 'Loading addresses...' : 'Select a delivery address'}
             </Text>
-            <Sans style={styles.line} numberOfLines={1}>
-              {[address.address_line1, address.address_line2, address.city]
-                .filter(Boolean)
-                .join(', ')}
-            </Sans>
-          </View>
-          <Touch hitSlop={8} style={styles.change} onPress={() => open('pick')}>
-            <Text style={styles.changeText}>Change</Text>
-          </Touch>
+          )}
         </View>
-      ) : loading ? null : (
-        <Touch style={styles.add} onPress={() => open('add')}>
-          <Plus size={18} color={colors.primary} />
-          <Text style={styles.addText}>Add delivery address</Text>
-        </Touch>
-      )}
+        <ChevronDown size={18} color={colors.primary} />
+      </Touch>
 
       <Sheet
         visible={sheet === 'pick'}
@@ -83,6 +93,11 @@ export function DeliverTo() {
         onClose={() => open(null)}
         scroll
       >
+        {addresses.length === 0 ? (
+          <Sans style={styles.none}>
+            No saved addresses yet. Add one to see it here.
+          </Sans>
+        ) : null}
         {addresses.map(a => {
           const on = a.id === address?.id;
           return (
@@ -103,8 +118,8 @@ export function DeliverTo() {
                 </Text>
                 <Sans style={styles.line}>
                   {[
-                    a.address_line1,
-                    a.address_line2,
+                    a.address_line_1,
+                    a.address_line_2,
                     `${a.city}, ${a.state} - ${a.pincode}`,
                   ]
                     .filter(Boolean)
@@ -118,7 +133,7 @@ export function DeliverTo() {
         })}
         <Button
           label="Add a new address"
-          variant="outline"
+          variant={addresses.length ? 'outline' : 'primary'}
           onPress={() => open('add')}
           style={styles.gapTop}
         />
@@ -129,10 +144,15 @@ export function DeliverTo() {
         onClose={() => open(null)}
         onSave={async form => {
           // The first address becomes the default, as on the website.
-          const err = await save({
-            ...form,
-            is_default: form.is_default || addresses.length === 0,
-          });
+          const err = await save(
+            {
+              ...form,
+              is_default: form.is_default || addresses.length === 0,
+            },
+            undefined,
+            // The address just added is the one this order goes to.
+            pick,
+          );
           if (!err) toast('Address saved');
           return err;
         }}
@@ -154,25 +174,12 @@ const styles = StyleSheet.create({
   to: { fontFamily: fonts.sans, fontSize: 13, color: colors.foreground },
   strong: { fontFamily: fonts.sansSemi, color: colors.foreground },
   line: { fontSize: 12, color: colors.mutedForeground, marginTop: 2 },
-  change: {
-    borderWidth: 1,
-    borderColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  changeText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: colors.primary,
-  },
-  add: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 16 },
-  addText: {
+  selectText: {
     fontFamily: fonts.sansMedium,
     fontSize: 14,
     color: colors.primary,
   },
+  none: { color: colors.mutedForeground, paddingVertical: 12 },
   option: {
     flexDirection: 'row',
     gap: 12,

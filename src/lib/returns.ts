@@ -7,6 +7,7 @@ import {
 } from 'react-native-image-picker';
 import { useSession } from './auth';
 import { Order, OrderItem, RefundMethod } from './orders';
+import { friendly } from './errors';
 import { supabase } from './supabase';
 
 // Returns and exchanges - the website's ReturnRequestForm / useReturnRequests
@@ -176,7 +177,8 @@ export function useReturnActions(orderId: string) {
       .from('return_requests')
       .update({ status: 'cancelled' })
       .eq('id', id);
-    if (error) return error.message;
+    if (error)
+      return friendly(error, "Couldn't cancel the request. Please try again.");
     refresh();
     return null;
   };

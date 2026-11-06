@@ -99,8 +99,8 @@ export default function AddressesScreen() {
             <Text style={styles.name}>{a.full_name}</Text>
             <Sans style={styles.lines}>
               {[
-                a.address_line1,
-                a.address_line2,
+                a.address_line_1,
+                a.address_line_2,
                 `${a.city}, ${a.state} - ${a.pincode}`,
               ]
                 .filter(Boolean)
@@ -158,8 +158,8 @@ export function AddressSheet({
         label: editing.label ?? '',
         full_name: editing.full_name,
         phone: editing.phone,
-        address_line1: editing.address_line1,
-        address_line2: editing.address_line2 ?? '',
+        address_line_1: editing.address_line_1,
+        address_line_2: editing.address_line_2 ?? '',
         city: editing.city,
         state: editing.state,
         pincode: editing.pincode,
@@ -257,15 +257,15 @@ export function AddressSheet({
       <Field
         label="Address line 1"
         required
-        value={f.address_line1}
-        onChangeText={t => set({ address_line1: t })}
+        value={f.address_line_1}
+        onChangeText={t => set({ address_line_1: t })}
         placeholder="House/Flat No., Building Name"
         autoComplete="address-line1"
       />
       <Field
         label="Address line 2"
-        value={f.address_line2 ?? ''}
-        onChangeText={t => set({ address_line2: t })}
+        value={f.address_line_2 ?? ''}
+        onChangeText={t => set({ address_line_2: t })}
         placeholder="Street, Area, Landmark"
         autoComplete="address-line2"
       />

@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from './auth';
+import { friendly } from './errors';
 import { supabase } from './supabase';
 
 // Product-page extras, the same backend calls as the website's product page
@@ -126,7 +127,7 @@ export function useReviewActions(productId: string) {
     if (error)
       return error.code === '23505'
         ? 'You have already reviewed this product.'
-        : error.message;
+        : friendly(error, "Couldn't save your review. Please try again.");
     refresh();
     return null;
   };
@@ -138,7 +139,8 @@ export function useReviewActions(productId: string) {
       .delete()
       .eq('id', id)
       .eq('user_id', user.id);
-    if (error) return error.message;
+    if (error)
+      return friendly(error, "Couldn't delete your review. Please try again.");
     refresh();
     return null;
   };
@@ -303,5 +305,7 @@ export async function subscribeToStock(
     email,
     is_notified: false,
   });
-  return error ? error.message : null;
+  return error
+    ? friendly(error, "Couldn't set up the alert. Please try again.")
+    : null;
 }

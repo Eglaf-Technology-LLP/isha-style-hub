@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from './auth';
+import { friendly } from './errors';
 import { supabase } from './supabase';
 
 // My account: profile, saved addresses and wallet - the same tables and
@@ -40,7 +41,9 @@ export async function saveProfile(p: Profile): Promise<string | null> {
     },
     { onConflict: 'user_id' },
   );
-  return error ? error.message : null;
+  return error
+    ? friendly(error, "Couldn't save your profile. Please try again.")
+    : null;
 }
 
 // ---------- saved addresses ----------
@@ -50,8 +53,8 @@ export interface Address {
   label: string;
   full_name: string;
   phone: string;
-  address_line1: string;
-  address_line2: string | null;
+  address_line_1: string;
+  address_line_2: string | null;
   city: string;
   state: string;
   pincode: string;
@@ -64,8 +67,8 @@ export const emptyAddress = (): AddressForm => ({
   label: '',
   full_name: '',
   phone: '',
-  address_line1: '',
-  address_line2: '',
+  address_line_1: '',
+  address_line_2: '',
   city: '',
   state: '',
   pincode: '',
@@ -96,9 +99,12 @@ export function useAddressActions() {
   const userId = () => useSession.getState().user?.id;
 
   // One default address: setting one clears the others first (as on the website).
+  // Returns an error message, or null. `onSaved` gets the address id (the
+  // new one after an add) so the bag can pick it straight away.
   const save = async (
     form: AddressForm,
     id?: string,
+    onSaved?: (savedId: string) => void,
   ): Promise<string | null> => {
     const uid = userId();
     if (!uid) return 'Please sign in again.';
@@ -110,15 +116,26 @@ export function useAddressActions() {
       if (id) q = q.neq('id', id);
       await q;
     }
-    const row = { ...form, address_line2: form.address_line2?.trim() || null };
-    const { error } = id
+    const row = {
+      ...form,
+      address_line_2: form.address_line_2?.trim() || null,
+    };
+    const { data, error } = id
       ? await supabase
           .from('saved_addresses')
           .update(row)
           .eq('id', id)
           .eq('user_id', uid)
-      : await supabase.from('saved_addresses').insert({ ...row, user_id: uid });
-    if (error) return error.message;
+          .select('id')
+          .maybeSingle()
+      : await supabase
+          .from('saved_addresses')
+          .insert({ ...row, user_id: uid })
+          .select('id')
+          .single();
+    if (error)
+      return friendly(error, "Couldn't save the address. Please try again.");
+    if (data?.id) onSaved?.(data.id as string);
     refresh();
     return null;
   };
@@ -131,7 +148,8 @@ export function useAddressActions() {
       .delete()
       .eq('id', id)
       .eq('user_id', uid);
-    if (error) return error.message;
+    if (error)
+      return friendly(error, "Couldn't delete the address. Please try again.");
     refresh();
     return null;
   };
@@ -145,7 +163,7 @@ export function validateAddress(f: AddressForm): string | null {
   if (
     !f.full_name.trim() ||
     !f.phone.trim() ||
-    !f.address_line1.trim() ||
+    !f.address_line_1.trim() ||
     !f.city.trim() ||
     !f.state ||
     !f.pincode
