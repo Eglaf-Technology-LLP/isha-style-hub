@@ -33,8 +33,6 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string/>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
@@ -82,5 +80,9 @@
 		<string>PlayfairDisplay-Medium.ttf</string>
 		<string>PlayfairDisplay-Regular.ttf</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos of an item you're returning or exchanging, or for a review.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of an item you're returning or exchanging.</string>
 </dict>
 </plist>

@@ -1,4 +1,10 @@
-import { Ban, FileText, MessageCircle, RefreshCw } from 'lucide-react-native';
+import {
+  Ban,
+  FileText,
+  MessageCircle,
+  RefreshCw,
+  RotateCcw,
+} from 'lucide-react-native';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +21,8 @@ import {
   RefundHistory,
   ReorderSheet,
 } from '@/components/OrderActions';
+import { ReturnRequests, ReturnSheet } from '@/components/ReturnSheet';
+import { returnWindow } from '@/lib/returns';
 import { Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
 import { formatINR } from '@/lib/format';
@@ -39,7 +47,9 @@ export default function OrderScreen() {
   const go = useGo();
   const { data: orders, isLoading } = useMyOrders();
   const o = orders?.find(x => x.id === id);
-  const [sheet, setSheet] = useState<'cancel' | 'reorder' | null>(null);
+  const [sheet, setSheet] = useState<'cancel' | 'reorder' | 'return' | null>(
+    null,
+  );
 
   if (!o) {
     return (
@@ -59,6 +69,7 @@ export default function OrderScreen() {
   const stage = orderStage(o);
   const a = o.shipping_address ?? {};
   const canCancel = cancellableParts(o).length > 0;
+  const returnWin = returnWindow(o);
   const help = `Hi AllBoutiqs, I need help with my order ${orderNumber(o.id)}.`;
 
   return (
@@ -78,6 +89,11 @@ export default function OrderScreen() {
             {label.text}
           </Text>
           <Sans style={styles.meta}>Placed on {shortDate(o.created_at)}</Sans>
+          {returnWin.items.length && returnWin.until ? (
+            <Sans style={styles.meta}>
+              Return or exchange until {shortDate(returnWin.until)}
+            </Sans>
+          ) : null}
           {o.estimated_delivery_date && stage < 4 && !stopped ? (
             <Sans style={styles.meta}>
               Expected by {shortDate(o.estimated_delivery_date)}
@@ -101,6 +117,12 @@ export default function OrderScreen() {
             </View>
           ) : null}
           <View style={styles.actions}>
+            {returnWin.items.length ? (
+              <Touch style={styles.action} onPress={() => setSheet('return')}>
+                <RotateCcw size={14} color={colors.foreground} />
+                <Text style={styles.actionText}>Return or exchange</Text>
+              </Touch>
+            ) : null}
             {canCancel ? (
               <Touch
                 style={[styles.action, styles.actionDanger]}
@@ -185,6 +207,10 @@ export default function OrderScreen() {
           })}
         </View>
 
+        <View style={styles.blockBare}>
+          <ReturnRequests orderId={o.id} />
+        </View>
+
         <RefundBlock orderId={o.id} />
 
         <View style={styles.block}>
@@ -251,6 +277,12 @@ export default function OrderScreen() {
         visible={sheet === 'reorder'}
         onClose={() => setSheet(null)}
       />
+      <ReturnSheet
+        order={o}
+        items={returnWin.items}
+        visible={sheet === 'return'}
+        onClose={() => setSheet(null)}
+      />
     </View>
   );
 }
@@ -292,7 +324,7 @@ const styles = StyleSheet.create({
   },
   block: { backgroundColor: colors.ivory, padding: 16, marginBottom: 8 },
   blockBare: { backgroundColor: colors.ivory, paddingHorizontal: 16 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 },
   action: {
     flexDirection: 'row',
     alignItems: 'center',
