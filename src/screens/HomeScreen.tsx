@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import heroFashion from '../../assets/hero-fashion.jpg';
 import { AppHeader } from '@/components/AppHeader';
+import { budgetHref, BUDGETS } from '@/lib/listing';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Eyebrow,
@@ -67,12 +68,6 @@ const SLIDES = [
     cta: 'Shop made to order',
     href: '/category/all?availability=made-to-order',
   },
-];
-
-const BUDGETS = [
-  { label: 'Under', amount: '₹999', href: '/category/all?max=999' },
-  { label: 'Under', amount: '₹1,999', href: '/category/all?max=1999' },
-  { label: 'Under', amount: '₹4,999', href: '/category/all?max=4999' },
 ];
 
 export default function Home() {
@@ -206,17 +201,17 @@ export default function Home() {
           <View style={styles.budgets}>
             {BUDGETS.map(b => (
               <Touch
-                key={b.amount}
+                key={b.label}
                 style={styles.budget}
-                onPress={() => go(b.href)}
+                onPress={() => go(budgetHref(b))}
               >
                 <Eyebrow style={{ color: colors.gold, fontSize: 10 }}>
-                  {b.label}
+                  {b.note}
                 </Eyebrow>
                 <Serif
-                  style={{ color: colors.ivory, fontSize: 24, marginTop: 4 }}
+                  style={{ color: colors.ivory, fontSize: 19, marginTop: 6 }}
                 >
-                  {b.amount}
+                  {b.label}
                 </Serif>
               </Touch>
             ))}
@@ -478,10 +473,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.mutedForeground,
   },
-  budgets: { flexDirection: 'row', gap: 10, paddingHorizontal: 16 },
+  // The website's four budget buckets, two per row.
+  budgets: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
   budget: {
-    flex: 1,
+    width: '48%',
+    flexGrow: 1,
     height: 92,
+    paddingHorizontal: 8,
     backgroundColor: colors.maroonDeep,
     alignItems: 'center',
     justifyContent: 'center',

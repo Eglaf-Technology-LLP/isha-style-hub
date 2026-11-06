@@ -297,13 +297,11 @@ export async function subscribeToStock(
 ): Promise<string | null> {
   const user = useSession.getState().user;
   if (await isSubscribedToStock(productId, email)) return null;
-  const { error } = await (supabase as any)
-    .from('stock_notifications')
-    .insert({
-      product_id: productId,
-      user_id: user?.id || null,
-      email,
-      is_notified: false,
-    });
+  const { error } = await (supabase as any).from('stock_notifications').insert({
+    product_id: productId,
+    user_id: user?.id || null,
+    email,
+    is_notified: false,
+  });
   return error ? error.message : null;
 }

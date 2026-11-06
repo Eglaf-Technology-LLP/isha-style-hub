@@ -1,42 +1,38 @@
 import { Check, SlidersHorizontal, X } from 'lucide-react-native';
-import { ReactElement, useMemo, useState } from 'react';
+import { ReactElement, ReactNode, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Boutique, Category, Product } from '@/lib/catalog';
 import {
-  Category,
-  filterProducts,
-  ListingFilter,
-  Product,
+  BUDGETS,
+  emptyFilters,
+  ListingFilters,
+  runListing,
+  SORT_LABELS,
   SortKey,
-} from '@/lib/catalog';
+  sortSizes,
+} from '@/lib/listing';
 import { colors, fonts } from '@/theme';
 import { ProductGrid } from './ProductLists';
 import { Button, Serif, Touch } from './ui';
 
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: 'featured', label: 'Featured' },
-  { key: 'newest', label: 'Newest first' },
-  { key: 'price-asc', label: 'Price: low to high' },
-  { key: 'price-desc', label: 'Price: high to low' },
-];
-const PRICES = [999, 1999, 4999, 9999];
-
-// A product listing with category chips and the Myntra-style sticky
-// Sort | Filter bar - used by category pages and boutique pages.
+// A product listing with category chips and the sticky Sort | Filter bar.
+// Filters, counts and sorting are the website's (src/lib/listing.ts).
 export function Listing({
   products,
   loading,
   initial,
-  initialSort = 'featured',
+  scopeCategoryId = null,
   categories,
-  activeCategoryId,
+  boutiques,
   onCategory,
   header,
   onRefresh,
@@ -44,32 +40,54 @@ export function Listing({
 }: {
   products: Product[];
   loading: boolean;
-  initial: ListingFilter;
-  initialSort?: SortKey;
+  initial: ListingFilters;
+  scopeCategoryId?: string | null;
+  // Chips across the top (category pages) - tapping one opens that category.
   categories?: Category[];
-  activeCategoryId?: string | null;
+  // Boutiques offered in the Boutique filter (left out on a boutique's own page).
+  boutiques?: Boutique[];
   onCategory?: (c: Category | null) => void;
   header?: ReactElement;
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
   const insets = useSafeAreaInsets();
-  const [sort, setSort] = useState<SortKey>(initialSort);
-  const [filter, setFilter] = useState<ListingFilter>(initial);
+  const [f, setF] = useState<ListingFilters>(initial);
   const [sheet, setSheet] = useState<'sort' | 'filter' | null>(null);
-  const shown = useMemo(
-    () => filterProducts(products, filter, sort),
-    [products, filter, sort],
+  const { results, facets, activeCount } = useMemo(
+    () => runListing(products, f, scopeCategoryId),
+    [products, f, scopeCategoryId],
   );
-  const active =
-    (filter.sale ? 1 : 0) +
-    (filter.max ? 1 : 0) +
-    (filter.availability ? 1 : 0);
+  const set = (next: Partial<ListingFilters>) =>
+    setF(cur => ({ ...cur, ...next }));
+  const toggle = (
+    key: 'categories' | 'boutiques' | 'sizes' | 'colors',
+    value: string,
+  ) =>
+    setF(cur => ({
+      ...cur,
+      [key]: cur[key].includes(value)
+        ? cur[key].filter(v => v !== value)
+        : [...cur[key], value],
+    }));
+
+  const sizeList = sortSizes([...facets.sizes.keys()]);
+  const colorList = [...facets.colors.keys()].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const boutiqueList = (boutiques ?? []).filter(
+    b => facets.boutiques.has(b.id) || f.boutiques.includes(b.id),
+  );
+  const categoryList = (categories ?? []).filter(
+    c =>
+      c.id !== scopeCategoryId &&
+      (facets.categories.has(c.id) || f.categories.includes(c.id)),
+  );
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.flex}>
       <ProductGrid
-        products={shown}
+        products={results}
         loading={loading}
         onRefresh={onRefresh}
         refreshing={refreshing}
@@ -77,7 +95,7 @@ export function Listing({
         header={
           <View>
             {header}
-            {categories && categories.length > 0 ? (
+            {categories && categories.length > 0 && onCategory ? (
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -85,21 +103,22 @@ export function Listing({
               >
                 <Chip
                   label="All"
-                  active={!activeCategoryId}
-                  onPress={() => onCategory?.(null)}
+                  active={!scopeCategoryId}
+                  onPress={() => onCategory(null)}
                 />
                 {categories.map(c => (
                   <Chip
                     key={c.id}
                     label={c.name}
-                    active={activeCategoryId === c.id}
-                    onPress={() => onCategory?.(c)}
+                    active={scopeCategoryId === c.id}
+                    onPress={() => onCategory(c)}
                   />
                 ))}
               </ScrollView>
             ) : null}
             <Text style={styles.count}>
-              {shown.length} {shown.length === 1 ? 'piece' : 'pieces'}
+              {results.length} {results.length === 1 ? 'piece' : 'pieces'}
+              {f.search ? ` for "${f.search}"` : ''}
             </Text>
           </View>
         }
@@ -108,6 +127,7 @@ export function Listing({
       <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
         <Touch style={styles.barButton} onPress={() => setSheet('sort')}>
           <Text style={styles.barText}>Sort</Text>
+          {f.sort !== 'featured' ? <View style={styles.dot} /> : null}
         </Touch>
         <View style={styles.barDivider} />
         <Touch style={styles.barButton} onPress={() => setSheet('filter')}>
@@ -118,8 +138,8 @@ export function Listing({
           />
           <Text style={styles.barText}>
             Filter
-            {active ? (
-              <Text style={{ color: colors.primary }}> ({active})</Text>
+            {activeCount ? (
+              <Text style={styles.primary}> ({activeCount})</Text>
             ) : null}
           </Text>
         </Touch>
@@ -130,27 +150,21 @@ export function Listing({
         title="Sort by"
         onClose={() => setSheet(null)}
       >
-        {SORTS.map(o => (
+        {(Object.keys(SORT_LABELS) as SortKey[]).map(key => (
           <Touch
-            key={o.key}
+            key={key}
             style={styles.option}
             onPress={() => {
-              setSort(o.key);
+              set({ sort: key });
               setSheet(null);
             }}
           >
             <Text
-              style={[
-                styles.optionText,
-                sort === o.key && {
-                  color: colors.primary,
-                  fontFamily: fonts.sansMedium,
-                },
-              ]}
+              style={[styles.optionText, f.sort === key && styles.optionOn]}
             >
-              {o.label}
+              {SORT_LABELS[key]}
             </Text>
-            {sort === o.key ? <Check size={18} color={colors.primary} /> : null}
+            {f.sort === key ? <Check size={18} color={colors.primary} /> : null}
           </Touch>
         ))}
       </Sheet>
@@ -159,74 +173,180 @@ export function Listing({
         visible={sheet === 'filter'}
         title="Filters"
         onClose={() => setSheet(null)}
-      >
-        <Text style={styles.group}>Price</Text>
-        <View style={styles.wrap}>
-          {PRICES.map(p => (
-            <Chip
-              key={p}
-              label={`Under ₹${p.toLocaleString('en-IN')}`}
-              active={filter.max === p}
+        scroll
+        footer={
+          <View style={styles.footer}>
+            <Button
+              label="Clear all"
+              variant="outline"
+              style={styles.flex}
               onPress={() =>
-                setFilter(f => ({ ...f, max: f.max === p ? null : p }))
+                setF(emptyFilters({ search: f.search, sort: f.sort }))
               }
             />
-          ))}
-        </View>
-        <Text style={styles.group}>Availability</Text>
-        <View style={styles.wrap}>
-          <Chip
+            <Button
+              label={`Show ${results.length}`}
+              style={styles.flex}
+              onPress={() => setSheet(null)}
+            />
+          </View>
+        }
+      >
+        {categoryList.length ? (
+          <Group title={scopeCategoryId ? 'Add categories' : 'Category'}>
+            {categoryList.map(c => (
+              <CheckRow
+                key={c.id}
+                label={c.name}
+                count={facets.categories.get(c.id) ?? 0}
+                checked={f.categories.includes(c.id)}
+                onPress={() => toggle('categories', c.id)}
+              />
+            ))}
+          </Group>
+        ) : null}
+        {boutiqueList.length ? (
+          <Group title="Boutique">
+            {boutiqueList.map(b => (
+              <CheckRow
+                key={b.id}
+                label={b.name}
+                count={facets.boutiques.get(b.id) ?? 0}
+                checked={f.boutiques.includes(b.id)}
+                onPress={() => toggle('boutiques', b.id)}
+              />
+            ))}
+          </Group>
+        ) : null}
+        <Group title="Price">
+          <View style={styles.wrap}>
+            {BUDGETS.map(b => {
+              const on =
+                (f.min ?? null) === (b.min ?? null) &&
+                (f.max ?? null) === (b.max ?? null);
+              return (
+                <Chip
+                  key={b.label}
+                  label={b.label}
+                  active={on}
+                  onPress={() =>
+                    set(
+                      on
+                        ? { min: null, max: null }
+                        : { min: b.min ?? null, max: b.max ?? null },
+                    )
+                  }
+                />
+              );
+            })}
+          </View>
+        </Group>
+        {sizeList.length ? (
+          <Group title="Size">
+            <View style={styles.wrap}>
+              {sizeList.map(s => (
+                <Chip
+                  key={s}
+                  label={s}
+                  active={f.sizes.includes(s)}
+                  onPress={() => toggle('sizes', s)}
+                />
+              ))}
+            </View>
+          </Group>
+        ) : null}
+        {colorList.length ? (
+          <Group title="Colour">
+            {colorList.map(c => (
+              <CheckRow
+                key={c}
+                label={c}
+                count={facets.colors.get(c) ?? 0}
+                checked={f.colors.includes(c)}
+                onPress={() => toggle('colors', c)}
+              />
+            ))}
+          </Group>
+        ) : null}
+        <Group title="Availability">
+          <CheckRow
             label="Ready to ship"
-            active={filter.availability === 'ready'}
+            count={facets.ready}
+            checked={f.availability === 'ready'}
             onPress={() =>
-              setFilter(f => ({
-                ...f,
-                availability: f.availability === 'ready' ? null : 'ready',
-              }))
+              set({
+                availability: f.availability === 'ready' ? 'all' : 'ready',
+              })
             }
           />
-          <Chip
+          <CheckRow
             label="Made to order"
-            active={filter.availability === 'made-to-order'}
+            count={facets.madeToOrder}
+            checked={f.availability === 'made-to-order'}
             onPress={() =>
-              setFilter(f => ({
-                ...f,
+              set({
                 availability:
-                  f.availability === 'made-to-order' ? null : 'made-to-order',
-              }))
+                  f.availability === 'made-to-order' ? 'all' : 'made-to-order',
+              })
             }
           />
-        </View>
-        <Text style={styles.group}>Offers</Text>
-        <View style={styles.wrap}>
-          <Chip
+          <CheckRow
+            label="In stock only"
+            count={facets.inStock}
+            checked={f.inStock}
+            onPress={() => set({ inStock: !f.inStock })}
+          />
+        </Group>
+        <Group title="Offers">
+          <CheckRow
             label="On sale"
-            active={!!filter.sale}
-            onPress={() => setFilter(f => ({ ...f, sale: !f.sale }))}
+            count={facets.sale}
+            checked={f.sale}
+            onPress={() => set({ sale: !f.sale })}
           />
-        </View>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
-          <Button
-            label="Clear all"
-            variant="outline"
-            style={{ flex: 1 }}
-            onPress={() =>
-              setFilter(f => ({
-                ...f,
-                sale: false,
-                max: null,
-                availability: null,
-              }))
-            }
-          />
-          <Button
-            label={`Show ${shown.length}`}
-            style={{ flex: 1 }}
-            onPress={() => setSheet(null)}
-          />
-        </View>
+        </Group>
       </Sheet>
     </View>
+  );
+}
+
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View>
+      <Text style={styles.group}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
+function CheckRow({
+  label,
+  count,
+  checked,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  checked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Touch
+      onPress={onPress}
+      style={styles.checkRow}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+    >
+      <View style={[styles.box, checked && styles.boxOn]}>
+        {checked ? (
+          <Check size={13} color={colors.primaryForeground} strokeWidth={3} />
+        ) : null}
+      </View>
+      <Text style={[styles.checkLabel, checked && styles.primary]}>
+        {label}
+      </Text>
+      <Text style={styles.checkCount}>{count}</Text>
+    </Touch>
   );
 }
 
@@ -242,37 +362,35 @@ export function Chip({
   return (
     <Touch
       onPress={onPress}
-      style={[
-        styles.chip,
-        active && {
-          backgroundColor: colors.primary,
-          borderColor: colors.primary,
-        },
-      ]}
+      style={[styles.chip, active && styles.chipOn]}
       accessibilityState={{ selected: !!active }}
     >
-      <Text
-        style={[styles.chipText, active && { color: colors.primaryForeground }]}
-      >
+      <Text style={[styles.chipText, active && styles.chipTextOn]}>
         {label}
       </Text>
     </Touch>
   );
 }
 
-// A bottom sheet (RN Modal) in the storefront style.
+// A bottom sheet (RN Modal) in the storefront style. `scroll` for long
+// content; `footer` stays pinned under it.
 export function Sheet({
   visible,
   title,
   onClose,
   children,
+  scroll,
+  footer,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
+  scroll?: boolean;
+  footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   return (
     <Modal
       visible={visible}
@@ -287,20 +405,38 @@ export function Sheet({
         onPress={onClose}
         accessibilityLabel="Close"
       />
-      <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]}>
+      <View
+        style={[
+          styles.sheet,
+          { paddingBottom: 20 + insets.bottom, maxHeight: height * 0.88 },
+        ]}
+      >
         <View style={styles.sheetHead}>
-          <Serif style={{ fontSize: 22 }}>{title}</Serif>
+          <Serif style={styles.sheetTitle}>{title}</Serif>
           <Touch hitSlop={10} onPress={onClose} accessibilityLabel="Close">
             <X size={22} color={colors.foreground} />
           </Touch>
         </View>
-        {children}
+        {scroll ? (
+          <ScrollView
+            style={styles.flexShrink}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          children
+        )}
+        {footer}
       </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  flexShrink: { flexShrink: 1 },
+  primary: { color: colors.primary },
   chips: { gap: 8, paddingHorizontal: 16, paddingTop: 14 },
   chip: {
     height: 36,
@@ -310,6 +446,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.ivory,
     justifyContent: 'center',
   },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: {
     fontFamily: fonts.sansMedium,
     fontSize: 12,
@@ -317,6 +454,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.foreground,
   },
+  chipTextOn: { color: colors.primaryForeground },
   count: {
     fontFamily: fonts.sans,
     fontSize: 13,
@@ -355,6 +493,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.foreground,
   },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.primary,
+  },
   scrim: { flex: 1, backgroundColor: 'rgba(27,22,19,0.45)' },
   sheet: {
     backgroundColor: colors.ivory,
@@ -367,6 +511,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  sheetTitle: { fontSize: 22 },
   option: {
     height: 52,
     flexDirection: 'row',
@@ -380,6 +525,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.foreground,
   },
+  optionOn: { color: colors.primary, fontFamily: fonts.sansMedium },
   group: {
     fontFamily: fonts.sansMedium,
     fontSize: 11,
@@ -387,7 +533,34 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     color: colors.gold,
     marginTop: 18,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 9,
+  },
+  box: {
+    width: 18,
+    height: 18,
+    borderWidth: 1.5,
+    borderColor: colors.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  boxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkLabel: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  checkCount: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.mutedForeground,
+  },
+  footer: { flexDirection: 'row', gap: 10, marginTop: 16 },
 });

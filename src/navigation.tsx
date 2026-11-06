@@ -23,13 +23,9 @@ export type TabParams = {
 export type RootParams = {
   Tabs: NavigatorScreenParams<TabParams> | undefined;
   Product: { id: string };
-  Category: {
-    slug: string;
-    sort?: string;
-    sale?: string;
-    max?: string;
-    availability?: string;
-  };
+  // slug plus the website's listing parameters (sort, min, max, cat, boutique,
+  // size, color, availability, stock, sale, search).
+  Category: { slug: string } & Record<string, string | undefined>;
   Store: { slug: string };
   Search: undefined;
   Bag: undefined;

@@ -5,7 +5,8 @@ import { StyleSheet, View } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Listing } from '@/components/Listing';
 import { Placeholder, Sans, Serif } from '@/components/ui';
-import { useBoutiques, useProducts } from '@/lib/catalog';
+import { useBoutiques, useCategories, useProducts } from '@/lib/catalog';
+import { emptyFilters } from '@/lib/listing';
 import { colors } from '@/theme';
 
 // A boutique's own shop: banner, logo, story, then its pieces.
@@ -14,15 +15,22 @@ export default function StoreScreen() {
   const { data: boutiques = [], isLoading } = useBoutiques();
   const products = useProducts();
   const b = boutiques.find(x => x.slug === slug);
+  const { data: categories = [] } = useCategories();
+  // Only this boutique's pieces; its categories can be ticked in Filter.
+  const own = (products.data ?? []).filter(p => p.vendor_id === b?.id);
+  const ownCategories = categories.filter(c =>
+    own.some(p => p.category_id === c.id),
+  );
 
   return (
     <View style={{ flex: 1 }}>
       <AppHeader back title={b?.name ?? ''} />
       <Listing
         key={b?.id ?? 'loading'}
-        products={products.data ?? []}
+        products={own}
         loading={products.isLoading || isLoading}
-        initial={{ vendorId: b?.id ?? '__none__' }}
+        initial={emptyFilters()}
+        categories={ownCategories}
         onRefresh={() => void products.refetch()}
         refreshing={products.isRefetching}
         header={

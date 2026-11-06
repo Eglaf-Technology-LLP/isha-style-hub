@@ -1,46 +1,48 @@
-import { useGo, useParams } from '@/navigation';
 import { View } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Listing } from '@/components/Listing';
-import { SortKey, useCategories, useProducts } from '@/lib/catalog';
+import { useBoutiques, useCategories, useProducts } from '@/lib/catalog';
+import { readFilters } from '@/lib/listing';
+import { useGo, useParams } from '@/navigation';
 
-// /category/<slug>?sort=newest&sale=1&max=1999&availability=ready - the same
-// links as the website ("all" = every category).
+// /category/<slug>?sort=&min=&max=&cat=&boutique=&size=&color=&availability=&stock=1&sale=1&search=
+// - the website's links ("all" = every category).
 export default function CategoryScreen() {
   const go = useGo();
-  const { slug, sort, sale, max, availability } = useParams<'Category'>();
+  const params = useParams<'Category'>();
+  const { slug } = params;
   const products = useProducts();
   const { data: categories = [] } = useCategories();
+  const { data: boutiques = [] } = useBoutiques();
   const category = categories.find(c => c.slug === slug) ?? null;
-  const live = categories.filter(c =>
-    (products.data ?? []).some(p => p.category_id === c.id),
+  const all = products.data ?? [];
+  const live = categories.filter(c => all.some(p => p.category_id === c.id));
+  const liveBoutiques = boutiques.filter(b =>
+    all.some(p => p.vendor_id === b.id),
   );
-  const title =
-    slug === 'all' ? (sale ? 'Sale' : 'Shop all') : category?.name ?? '';
+  const initial = readFilters(params);
+  const title = initial.search
+    ? `"${initial.search}"`
+    : slug === 'all'
+    ? initial.sale
+      ? 'Sale'
+      : 'Shop all'
+    : category?.name ?? '';
 
   return (
     <View style={{ flex: 1 }}>
       <AppHeader back title={title} />
       <Listing
-        // Re-mount when the link's filters change, so they start fresh.
-        key={`${slug}|${sale}|${max}|${availability}`}
-        products={products.data ?? []}
+        // A new link (category or filters) starts fresh.
+        key={JSON.stringify(params)}
+        products={all}
         loading={
-          products.isLoading ||
-          (slug !== 'all' && !category && categories.length === 0)
+          products.isLoading || (slug !== 'all' && categories.length === 0)
         }
-        initial={{
-          categoryId: slug === 'all' ? null : category?.id ?? '__none__',
-          sale: sale === '1',
-          max: max ? Number(max) : null,
-          availability:
-            availability === 'ready' || availability === 'made-to-order'
-              ? availability
-              : null,
-        }}
-        initialSort={(sort as SortKey) || 'featured'}
+        initial={initial}
+        scopeCategoryId={slug === 'all' ? null : category?.id ?? '__none__'}
         categories={live}
-        activeCategoryId={category?.id ?? null}
+        boutiques={liveBoutiques}
         onCategory={c =>
           go(`/category/${c ? c.slug : 'all'}`, { replace: true })
         }
