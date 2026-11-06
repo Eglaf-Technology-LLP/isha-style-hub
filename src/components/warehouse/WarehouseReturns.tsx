@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeftRight, CheckCircle, ExternalLink, PackageOpen, RotateCcw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { CourierOption } from "@/hooks/useShipments";
+import { EwayBillPreview } from "@/lib/ewayBill";
 import { WhReturn } from "@/hooks/useWarehouseData";
 import { formatShortDate, inr, returnStatusLabels, sendBackReasonLabels } from "@/lib/warehouse";
 import { CourierPickerDialog } from "./CourierPickerDialog";
@@ -322,13 +323,27 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
                           title={`Send back to ${sb.vendor_name}`}
                           description="From the warehouse to the boutique's pickup address."
                           loadRates={async () => {
-                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number }>("parcel_rates", { send_back_id: sb.id });
-                            return res && res.couriers ? res : null;
+                            const res = await runAction<{ couriers: CourierOption[]; isCod: boolean; weightKg?: number; eway_bills?: EwayBillPreview[] }>(
+                              "parcel_rates",
+                              { send_back_id: sb.id },
+                            );
+                            return res && res.couriers ? { ...res, ewayBills: res.eway_bills ?? [] } : null;
                           }}
                           onBook={async (courierId, etd) => {
-                            const res = await runAction("book_send_back", { send_back_id: sb.id, courier_id: courierId, courier_etd: etd }, "Booked - pickup requested");
-                            if (res) data.refetch();
-                            return !!res;
+                            // Over the e-way bill limit it waits for AllBoutiqs to make one.
+                            const res = await runAction<{ eway_bill_pending?: boolean; eway_bills?: EwayBillPreview[] }>("book_send_back", {
+                              send_back_id: sb.id,
+                              courier_id: courierId,
+                              courier_etd: etd,
+                            });
+                            if (!res) return false;
+                            if (res.eway_bill_pending) {
+                              toast.info("E-way bill asked for - book again once it's in");
+                              return { ewayBills: res.eway_bills ?? [] };
+                            }
+                            toast.success("Booked - pickup requested");
+                            data.refetch();
+                            return true;
                           }}
                         />
                       )}

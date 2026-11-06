@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { BOUTIQUE_LEGS, EwayBillLeg } from "@/lib/ewayBill";
 
 export type EwayBillRow = Tables<"eway_bills">;
 
@@ -30,12 +31,18 @@ export function useEwayBills(vendorOrderIds: string[]) {
     load();
   }, [load]);
 
-  // The boutique's own leg (to the customer or to the warehouse): the latest
-  // request not used by a booking yet.
+  // The boutique's own leg of the order (to the customer or to the
+  // warehouse): the latest request not used by a booking yet.
   const openForwardBill = (vendorOrderId: string) =>
     [...bills]
       .reverse()
-      .find((b) => b.vendor_order_id === vendorOrderId && b.leg !== "warehouse_to_customer" && !b.shipment_id) ?? null;
+      .find(
+        (b) =>
+          b.vendor_order_id === vendorOrderId &&
+          BOUTIQUE_LEGS.includes(b.leg as EwayBillLeg) &&
+          !b.return_request_id &&
+          !b.shipment_id,
+      ) ?? null;
 
   const billForShipment = (shipmentId: string) => bills.find((b) => b.shipment_id === shipmentId) ?? null;
 

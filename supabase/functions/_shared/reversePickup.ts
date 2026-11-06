@@ -7,6 +7,7 @@ import {
   toIntOrNull,
 } from "./shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS } from "./warehouse.ts";
+import { raiseReturnEwayBills } from "./ewayBill.ts";
 
 export class ReversePickupError extends Error {}
 
@@ -197,6 +198,14 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
     }
   } catch (followUpErr) {
     console.error("bookReversePickup: AWB/pickup follow-up failed", followUpErr);
+  }
+
+  // Over the e-way bill limit: AllBoutiqs is asked to make the return's e-way
+  // bill before the courier collects. Never fails the booking.
+  try {
+    await raiseReturnEwayBills(supabase, returnRequestId);
+  } catch (e) {
+    console.error("bookReversePickup: e-way bill request failed", e);
   }
 
   return { shipment, alreadyScheduled: false };

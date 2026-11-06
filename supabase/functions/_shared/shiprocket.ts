@@ -510,6 +510,11 @@ export async function bookForwardShipment(
     breadthCm: number;
     heightCm: number;
     courierId?: number | null;
+    // Parcels over the e-way bill limit: Shiprocket prints it on the label
+    // and passes it to the courier with the pickup. Its field takes one
+    // number; a warehouse parcel holding several boutiques' parts sends the
+    // first (all printed copies go in the parcel - see the packing slip).
+    ewaybillNumbers?: string[];
   },
 ): Promise<ForwardBookingResult> {
   const a = params.consignee.address;
@@ -552,6 +557,7 @@ export async function bookForwardShipment(
       breadth: params.breadthCm,
       height: params.heightCm,
       ...(params.courierId ? { courier_id: params.courierId } : {}),
+      ...(params.ewaybillNumbers?.length ? { ewaybill_no: params.ewaybillNumbers[0] } : {}),
     },
   });
 

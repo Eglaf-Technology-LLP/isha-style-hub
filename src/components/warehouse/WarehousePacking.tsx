@@ -27,6 +27,7 @@ import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseInfo, Ware
 import { boutiqueDiscountShare } from "@/lib/coupons";
 import { EwayBillPreview } from "@/lib/ewayBill";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
+import { EwayBillPdfLink } from "@/components/vendor/EwayBillStatusLine";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -208,6 +209,12 @@ function PackedParcel({
               <DeliveryChallanButton key={b.challan_id} challanId={b.challan_id!} label={parts.length > 1 ? `Challan - ${p.vendor_name}` : "Challan"} />
             )),
         )}
+        {/* ...and its e-way bill, once AllBoutiqs has made it. */}
+        {parts.flatMap((p) =>
+          p.ewayBills
+            .filter((b) => b.leg === "warehouse_to_customer" && b.status === "active" && !b.shipment_id)
+            .map((b) => <EwayBillPdfLink key={b.id} bill={b} />),
+        )}
         <PackParcelDialog
           triggerLabel="Edit size"
           variant="outline"
@@ -255,7 +262,7 @@ function PackedParcel({
             });
             if (!res) return false;
             if (res.eway_bill_pending) {
-              toast.info("E-way bill asked for - book again once it's in");
+              toast.info("AllBoutiqs is making the e-way bill - book again once it's in");
               onChange(); // its delivery challan can be printed now
               return { ewayBills: res.eway_bills ?? [] };
             }

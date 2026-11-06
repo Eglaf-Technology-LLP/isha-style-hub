@@ -118,6 +118,22 @@ export const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 export const ACCOUNT_RE = /^[0-9]{9,18}$/;
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// The GSTIN's last character is a checksum of the first 14 (GSTN's
+// published algorithm), so a typo or a made-up number fails it. The e-way
+// bill portal rejects a GSTIN that fails it. (Checked here, not on the server.)
+const GSTIN_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+export function gstinChecksumOk(gstin: string): boolean {
+  const g = gstin.trim().toUpperCase();
+  if (!/^[0-9A-Z]{15}$/.test(g)) return false;
+  let sum = 0;
+  for (let i = 0; i < 14; i++) {
+    const product = GSTIN_CHARS.indexOf(g[i]) * (i % 2 === 0 ? 1 : 2);
+    sum += Math.floor(product / 36) + (product % 36);
+  }
+  return GSTIN_CHARS[(36 - (sum % 36)) % 36] === g[14];
+}
+export const isValidGstin = (gstin: string) => GSTIN_RE.test(gstin.trim().toUpperCase()) && gstinChecksumOk(gstin);
+
 // 10-digit Indian mobile, accepting +91 / 91 in front, spaces and leading
 // zeros (dropped - a leading 0 stops the call); null if invalid.
 export function normalizeMobile(raw: string): string | null {

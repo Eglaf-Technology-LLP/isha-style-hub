@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import type { BulkSettings } from "@/lib/ewayBillJson";
 
 export type EwayBillRow = Tables<"eway_bills">;
-export type VendorEwayBillSetup = Tables<"vendor_eway_bill_setup">;
-export type CourierTransporter = Tables<"courier_transporters">;
 export type InvoiceRow = Tables<"invoices">;
 export type InvoiceLineRow = Tables<"invoice_lines">;
 
@@ -15,23 +14,20 @@ export interface AdminEwayBill extends EwayBillRow {
   lines: InvoiceLineRow[];
   partStatus: string | null; // the boutique part's own status (cancelled?)
   shipment: { awb_code: string | null; status: string } | null;
-  transporterId: string | null;
 }
 
-// Everything Admin > E-way bills shows: open and recent requests with what
-// the portal form needs, each boutique's sub-user set-up, couriers' IDs.
+// Everything Admin > E-way bills shows: open requests and made-but-unused
+// e-way bills (whatever their age), the rest from the last 30 days, with the
+// invoice data the portal file needs, and AllBoutiqs' transporter settings.
 export function useEwayBillsAdmin() {
   const [bills, setBills] = useState<AdminEwayBill[]>([]);
-  const [setups, setSetups] = useState<Map<string, VendorEwayBillSetup>>(new Map());
-  const [transporters, setTransporters] = useState<CourierTransporter[]>([]);
+  const [settings, setSettings] = useState<BulkSettings>({ transporterId: null, transporterName: "AllBoutiqs", portalUserId: null });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    // Everything still open (waiting for a number, or made but not booked);
-    // the rest only from the last 30 days.
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-    const [{ data: open, error }, { data: recent }, { data: setupRows }, { data: courierRows }] = await Promise.all([
+    const [{ data: open, error }, { data: recent }, { data: platform }] = await Promise.all([
       supabase
         .from("eway_bills")
         .select("*")
@@ -44,8 +40,10 @@ export function useEwayBillsAdmin() {
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(500),
-      supabase.from("vendor_eway_bill_setup").select("*"),
-      supabase.from("courier_transporters").select("*").order("courier_name"),
+      supabase
+        .from("platform_settings")
+        .select("eway_bill_transporter_id, eway_bill_transporter_name, eway_bill_portal_user_id")
+        .maybeSingle(),
     ]);
     if (error) console.error("eway bills load failed", error);
     const openIds = new Set((open ?? []).map((b) => b.id));
@@ -73,7 +71,6 @@ export function useEwayBillsAdmin() {
     const invoiceById = new Map((invoices ?? []).map((i) => [i.id, i]));
     const partById = new Map((parts ?? []).map((p) => [p.id, p.status as string]));
     const shipmentById = new Map((shipments ?? []).map((s) => [s.id, s]));
-    const transporterByCourier = new Map((courierRows ?? []).map((c) => [c.courier_id, c.transporter_id]));
 
     setBills(
       list.map((b) => ({
@@ -84,11 +81,13 @@ export function useEwayBillsAdmin() {
         lines: (lines ?? []).filter((l) => l.invoice_id === b.invoice_id),
         partStatus: partById.get(b.vendor_order_id) ?? null,
         shipment: b.shipment_id ? shipmentById.get(b.shipment_id) ?? null : null,
-        transporterId: b.courier_id != null ? transporterByCourier.get(b.courier_id) ?? null : null,
       })),
     );
-    setSetups(new Map((setupRows ?? []).map((s) => [s.vendor_id, s])));
-    setTransporters(courierRows ?? []);
+    setSettings({
+      transporterId: platform?.eway_bill_transporter_id ?? null,
+      transporterName: platform?.eway_bill_transporter_name || "AllBoutiqs",
+      portalUserId: platform?.eway_bill_portal_user_id ?? null,
+    });
     setLoading(false);
   }, []);
 
@@ -96,5 +95,5 @@ export function useEwayBillsAdmin() {
     load();
   }, [load]);
 
-  return { bills, setups, transporters, loading, refetch: load };
+  return { bills, settings, loading, refetch: load };
 }

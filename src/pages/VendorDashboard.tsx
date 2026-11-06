@@ -62,10 +62,8 @@ import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { NewOrdersBanner } from "@/components/NewOrdersBanner";
 import { ShipmentTimelineDialog } from "@/components/admin/ShipmentTimelineDialog";
 import { ShipNowDialog } from "@/components/admin/ShipNowDialog";
-import { EwayBillSetupCard } from "@/components/vendor/EwayBillSetupCard";
-import { EwayBillStatusLine } from "@/components/vendor/EwayBillStatusLine";
+import { EwayBillPdfLink, EwayBillStatusLine } from "@/components/vendor/EwayBillStatusLine";
 import { useEwayBills } from "@/hooks/useEwayBills";
-import { formatEwbNumber } from "@/lib/ewayBill";
 import { formatShortDate, vendorOrderStatusColors, vendorOrderStatusLabel } from "@/lib/warehouse";
 import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsDialog";
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
@@ -966,7 +964,6 @@ export default function VendorDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <EwayBillSetupCard vendorId={vendor.id} className="mb-4" />
                 {dataLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -1226,9 +1223,7 @@ export default function VendorDashboard() {
                                       <div className="font-mono text-muted-foreground">AWB {shipment.awb_code}</div>
                                     )}
                                     {billForShipment(shipment.id)?.ewb_number && (
-                                      <div className="font-mono text-muted-foreground">
-                                        E-way bill {formatEwbNumber(billForShipment(shipment.id)?.ewb_number)}
-                                      </div>
+                                      <EwayBillPdfLink bill={billForShipment(shipment.id)!} />
                                     )}
                                     <div className="flex items-center gap-2">
                                       {shipment.label_url && (

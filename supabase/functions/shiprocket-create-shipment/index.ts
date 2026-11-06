@@ -16,7 +16,7 @@ import {
 } from "../_shared/shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS, toShiprocketItems, warehouseConsignee } from "../_shared/warehouse.ts";
 import { ensureInvoice, InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
+import { EwayBill, EwayBillLeg, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
 
 // The "Ship Now" action: the boutique has packed the order, this call
 // creates the real Shiprocket order, assigns a courier, and books the
@@ -31,8 +31,11 @@ import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from
 //
 // The goods leave on the boutique's tax invoice, issued here. A part worth
 // more than the e-way bill limit isn't booked until its e-way bill number is
-// in: the first press asks for one (eway_bill_pending), a later press books
-// the courier it is made out to.
+// in (eway_bill_pending): AllBoutiqs asked for it when the order was placed
+// (a press before then asks for it). AllBoutiqs is the transporter on it, so
+// any courier can be booked; the number goes to Shiprocket with the booking.
+// An exchange replacement over the limit travels on its own delivery challan
+// and e-way bill.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -159,6 +162,8 @@ Deno.serve(async (req) => {
     // What goes in the parcel: the boutique's order lines, or the exchange's
     // replacement items (same product, the size/colour the customer asked for).
     let lines: { product_id: string; quantity: number; name: string; sku: string; price: number }[];
+    // A replacement moves only these (for its e-way bill).
+    let movedItems: { order_item_id: string; quantity: number }[] | null = null;
     if (isReplacement) {
       const rrItems = (returnRequest.items ?? []) as any[];
       const { data: orderItems } = await supabase
@@ -168,6 +173,10 @@ Deno.serve(async (req) => {
       const mine = (orderItems ?? []).filter((oi) => oi.vendor_order_id === vendor_order_id);
       if (mine.length === 0) return jsonResponse({ error: "None of this exchange's items are from this boutique" }, 400);
       const shiprocketItems = await toShiprocketItems(supabase, mine.map((oi) => ({ ...oi, order_item_id: oi.id })));
+      movedItems = mine.map((oi) => ({
+        order_item_id: oi.id,
+        quantity: Number(rrItems.find((i) => i.order_item_id === oi.id)?.quantity ?? oi.quantity),
+      }));
       lines = mine.map((oi, idx) => {
         const target = rrItems.find((i) => i.order_item_id === oi.id)?.exchange_to;
         const wanted = [target?.size, target?.color].filter(Boolean).join(" / ");
@@ -214,36 +223,36 @@ Deno.serve(async (req) => {
       ? lines.reduce((sum, l) => sum + l.price * l.quantity, 0)
       : Number(vendorOrder.subtotal);
 
-    // Replacements travel on the original order's paperwork for now.
-    let ewayBill: EwayBill | null = null;
     if (!isReplacement) {
-      // Dated the day the goods leave. A problem with it only stops the
-      // booking when an e-way bill needs it (below); otherwise it can still be
-      // issued later, on first view.
+      // Dated the day the goods leave (unless an e-way bill needed it when the
+      // order was placed). A problem with it only stops the booking when an
+      // e-way bill needs it (below); otherwise it can still be issued later,
+      // on first view.
       try {
         await ensureInvoice(supabase, vendorOrder.id);
       } catch (e) {
         console.error("shiprocket-create-shipment: invoice not issued", errorMessage(e));
       }
-      const leg = warehouse ? "boutique_to_warehouse" : "boutique_to_customer";
-      const check = await ewayBillForBooking(supabase, {
-        vendorOrderId: vendorOrder.id,
-        leg,
-        courierId: courier_id ?? null,
-        courierName: courier_name ?? null,
-        from: { name: vendor.name, address: (vendor.address ?? {}) as Record<string, unknown> },
-        to: { name: consignee.name, address: consignee.address as Record<string, unknown> },
-        requestedBy: userId,
-      });
-      if (check.required && !check.ready) {
-        return jsonResponse({
-          eway_bill_pending: true,
-          eway_bill: await ewayBillPreview(supabase, vendorOrder.id, leg),
-          via_warehouse: !!warehouse,
-        });
-      }
-      if (check.required) ewayBill = check.bill;
     }
+    const movement = {
+      vendorOrderId: vendorOrder.id,
+      leg: (warehouse ? "boutique_to_warehouse" : "boutique_to_customer") as EwayBillLeg,
+      from: { name: vendor.name, address: (vendor.address ?? {}) as Record<string, unknown> },
+      to: { name: consignee.name, address: consignee.address as Record<string, unknown> },
+      returnRequestId: isReplacement ? (return_request_id as string) : null,
+      items: movedItems,
+      requestedBy: userId,
+    };
+    let ewayBill: EwayBill | null = null;
+    const check = await ewayBillForBooking(supabase, movement);
+    if (check.required && !check.ready) {
+      return jsonResponse({
+        eway_bill_pending: true,
+        eway_bill: await ewayBillPreview(supabase, movement),
+        via_warehouse: !!warehouse,
+      });
+    }
+    if (check.required) ewayBill = check.bill;
 
     // Shiprocket treats this as an idempotency key on their side, not just
     // our own reference - confirmed live: reusing the bare vendor_order_id
@@ -271,8 +280,8 @@ Deno.serve(async (req) => {
       lengthCm: PARCEL_DEFAULTS.lengthCm,
       breadthCm: PARCEL_DEFAULTS.breadthCm,
       heightCm: PARCEL_DEFAULTS.heightCm,
-      // The e-way bill names its courier - the booking has to match it.
-      courierId: ewayBill?.courier_id ?? courier_id ?? null,
+      courierId: courier_id ?? null,
+      ewaybillNumbers: ewayBill?.ewb_number ? [ewayBill.ewb_number] : [],
     });
 
     const courierCost = await bookedCourierCost(supabase, {

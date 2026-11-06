@@ -42,17 +42,10 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
   const [selected, setSelected] = useState<number | null>(null);
   const [ewayBills, setEwayBills] = useState<EwayBillPreview[]>([]);
 
-  const lockedCourierId = ewayBills.find((p) => p.bill?.courier_id)?.bill?.courier_id ?? null;
-  const shownCouriers = lockedCourierId ? couriers.filter((c) => c.courierId === lockedCourierId) : couriers;
+  // AllBoutiqs is the transporter on the e-way bills, so any courier can be booked.
   const waiting = ewayBills.some((p) => p.bill?.status === "pending");
   const notAskedYet = ewayBills.some((p) => !p.bill);
-  const lockedCourierGone = !!lockedCourierId && !loading && shownCouriers.length === 0;
-
-  const applyEwayBills = (previews: EwayBillPreview[]) => {
-    setEwayBills(previews);
-    const locked = previews.find((p) => p.bill?.courier_id)?.bill?.courier_id;
-    if (locked) setSelected(locked);
-  };
+  const applyEwayBills = (previews: EwayBillPreview[]) => setEwayBills(previews);
 
   const openDialog = async () => {
     setOpen(true);
@@ -101,12 +94,6 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
             {ewayBills.map((p) => (
               <EwayBillNotice key={p.vendor_order_id} preview={p} boutique={ewayBills.length > 1 ? p.vendor_name : undefined} />
             ))}
-            {lockedCourierGone && (
-              <p className="text-sm text-destructive">
-                The e-way bill is made out to a courier that doesn't serve this route right now - change the courier on it in
-                Admin &gt; E-way bills.
-              </p>
-            )}
             {weightKg != null && (
               <p className="text-sm -mt-2">
                 Parcel weight for these rates: <span className="font-medium">{formatWeightKg(weightKg)}</span>
@@ -123,7 +110,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
               onValueChange={(v) => setSelected(Number(v))}
               className="space-y-2 max-h-[50vh] overflow-y-auto"
             >
-              {shownCouriers.map((c) => (
+              {couriers.map((c) => (
                 <Label
                   key={c.courierId}
                   htmlFor={`wh-courier-${c.courierId}`}
@@ -154,9 +141,9 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
           <Button variant="outline" onClick={() => setOpen(false)} disabled={booking}>
             Cancel
           </Button>
-          <Button onClick={confirm} disabled={!selected || booking || loading || (waiting && !notAskedYet) || lockedCourierGone}>
+          <Button onClick={confirm} disabled={!selected || booking || loading || (waiting && !notAskedYet)}>
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {notAskedYet ? "Ask for e-way bill" : waiting ? "Waiting for e-way bill" : <>Confirm &amp; Book</>}
+            {notAskedYet ? "Ask for e-way bill" : waiting ? "E-way bill being made" : <>Confirm &amp; Book</>}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -4,51 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { orderRefOf } from "@/lib/ewayBill";
-import type { AdminEwayBill, CourierTransporter } from "@/hooks/useEwayBillsAdmin";
+import { BOUTIQUE_LEGS, EwayBillLeg, localInput, orderRefOf, uploadEwayBillPdf } from "@/lib/ewayBill";
+import type { AdminEwayBill } from "@/hooks/useEwayBillsAdmin";
 
-// datetime-local wants "YYYY-MM-DDTHH:mm" in local time.
-const localInput = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-// Type in the number the portal gave (or the boutique emailed). Usually just
-// the number; the courier and document can be corrected when the e-way bill
-// was made out differently from the request.
-export function EwayBillRecordDialog({
-  bill,
-  transporters,
-  onSaved,
-}: {
-  bill: AdminEwayBill;
-  transporters: CourierTransporter[];
-  onSaved: () => void;
-}) {
+// One number, typed in from the portal (bulk entry covers many). The PDF can
+// go with it; the document can be corrected when the portal entry differs.
+export function EwayBillRecordDialog({ bill, onSaved }: { bill: AdminEwayBill; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [number, setNumber] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
-  const [changeCourier, setChangeCourier] = useState(false);
-  const [courierId, setCourierId] = useState<string>("");
+  const [pdf, setPdf] = useState<File | null>(null);
   const [changeDocument, setChangeDocument] = useState(false);
   const [documentNumber, setDocumentNumber] = useState(bill.document_number);
   const [documentDate, setDocumentDate] = useState(bill.document_date);
@@ -57,8 +27,7 @@ export function EwayBillRecordDialog({
     setNumber(bill.ewb_number ?? "");
     setGeneratedAt(localInput(bill.ewb_date ? new Date(bill.ewb_date) : new Date()));
     setValidUntil(bill.valid_until ? localInput(new Date(bill.valid_until)) : "");
-    setChangeCourier(false);
-    setCourierId(bill.courier_id != null ? String(bill.courier_id) : "");
+    setPdf(null);
     setChangeDocument(false);
     setDocumentNumber(bill.document_number);
     setDocumentDate(bill.document_date);
@@ -70,14 +39,21 @@ export function EwayBillRecordDialog({
 
   const save = async () => {
     setSaving(true);
-    const courier = transporters.find((t) => String(t.courier_id) === courierId);
+    // The PDF first, so the boutique's "ready" message can say it's there.
+    if (pdf) {
+      const pdfError = await uploadEwayBillPdf(bill, pdf);
+      if (pdfError) {
+        setSaving(false);
+        toast.error(pdfError);
+        return;
+      }
+    }
     const { errorMessage } = await invokeEdgeFunction("eway-bill-actions", {
       action: "record",
       eway_bill_id: bill.id,
       ewb_number: digits,
       ewb_date: generatedAt ? new Date(generatedAt).toISOString() : null,
       valid_until: validUntil ? new Date(validUntil).toISOString() : null,
-      ...(changeCourier && courier ? { courier_id: courier.courier_id, courier_name: courier.courier_name } : {}),
       ...(changeDocument ? { document_number: documentNumber, document_date: documentDate } : {}),
     });
     setSaving(false);
@@ -86,9 +62,11 @@ export function EwayBillRecordDialog({
       return;
     }
     toast.success(
-      bill.leg === "warehouse_to_customer"
-        ? "Saved - the warehouse can book the parcel now"
-        : `Saved - ${bill.vendorName} has been told to ship`,
+      BOUTIQUE_LEGS.includes(bill.leg as EwayBillLeg)
+        ? `Saved - ${bill.vendorName} has been told to ship`
+        : bill.leg.startsWith("warehouse_")
+          ? "Saved - the warehouse can book the parcel now"
+          : "Saved",
     );
     setOpen(false);
     onSaved();
@@ -96,14 +74,14 @@ export function EwayBillRecordDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button size="sm" className="h-8 text-xs" onClick={openDialog}>
-        {bill.status === "active" ? "Edit number" : "Enter e-way bill number"}
+      <Button size="sm" variant={bill.status === "active" ? "outline" : "default"} className="h-8 text-xs" onClick={openDialog}>
+        {bill.status === "active" ? "Edit" : "Enter number"}
       </Button>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>E-way bill for order {orderRefOf(bill.order_id)}</DialogTitle>
           <DialogDescription>
-            {bill.vendorName} · {bill.document_number} · made out to {bill.courier_name ?? "the courier"}
+            {bill.vendorName} · {bill.document_number}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -131,30 +109,12 @@ export function EwayBillRecordDialog({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Validity starts when the courier fills Part B, so it's often blank at first - add it later with Edit number.
+            Validity starts when Part B is filled, so it's often blank at first - add it later with Edit.
           </p>
-
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={changeCourier} onCheckedChange={(v) => setChangeCourier(v === true)} />
-            Made out to a different courier
-          </label>
-          {changeCourier && (
-            <Select value={courierId} onValueChange={setCourierId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Courier" />
-              </SelectTrigger>
-              <SelectContent>
-                {transporters.map((t) => (
-                  <SelectItem key={t.courier_id} value={String(t.courier_id)}>
-                    {t.courier_name} ({t.transporter_id})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {changeCourier && transporters.length === 0 && (
-            <p className="text-xs text-muted-foreground">Add couriers in the Couriers tab first.</p>
-          )}
+          <div className="space-y-1">
+            <Label htmlFor="ewb-pdf">PDF from the portal {bill.pdf_path ? "(replaces the one saved)" : "(optional now)"}</Label>
+            <Input id="ewb-pdf" type="file" accept="application/pdf" onChange={(e) => setPdf(e.target.files?.[0] ?? null)} />
+          </div>
 
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={changeDocument} onCheckedChange={(v) => setChangeDocument(v === true)} />
@@ -177,7 +137,7 @@ export function EwayBillRecordDialog({
           <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!valid || saving || (changeCourier && !courierId)}>
+          <Button onClick={save} disabled={!valid || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Save
           </Button>

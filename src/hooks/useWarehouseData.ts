@@ -84,12 +84,14 @@ export interface WhVendorOrder {
 }
 
 export interface WhEwayBill {
+  id: string;
   leg: string;
   status: string;
   ewb_number: string | null;
   document_number: string;
   challan_id: string | null;
   shipment_id: string | null;
+  pdf_path: string | null;
 }
 
 export interface WhDispatch {
@@ -247,7 +249,7 @@ export function useWarehouseData(enabled: boolean) {
         supabase.from("warehouse_dispatches").select("*").in("order_id", orderIds).neq("status", "cancelled"),
         supabase
           .from("eway_bills")
-          .select("vendor_order_id, leg, status, ewb_number, document_number, challan_id, shipment_id")
+          .select("id, vendor_order_id, leg, status, ewb_number, document_number, challan_id, shipment_id, pdf_path")
           .in("order_id", orderIds)
           .neq("status", "cancelled")
           .order("created_at"),

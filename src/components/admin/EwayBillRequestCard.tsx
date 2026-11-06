@@ -1,56 +1,62 @@
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Copy, ExternalLink } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown, ChevronUp, Copy } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { addressText, EWAY_DOCUMENT_LABELS, EWAY_LEG_LABELS, EwayBillLeg, orderRefOf } from "@/lib/ewayBill";
-import type { AdminEwayBill, CourierTransporter } from "@/hooks/useEwayBillsAdmin";
+import type { BulkSettings } from "@/lib/ewayBillJson";
+import type { AdminEwayBill } from "@/hooks/useEwayBillsAdmin";
 import { PromptDialog } from "@/components/warehouse/PromptDialog";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
 import { EwayBillRecordDialog } from "./EwayBillRecordDialog";
 
 type Address = Record<string, string | null | undefined> | null;
+type StoredItem = { description: string; hsn_code: string | null; quantity: number; taxable_value: number; gst_rate: number };
 
 const pin = (a: unknown) => ((a as Address)?.pincode ?? "") as string;
 
-// The portal's "Generate New" form, field by field, in its order.
-function portalFields(bill: AdminEwayBill): [string, string][] {
+const SUB_SUPPLY: Record<number, string> = { 1: "Supply", 7: "Sales Return", 8: "Others" };
+
+// The portal's "Generate New" form, field by field - for making one by hand
+// when the bulk upload isn't used.
+function portalFields(bill: AdminEwayBill, settings: BulkSettings): [string, string][] {
   const inv = bill.invoice;
   const intra = inv?.supply_type !== "inter_state";
-  const items = bill.lines.map(
+  const outward = bill.supply_type !== "I";
+  const items = ((bill.items as unknown as StoredItem[] | null) ?? bill.lines).map(
     (l) =>
       `${l.description} | HSN ${l.hsn_code ?? "-"} | qty ${l.quantity} | taxable ${Number(l.taxable_value).toFixed(2)} | ` +
       (intra ? `CGST ${Number(l.gst_rate) / 2}% + SGST ${Number(l.gst_rate) / 2}%` : `IGST ${Number(l.gst_rate)}%`),
   );
+  const boutique = `${inv?.seller_legal_name ?? inv?.seller_name ?? bill.vendorName}, GSTIN ${inv?.seller_gstin ?? "-"}`;
+  const customer = `${inv?.billing_name ?? "-"} (URP - unregistered), ${inv?.billing_state ?? "-"}`;
   return [
-    ["Transaction type", "Outward · Supply"],
-    ["Document type", EWAY_DOCUMENT_LABELS[bill.document_type] ?? bill.document_type],
-    ["Document no.", bill.document_number],
-    ["Document date", formatDate(bill.document_date)],
-    ["Bill from - name", inv?.seller_legal_name ?? inv?.seller_name ?? bill.vendorName],
-    ["Bill from - GSTIN", inv?.seller_gstin ?? "-"],
-    ["Bill from - state", inv?.seller_state ?? "-"],
+    [
+      "Transaction",
+      `${outward ? "Outward" : "Inward"} · ${SUB_SUPPLY[bill.sub_supply_type] ?? bill.sub_supply_type}${bill.sub_supply_desc ? ` (${bill.sub_supply_desc})` : ""}`,
+    ],
+    ["Document", `${EWAY_DOCUMENT_LABELS[bill.document_type] ?? bill.document_type} ${bill.document_number}, ${formatDate(bill.document_date)}`],
+    ["Bill from", outward ? boutique : customer],
     ["Dispatch from", `${bill.from_name}, ${addressText(bill.from_address as Address)}`],
     ["Dispatch from - PIN", pin(bill.from_address)],
-    ["Bill to - name", inv?.billing_name ?? "-"],
-    ["Bill to - GSTIN", "URP (unregistered)"],
-    ["Bill to - state", inv?.billing_state ?? "-"],
+    ["Bill to", outward ? customer : boutique],
     ["Ship to", `${bill.to_name}, ${addressText(bill.to_address as Address)}`],
     ["Ship to - PIN", pin(bill.to_address)],
     ...items.map((text, i) => [`Item ${i + 1}`, text] as [string, string]),
-    ["Taxable amount", Number(inv?.taxable_value ?? 0).toFixed(2)],
+    ["Taxable amount", Number(bill.taxable_value ?? inv?.taxable_value ?? 0).toFixed(2)],
     ...(intra
       ? ([
-          ["CGST amount", Number(inv?.cgst_amount ?? 0).toFixed(2)],
-          ["SGST amount", Number(inv?.sgst_amount ?? 0).toFixed(2)],
+          ["CGST amount", Number(bill.cgst_amount ?? inv?.cgst_amount ?? 0).toFixed(2)],
+          ["SGST amount", Number(bill.sgst_amount ?? inv?.sgst_amount ?? 0).toFixed(2)],
         ] as [string, string][])
-      : ([["IGST amount", Number(inv?.igst_amount ?? 0).toFixed(2)]] as [string, string][])),
-    ["Total invoice value", Number(bill.value).toFixed(2)],
-    ["Transporter", bill.courier_name ?? "-"],
-    ["Transporter ID", bill.transporterId ?? "not saved - add it in the Couriers tab"],
-    ["Mode / vehicle", "Road · leave the vehicle number blank (the courier fills Part B)"],
+      : ([["IGST amount", Number(bill.igst_amount ?? inv?.igst_amount ?? 0).toFixed(2)]] as [string, string][])),
+    ["Total value", Number(bill.value).toFixed(2)],
+    ["Transporter", `${settings.transporterName}${settings.transporterId ? `, ID ${settings.transporterId}` : " (set the ID in Settings)"}`],
+    ["Part B", "Leave blank - mode Road, no vehicle number"],
   ];
 }
 
@@ -68,94 +74,58 @@ function waitingFor(iso: string) {
   return `${Math.round(hours / 24)} days`;
 }
 
-// One request waiting for its number: what to type into the portal, and the
-// actions on it.
+// One request waiting for its number.
 export function EwayBillRequestCard({
   bill,
-  madeBy,
-  transporters,
+  settings,
+  selected,
+  onSelect,
   onChanged,
 }: {
   bill: AdminEwayBill;
-  madeBy: "allboutiqs" | "boutique";
-  transporters: CourierTransporter[];
+  settings: BulkSettings;
+  selected: boolean;
+  onSelect: (selected: boolean) => void;
   onChanged: () => void;
 }) {
-  const fields = portalFields(bill);
+  const [showFields, setShowFields] = useState(false);
+  const fields = portalFields(bill, settings);
   const hours = (Date.now() - new Date(bill.created_at).getTime()) / 3_600_000;
 
   return (
-    <div data-focus-id={bill.id} className="rounded-md border border-border p-3 space-y-3">
+    <div data-focus-id={bill.id} className="rounded-md border border-border p-3 space-y-2">
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-sm font-medium">
-            Order {orderRefOf(bill.order_id)} · {EWAY_LEG_LABELS[bill.leg as EwayBillLeg]} · {formatMoney(bill.value)}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Asked for {formatDateTime(bill.created_at)} · courier {bill.courier_name ?? "-"}
-          </p>
-        </div>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <Checkbox className="mt-0.5" checked={selected} onCheckedChange={(v) => onSelect(v === true)} />
+          <span>
+            <span className="text-sm font-medium block">
+              Order {orderRefOf(bill.order_id)} · {EWAY_LEG_LABELS[bill.leg as EwayBillLeg] ?? bill.leg} · {formatMoney(bill.value)}
+            </span>
+            <span className="text-xs text-muted-foreground block">
+              {EWAY_DOCUMENT_LABELS[bill.document_type]} <span className="font-mono">{bill.document_number}</span> · asked{" "}
+              {formatDateTime(bill.created_at)}
+              {bill.return_request_id ? " · return / exchange" : bill.send_back_id ? " · send-back" : ""}
+            </span>
+          </span>
+        </label>
         <div className="flex items-center gap-2 flex-wrap">
+          {bill.exported_at && (
+            <Badge variant="outline" title="Already in a JSON download - check the portal before uploading it again">
+              In JSON {formatDateTime(bill.exported_at)}
+            </Badge>
+          )}
           <Badge variant={hours > 2 ? "destructive" : "secondary"}>Waiting {waitingFor(bill.created_at)}</Badge>
-          {madeBy === "boutique" && <Badge variant="outline">Boutique makes it</Badge>}
         </div>
       </div>
 
-      <dl className="grid sm:grid-cols-[200px,1fr] gap-x-3 gap-y-1 text-xs">
-        {fields.map(([label, value]) => (
-          <div key={label} className="contents">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="flex items-start gap-1.5 min-w-0">
-              <span className="break-words">{value}</span>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-primary shrink-0 mt-0.5"
-                title={`Copy ${label}`}
-                onClick={() => copy(value, `${label} copied`)}
-              >
-                <Copy className="h-3 w-3" />
-              </button>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {!bill.invoice && <p className="text-xs text-destructive">No invoice found - it can't go in the JSON.</p>}
 
       <div className="flex flex-wrap gap-2 items-center">
-        <EwayBillRecordDialog bill={bill} transporters={transporters} onSaved={onChanged} />
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 text-xs gap-1"
-          onClick={() => copy(fields.map(([l, v]) => `${l}: ${v}`).join("\n"), "All details copied")}
-        >
-          <Copy className="h-3 w-3" /> Copy all
+        <EwayBillRecordDialog bill={bill} onSaved={onChanged} />
+        <Button size="sm" variant="ghost" className="h-8 text-xs gap-1" onClick={() => setShowFields((s) => !s)}>
+          {showFields ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />} Portal details
         </Button>
-        <a
-          href="https://ewaybillgst.gov.in"
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-primary inline-flex items-center gap-0.5 hover:underline"
-        >
-          Open the portal <ExternalLink className="h-3 w-3" />
-        </a>
         {bill.challan_id && <DeliveryChallanButton challanId={bill.challan_id} />}
-        {madeBy === "boutique" && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 text-xs"
-            onClick={async () => {
-              const { data, errorMessage } = await invokeEdgeFunction<{ sent_to: string }>("eway-bill-actions", {
-                action: "resend_request",
-                eway_bill_id: bill.id,
-              });
-              if (errorMessage) toast.error(errorMessage);
-              else toast.success(`Details sent to ${data?.sent_to}`);
-            }}
-          >
-            Email the boutique again
-          </Button>
-        )}
         <PromptDialog
           trigger={(open) => (
             <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive" onClick={open}>
@@ -163,7 +133,7 @@ export function EwayBillRequestCard({
             </Button>
           )}
           title="Cancel this e-way bill request?"
-          description="Only when it won't be needed (e.g. the order changed). If an e-way bill was already made on the portal, cancel it there too. The next booking attempt asks for a new one."
+          description="Only when it won't be needed (e.g. the order changed). If an e-way bill was already made on the portal, cancel it there too. A later booking asks for a new one if it's still needed."
           label="Reason"
           required
           confirmLabel="Cancel request"
@@ -180,6 +150,37 @@ export function EwayBillRequestCard({
           }}
         />
       </div>
+
+      {showFields && (
+        <div className="space-y-2">
+          <dl className="grid sm:grid-cols-[180px,1fr] gap-x-3 gap-y-1 text-xs">
+            {fields.map(([label, value]) => (
+              <div key={label} className="contents">
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="flex items-start gap-1.5 min-w-0">
+                  <span className="break-words">{value}</span>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-primary shrink-0 mt-0.5"
+                    title={`Copy ${label}`}
+                    onClick={() => copy(value, `${label} copied`)}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1"
+            onClick={() => copy(fields.map(([l, v]) => `${l}: ${v}`).join("\n"), "All details copied")}
+          >
+            <Copy className="h-3 w-3" /> Copy all
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

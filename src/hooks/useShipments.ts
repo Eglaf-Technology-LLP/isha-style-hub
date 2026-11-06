@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { EwayBillPreview } from "@/lib/ewayBill";
+import { EWAY_TURNAROUND, EwayBillPreview } from "@/lib/ewayBill";
 
 export interface CourierOption {
   courierId: number;
@@ -133,9 +133,7 @@ export function useShipments(vendorOrderIds: string[]) {
     }
     if (data?.eway_bill_pending && data.eway_bill) {
       toast.info(
-        data.eway_bill.made_by === "boutique"
-          ? "E-way bill needed - make it with the details shown and email us the number"
-          : "E-way bill asked for - we'll tell you when it's ready to ship",
+        `AllBoutiqs is making the e-way bill for this order - usually ready within ${EWAY_TURNAROUND}. We'll email you when you can ship.`,
       );
       return { status: "pending", ewayBill: data.eway_bill };
     }

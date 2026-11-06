@@ -39,8 +39,9 @@ interface ShipNowDialogProps {
 // the vendor the real available couriers and their fares for this route,
 // let them pick one, then book with exactly that choice.
 //
-// Over the e-way bill limit, confirming first asks for the e-way bill (made
-// out to the courier picked); once it's in, only that courier can be booked.
+// Over the e-way bill limit the booking waits until AllBoutiqs has made the
+// e-way bill (asked for when the order was placed). AllBoutiqs is the
+// transporter on it, so any courier can be picked.
 export function ShipNowDialog({
   vendorOrderId,
   actioning,
@@ -60,16 +61,8 @@ export function ShipNowDialog({
   const [booking, setBooking] = useState(false);
   const [ewayBill, setEwayBill] = useState<EwayBillPreview | null>(null);
 
-  // The courier an e-way bill (asked for or made) is made out to.
-  const lockedCourierId = ewayBill?.bill?.courier_id ?? null;
-  const shownCouriers = couriers && lockedCourierId ? couriers.filter((c) => c.courierId === lockedCourierId) : couriers;
   const waitingForEwayBill = ewayBill?.bill?.status === "pending";
-  const lockedCourierGone = !!lockedCourierId && !!couriers && shownCouriers?.length === 0;
-
-  const applyEwayBill = (preview: EwayBillPreview | null) => {
-    setEwayBill(preview);
-    if (preview?.bill?.courier_id) setSelectedCourierId(preview.bill.courier_id);
-  };
+  const applyEwayBill = (preview: EwayBillPreview | null) => setEwayBill(preview);
 
   const openDialog = async () => {
     setOpen(true);
@@ -128,12 +121,6 @@ export function ShipNowDialog({
         ) : couriers && couriers.length > 0 ? (
           <>
             {ewayBill && <EwayBillNotice preview={ewayBill} />}
-            {lockedCourierGone && (
-              <p className="text-sm text-destructive">
-                The e-way bill is made out to {ewayBill?.bill?.courier_name ?? "another courier"}, which doesn't serve this
-                route right now - ask AllBoutiqs to change the courier on the e-way bill.
-              </p>
-            )}
             {/* Whether THIS order is COD, not whether a courier merely offers
                 COD as a general capability - the old per-courier "COD" badge
                 (sourced from codAvailable, true for nearly every courier
@@ -168,7 +155,7 @@ export function ShipNowDialog({
               onValueChange={(v) => setSelectedCourierId(Number(v))}
               className="space-y-2 max-h-[50vh] overflow-y-auto"
             >
-              {(shownCouriers ?? []).map((c) => (
+              {couriers.map((c) => (
                 <Label
                   key={c.courierId}
                   htmlFor={`courier-${c.courierId}`}
@@ -217,13 +204,13 @@ export function ShipNowDialog({
           </Button>
           <Button
             onClick={confirmShip}
-            disabled={!selectedCourierId || booking || loading || waitingForEwayBill || lockedCourierGone}
+            disabled={!selectedCourierId || booking || loading || waitingForEwayBill}
           >
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {ewayBill && !ewayBill.bill
               ? "Ask for e-way bill"
               : waitingForEwayBill
-                ? "Waiting for e-way bill"
+                ? "E-way bill being made"
                 : <>Confirm &amp; Ship</>}
           </Button>
         </DialogFooter>

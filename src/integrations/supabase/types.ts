@@ -259,6 +259,8 @@ export type Database = {
           issued_at: string
           order_id: string
           reason: string
+          return_request_id: string | null
+          send_back_id: string | null
           ship_to_address: Json
           ship_to_name: string
           value: number
@@ -276,6 +278,8 @@ export type Database = {
           issued_at?: string
           order_id: string
           reason?: string
+          return_request_id?: string | null
+          send_back_id?: string | null
           ship_to_address: Json
           ship_to_name: string
           value: number
@@ -293,6 +297,8 @@ export type Database = {
           issued_at?: string
           order_id?: string
           reason?: string
+          return_request_id?: string | null
+          send_back_id?: string | null
           ship_to_address?: Json
           ship_to_name?: string
           value?: number
@@ -461,9 +467,11 @@ export type Database = {
       }
       eway_bills: {
         Row: {
+          cancel_alerted_at: string | null
           cancel_reason: string | null
           cancelled_at: string | null
           cancelled_by: string | null
+          cgst_amount: number | null
           challan_id: string | null
           courier_id: number | null
           courier_name: string | null
@@ -476,15 +484,32 @@ export type Database = {
           entered_by: string | null
           ewb_date: string | null
           ewb_number: string | null
+          expiry_alerted_at: string | null
+          exported_at: string | null
+          exported_by: string | null
+          extended_count: number
           from_address: Json
           from_name: string
           id: string
+          igst_amount: number | null
           invoice_id: string | null
+          items: Json | null
+          last_extended_at: string | null
           leg: string
           order_id: string
+          pdf_path: string | null
+          pdf_uploaded_at: string | null
+          reminded_at: string | null
           requested_by: string | null
+          return_request_id: string | null
+          send_back_id: string | null
+          sgst_amount: number | null
           shipment_id: string | null
           status: string
+          sub_supply_desc: string | null
+          sub_supply_type: number
+          supply_type: string
+          taxable_value: number | null
           to_address: Json
           to_name: string
           updated_at: string
@@ -494,9 +519,11 @@ export type Database = {
           vendor_order_id: string
         }
         Insert: {
+          cancel_alerted_at?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          cgst_amount?: number | null
           challan_id?: string | null
           courier_id?: number | null
           courier_name?: string | null
@@ -509,15 +536,32 @@ export type Database = {
           entered_by?: string | null
           ewb_date?: string | null
           ewb_number?: string | null
+          expiry_alerted_at?: string | null
+          exported_at?: string | null
+          exported_by?: string | null
+          extended_count?: number
           from_address: Json
           from_name: string
           id?: string
+          igst_amount?: number | null
           invoice_id?: string | null
+          items?: Json | null
+          last_extended_at?: string | null
           leg: string
           order_id: string
+          pdf_path?: string | null
+          pdf_uploaded_at?: string | null
+          reminded_at?: string | null
           requested_by?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
+          sgst_amount?: number | null
           shipment_id?: string | null
           status?: string
+          sub_supply_desc?: string | null
+          sub_supply_type?: number
+          supply_type?: string
+          taxable_value?: number | null
           to_address: Json
           to_name: string
           updated_at?: string
@@ -527,9 +571,11 @@ export type Database = {
           vendor_order_id: string
         }
         Update: {
+          cancel_alerted_at?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
+          cgst_amount?: number | null
           challan_id?: string | null
           courier_id?: number | null
           courier_name?: string | null
@@ -542,15 +588,32 @@ export type Database = {
           entered_by?: string | null
           ewb_date?: string | null
           ewb_number?: string | null
+          expiry_alerted_at?: string | null
+          exported_at?: string | null
+          exported_by?: string | null
+          extended_count?: number
           from_address?: Json
           from_name?: string
           id?: string
+          igst_amount?: number | null
           invoice_id?: string | null
+          items?: Json | null
+          last_extended_at?: string | null
           leg?: string
           order_id?: string
+          pdf_path?: string | null
+          pdf_uploaded_at?: string | null
+          reminded_at?: string | null
           requested_by?: string | null
+          return_request_id?: string | null
+          send_back_id?: string | null
+          sgst_amount?: number | null
           shipment_id?: string | null
           status?: string
+          sub_supply_desc?: string | null
+          sub_supply_type?: number
+          supply_type?: string
+          taxable_value?: number | null
           to_address?: Json
           to_name?: string
           updated_at?: string
@@ -1791,8 +1854,11 @@ export type Database = {
           customer_shipping_enabled: boolean
           default_prep_days: number
           eway_bill_email: string
+          eway_bill_portal_user_id: string | null
           eway_bill_subuser_mobile: string | null
           eway_bill_threshold: number
+          eway_bill_transporter_id: string | null
+          eway_bill_transporter_name: string
           id: boolean
           launch_date: string | null
           payout_auto_send: boolean
@@ -1815,8 +1881,11 @@ export type Database = {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
+          eway_bill_portal_user_id?: string | null
           eway_bill_subuser_mobile?: string | null
           eway_bill_threshold?: number
+          eway_bill_transporter_id?: string | null
+          eway_bill_transporter_name?: string
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean
@@ -1839,8 +1908,11 @@ export type Database = {
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
+          eway_bill_portal_user_id?: string | null
           eway_bill_subuser_mobile?: string | null
           eway_bill_threshold?: number
+          eway_bill_transporter_id?: string | null
+          eway_bill_transporter_name?: string
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean
