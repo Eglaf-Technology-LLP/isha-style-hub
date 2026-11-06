@@ -3,6 +3,7 @@ import { useGo, useParams } from '@/navigation';
 import {
   ArrowRight,
   BadgeCheck,
+  MessageCircle,
   Heart,
   RotateCcw,
   Share2,
@@ -14,6 +15,7 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   ScrollView,
   Share,
   StyleSheet,
@@ -24,6 +26,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { ProductRail } from '@/components/ProductLists';
+import {
+  Accordion,
+  DeliveryCheck,
+  InfoRow,
+  NotifyMe,
+  RatingLine,
+  Reviews,
+  SizeGuideLink,
+} from '@/components/ProductExtras';
+import { CONFIG } from '@/config';
+import { useVendorInfo, vendorAddressLine } from '@/lib/productExtras';
 import {
   Button,
   Eyebrow,
@@ -85,6 +98,7 @@ export default function ProductScreen() {
         : [],
     [all, product],
   );
+  const { data: vendorInfo } = useVendorInfo(product?.vendor_id);
 
   if (isLoading) {
     return (
@@ -121,6 +135,12 @@ export default function ProductScreen() {
       ? product.variants.every(v => v.stock <= 0)
       : stock <= 0);
   const images = variant?.image_url ? [variant.image_url] : product.images;
+  // Same rules as the website's product page.
+  const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
+  const returnable =
+    product.is_returnable !== false && vendorInfo?.returns_enabled !== false;
+  const codAvailable =
+    product.cod_available !== false && vendorInfo?.cod_enabled !== false;
   const photoHeight = Math.round((width * 4) / 3);
 
   // A size is out of stock when no variant with it (in the chosen colour) has any.
@@ -230,10 +250,23 @@ export default function ProductScreen() {
               style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
             >
               <Text style={styles.brand}>{product.vendor.name}</Text>
-              <BadgeCheck size={14} color={colors.gold} />
+              {vendorInfo?.is_verified ? (
+                <BadgeCheck size={14} color={colors.gold} />
+              ) : null}
             </Touch>
           ) : null}
+          {vendorInfo && (vendorInfo.is_founding || vendorInfo.is_trusted) ? (
+            <View style={styles.badges}>
+              {vendorInfo.is_founding ? (
+                <Text style={styles.badge}>Founding boutique</Text>
+              ) : null}
+              {vendorInfo.is_trusted ? (
+                <Text style={styles.badge}>Trusted partner</Text>
+              ) : null}
+            </View>
+          ) : null}
           <Serif style={styles.name}>{product.name}</Serif>
+          <RatingLine productId={product.id} />
           <View style={styles.priceRow}>
             <Text style={styles.price}>{formatINR(price)}</Text>
             {off ? (
@@ -246,7 +279,15 @@ export default function ProductScreen() {
             ) : null}
           </View>
           <Sans style={styles.tax}>Inclusive of all taxes</Sans>
-          {soldOut ? <Text style={styles.soldOut}>Sold out</Text> : null}
+          {soldOut ? <Text style={styles.soldOut}>Out of stock</Text> : null}
+          {product.made_to_order ? (
+            <Text style={styles.madeToOrder}>
+              Made to order · ships in {prepDays} days
+            </Text>
+          ) : null}
+          {!soldOut && !product.made_to_order && stock > 0 && stock <= 5 ? (
+            <Text style={styles.low}>Only {stock} left</Text>
+          ) : null}
         </View>
 
         {/* Colour */}
@@ -288,7 +329,15 @@ export default function ProductScreen() {
         {/* Size */}
         {sizes.length > 0 ? (
           <View style={styles.block}>
-            <Eyebrow style={{ color: colors.foreground }}>Select size</Eyebrow>
+            <View style={styles.sizeHead}>
+              <Eyebrow style={{ color: colors.foreground }}>
+                Select size
+              </Eyebrow>
+              <SizeGuideLink
+                categoryId={product.category_id}
+                vendorId={product.vendor_id}
+              />
+            </View>
             <View style={styles.options}>
               {sizes.map(sz => {
                 const ok = sizeAvailable(sz);
@@ -325,12 +374,6 @@ export default function ProductScreen() {
                 );
               })}
             </View>
-            {variant &&
-            !product.made_to_order &&
-            variant.stock > 0 &&
-            variant.stock <= 3 ? (
-              <Text style={styles.low}>Only {variant.stock} left</Text>
-            ) : null}
           </View>
         ) : null}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
@@ -345,21 +388,55 @@ export default function ProductScreen() {
                 : 'Free shipping on every order'
             }
           />
-          {product.is_returnable !== false ? (
+          {returnable ? (
             <Info
               icon={
                 <RotateCcw size={18} color={colors.gold} strokeWidth={1.6} />
               }
-              text="Easy returns"
+              text={`${vendorInfo?.return_window_days ?? 7}-day returns`}
             />
           ) : null}
-          {product.cod_available !== false ? (
+          {codAvailable ? (
             <Info
               icon={<Wallet size={18} color={colors.gold} strokeWidth={1.6} />}
               text="Cash on delivery available"
             />
           ) : null}
         </View>
+
+        {soldOut ? (
+          <View style={styles.block}>
+            <NotifyMe productId={product.id} />
+          </View>
+        ) : null}
+
+        {product.vendor_id ? (
+          <View style={styles.block}>
+            <Eyebrow style={{ color: colors.foreground, marginBottom: 10 }}>
+              Check delivery
+            </Eyebrow>
+            <DeliveryCheck
+              vendorId={product.vendor_id}
+              productId={product.id}
+            />
+          </View>
+        ) : null}
+
+        <Touch
+          style={[styles.block, styles.stylist]}
+          onPress={() =>
+            Linking.openURL(
+              `${CONFIG.whatsappUrl}?text=${encodeURIComponent(
+                `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${SITE_URL}/product/${product.id}`,
+              )}`,
+            )
+          }
+        >
+          <MessageCircle size={18} color={colors.primary} strokeWidth={1.6} />
+          <Text style={styles.stylistText}>
+            Speak to our stylist on WhatsApp
+          </Text>
+        </Touch>
 
         {/* Details */}
         {product.description || product.specifications?.length ? (
@@ -380,6 +457,54 @@ export default function ProductScreen() {
             ))}
           </View>
         ) : null}
+
+        <View style={styles.block}>
+          <Accordion title="Product information">
+            <InfoRow label="Product code">
+              {product.sku || product.id.slice(0, 8)}
+            </InfoRow>
+            <InfoRow label="MRP">
+              {formatINR(product.compare_at_price ?? product.price)} inclusive
+              of all taxes
+            </InfoRow>
+            <InfoRow label="Sold by">
+              {vendorInfo?.name || 'AllBoutiqs'}
+            </InfoRow>
+            <InfoRow label="Marketed / manufactured by">
+              {vendorInfo?.name || 'AllBoutiqs'}
+              {vendorAddressLine(vendorInfo)
+                ? `, ${vendorAddressLine(vendorInfo)}`
+                : ''}
+            </InfoRow>
+            {product.net_quantity ? (
+              <InfoRow label="Net quantity">{product.net_quantity}</InfoRow>
+            ) : null}
+            {product.country_of_origin ? (
+              <InfoRow label="Country of origin">
+                {product.country_of_origin}
+              </InfoRow>
+            ) : null}
+            <InfoRow label="Customer care">
+              {[
+                vendorAddressLine(vendorInfo),
+                vendorInfo?.contact_phone && `Ph: ${vendorInfo.contact_phone}`,
+                vendorInfo?.contact_email &&
+                  `Email: ${vendorInfo.contact_email}`,
+              ]
+                .filter(Boolean)
+                .join('. ') ||
+                `${CONFIG.supportEmail} · ${CONFIG.supportPhone}`}
+            </InfoRow>
+            <InfoRow label="AllBoutiqs customer care">
+              {CONFIG.supportEmail} · {CONFIG.supportPhone} · WhatsApp{' '}
+              {CONFIG.whatsapp}
+            </InfoRow>
+          </Accordion>
+        </View>
+
+        <View style={styles.block}>
+          <Reviews productId={product.id} />
+        </View>
 
         <ProductRail
           eyebrowText="You may also like"
@@ -489,6 +614,34 @@ const styles = StyleSheet.create({
   },
   off: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.gold },
   tax: { fontSize: 12, color: colors.success, marginTop: 4 },
+  badges: { flexDirection: 'row', gap: 6, marginTop: 6 },
+  badge: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.gold,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  madeToOrder: {
+    fontFamily: fonts.sansMedium,
+    color: colors.primary,
+    marginTop: 8,
+  },
+  sizeHead: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  stylist: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stylistText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    color: colors.primary,
+  },
   soldOut: {
     fontFamily: fonts.sansMedium,
     color: colors.destructive,

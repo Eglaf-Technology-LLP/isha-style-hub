@@ -32,6 +32,10 @@ export interface Product {
   specifications?: { label: string; value: string }[];
   is_returnable?: boolean | null;
   cod_available?: boolean | null;
+  sku?: string | null;
+  prep_days?: number | null;
+  net_quantity?: string | null;
+  country_of_origin?: string | null;
 }
 
 export interface Category {
