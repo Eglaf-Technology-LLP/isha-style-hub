@@ -51,7 +51,7 @@ Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-
 | Catalogue queries (same as the website's `src/hooks/useStorefront.ts`) | `src/lib/catalog.ts` |
 | Bag (on the phone) and wishlist (phone + account `wishlists` table when signed in) | `src/lib/stores.ts` |
 | Sign in / Create account: email code (`auth-email-otp` function), mobile code (Supabase SMS), password; customers only | `src/lib/auth.ts`, `src/screens/SignInScreen.tsx` |
-| Password: optional right after creating an account, and Set/Change password in Profile (min 8 characters; codes keep working) | `src/screens/PasswordScreen.tsx` |
+| Password: optional field on Create account (saved once the code is right), Forgot password (code, then new password), Set/Change in Profile; min 8 characters, codes keep working | `src/screens/SignInScreen.tsx`, `PasswordScreen.tsx` |
 | Terms consent at sign-up, or once after sign-in (`accept_terms` RPC) | `src/components/ConsentGate.tsx` |
 | My orders and order detail | `src/lib/orders.ts`, `src/screens/OrdersScreen.tsx`, `OrderScreen.tsx` |
 | Supabase backend: migrations and edge functions (copied from `Live-Vendor`) | `supabase/` |

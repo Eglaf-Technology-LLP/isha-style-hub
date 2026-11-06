@@ -1,8 +1,6 @@
-import { useRoute } from '@react-navigation/native';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,16 +19,15 @@ import {
   useSession,
 } from '@/lib/auth';
 import { success } from '@/lib/haptics';
+import { toast } from '@/lib/toast';
 import { useBack } from '@/navigation';
 import { colors, fonts } from '@/theme';
 
 // Set or change the customer's own password (accounts start with one-time
-// codes only, as on the website). Opened right after creating an account
-// (`first`, with "Skip for now") and from Profile.
+// codes only, as on the website's Sign-in & security). Opened from Profile,
+// or after a sign-up whose password didn't save.
 export default function PasswordScreen() {
   const back = useBack();
-  const first =
-    (useRoute().params as { first?: string } | undefined)?.first === '1';
   const user = useSession(st => st.user);
   const hasOne = hasOwnPassword(user);
   const [password, setPassword] = useState('');
@@ -49,18 +46,18 @@ export default function PasswordScreen() {
     setBusy(false);
     if (r.error) return setError(r.error);
     success();
-    Alert.alert(
-      hasOne ? 'Password changed' : 'Password set',
-      'Next time, sign in with your password or a one-time code.',
+    toast(
+      hasOne
+        ? 'Password changed'
+        : 'Password set. Next time, sign in with it or a code.',
+      {
+        important: true,
+      },
     );
     back();
   };
 
-  const title = hasOne
-    ? 'Change password'
-    : first
-    ? 'Create a password'
-    : 'Set a password';
+  const title = hasOne ? 'Change password' : 'Set a password';
 
   return (
     <KeyboardAvoidingView
@@ -72,7 +69,7 @@ export default function PasswordScreen() {
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
       >
-        <Eyebrow>{first ? 'Account created' : 'Your account'}</Eyebrow>
+        <Eyebrow>Sign-in & security</Eyebrow>
         <Serif style={styles.title}>{title}</Serif>
         <Sans style={styles.hint}>
           For <Text style={styles.strong}>{userContact(user)}</Text>. At least{' '}
@@ -132,16 +129,6 @@ export default function PasswordScreen() {
           onPress={save}
           disabled={busy}
         />
-        {first ? (
-          <Touch hitSlop={8} style={styles.skip} onPress={back}>
-            <Text style={styles.skipText}>Skip for now</Text>
-          </Touch>
-        ) : null}
-        {first ? (
-          <Sans style={styles.small}>
-            You can set it any time from Profile.
-          </Sans>
-        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -182,17 +169,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMedium,
     color: colors.destructive,
     marginBottom: 12,
-  },
-  skip: { alignSelf: 'center', marginTop: 18 },
-  skipText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.primary,
-  },
-  small: {
-    fontSize: 12,
-    color: colors.mutedForeground,
-    textAlign: 'center',
-    marginTop: 8,
   },
 });

@@ -40,6 +40,10 @@ export function toE164(raw: string): string | null {
   return /^[6-9]\d{9}$/.test(indian) ? `+91${indian}` : null;
 }
 
+// Before the whole number is typed: does it look like a phone so far?
+export const looksLikePhone = (raw: string) =>
+  /^\+?[\d\s\-().]+$/.test(raw.trim()) && /\d/.test(raw);
+
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');

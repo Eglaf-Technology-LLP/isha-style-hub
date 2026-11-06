@@ -36,7 +36,7 @@ export type RootParams = {
   SignIn: { mode?: string } | undefined;
   Orders: undefined;
   Order: { id: string };
-  Password: { first?: string } | undefined;
+  Password: undefined;
 };
 
 // https://allboutiqs.com/product/<id> (and allboutiqs://...) open the same
