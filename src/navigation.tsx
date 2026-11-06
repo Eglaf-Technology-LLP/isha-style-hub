@@ -36,6 +36,7 @@ export type RootParams = {
   SignIn: { mode?: string } | undefined;
   Orders: undefined;
   Order: { id: string };
+  Password: { first?: string } | undefined;
 };
 
 // https://allboutiqs.com/product/<id> (and allboutiqs://...) open the same
@@ -65,6 +66,7 @@ export const linking: LinkingOptions<RootParams> = {
       SignIn: 'signin',
       Orders: 'orders',
       Order: 'order/:id',
+      Password: 'password',
     },
   },
 };
@@ -115,6 +117,8 @@ export function useGo() {
       else if (section === 'orders') name = 'Orders';
       else if (section === 'order' && id)
         [name, routeParams] = ['Order', { id }];
+      else if (section === 'password')
+        [name, routeParams] = ['Password', params];
       if (!name) return;
       navigation.dispatch(
         opts.replace

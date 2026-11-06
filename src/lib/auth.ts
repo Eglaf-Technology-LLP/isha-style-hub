@@ -52,6 +52,11 @@ export const userContact = (user: User | null | undefined) =>
   user?.email || formatPhone(user?.phone) || '';
 export const PASSWORD_MIN_LENGTH = 8;
 
+// Set when the customer chooses their own password (accounts start with
+// one-time codes only). A display hint, kept in user_metadata - same as the website.
+export const hasOwnPassword = (user: User | null | undefined) =>
+  !!user?.user_metadata?.password_set;
+
 // ---------- errors in plain words (same text as the website) ----------
 
 function authError(error: AuthError | null): {

@@ -51,6 +51,7 @@ Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-
 | Catalogue queries (same as the website's `src/hooks/useStorefront.ts`) | `src/lib/catalog.ts` |
 | Bag (on the phone) and wishlist (phone + account `wishlists` table when signed in) | `src/lib/stores.ts` |
 | Sign in / Create account: email code (`auth-email-otp` function), mobile code (Supabase SMS), password; customers only | `src/lib/auth.ts`, `src/screens/SignInScreen.tsx` |
+| Password: optional right after creating an account, and Set/Change password in Profile (min 8 characters; codes keep working) | `src/screens/PasswordScreen.tsx` |
 | Terms consent at sign-up, or once after sign-in (`accept_terms` RPC) | `src/components/ConsentGate.tsx` |
 | My orders and order detail | `src/lib/orders.ts`, `src/screens/OrdersScreen.tsx`, `OrderScreen.tsx` |
 | Supabase backend: migrations and edge functions (copied from `Live-Vendor`) | `supabase/` |
@@ -73,7 +74,7 @@ The app uses: `auth-email-otp` (email codes), `accept_terms`, `has_role`, and th
 
 - Checkout with Razorpay (`react-native-razorpay`) using the website's `create-razorpay-order` / `verify-razorpay-payment` functions and server-side prices. Signed out, "Place order" opens Sign in; signed in it says checkout is coming.
 - Cancel and return requests in the app (the order page has WhatsApp help for now).
-- Set or change password, add a mobile number or email to the account.
+- Add a mobile number or email to an existing account.
 - Saved addresses, wallet, push notifications.
 - Terms and Privacy open on the website.
 - iOS app icon and launch screen (do on a Mac in Xcode).

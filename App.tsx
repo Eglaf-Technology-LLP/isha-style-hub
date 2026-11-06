@@ -17,6 +17,7 @@ import CategoryScreen from '@/screens/CategoryScreen';
 import HomeScreen from '@/screens/HomeScreen';
 import OrderScreen from '@/screens/OrderScreen';
 import OrdersScreen from '@/screens/OrdersScreen';
+import PasswordScreen from '@/screens/PasswordScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
@@ -148,6 +149,7 @@ export default function App() {
             />
             <Stack.Screen name="Orders" component={OrdersScreen} />
             <Stack.Screen name="Order" component={OrderScreen} />
+            <Stack.Screen name="Password" component={PasswordScreen} />
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>

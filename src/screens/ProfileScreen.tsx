@@ -6,6 +6,7 @@ import {
   MessageCircle,
   Package,
   Shield,
+  KeyRound,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -18,7 +19,7 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
-import { signOut, userContact, useSession } from '@/lib/auth';
+import { hasOwnPassword, signOut, userContact, useSession } from '@/lib/auth';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
 import { version } from '../../package.json';
@@ -32,6 +33,15 @@ export default function ProfileScreen() {
   const rows: { icon: typeof Package; label: string; onPress: () => void }[] = [
     { icon: Package, label: 'My orders', onPress: () => go('/orders') },
     { icon: Heart, label: 'My wishlist', onPress: () => go('/wishlist') },
+    ...(signedIn
+      ? [
+          {
+            icon: KeyRound,
+            label: hasOwnPassword(user) ? 'Change password' : 'Set a password',
+            onPress: () => go('/password'),
+          },
+        ]
+      : []),
     {
       icon: MessageCircle,
       label: 'Help on WhatsApp',

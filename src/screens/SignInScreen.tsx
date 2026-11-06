@@ -25,7 +25,7 @@ import {
 } from '@/lib/auth';
 import { success, tap } from '@/lib/haptics';
 import { useRoute } from '@react-navigation/native';
-import { useBack } from '@/navigation';
+import { useBack, useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
 
 type Mode = 'signin' | 'signup';
@@ -56,13 +56,16 @@ export default function SignInScreen() {
   const [wait, setWait] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  // Signed in: back to where they came from.
+  const go = useGo();
+  // A brand-new account goes on to "Create a password" (optional); anyone
+  // else goes back to where they came from.
+  const newAccount = useRef(false);
   useEffect(() => {
-    if (status === 'signed-in') {
-      success();
-      back();
-    }
-  }, [status, back]);
+    if (status !== 'signed-in') return;
+    success();
+    if (newAccount.current) go('/password?first=1', { replace: true });
+    else back();
+  }, [status, back, go]);
 
   useEffect(() => () => clearInterval(timer.current), []);
   const startWait = (seconds: number) => {
@@ -106,9 +109,11 @@ export default function SignInScreen() {
     if (!/^\d{6}$/.test(code)) return setError('Enter the 6-digit code.');
     setError(null);
     setBusy(true);
+    if (mode === 'signup') newAccount.current = true;
     const r = await verifyCode(sentTo, code);
     setBusy(false);
     if (r.error) setError(r.error);
+    else if (r.isNewUser) newAccount.current = true;
     // Success: the session store flips to signed-in and the effect above closes this screen.
   };
 
@@ -315,8 +320,8 @@ export default function SignInScreen() {
               </Touch>
             ) : (
               <Sans style={styles.small}>
-                No password needed - we'll send a one-time code. You can set a
-                password later.
+                We'll send a one-time code to check it's you. Then you can
+                create a password (optional) - or set one later from Profile.
               </Sans>
             )}
           </>
