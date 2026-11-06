@@ -12,7 +12,8 @@
     "apk": "cd android && gradlew assembleRelease",
     "aab": "cd android && gradlew bundleRelease",
     "link-assets": "react-native-asset",
-    "legal:sync": "python scripts/legal_from_website.py"
+    "legal:sync": "python scripts/legal_from_website.py",
+    "ios:icons": "python scripts/ios_icons.py"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",
