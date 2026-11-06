@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Linking, Modal, StyleSheet, Text, View } from 'react-native';
-import { CONFIG } from '@/config';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { acceptTerms, signOut, useSession } from '@/lib/auth';
+import { LegalKind, LegalModal } from '@/screens/LegalScreen';
 import { Checkbox } from '@/screens/SignInScreen';
 import { colors, fonts } from '@/theme';
 import { Button, Eyebrow, Serif, Touch } from './ui';
@@ -16,6 +16,7 @@ export function ConsentGate() {
   const [marketing, setMarketing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reading, setReading] = useState<LegalKind | null>(null);
 
   const accept = async () => {
     if (!terms)
@@ -43,19 +44,11 @@ export function ConsentGate() {
           <View style={styles.boxes}>
             <Checkbox checked={terms} onPress={() => setTerms(v => !v)}>
               I agree to the{' '}
-              <Text
-                style={styles.link}
-                onPress={() =>
-                  Linking.openURL(`${CONFIG.siteUrl}/privacy-policy`)
-                }
-              >
+              <Text style={styles.link} onPress={() => setReading('privacy')}>
                 Privacy Policy
               </Text>{' '}
               and the{' '}
-              <Text
-                style={styles.link}
-                onPress={() => Linking.openURL(`${CONFIG.siteUrl}/terms`)}
-              >
+              <Text style={styles.link} onPress={() => setReading('terms')}>
                 Terms & Conditions
               </Text>
               .
@@ -75,6 +68,7 @@ export function ConsentGate() {
           </Touch>
         </View>
       </View>
+      <LegalModal kind={reading} onClose={() => setReading(null)} />
     </Modal>
   );
 }

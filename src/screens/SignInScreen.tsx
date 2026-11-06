@@ -16,7 +16,6 @@ import {
   Animated,
   Alert,
   KeyboardAvoidingView,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,7 +24,6 @@ import {
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Eyebrow, Sans, Serif, Touch } from '@/components/ui';
-import { CONFIG } from '@/config';
 import {
   formatPhone,
   Identifier,
@@ -541,17 +539,12 @@ export default function SignInScreen() {
             I agree to the{' '}
             <Text
               style={styles.inlineLink}
-              onPress={() =>
-                Linking.openURL(`${CONFIG.siteUrl}/privacy-policy`)
-              }
+              onPress={() => go('/privacy-policy')}
             >
               Privacy Policy
             </Text>{' '}
             and the{' '}
-            <Text
-              style={styles.inlineLink}
-              onPress={() => Linking.openURL(`${CONFIG.siteUrl}/terms`)}
-            >
+            <Text style={styles.inlineLink} onPress={() => go('/terms')}>
               Terms & Conditions
             </Text>
             .

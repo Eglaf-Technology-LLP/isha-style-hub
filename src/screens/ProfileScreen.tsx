@@ -68,12 +68,12 @@ export default function ProfileScreen() {
     {
       icon: FileText,
       label: 'Terms & Conditions',
-      onPress: () => Linking.openURL(`${CONFIG.siteUrl}/terms`),
+      onPress: () => go('/terms'),
     },
     {
       icon: Shield,
       label: 'Privacy policy',
-      onPress: () => Linking.openURL(`${CONFIG.siteUrl}/privacy-policy`),
+      onPress: () => go('/privacy-policy'),
     },
   ];
 

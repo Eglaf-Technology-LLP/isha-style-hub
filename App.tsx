@@ -24,6 +24,7 @@ import AddressesScreen from '@/screens/AddressesScreen';
 import WalletScreen from '@/screens/WalletScreen';
 import InvoiceScreen from '@/screens/InvoiceScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
+import LegalScreen from '@/screens/LegalScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
@@ -164,6 +165,7 @@ export default function App() {
               name="Notifications"
               component={NotificationsScreen}
             />
+            <Stack.Screen name="Legal" component={LegalScreen} />
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>

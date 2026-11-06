@@ -77,5 +77,4 @@ The app uses: `auth-email-otp` (email codes), `accept_terms`, `has_role`, and th
 - Profile photo upload; adding photos to a review (both possible now that the image picker is in).
 - Add a mobile number or email to an existing account.
 - Printing / saving the tax invoice as PDF (the app shows it; the website prints it).
-- Terms and Privacy open on the website.
 - iOS app icon and launch screen (do on a Mac in Xcode).

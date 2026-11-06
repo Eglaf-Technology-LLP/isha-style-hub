@@ -193,9 +193,10 @@ export async function setOwnPassword(password: string) {
 
 // ---------- consent (Privacy Policy + customer Terms) ----------
 
-// The version a customer accepts - LEGAL_UPDATED in the website's
-// src/lib/legal.ts. Change both together.
-export const LEGAL_UPDATED = '2026-10-25';
+// The version a customer accepts: the website's LEGAL_UPDATED, kept in
+// src/content/legal.ts with the Terms text itself.
+import { LEGAL_UPDATED } from '@/content/legal';
+export { LEGAL_UPDATED };
 
 export const acceptTerms = (marketing: boolean | null) =>
   supabase.rpc('accept_terms', {
