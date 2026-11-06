@@ -300,8 +300,8 @@ export function EwayBillsManagement() {
                     {skipped.some((s) => s.problems.some((p) => p.includes("GSTIN"))) && (
                       <p className="pt-1 text-foreground">
                         Fix a boutique's GSTIN in Admin &gt; Vendors &gt; View &gt; GST number. An invoice already issued keeps the
-                        GSTIN it was issued with, so these requests stay out of the file - cancel them (or the order) and the next
-                        order picks up the corrected GSTIN.
+                        GSTIN it was issued with, so these requests can't be fixed - cancel the order itself (cancelling only the
+                        request brings it back while the order is open). The next order picks up the corrected GSTIN.
                       </p>
                     )}
                   </div>
