@@ -13,6 +13,7 @@ import {
 import { ComponentRef, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Alert,
   KeyboardAvoidingView,
   Linking,
@@ -290,25 +291,15 @@ export default function SignInScreen() {
             Your password is saved as soon as the code is right.
           </Sans>
         ) : null}
-        <TextInput
-          ref={codeInput}
+        <CodeBoxes
           value={code}
-          onChangeText={t => {
-            const v = t.replace(/\D/g, '').slice(0, CODE_LENGTH);
+          inputRef={codeInput}
+          disabled={verifying}
+          onChange={v => {
             setCode(v);
             setError(null);
             if (v.length === CODE_LENGTH) verify(v);
           }}
-          keyboardType="number-pad"
-          textContentType="oneTimeCode"
-          autoComplete="sms-otp"
-          autoFocus
-          editable={!verifying}
-          maxLength={CODE_LENGTH}
-          placeholder="------"
-          placeholderTextColor={colors.mutedForeground}
-          style={[styles.input, styles.code]}
-          accessibilityLabel="6-digit code"
         />
         {error ? (
           <Text
@@ -596,6 +587,87 @@ export default function SignInScreen() {
   );
 }
 
+// The code as six boxes, one digit each (the website's InputOTP). One hidden
+// field underneath takes the typing, so SMS autofill, paste and the number
+// pad all work as normal; the box to fill next is highlighted with a
+// blinking cursor at its start.
+function CodeBoxes({
+  value,
+  onChange,
+  inputRef,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  inputRef: React.RefObject<ComponentRef<typeof TextInput> | null>;
+  disabled: boolean;
+}) {
+  const [focused, setFocused] = useState(true);
+  const next = Math.min(value.length, CODE_LENGTH - 1);
+  return (
+    <View style={styles.boxes}>
+      {Array.from({ length: CODE_LENGTH }, (_, i) => {
+        const active = focused && !disabled && i === next;
+        return (
+          <View
+            key={i}
+            style={[
+              styles.digitBox,
+              value[i] ? styles.digitFilled : null,
+              active && styles.digitActive,
+            ]}
+          >
+            {value[i] ? (
+              <Text style={styles.digit}>{value[i]}</Text>
+            ) : active ? (
+              <Caret />
+            ) : null}
+          </View>
+        );
+      })}
+      <TextInput
+        ref={inputRef}
+        value={value}
+        onChangeText={t => onChange(t.replace(/\D/g, '').slice(0, CODE_LENGTH))}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        keyboardType="number-pad"
+        textContentType="oneTimeCode"
+        autoComplete="sms-otp"
+        autoFocus
+        editable={!disabled}
+        maxLength={CODE_LENGTH}
+        caretHidden
+        style={styles.hiddenInput}
+        accessibilityLabel="6-digit code"
+      />
+    </View>
+  );
+}
+
+function Caret() {
+  const blink = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, {
+          toValue: 0,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+        Animated.timing(blink, {
+          toValue: 1,
+          duration: 450,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [blink]);
+  return <Animated.View style={[styles.caret, { opacity: blink }]} />;
+}
+
 function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding">
@@ -725,20 +797,36 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     paddingVertical: 0,
   },
-  input: {
-    height: 56,
+  boxes: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginVertical: 16,
+  },
+  digitBox: {
+    flex: 1,
+    height: 54,
+    maxWidth: 52,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.ivory,
-    paddingHorizontal: 14,
-    color: colors.foreground,
-    marginVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  code: {
-    fontSize: 26,
-    letterSpacing: 12,
-    textAlign: 'center',
-    fontFamily: fonts.sansSemi,
+  digitFilled: { borderColor: colors.foreground },
+  digitActive: { borderColor: colors.primary, borderWidth: 1.5 },
+  digit: { fontFamily: fonts.sansSemi, fontSize: 22, color: colors.foreground },
+  caret: { width: 2, height: 24, backgroundColor: colors.primary },
+  // Covers the boxes so a tap anywhere opens the keyboard; text not shown.
+  hiddenInput: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    color: 'transparent',
+    backgroundColor: 'transparent',
+    opacity: 0.02,
   },
   methods: { flexDirection: 'row', gap: 8, marginTop: 16 },
   method: {
