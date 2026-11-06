@@ -7,7 +7,7 @@ import {
   Tag,
   Truck,
 } from 'lucide-react-native';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   NativeScrollEvent,
@@ -187,6 +187,7 @@ export default function Home() {
           title="New"
           accent="arrivals"
           products={newest}
+          loading={products.isLoading}
           action="View all"
           onAction={() => go('/category/all?sort=newest')}
         />
@@ -223,6 +224,7 @@ export default function Home() {
           title="Handpicked"
           accent="pieces"
           products={handpicked}
+          loading={products.isLoading}
           action="Shop all"
           onAction={() => go('/category/all')}
         />
@@ -262,6 +264,22 @@ function Hero({
 }) {
   const [index, setIndex] = useState(0);
   const listRef = useRef<FlatList>(null);
+  const held = useRef(false);
+  // Moves on by itself (as the website's carousel does), not while touched.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (held.current) return;
+      setIndex(i => {
+        const next = (i + 1) % SLIDES.length;
+        listRef.current?.scrollToOffset({
+          offset: next * width,
+          animated: true,
+        });
+        return next;
+      });
+    }, 4500);
+    return () => clearInterval(t);
+  }, [width]);
   const height = Math.round(width * 1.05);
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
     setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
@@ -275,7 +293,13 @@ function Hero({
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={onScroll}
+        onScrollBeginDrag={() => {
+          held.current = true;
+        }}
+        onMomentumScrollEnd={e => {
+          held.current = false;
+          onScroll(e);
+        }}
         renderItem={({ item }) => (
           <Touch style={{ width, height }} onPress={() => onOpen(item.href)}>
             {item.image ? (

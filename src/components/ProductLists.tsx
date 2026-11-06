@@ -1,6 +1,5 @@
 import { ReactElement, useCallback } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
 import { Product } from '@/lib/catalog';
 import { colors } from '@/theme';
 import { ProductCard } from './ProductCard';
+import { ProductCardSkeleton } from './Skeleton';
 import { Sans, SectionHeader } from './ui';
 
 const GAP = 12;
@@ -54,7 +54,11 @@ export function ProductGrid({
       ListHeaderComponent={header}
       ListEmptyComponent={
         loading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginTop: 48 }} />
+          <View style={styles.skeletons}>
+            {Array.from({ length: 6 }, (_, n) => (
+              <ProductCardSkeleton key={n} width={cardWidth} />
+            ))}
+          </View>
         ) : (
           empty ?? (
             <Sans
@@ -90,6 +94,7 @@ export function ProductGrid({
 // A swipeable row of products under a section heading (home page rails).
 export function ProductRail({
   eyebrowText,
+  loading,
   title,
   accent,
   products,
@@ -102,9 +107,27 @@ export function ProductRail({
   products: Product[];
   action?: string;
   onAction?: () => void;
+  // While the catalogue loads: the rail's shape, pulsing.
+  loading?: boolean;
 }) {
   const { width } = useWindowDimensions();
   const cardWidth = Math.min(200, width * 0.44);
+  if (loading && products.length === 0) {
+    return (
+      <View style={styles.rail}>
+        <SectionHeader
+          eyebrowText={eyebrowText}
+          title={title}
+          accent={accent}
+        />
+        <View style={styles.railSkeleton}>
+          {[0, 1, 2].map(n => (
+            <ProductCardSkeleton key={n} width={cardWidth} />
+          ))}
+        </View>
+      </View>
+    );
+  }
   if (products.length === 0) return null;
   return (
     <View style={styles.rail}>
@@ -133,5 +156,17 @@ export function ProductRail({
 }
 
 const styles = StyleSheet.create({
+  skeletons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    paddingHorizontal: 16,
+  },
+  railSkeleton: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
   rail: { paddingVertical: 22 },
 });

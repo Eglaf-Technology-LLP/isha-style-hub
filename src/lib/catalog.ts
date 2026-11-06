@@ -204,3 +204,33 @@ export const onSale = (p: Product) =>
 export const categoryCover = (categoryId: string, products: Product[]) =>
   products.find(p => p.category_id === categoryId && p.images[0])?.images[0] ??
   null;
+
+// Approved ratings per product, for the "4.2 ★ | 12" pill on product cards.
+export function useRatings() {
+  return useQuery({
+    queryKey: ['ratings'],
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const map = new Map<string, { avg: number; count: number }>();
+      const rows: { product_id: string; rating: number }[] = [];
+      for (let from = 0; ; from += PAGE) {
+        const { data } = await supabase
+          .from('product_reviews')
+          .select('product_id, rating')
+          .eq('is_approved', true)
+          .range(from, from + PAGE - 1);
+        rows.push(
+          ...((data ?? []) as { product_id: string; rating: number }[]),
+        );
+        if (!data || data.length < PAGE) break;
+      }
+      for (const r of rows) {
+        const cur = map.get(r.product_id) ?? { avg: 0, count: 0 };
+        cur.avg = (cur.avg * cur.count + r.rating) / (cur.count + 1);
+        cur.count += 1;
+        map.set(r.product_id, cur);
+      }
+      return map;
+    },
+  });
+}

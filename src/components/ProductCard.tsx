@@ -1,9 +1,9 @@
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
-import { Heart } from 'lucide-react-native';
+import { Heart, Star } from 'lucide-react-native';
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { inStock, isNewArrival, Product } from '@/lib/catalog';
+import { inStock, isNewArrival, Product, useRatings } from '@/lib/catalog';
 import { discountPercent, formatINR } from '@/lib/format';
 import { useWishlist } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
@@ -23,6 +23,7 @@ export const ProductCard = memo(function ProductCard({
   const toggle = useWishlist(st => st.toggle);
   const off = discountPercent(product.price, product.compare_at_price);
   const soldOut = !product.made_to_order && !inStock(product);
+  const rating = useRatings().data?.get(product.id);
 
   return (
     <Touch
@@ -46,6 +47,13 @@ export const ProductCard = memo(function ProductCard({
           </Text>
         ) : isNewArrival(product) ? (
           <Text style={styles.tag}>New</Text>
+        ) : null}
+        {rating ? (
+          <View style={styles.rating}>
+            <Text style={styles.ratingText}>{rating.avg.toFixed(1)}</Text>
+            <Star size={10} color={colors.gold} fill={colors.gold} />
+            <Text style={styles.ratingCount}>| {rating.count}</Text>
+          </View>
         ) : null}
         <Touch
           haptic
@@ -90,6 +98,27 @@ export const ProductCard = memo(function ProductCard({
 });
 
 const styles = StyleSheet.create({
+  rating: {
+    position: 'absolute',
+    left: 8,
+    bottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(252,251,248,0.92)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  ratingText: {
+    fontFamily: fonts.sansSemi,
+    fontSize: 11,
+    color: colors.foreground,
+  },
+  ratingCount: {
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    color: colors.mutedForeground,
+  },
   photo: { backgroundColor: colors.ivory, overflow: 'hidden' },
   tag: {
     position: 'absolute',

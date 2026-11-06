@@ -150,15 +150,13 @@ export function useReturnActions(orderId: string) {
   }): Promise<string | null> => {
     const userId = useSession.getState().user?.id;
     if (!userId) return 'Please sign in to submit a return request.';
-    const { error } = await supabase
-      .from('return_requests')
-      .insert({
-        ...req,
-        order_id: orderId,
-        user_id: userId,
-        evidence_video_url: null,
-        items: req.items as any,
-      });
+    const { error } = await supabase.from('return_requests').insert({
+      ...req,
+      order_id: orderId,
+      user_id: userId,
+      evidence_video_url: null,
+      items: req.items as any,
+    });
     if (error) {
       if (error.message?.includes('Photo evidence is required'))
         return 'Please add 3 photos of every selected item: the front, the back and the tag.';

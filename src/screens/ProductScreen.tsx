@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import { Chip, Sheet } from '@/components/Listing';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Accordion,
@@ -75,6 +76,8 @@ export default function ProductScreen() {
   const [photo, setPhoto] = useState(0);
   const [missing, setMissing] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
+  // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
+  const [chooser, setChooser] = useState(false);
 
   const sizes = product ? productSizes(product) : [];
   const colours = product ? productColors(product) : [];
@@ -166,9 +169,11 @@ export default function ProductScreen() {
           : `Please select a ${need[0] ?? 'size'}`,
       );
       tap();
+      setChooser(true);
       return;
     }
     setMissing(null);
+    setChooser(false);
     const options = [
       ...(size ? [{ name: 'Size', value: size }] : []),
       ...(color ? [{ name: 'Colour', value: color }] : []),
@@ -548,6 +553,77 @@ export default function ProductScreen() {
           onPress={addToBag}
         />
       </View>
+      <Sheet
+        visible={chooser}
+        title={sizes.length ? 'Select size' : 'Select colour'}
+        onClose={() => setChooser(false)}
+      >
+        {colours.length ? (
+          <>
+            <Text style={styles.chooserLabel}>Colour</Text>
+            <View style={styles.chooserRow}>
+              {colours.map(c => (
+                <Chip
+                  key={c}
+                  label={c}
+                  active={color === c}
+                  onPress={() => {
+                    setColor(c);
+                    setMissing(null);
+                  }}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
+        {sizes.length ? (
+          <>
+            <View style={styles.sizeHead}>
+              <Text style={styles.chooserLabel}>Size</Text>
+              <SizeGuideLink
+                categoryId={product.category_id}
+                vendorId={product.vendor_id}
+              />
+            </View>
+            <View style={styles.chooserRow}>
+              {sizes.map(sz => {
+                const ok = sizeAvailable(sz);
+                return (
+                  <Touch
+                    key={sz}
+                    haptic
+                    disabled={!ok}
+                    onPress={() => {
+                      setSize(sz);
+                      setMissing(null);
+                    }}
+                    style={[
+                      styles.size,
+                      size === sz && styles.optionActive,
+                      !ok && { opacity: 0.4 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionText,
+                        size === sz && { color: colors.primary },
+                      ]}
+                    >
+                      {sz}
+                    </Text>
+                  </Touch>
+                );
+              })}
+            </View>
+          </>
+        ) : null}
+        {missing ? <Text style={styles.chooserMissing}>{missing}</Text> : null}
+        <Button
+          label="Add to bag"
+          onPress={addToBag}
+          style={styles.chooserButton}
+        />
+      </Sheet>
     </View>
   );
 }
@@ -636,6 +712,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  chooserLabel: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: colors.foreground,
+    marginTop: 12,
+    marginBottom: 10,
+  },
+  chooserRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  chooserMissing: {
+    fontFamily: fonts.sansMedium,
+    color: colors.destructive,
+    marginTop: 12,
+  },
+  chooserButton: { marginTop: 20 },
   stylist: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stylistText: {
     fontFamily: fonts.sansMedium,
