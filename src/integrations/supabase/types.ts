@@ -4108,6 +4108,10 @@ export type Database = {
         Args: { _dispatch_id: string }
         Returns: undefined
       }
+      admin_set_vendor_gstin: {
+        Args: { _gstin: string; _vendor_id: string }
+        Returns: undefined
+      }
       admin_set_warehouse_staff: {
         Args: { _email: string; _enabled: boolean }
         Returns: string

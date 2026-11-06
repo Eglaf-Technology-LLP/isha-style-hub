@@ -51,6 +51,7 @@ import {
   DOCUMENTS_BY_CONSTITUTION,
   EMAIL_RE,
   GSTIN_RE,
+  gstinChecksumOk,
   IFSC_RE,
   PAN_RE,
   documentFileProblem,
@@ -381,6 +382,7 @@ export default function SellWithUs() {
     if (!constitution) e.constitution = "Select your business type";
     if (!PAN_RE.test(pan)) e.pan = "Enter a valid PAN (e.g. ABCDE1234F)";
     if (!GSTIN_RE.test(gstin)) e.gstin = "Enter a valid 15-character GST number";
+    else if (!gstinChecksumOk(gstin)) e.gstin = "This GST number isn't valid - check it against your GST certificate";
     else if (PAN_RE.test(pan) && gstin.slice(2, 12) !== pan)
       e.gstin = "This GST number doesn't match the PAN (characters 3 to 12 of a GST number are the PAN)";
     const primary = normalizeMobile(form.primary_mobile);

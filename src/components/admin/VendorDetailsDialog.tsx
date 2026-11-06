@@ -25,7 +25,7 @@ import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 import { formatDate } from "@/lib/dates";
-import { businessTypeLabel } from "@/lib/vendorKyc";
+import { businessTypeLabel, isValidGstin } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
 
 interface PayoutAccount {
@@ -149,6 +149,14 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     const problems = pickupAddressErrors(form, { allowBlank: true });
     setAddressErrors(problems);
     if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
+    // The GSTIN goes on invoices and e-way bills - a typo there is rejected by
+    // the e-way bill portal, so it's checked before saving.
+    const gstin = form.gst_number.trim().toUpperCase();
+    const gstinChanged = gstin !== (vendor.gst_number || "").trim().toUpperCase();
+    if (gstin && gstinChanged && !isValidGstin(gstin)) {
+      toast.error("This GST number isn't valid - check it against the boutique's GST certificate");
+      return;
+    }
     setSaving(true);
     try {
       const newAddress = {
@@ -192,6 +200,14 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
         })
         .eq("id", vendor.id);
       if (error) throw error;
+
+      // A new GSTIN also replaces the registration (KYC) one, which invoices
+      // and e-way bills use, and the PAN inside it.
+      if (gstin && gstinChanged) {
+        const { error: gstErr } = await supabase.rpc("admin_set_vendor_gstin", { _vendor_id: vendor.id, _gstin: gstin });
+        if (gstErr) throw gstErr;
+        toast.info("GSTIN updated for invoices and e-way bills (PAN set from it). Invoices already issued keep the old one.");
+      }
 
       if (addressChanged && vendor.shiprocket_pickup_location) {
         toast.info("Pickup address changed - it will be re-registered with the courier on their next shipment.");
