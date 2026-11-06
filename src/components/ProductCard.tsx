@@ -3,7 +3,13 @@ import { useGo } from '@/navigation';
 import { Heart, Star } from 'lucide-react-native';
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { inStock, isNewArrival, Product, useRatings } from '@/lib/catalog';
+import {
+  displayPrice,
+  inStock,
+  isNewArrival,
+  Product,
+  useRatings,
+} from '@/lib/catalog';
 import { discountPercent, formatINR } from '@/lib/format';
 import { useWishlist } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
@@ -21,7 +27,9 @@ export const ProductCard = memo(function ProductCard({
   const go = useGo();
   const wished = useWishlist(st => st.ids.includes(product.id));
   const toggle = useWishlist(st => st.toggle);
-  const off = discountPercent(product.price, product.compare_at_price);
+  // The price of the variant the product page opens with.
+  const price = displayPrice(product);
+  const off = discountPercent(price, product.compare_at_price);
   const soldOut = !product.made_to_order && !inStock(product);
   const rating = useRatings().data?.get(product.id);
 
@@ -29,7 +37,7 @@ export const ProductCard = memo(function ProductCard({
     <Touch
       style={{ width }}
       onPress={() => go(`/product/${product.id}`)}
-      accessibilityLabel={`${product.name}, ${formatINR(product.price)}`}
+      accessibilityLabel={`${product.name}, ${formatINR(price)}`}
     >
       <View style={[styles.photo, { width, height: (width * 4) / 3 }]}>
         {product.images[0] ? (
@@ -82,7 +90,7 @@ export const ProductCard = memo(function ProductCard({
           {product.name}
         </Text>
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatINR(product.price)}</Text>
+          <Text style={styles.price}>{formatINR(price)}</Text>
           {off ? (
             <>
               <Text style={styles.mrp}>

@@ -59,7 +59,7 @@ export interface Boutique {
 const STALE = 5 * 60 * 1000;
 const CARD_SELECT =
   'id, name, description, price, compare_at_price, images, category_id, vendor_id, created_at, stock_quantity, made_to_order, ' +
-  'product_variants(id, name, price, stock, options, image_url), vendor:vendors(name, slug)';
+  'product_variants(id, name, price, stock, options, image_url, created_at), vendor:vendors(name, slug)';
 const PAGE = 1000;
 
 type Row = Record<string, unknown> & {
@@ -74,7 +74,7 @@ function toProduct(r: Row): Product {
       r.compare_at_price == null ? null : Number(r.compare_at_price),
     images: (r.images as string[]) || [],
     specifications: (r.specifications as Product['specifications']) || [],
-    variants: (r.product_variants || []).map(v => ({
+    variants: inAddedOrder(r.product_variants || []).map(v => ({
       id: v.id as string,
       name: v.name as string,
       price: Number(v.price) || 0,
@@ -83,6 +83,20 @@ function toProduct(r: Row): Product {
       image_url: (v.image_url as string | null) ?? null,
     })),
   };
+}
+
+// One fixed variant order everywhere - the order the boutique added them
+// (then id). The list and the product page are separate queries and the
+// database returns embedded rows in no set order, so without this the
+// "first" variant (and its price) could differ between the two.
+function inAddedOrder(rows: Record<string, unknown>[]) {
+  const at = (v: Record<string, unknown>) => {
+    const t = Date.parse(String(v.created_at ?? ''));
+    return Number.isFinite(t) ? t : Number.MAX_SAFE_INTEGER;
+  };
+  return [...rows].sort(
+    (a, b) => at(a) - at(b) || String(a.id).localeCompare(String(b.id)),
+  );
 }
 
 const liveProducts = (select = CARD_SELECT) =>
@@ -134,7 +148,7 @@ export function useProduct(id: string | undefined) {
     enabled: !!id,
     queryFn: async () => {
       const { data, error } = await liveProducts(
-        '*, product_variants(id, name, price, stock, options, image_url), vendor:vendors(name, slug)',
+        '*, product_variants(id, name, price, stock, options, image_url, created_at), vendor:vendors(name, slug)',
       )
         .eq('id', id!)
         .maybeSingle();
@@ -199,8 +213,20 @@ export const inStock = (p: Product) =>
   p.variants.length
     ? p.variants.some(v => v.stock > 0)
     : (p.stock_quantity ?? 0) > 0;
+// The variant a product opens with on its page - the first in stock, else
+// the first. Cards, price filters and sorting use its price too, so the
+// price on a card is always the price on the product page.
+export const defaultVariant = (p: Product): ProductVariant | null =>
+  p.variants.find(v => v.stock > 0) ?? p.variants[0] ?? null;
+// A variant's price (the product's own price when it has none).
+export const variantPrice = (
+  p: Product,
+  v: ProductVariant | null | undefined,
+) => v?.price || p.price;
+// The price a product is shown, filtered and sorted at.
+export const displayPrice = (p: Product) => variantPrice(p, defaultVariant(p));
 export const onSale = (p: Product) =>
-  !!p.compare_at_price && p.compare_at_price > p.price;
+  !!p.compare_at_price && p.compare_at_price > displayPrice(p);
 export const categoryCover = (categoryId: string, products: Product[]) =>
   products.find(p => p.category_id === categoryId && p.images[0])?.images[0] ??
   null;

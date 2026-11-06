@@ -1,4 +1,11 @@
-import { colorOf, inStock, onSale, Product, sizeOf } from './catalog';
+import {
+  colorOf,
+  displayPrice,
+  inStock,
+  onSale,
+  Product,
+  sizeOf,
+} from './catalog';
 
 // Listing filters and sorting - the website's useListing.ts (Live-Vendor),
 // same rules and the same link parameters:
@@ -160,8 +167,9 @@ function applyFilters(
     )
       return false;
     if (skip !== 'price') {
-      if (f.min != null && p.price < f.min) return false;
-      if (f.max != null && p.price > f.max) return false;
+      const price = displayPrice(p);
+      if (f.min != null && price < f.min) return false;
+      if (f.max != null && price > f.max) return false;
     }
     if (
       skip !== 'sizes' &&
@@ -188,16 +196,18 @@ function applyFilters(
 function sortProducts(products: Product[], sort: SortKey): Product[] {
   const arr = [...products];
   const discount = (p: Product) =>
-    onSale(p) ? (p.compare_at_price! - p.price) / p.compare_at_price! : 0;
+    onSale(p)
+      ? (p.compare_at_price! - displayPrice(p)) / p.compare_at_price!
+      : 0;
   switch (sort) {
     case 'newest':
       return arr.sort(
         (a, b) => +new Date(b.created_at) - +new Date(a.created_at),
       );
     case 'price-asc':
-      return arr.sort((a, b) => a.price - b.price);
+      return arr.sort((a, b) => displayPrice(a) - displayPrice(b));
     case 'price-desc':
-      return arr.sort((a, b) => b.price - a.price);
+      return arr.sort((a, b) => displayPrice(b) - displayPrice(a));
     case 'discount':
       return arr.sort((a, b) => discount(b) - discount(a));
     default:

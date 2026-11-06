@@ -49,11 +49,13 @@ import {
 } from '@/components/ui';
 import {
   colorOf,
+  defaultVariant,
   productColors,
   productSizes,
   sizeOf,
   useProduct,
   useProducts,
+  variantPrice,
 } from '@/lib/catalog';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
@@ -89,22 +91,26 @@ export default function ProductScreen() {
 
   const sizes = product ? productSizes(product) : [];
   const colours = product ? productColors(product) : [];
-  const variant = useMemo(
-    () =>
-      product?.variants.find(
-        v =>
-          (!sizes.length || sizeOf(v) === size) &&
-          (!colours.length || colorOf(v) === color),
-      ) ?? null,
-    [product, size, color, sizes.length, colours.length],
-  );
+  const variant = useMemo(() => {
+    if (!product) return null;
+    // Nothing chosen yet (first frame): the default variant, so its price -
+    // the one on the product card - shows from the start.
+    if (size == null && color == null) return defaultVariant(product);
+    const matches = product.variants.filter(
+      v =>
+        (!sizes.length || sizeOf(v) === size) &&
+        (!colours.length || colorOf(v) === color),
+    );
+    // Same rule as the default: the first in stock, else the first.
+    return matches.find(v => v.stock > 0) ?? matches[0] ?? null;
+  }, [product, size, color, sizes.length, colours.length]);
   // As on the website: a size and a colour are always chosen - on opening,
   // the first variant in stock (else the first); changing one keeps the
   // pair a real variant (another colour in that size, or another size in
   // that colour).
   useEffect(() => {
     if (!product) return;
-    const pick = product.variants.find(v => v.stock > 0) ?? product.variants[0];
+    const pick = defaultVariant(product);
     setSize(pick ? sizeOf(pick) : null);
     setColor(pick ? colorOf(pick) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,7 +182,7 @@ export default function ProductScreen() {
     );
   }
 
-  const price = variant?.price || product.price;
+  const price = variantPrice(product, variant);
   const off = discountPercent(price, product.compare_at_price);
   const stock = variant ? variant.stock : product.stock_quantity;
   const soldOut =
@@ -540,7 +546,7 @@ export default function ProductScreen() {
               {product.sku || product.id.slice(0, 8)}
             </InfoRow>
             <InfoRow label="MRP">
-              {formatINR(product.compare_at_price ?? product.price)} inclusive
+              {formatINR(product.compare_at_price ?? price)} inclusive
               of all taxes
             </InfoRow>
             <InfoRow label="Sold by">
