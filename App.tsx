@@ -18,6 +18,9 @@ import HomeScreen from '@/screens/HomeScreen';
 import OrderScreen from '@/screens/OrderScreen';
 import OrdersScreen from '@/screens/OrdersScreen';
 import PasswordScreen from '@/screens/PasswordScreen';
+import MyProfileScreen from '@/screens/MyProfileScreen';
+import AddressesScreen from '@/screens/AddressesScreen';
+import WalletScreen from '@/screens/WalletScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
@@ -150,6 +153,9 @@ export default function App() {
             <Stack.Screen name="Orders" component={OrdersScreen} />
             <Stack.Screen name="Order" component={OrderScreen} />
             <Stack.Screen name="Password" component={PasswordScreen} />
+            <Stack.Screen name="MyProfile" component={MyProfileScreen} />
+            <Stack.Screen name="Addresses" component={AddressesScreen} />
+            <Stack.Screen name="Wallet" component={WalletScreen} />
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>

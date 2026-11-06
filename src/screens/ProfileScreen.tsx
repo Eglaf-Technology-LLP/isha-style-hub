@@ -7,6 +7,9 @@ import {
   Package,
   Shield,
   KeyRound,
+  MapPin,
+  UserRound,
+  Wallet,
 } from 'lucide-react-native';
 import {
   Alert,
@@ -35,6 +38,21 @@ export default function ProfileScreen() {
     { icon: Heart, label: 'My wishlist', onPress: () => go('/wishlist') },
     ...(signedIn
       ? [
+          {
+            icon: UserRound,
+            label: 'My profile',
+            onPress: () => go('/account/profile'),
+          },
+          {
+            icon: MapPin,
+            label: 'Saved addresses',
+            onPress: () => go('/account/addresses'),
+          },
+          {
+            icon: Wallet,
+            label: 'Wallet',
+            onPress: () => go('/account/wallet'),
+          },
           {
             icon: KeyRound,
             label: hasOwnPassword(user) ? 'Change password' : 'Set a password',

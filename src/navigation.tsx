@@ -33,6 +33,9 @@ export type RootParams = {
   Orders: undefined;
   Order: { id: string };
   Password: undefined;
+  MyProfile: undefined;
+  Addresses: undefined;
+  Wallet: undefined;
 };
 
 // https://allboutiqs.com/product/<id> (and allboutiqs://...) open the same
@@ -63,6 +66,9 @@ export const linking: LinkingOptions<RootParams> = {
       Orders: 'orders',
       Order: 'order/:id',
       Password: 'password',
+      MyProfile: 'account/profile',
+      Addresses: 'account/addresses',
+      Wallet: 'account/wallet',
     },
   },
 };
@@ -99,6 +105,16 @@ export function useGo() {
         return;
       }
       const [, section, id] = path.split('/');
+      // /account/profile, /account/addresses, /account/wallet
+      const ACCOUNT: Record<string, keyof RootParams> = {
+        profile: 'MyProfile',
+        addresses: 'Addresses',
+        wallet: 'Wallet',
+      };
+      if (section === 'account' && id && ACCOUNT[id]) {
+        navigation.dispatch(StackActions.push(ACCOUNT[id]));
+        return;
+      }
       let name: keyof RootParams | null = null;
       let routeParams: object | undefined;
       if (section === 'product' && id)
