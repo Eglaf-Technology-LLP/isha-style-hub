@@ -26,6 +26,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { Chip, Sheet } from '@/components/Listing';
+import { PhotoViewer } from '@/components/PhotoViewer';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Accordion,
@@ -78,6 +79,8 @@ export default function ProductScreen() {
   const [added, setAdded] = useState(false);
   // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
   const [chooser, setChooser] = useState(false);
+  // Full-screen photos, opened at the tapped one.
+  const [viewer, setViewer] = useState<number | null>(null);
 
   const sizes = product ? productSizes(product) : [];
   const colours = product ? productColors(product) : [];
@@ -215,12 +218,18 @@ export default function ProductScreen() {
                 setPhoto(Math.round(e.nativeEvent.contentOffset.x / width))
               }
               renderItem={({ item, index }) => (
-                <Image
-                  source={{ uri: item }}
-                  style={{ width, height: photoHeight }}
-                  resizeMode="cover"
-                  accessibilityLabel={`${product.name}, photo ${index + 1}`}
-                />
+                <Touch
+                  onPress={() => setViewer(index)}
+                  accessibilityLabel={`${product.name}, photo ${
+                    index + 1
+                  }. Tap to zoom`}
+                >
+                  <Image
+                    source={{ uri: item }}
+                    style={{ width, height: photoHeight }}
+                    resizeMode="cover"
+                  />
+                </Touch>
               )}
             />
           ) : (
@@ -553,6 +562,14 @@ export default function ProductScreen() {
           onPress={addToBag}
         />
       </View>
+      {viewer !== null ? (
+        <PhotoViewer
+          images={images}
+          start={viewer}
+          visible
+          onClose={() => setViewer(null)}
+        />
+      ) : null}
       <Sheet
         visible={chooser}
         title={sizes.length ? 'Select size' : 'Select colour'}
