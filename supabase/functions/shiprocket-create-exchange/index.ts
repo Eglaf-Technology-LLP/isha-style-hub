@@ -8,6 +8,8 @@ import {
   shiprocketRequest,
   errorMessage,
   toIntOrNull,
+  PICKUP_SKIPPED_NOTE,
+  pickupSkipped,
 } from "../_shared/shiprocket.ts";
 import { bookReversePickup } from "../_shared/reversePickup.ts";
 import { links, notifyVendorMembers } from "../_shared/notify.ts";
@@ -43,6 +45,10 @@ async function tryAssignAwbAndPickup(
         })
         .eq("id", shipmentRowId);
 
+      if (pickupSkipped()) {
+        await supabase.from("shipments").update({ status_raw: PICKUP_SKIPPED_NOTE }).eq("id", shipmentRowId);
+        return;
+      }
       await shiprocketRequest(supabase, "/courier/generate/pickup", {
         method: "POST",
         body: { shipment_id: [shiprocketShipmentId] },

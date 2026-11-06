@@ -78,6 +78,34 @@ export async function shiprocketRequest(
   return body;
 }
 
+// Test switch: every booking still runs for real (Shiprocket order, AWB,
+// label; our tax invoice and e-way bill), but the courier is never asked to
+// come. Live and staging share one Shiprocket account, so a staging test
+// without this books a real pickup. Set SHIPROCKET_SKIP_PICKUP=true as a
+// secret on the project that should not ship. Off when unset.
+export function pickupSkipped(): boolean {
+  return ["1", "true", "yes"].includes((Deno.env.get("SHIPROCKET_SKIP_PICKUP") ?? "").trim().toLowerCase());
+}
+
+// Written to shipments.status_raw so everyone looking at the booking can see
+// no courier is coming. The UI matches on the prefix.
+export const PICKUP_SKIPPED_NOTE = "Test booking - courier pickup not requested";
+
+// The label for a shipment that already has its AWB. Needs no pickup.
+// Best-effort: a missing label never fails a booking.
+export async function generateLabel(supabase: SupabaseClient, shipmentId: number): Promise<string | null> {
+  try {
+    const result = await shiprocketRequest(supabase, "/courier/generate/label", {
+      method: "POST",
+      body: { shipment_id: [shipmentId] },
+    });
+    return result?.label_url || null;
+  } catch (e) {
+    console.error("generateLabel failed for shipment", shipmentId, errorMessage(e));
+    return null;
+  }
+}
+
 export interface CoarseStatus {
   shipmentStatus: string; // shipments.status enum value
   vendorOrderStatus: string | null; // vendor_orders.status value, or null to leave untouched (return-leg shipments)
@@ -487,6 +515,8 @@ export interface ForwardBookingResult {
   courierName: string | null;
   labelUrl: string | null;
   manifestUrl: string | null;
+  // False when SHIPROCKET_SKIP_PICKUP held the courier back.
+  pickupRequested: boolean;
 }
 
 // One parcel from a registered pickup location to any address, booked with
@@ -518,13 +548,15 @@ export async function bookForwardShipment(
   },
 ): Promise<ForwardBookingResult> {
   const a = params.consignee.address;
+  const requestPickup = !pickupSkipped();
   const result = await shiprocketRequest(supabase, "/shipments/create/forward-shipment", {
     method: "POST",
     body: {
       mode: "Surface",
-      request_pickup: true,
+      request_pickup: requestPickup,
       print_label: true,
-      generate_manifest: true,
+      // Shiprocket only manifests a shipment whose pickup has been requested.
+      generate_manifest: requestPickup,
       order_id: params.channelOrderId,
       order_date: params.orderDate.slice(0, 19).replace("T", " "),
       pickup_location: params.pickupLocationName,
@@ -566,14 +598,19 @@ export async function bookForwardShipment(
     throw new Error(result.payload?.error_message || "Shiprocket rejected the shipment request");
   }
   const p = result.payload;
+  const shipmentId = toIntOrNull(p.shipment_id);
+  const awbCode = p.awb_code || null;
+  // The wrapper can come back with the AWB but no label - ask for it directly.
+  const labelUrl = p.label_url || (awbCode && shipmentId ? await generateLabel(supabase, shipmentId) : null);
   return {
     orderId: toIntOrNull(p.order_id),
-    shipmentId: toIntOrNull(p.shipment_id),
-    awbCode: p.awb_code || null,
+    shipmentId,
+    awbCode,
     courierId: toIntOrNull(p.courier_company_id),
     courierName: p.courier_name ?? null,
-    labelUrl: p.label_url ?? null,
-    manifestUrl: p.manifest_url ?? null,
+    labelUrl,
+    manifestUrl: p.manifest_url || null,
+    pickupRequested: requestPickup,
   };
 }
 

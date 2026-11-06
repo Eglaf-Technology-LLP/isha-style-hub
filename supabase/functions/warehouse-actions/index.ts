@@ -16,6 +16,7 @@ import {
   Consignee,
   ForwardBookingItem,
   WarehouseRow,
+  PICKUP_SKIPPED_NOTE,
 } from "../_shared/shiprocket.ts";
 import { addWorkingDays, getWarehouse, istToday, loadHolidays, loadWarehouseSettings, PARCEL_DEFAULTS, toShiprocketItems } from "../_shared/warehouse.ts";
 import {
@@ -363,6 +364,7 @@ async function bookFromWarehouse(
       courier_id: booking.courierId,
       courier_name: booking.courierName,
       status: booking.awbCode ? "awb_assigned" : "pending",
+      status_raw: booking.pickupRequested ? null : PICKUP_SKIPPED_NOTE,
       label_url: booking.labelUrl,
       manifest_url: booking.manifestUrl,
       courier_cost: courierCost,

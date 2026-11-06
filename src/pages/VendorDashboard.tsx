@@ -1222,6 +1222,9 @@ export default function VendorDashboard() {
                                     {shipment.awb_code && (
                                       <div className="font-mono text-muted-foreground">AWB {shipment.awb_code}</div>
                                     )}
+                                    {shipment.status_raw?.startsWith("Test booking") && (
+                                      <div className="text-amber-600 max-w-[220px]">{shipment.status_raw}</div>
+                                    )}
                                     {billForShipment(shipment.id)?.ewb_number && (
                                       <EwayBillPdfLink bill={billForShipment(shipment.id)!} />
                                     )}

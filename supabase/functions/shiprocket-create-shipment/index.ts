@@ -13,6 +13,7 @@ import {
   bookedCourierCost,
   cancelOrphanedShiprocketOrder,
   Consignee,
+  PICKUP_SKIPPED_NOTE,
 } from "../_shared/shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS, toShiprocketItems, warehouseConsignee } from "../_shared/warehouse.ts";
 import { ensureInvoice, InvoiceError } from "../_shared/invoice.ts";
@@ -307,6 +308,7 @@ Deno.serve(async (req) => {
         courier_id: booking.courierId,
         courier_name: booking.courierName,
         status: booking.awbCode ? "awb_assigned" : "pending",
+        status_raw: booking.pickupRequested ? null : PICKUP_SKIPPED_NOTE,
         label_url: booking.labelUrl,
         manifest_url: booking.manifestUrl,
         estimated_delivery_date: estimatedDeliveryDate,

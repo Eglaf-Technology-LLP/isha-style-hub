@@ -308,6 +308,9 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                     </a>
                   )}
                   <ShipmentTimelineDialog shipmentId={shipment.id} awbCode={shipment.awb_code} />
+                  {shipment.status_raw?.startsWith("Test booking") && (
+                    <span className="text-amber-600">{shipment.status_raw}</span>
+                  )}
                   {["pending", "awb_assigned", "pickup_scheduled"].includes(shipment.status) && (
                     <button
                       className="text-destructive inline-flex items-center gap-0.5 hover:underline disabled:opacity-50"
