@@ -1,4 +1,5 @@
-import { MessageCircle } from 'lucide-react-native';
+import { Ban, FileText, MessageCircle, RefreshCw } from 'lucide-react-native';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -9,6 +10,11 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
+import {
+  CancelSheet,
+  RefundHistory,
+  ReorderSheet,
+} from '@/components/OrderActions';
 import { Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
 import { formatINR } from '@/lib/format';
@@ -20,6 +26,8 @@ import {
   shortDate,
   STAGES,
   useMyOrders,
+  cancellableParts,
+  invoiceState,
 } from '@/lib/orders';
 import { useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -31,6 +39,7 @@ export default function OrderScreen() {
   const go = useGo();
   const { data: orders, isLoading } = useMyOrders();
   const o = orders?.find(x => x.id === id);
+  const [sheet, setSheet] = useState<'cancel' | 'reorder' | null>(null);
 
   if (!o) {
     return (
@@ -49,6 +58,7 @@ export default function OrderScreen() {
   const stopped = label.tone === 'stopped';
   const stage = orderStage(o);
   const a = o.shipping_address ?? {};
+  const canCancel = cancellableParts(o).length > 0;
   const help = `Hi AllBoutiqs, I need help with my order ${orderNumber(o.id)}.`;
 
   return (
@@ -90,6 +100,24 @@ export default function OrderScreen() {
               ))}
             </View>
           ) : null}
+          <View style={styles.actions}>
+            {canCancel ? (
+              <Touch
+                style={[styles.action, styles.actionDanger]}
+                onPress={() => setSheet('cancel')}
+              >
+                <Ban size={14} color={colors.destructive} />
+                <Text style={[styles.actionText, styles.danger]}>
+                  Cancel order
+                </Text>
+              </Touch>
+            ) : o.shipments.length ? (
+              <Touch style={styles.action} onPress={() => setSheet('reorder')}>
+                <RefreshCw size={14} color={colors.foreground} />
+                <Text style={styles.actionText}>Reorder</Text>
+              </Touch>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.block}>
@@ -127,7 +155,37 @@ export default function OrderScreen() {
               </View>
             </Touch>
           ))}
+          {o.shipments.map((part, n) => {
+            const inv = invoiceState(o.payment_status, part.status);
+            if (inv === 'none') return null;
+            return (
+              <Touch
+                key={part.id}
+                disabled={inv !== 'ready'}
+                style={styles.invoice}
+                onPress={() => go(`/invoice/${part.id}`)}
+              >
+                <FileText
+                  size={15}
+                  color={
+                    inv === 'ready' ? colors.primary : colors.mutedForeground
+                  }
+                />
+                <Text
+                  style={[styles.invoiceText, inv !== 'ready' && styles.muted]}
+                >
+                  {inv === 'ready'
+                    ? `Tax invoice${
+                        o.shipments.length > 1 ? ` (part ${n + 1})` : ''
+                      }`
+                    : 'Invoice available once shipped'}
+                </Text>
+              </Touch>
+            );
+          })}
         </View>
+
+        <RefundBlock orderId={o.id} />
 
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Delivering to</Eyebrow>
@@ -183,6 +241,25 @@ export default function OrderScreen() {
           <Text style={styles.helpText}>Help with this order on WhatsApp</Text>
         </Touch>
       </ScrollView>
+      <CancelSheet
+        order={o}
+        visible={sheet === 'cancel'}
+        onClose={() => setSheet(null)}
+      />
+      <ReorderSheet
+        order={o}
+        visible={sheet === 'reorder'}
+        onClose={() => setSheet(null)}
+      />
+    </View>
+  );
+}
+
+// Refunds for this order, if any (the block hides itself when empty).
+function RefundBlock({ orderId }: { orderId: string }) {
+  return (
+    <View style={styles.blockBare}>
+      <RefundHistory orderId={orderId} />
     </View>
   );
 }
@@ -214,6 +291,38 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
   },
   block: { backgroundColor: colors.ivory, padding: 16, marginBottom: 8 },
+  blockBare: { backgroundColor: colors.ivory, paddingHorizontal: 16 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  action: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionDanger: { borderColor: 'rgba(171,56,43,0.35)' },
+  actionText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.foreground,
+  },
+  danger: { color: colors.destructive },
+  invoice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 10,
+  },
+  invoiceText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.primary,
+  },
+  muted: { color: colors.mutedForeground },
   head: { color: colors.foreground, marginBottom: 12 },
   badge: {
     alignSelf: 'flex-start',
