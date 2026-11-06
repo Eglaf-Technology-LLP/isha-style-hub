@@ -1,6 +1,7 @@
 import { Check, ChevronDown, SlidersHorizontal, X } from 'lucide-react-native';
 import { ReactElement, ReactNode, useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -589,35 +590,37 @@ export function Sheet({
       statusBarTranslucent
       navigationBarTranslucent
     >
-      <Pressable
-        style={styles.scrim}
-        onPress={onClose}
-        accessibilityLabel="Close"
-      />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: 20 + insets.bottom, maxHeight: height * 0.88 },
-        ]}
-      >
-        <View style={styles.sheetHead}>
-          <Serif style={styles.sheetTitle}>{title}</Serif>
-          <Touch hitSlop={10} onPress={onClose} accessibilityLabel="Close">
-            <X size={22} color={colors.foreground} />
-          </Touch>
+      <KeyboardAvoidingView behavior="padding" style={styles.flex}>
+        <Pressable
+          style={styles.scrim}
+          onPress={onClose}
+          accessibilityLabel="Close"
+        />
+        <View
+          style={[
+            styles.sheet,
+            { paddingBottom: 20 + insets.bottom, maxHeight: height * 0.88 },
+          ]}
+        >
+          <View style={styles.sheetHead}>
+            <Serif style={styles.sheetTitle}>{title}</Serif>
+            <Touch hitSlop={10} onPress={onClose} accessibilityLabel="Close">
+              <X size={22} color={colors.foreground} />
+            </Touch>
+          </View>
+          {scroll ? (
+            <ScrollView
+              style={styles.flexShrink}
+              keyboardShouldPersistTaps="handled"
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
+          {footer}
         </View>
-        {scroll ? (
-          <ScrollView
-            style={styles.flexShrink}
-            keyboardShouldPersistTaps="handled"
-          >
-            {children}
-          </ScrollView>
-        ) : (
-          children
-        )}
-        {footer}
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

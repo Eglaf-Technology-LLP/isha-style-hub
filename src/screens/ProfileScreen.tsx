@@ -109,7 +109,7 @@ export default function ProfileScreen() {
                   style={styles.heroBtn}
                 />
                 <Button
-                  label="Create account"
+                  label="Sign up"
                   variant="light"
                   onPress={() => go('/signin?mode=signup')}
                   style={styles.heroBtn}

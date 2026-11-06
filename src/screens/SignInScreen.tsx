@@ -16,7 +16,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -47,7 +46,7 @@ import { colors, fonts } from '@/theme';
 // Live-Vendor), for customers:
 // - Sign in: email or mobile, then a one-time code or the password (the
 //   last choice is remembered). "Forgot password?" sets a new one after a code.
-// - Create account: email or mobile, an optional password, the Privacy
+// - Sign up: email or mobile, an optional password, the Privacy
 //   Policy + Terms; a code confirms it, then the password is saved.
 // - A code for a new email/number simply creates the account.
 
@@ -111,12 +110,33 @@ export default function SignInScreen() {
   // Signed in: back to where they came from (the password, if any, is
   // saved by then - see verify()).
   const closing = useRef(false);
+  // What to say once the account is confirmed as a customer one (shown only
+  // then - a boutique or admin account is signed straight back out).
+  const pendingMsg = useRef<{ text: string; important?: boolean } | null>(null);
   useEffect(() => {
     if (status === 'signed-in' && !verifying && !closing.current) {
       closing.current = true;
+      success();
+      if (pendingMsg.current)
+        toast(pendingMsg.current.text, {
+          important: pendingMsg.current.important,
+        });
+      pendingMsg.current = null;
       back();
     }
   }, [status, verifying, back]);
+  // Signed back out as a boutique / admin account: say so plainly.
+  useEffect(() => {
+    if (!notice || !pendingMsg.current) return;
+    pendingMsg.current = null;
+    closing.current = false;
+    setVerifying(false);
+    setBusy(false);
+    setCode('');
+    setView('form');
+    tap();
+    Alert.alert('Customer accounts only', notice);
+  }, [notice]);
 
   const parsed = parseIdentifier(identifier);
   const resetting = view === 'reset';
@@ -184,8 +204,7 @@ export default function SignInScreen() {
       setBusy(false);
       if (r.error) return setError(r.error);
       rememberMethod('password');
-      success();
-      toast("You're signed in");
+      pendingMsg.current = { text: "You're signed in" };
       return;
     }
     // Saved as soon as the code makes the account (src/lib/auth.ts).
@@ -211,7 +230,6 @@ export default function SignInScreen() {
     if (pendingPassword)
       passwordError = (await setOwnPassword(pendingPassword)).error;
     rememberMethod(pendingPassword && !passwordError ? 'password' : 'code');
-    success();
     if (passwordError) {
       Alert.alert(
         "You're signed in, but your password wasn't saved",
@@ -226,16 +244,16 @@ export default function SignInScreen() {
       );
       closing.current = true;
     } else if (r.isNewUser) {
-      toast(
-        pendingPassword
+      pendingMsg.current = {
+        text: pendingPassword
           ? 'Welcome to AllBoutiqs! Your account is ready. Next time, sign in with your password or a code.'
           : 'Welcome to AllBoutiqs! Your account is ready.',
-        { important: true },
-      );
+        important: true,
+      };
     } else if (pendingPassword) {
-      toast("Password saved. You're signed in.");
+      pendingMsg.current = { text: "Password saved. You're signed in." };
     } else {
-      toast("You're signed in");
+      pendingMsg.current = { text: "You're signed in" };
     }
     setVerifying(false);
   };
@@ -333,7 +351,7 @@ export default function SignInScreen() {
   const submitLabel = resetting
     ? 'Send code'
     : tab === 'signup'
-    ? 'Send verification code'
+    ? 'Sign up'
     : method === 'password'
     ? 'Sign in'
     : 'Send code';
@@ -364,7 +382,7 @@ export default function SignInScreen() {
           ? 'Set a new password'
           : tab === 'signin'
           ? 'Sign in'
-          : 'Create account'
+          : 'Sign up'
       }
     >
       {resetting ? (
@@ -377,7 +395,7 @@ export default function SignInScreen() {
           {(
             [
               ['signin', 'Sign in'],
-              ['signup', 'Create account'],
+              ['signup', 'Sign up'],
             ] as const
           ).map(([value, label]) => (
             <Touch
@@ -572,10 +590,7 @@ export default function SignInScreen() {
 
 function Frame({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <AppHeader back title={title} />
       <ScrollView
         contentContainerStyle={styles.body}

@@ -2,7 +2,6 @@ import { Eye, EyeOff } from 'lucide-react-native';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -60,10 +59,7 @@ export default function PasswordScreen() {
   const title = hasOne ? 'Change password' : 'Set a password';
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={styles.flex} behavior="padding">
       <AppHeader back title={title} />
       <ScrollView
         contentContainerStyle={styles.body}
