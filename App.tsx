@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tap } from '@/lib/haptics';
 import { linking, RootParams, TabParams } from '@/navigation';
 import { ConsentGate } from '@/components/ConsentGate';
+import { ToastHost } from '@/components/ToastHost';
 import { startSession } from '@/lib/auth';
 import { syncWishlist } from '@/lib/stores';
 import BagScreen from '@/screens/BagScreen';
@@ -166,6 +167,7 @@ export default function App() {
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>
+        <ToastHost />
       </SafeAreaProvider>
     </QueryClientProvider>
   );

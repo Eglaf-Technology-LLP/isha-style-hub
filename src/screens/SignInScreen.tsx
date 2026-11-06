@@ -125,9 +125,10 @@ export default function SignInScreen() {
       back();
     }
   }, [status, verifying, back]);
-  // Not a customer account (signed straight back out): the same red error
-  // line as any other sign-in problem, back on the form - nothing that says
-  // whose account it is.
+  // Not a customer account (signed straight back out): the usual short
+  // message at the bottom, as most apps say it - nothing about whose account
+  // it is. Back on the form.
+  const lastTry = useRef<'password' | 'code'>('code');
   useEffect(() => {
     if (!notice) return;
     pendingMsg.current = null;
@@ -136,8 +137,13 @@ export default function SignInScreen() {
     setBusy(false);
     setCode('');
     setView('form');
-    setError(notice);
+    setError(null);
     clearNotice();
+    toast(
+      lastTry.current === 'password'
+        ? 'Your email/mobile or password is incorrect.'
+        : 'Your email/mobile or code is incorrect.',
+    );
   }, [notice, clearNotice]);
 
   const parsed = parseIdentifier(identifier);
@@ -202,6 +208,7 @@ export default function SignInScreen() {
     if (tab === 'signin' && method === 'password' && !resetting) {
       setBusy(true);
       setError(null);
+      lastTry.current = 'password';
       const r = await signInWithPassword(parsed, password);
       setBusy(false);
       if (r.error) return setError(r.error);
@@ -218,6 +225,7 @@ export default function SignInScreen() {
     if (!target || value.length !== CODE_LENGTH || verifying) return;
     setVerifying(true);
     setError(null);
+    lastTry.current = 'code';
     const r = await verifyCode(target, value);
     if (r.error) {
       // Clear the boxes and put the cursor back for a fresh try.
