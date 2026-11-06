@@ -11,7 +11,7 @@ import {
   Truck,
   Wallet,
 } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -93,6 +93,45 @@ export default function ProductScreen() {
       ) ?? null,
     [product, size, color, sizes.length, colours.length],
   );
+  // As on the website: a size and a colour are always chosen - on opening,
+  // the first variant in stock (else the first); changing one keeps the
+  // pair a real variant (another colour in that size, or another size in
+  // that colour).
+  useEffect(() => {
+    if (!product) return;
+    const pick = product.variants.find(v => v.stock > 0) ?? product.variants[0];
+    setSize(pick ? sizeOf(pick) : null);
+    setColor(pick ? colorOf(pick) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
+  const chooseSize = (sz: string) => {
+    setSize(sz);
+    const vs = product?.variants ?? [];
+    if (
+      vs.length &&
+      color &&
+      !vs.some(v => sizeOf(v) === sz && colorOf(v) === color)
+    ) {
+      const alt =
+        vs.find(v => sizeOf(v) === sz && v.stock > 0) ??
+        vs.find(v => sizeOf(v) === sz);
+      setColor(alt ? colorOf(alt) : null);
+    }
+  };
+  const chooseColor = (c: string) => {
+    setColor(c);
+    const vs = product?.variants ?? [];
+    if (
+      vs.length &&
+      size &&
+      !vs.some(v => colorOf(v) === c && sizeOf(v) === size)
+    ) {
+      const alt =
+        vs.find(v => colorOf(v) === c && v.stock > 0) ??
+        vs.find(v => colorOf(v) === c);
+      setSize(alt ? sizeOf(alt) : null);
+    }
+  };
   const similar = useMemo(
     () =>
       product
@@ -150,11 +189,11 @@ export default function ProductScreen() {
   const photoHeight = Math.round((width * 4) / 3);
 
   // A size is out of stock when no variant with it (in the chosen colour) has any.
+  // A size is greyed out only when no colour has it in stock - picking it
+  // switches the colour to one that does (chooseSize).
   const sizeAvailable = (sz: string) =>
     !!product.made_to_order ||
-    product.variants.some(
-      v => sizeOf(v) === sz && (!color || colorOf(v) === color) && v.stock > 0,
-    );
+    product.variants.some(v => sizeOf(v) === sz && v.stock > 0);
 
   const addToBag = () => {
     if (added) return go('/bag');
@@ -319,7 +358,7 @@ export default function ProductScreen() {
                   key={c}
                   haptic
                   onPress={() => {
-                    setColor(c);
+                    chooseColor(c);
                     setPhoto(0);
                     setMissing(null);
                     setAdded(false);
@@ -361,7 +400,7 @@ export default function ProductScreen() {
                     haptic
                     disabled={!ok}
                     onPress={() => {
-                      setSize(sz);
+                      chooseSize(sz);
                       setMissing(null);
                       setAdded(false);
                     }}
@@ -585,7 +624,7 @@ export default function ProductScreen() {
                   label={c}
                   active={color === c}
                   onPress={() => {
-                    setColor(c);
+                    chooseColor(c);
                     setMissing(null);
                   }}
                 />
@@ -611,7 +650,7 @@ export default function ProductScreen() {
                     haptic
                     disabled={!ok}
                     onPress={() => {
-                      setSize(sz);
+                      chooseSize(sz);
                       setMissing(null);
                     }}
                     style={[
