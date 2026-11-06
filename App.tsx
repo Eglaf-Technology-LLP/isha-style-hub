@@ -25,6 +25,8 @@ import WalletScreen from '@/screens/WalletScreen';
 import InvoiceScreen from '@/screens/InvoiceScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import LegalScreen from '@/screens/LegalScreen';
+import CheckoutScreen from '@/screens/CheckoutScreen';
+import OrderPlacedScreen from '@/screens/OrderPlacedScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import SearchScreen from '@/screens/SearchScreen';
@@ -166,6 +168,12 @@ export default function App() {
               component={NotificationsScreen}
             />
             <Stack.Screen name="Legal" component={LegalScreen} />
+            <Stack.Screen name="Checkout" component={CheckoutScreen} />
+            <Stack.Screen
+              name="OrderPlaced"
+              component={OrderPlacedScreen}
+              options={{ gestureEnabled: false, animation: 'fade' }}
+            />
           </Stack.Navigator>
           <ConsentGate />
         </NavigationContainer>

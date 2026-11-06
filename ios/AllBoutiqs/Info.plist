@@ -80,6 +80,12 @@
 		<string>PlayfairDisplay-Medium.ttf</string>
 		<string>PlayfairDisplay-Regular.ttf</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tez</string>
+		<string>phonepe</string>
+		<string>paytmmp</string>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose photos of an item you're returning or exchanging, or for a review.</string>
 	<key>NSCameraUsageDescription</key>

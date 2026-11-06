@@ -19,8 +19,20 @@ import { getActiveDefaultWarehouse } from "../_shared/warehouse.ts";
 // Body: { delivery_pincode, order_value, groups: [{ vendor_id, items: [{ product_id, quantity }] }] }
 // Returns { available, cod_charge, courier_name } - available is false when
 // no courier collects cash at that PIN code.
+//
+// Every quote given is recorded (cod_charge_quotes): a COD order is only
+// accepted with a charge quoted for exactly its pieces, PIN code and value
+// (price_order).
 
 const pick = (couriers: CourierOption[]) => couriers.find((c) => c.recommended) ?? couriers[0] ?? null;
+
+// "<product id>:<quantity>,..." - quantities summed per product, sorted by
+// product id. Must match price_order's items_key.
+function itemsKey(items: { product_id: string; quantity: number }[]): string {
+  const qty = new Map<string, number>();
+  for (const i of items) qty.set(String(i.product_id), (qty.get(String(i.product_id)) ?? 0) + Number(i.quantity));
+  return [...qty.keys()].sort().map((id) => `${id}:${qty.get(id)}`).join(",");
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -74,7 +86,15 @@ Deno.serve(async (req) => {
       codCharge += courier.codCharges;
       courierName ??= courier.courierName;
     }
-    return jsonResponse({ available: true, cod_charge: Math.round(codCharge * 100) / 100, courier_name: courierName });
+    const charge = Math.round(codCharge * 100) / 100;
+    const { error: quoteErr } = await supabase.from("cod_charge_quotes").insert({
+      delivery_pincode: deliveryPincode,
+      order_value: Math.round(orderValue * 100) / 100,
+      items_key: itemsKey(allItems),
+      cod_charge: charge,
+    });
+    if (quoteErr) throw quoteErr;
+    return jsonResponse({ available: true, cod_charge: charge, courier_name: courierName });
   } catch (e) {
     console.error("shiprocket-cod-charge error", e);
     return jsonResponse({ error: errorMessage(e) }, 500);

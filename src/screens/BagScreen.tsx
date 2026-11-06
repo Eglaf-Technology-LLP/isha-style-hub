@@ -8,7 +8,7 @@ import {
   ShoppingBag,
   Trash2,
 } from 'lucide-react-native';
-import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
@@ -32,15 +32,11 @@ export default function Bag() {
   const signedIn = useSession(st => st.status === 'signed-in');
   const { address, loading: addressLoading } = useDeliveryAddress();
   const openDeliver = useDeliverTo(st => st.open);
-  // Signed out: sign in first. No address: add one right here. Payment
-  // (Razorpay, with server-side prices) is the next step.
+  // Signed out: sign in first. No address: add one right here. Then checkout.
   const checkout = () => {
     if (!signedIn) return go('/signin');
     if (!address && !addressLoading) return openDeliver('add');
-    Alert.alert(
-      'Checkout is coming to the app',
-      'Your bag and address are saved. In-app checkout with UPI, cards and cash on delivery arrives in the next update.',
-    );
+    go('/checkout');
   };
 
   return (

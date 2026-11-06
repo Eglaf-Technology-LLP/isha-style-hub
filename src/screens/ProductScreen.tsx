@@ -57,7 +57,9 @@ import {
 } from '@/lib/catalog';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
-import { useCart, useWishlist } from '@/lib/stores';
+import { CartItem, useCart, useWishlist } from '@/lib/stores';
+import { useBuyNow } from '@/lib/checkout';
+import { useSession } from '@/lib/auth';
 import { SITE_URL } from '@/lib/supabase';
 import { colors, fonts } from '@/theme';
 
@@ -69,6 +71,8 @@ export default function ProductScreen() {
   const { data: product, isLoading } = useProduct(id);
   const { data: all = [] } = useProducts();
   const addItem = useCart(st => st.addItem);
+  const setBuyNow = useBuyNow(st => st.set);
+  const signedIn = useSession(st => st.status === 'signed-in');
   const wished = useWishlist(st => (id ? st.ids.includes(id) : false));
   const toggleWish = useWishlist(st => st.toggle);
 
@@ -79,6 +83,7 @@ export default function ProductScreen() {
   const [added, setAdded] = useState(false);
   // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
   const [chooser, setChooser] = useState(false);
+  const [chooserFor, setChooserFor] = useState<'bag' | 'buy'>('bag');
   // Full-screen photos, opened at the tapped one.
   const [viewer, setViewer] = useState<number | null>(null);
 
@@ -195,8 +200,9 @@ export default function ProductScreen() {
     !!product.made_to_order ||
     product.variants.some(v => sizeOf(v) === sz && v.stock > 0);
 
-  const addToBag = () => {
-    if (added) return go('/bag');
+  // The chosen piece as a bag line - or, when a size / colour is still
+  // missing, the picker slides up (and remembers which button was pressed).
+  const chosenItem = (forAction: 'bag' | 'buy'): CartItem | null => {
     const need = [
       sizes.length && !size ? 'size' : null,
       colours.length && !color ? 'colour' : null,
@@ -211,8 +217,9 @@ export default function ProductScreen() {
           : `Please select a ${need[0] ?? 'size'}`,
       );
       tap();
+      setChooserFor(forAction);
       setChooser(true);
-      return;
+      return null;
     }
     setMissing(null);
     setChooser(false);
@@ -220,7 +227,7 @@ export default function ProductScreen() {
       ...(size ? [{ name: 'Size', value: size }] : []),
       ...(color ? [{ name: 'Colour', value: color }] : []),
     ];
-    addItem({
+    return {
       productId: product.id,
       productName: product.name,
       productImage: product.images[0] ?? null,
@@ -232,9 +239,25 @@ export default function ProductScreen() {
       price: { amount: String(price), currencyCode: 'INR' },
       quantity: 1,
       selectedOptions: options,
-    });
+    };
+  };
+
+  const addToBag = () => {
+    if (added) return go('/bag');
+    const item = chosenItem('bag');
+    if (!item) return;
+    addItem(item);
     success();
     setAdded(true);
+  };
+
+  // Buy now: only this piece goes to checkout; the bag stays as it is.
+  const buyNow = () => {
+    const item = chosenItem('buy');
+    if (!item) return;
+    setBuyNow(item);
+    tap();
+    go(signedIn ? '/checkout?buyNow=1' : '/signin');
   };
 
   return (
@@ -567,39 +590,42 @@ export default function ProductScreen() {
         />
       </ScrollView>
 
-      {/* Sticky actions */}
+      {/* Sticky actions: wishlist, Add to bag, Buy now */}
       <View style={[styles.bar, { paddingBottom: 10 + insets.bottom }]}>
-        <Button
-          label={wished ? 'Wishlisted' : 'Wishlist'}
-          variant="outline"
-          style={{ flex: 1 }}
-          icon={
-            <Heart
-              size={17}
-              color={wished ? colors.primary : colors.foreground}
-              fill={wished ? colors.primary : 'transparent'}
-            />
-          }
+        <Touch
+          haptic
+          style={styles.wishBtn}
           onPress={() => toggleWish(product.id)}
-        />
+          accessibilityLabel={
+            wished ? 'Remove from wishlist' : 'Add to wishlist'
+          }
+        >
+          <Heart
+            size={20}
+            color={wished ? colors.primary : colors.foreground}
+            fill={wished ? colors.primary : 'transparent'}
+          />
+        </Touch>
         <Button
           label={soldOut ? 'Out of stock' : added ? 'Go to bag' : 'Add to bag'}
           disabled={soldOut}
-          style={{ flex: 1.4 }}
+          variant="outline"
+          style={styles.flexBtn}
           icon={
             added ? (
-              <ArrowRight size={17} color={colors.primaryForeground} />
+              <ArrowRight size={16} color={colors.foreground} />
             ) : (
               <ShoppingBag
-                size={17}
-                color={
-                  soldOut ? colors.mutedForeground : colors.primaryForeground
-                }
+                size={16}
+                color={soldOut ? colors.mutedForeground : colors.foreground}
               />
             )
           }
           onPress={addToBag}
         />
+        {!soldOut ? (
+          <Button label="Buy now" style={styles.flexBtn} onPress={buyNow} />
+        ) : null}
       </View>
       {viewer !== null ? (
         <PhotoViewer
@@ -675,8 +701,8 @@ export default function ProductScreen() {
         ) : null}
         {missing ? <Text style={styles.chooserMissing}>{missing}</Text> : null}
         <Button
-          label="Add to bag"
-          onPress={addToBag}
+          label={chooserFor === 'buy' ? 'Buy now' : 'Add to bag'}
+          onPress={chooserFor === 'buy' ? buyNow : addToBag}
           style={styles.chooserButton}
         />
       </Sheet>
@@ -784,6 +810,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   chooserButton: { marginTop: 20 },
+  wishBtn: {
+    width: 50,
+    height: 50,
+    borderWidth: 1,
+    borderColor: colors.foreground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flexBtn: { flex: 1, paddingHorizontal: 8 },
   stylist: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stylistText: {
     fontFamily: fonts.sansMedium,
