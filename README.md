@@ -73,7 +73,7 @@ The app uses: `auth-email-otp` (email codes), `accept_terms`, `has_role`, and th
 ## Not built yet
 
 - **Checkout and payment (Razorpay), Buy Now.** Blocked on a decision: on `Live-Vendor` the order total is worked out by the client and `create-razorpay-order` charges whatever amount it is sent. A modified app could pay less. Move pricing to the server (one function that builds the order and the Razorpay amount) before the app takes payments. Signed out, "Place order" opens Sign in; signed in it says checkout is coming.
-- Notifications bell, "Recently viewed" and "Complete the look" rails, newsletter sign-up.
+- "Recently viewed" and "Complete the look" rails, newsletter sign-up.
 - Profile photo upload; adding photos to a review (both possible now that the image picker is in).
 - Add a mobile number or email to an existing account.
 - Printing / saving the tax invoice as PDF (the app shows it; the website prints it).

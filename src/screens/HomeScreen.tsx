@@ -22,6 +22,7 @@ import {
 import heroFashion from '../../assets/hero-fashion.jpg';
 import { AppHeader } from '@/components/AppHeader';
 import { budgetHref, BUDGETS } from '@/lib/listing';
+import { FlashSales, OfferStrip } from '@/components/HomeExtras';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Eyebrow,
@@ -106,6 +107,8 @@ export default function Home() {
           />
         }
       >
+        <OfferStrip />
+
         {/* Category circles */}
         <ScrollView
           horizontal
@@ -167,6 +170,8 @@ export default function Home() {
         </ScrollView>
 
         <Hero width={width} onOpen={go} />
+
+        <FlashSales />
 
         {/* Promise strip */}
         <View style={styles.promises}>
