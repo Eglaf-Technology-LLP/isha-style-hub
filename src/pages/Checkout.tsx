@@ -69,6 +69,11 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // request to Razorpay gets rejected server-side. COD has no such floor and
 // already handles a sub-₹1 total fine, so steer there instead of failing.
 const MIN_ONLINE_PAYMENT_AMOUNT = 1;
+// Razorpay's per-transaction ceiling for our account: checked 2026-11-06,
+// ₹5,00,000 creates an order and ₹5,00,001 is refused (create-razorpay-order
+// then fails with a generic error). Razorpay raises it on request - set
+// VITE_RAZORPAY_MAX_AMOUNT to the new figure when they do.
+const MAX_ONLINE_PAYMENT_AMOUNT = Number(import.meta.env.VITE_RAZORPAY_MAX_AMOUNT) || 500000;
 
 interface Discount {
   id: string;
@@ -464,6 +469,11 @@ export default function Checkout() {
   const payNow = Math.round((total - walletUse) * 100) / 100;
   const paidByWallet = walletUse > 0 && payNow <= 0;
   const belowOnlineMinimum = payNow > 0 && payNow < MIN_ONLINE_PAYMENT_AMOUNT;
+  const aboveOnlineMaximum = payNow > MAX_ONLINE_PAYMENT_AMOUNT;
+  const onlineUnavailable = belowOnlineMinimum || aboveOnlineMaximum;
+  const onlineUnavailableText = belowOnlineMinimum
+    ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)}`
+    : `Not available above ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order`;
 
   // COD is a single payment method for the whole cart, not per-item - if
   // any boutique in the cart has turned it off, or any product's listing
@@ -494,7 +504,7 @@ export default function Checkout() {
   // Later are checked by Razorpay itself on the next step.
   const emiAvailable =
     !!emiMethods &&
-    !belowOnlineMinimum &&
+    !onlineUnavailable &&
     (emiMethods.cardless ||
       emiMethods.paylater ||
       (emiMethods.card && (emiMethods.min_amount == null || payNow >= emiMethods.min_amount)));
@@ -503,10 +513,10 @@ export default function Checkout() {
   // total below Razorpay's minimum - switch back to COD automatically
   // rather than letting the customer hit the payment failure at submit time.
   useEffect(() => {
-    if (belowOnlineMinimum && paymentMethod === "razorpay" && !codDisabled) {
+    if (onlineUnavailable && paymentMethod === "razorpay" && !codDisabled) {
       setPaymentChoice("cod");
     }
-  }, [belowOnlineMinimum, paymentMethod, codDisabled]);
+  }, [onlineUnavailable, paymentMethod, codDisabled]);
 
   // EMI no longer offered (e.g. a discount took the total below the EMI
   // minimum) - fall back to the regular online payment.
@@ -830,29 +840,26 @@ export default function Checkout() {
       // Covered wholly by the wallet: nothing else is charged.
       const orderPaymentMethod = paidByWallet ? "wallet" : paymentMethod;
 
-      // For online payment, create the Razorpay order *before* writing
-      // anything of ours, so we can store its id on our own order row.
-      let razorpayOrderId: string | null = null;
-      let razorpayKeyId: string | null = null;
-      if (orderPaymentMethod === "razorpay") {
-        if (belowOnlineMinimum) {
-          toast.error(`Online payment needs at least ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - please choose Cash on Delivery instead`);
-          setIsPlacingOrder(false);
-          return;
-        }
-        const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
-          body: { receiptId: newOrderId, amount: payNow },
-        });
-        if (error || !data?.razorpayOrderId) {
-          throw new Error("Could not start online payment. Please try again.");
-        }
-        razorpayOrderId = data.razorpayOrderId;
-        razorpayKeyId = data.keyId;
+      if (orderPaymentMethod === "razorpay" && belowOnlineMinimum) {
+        toast.error(`Online payment needs at least ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - please choose Cash on Delivery instead`);
+        setIsPlacingOrder(false);
+        return;
+      }
+      // Checked before anything is saved: Razorpay refuses an order above the
+      // account's ceiling, and the customer would only see a generic error.
+      if (orderPaymentMethod === "razorpay" && aboveOnlineMaximum) {
+        toast.error(
+          `Online payment is limited to ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order - remove an item and place it as a separate order${codDisabled ? "" : ", or choose Cash on Delivery"}`,
+        );
+        setIsPlacingOrder(false);
+        return;
       }
 
       // Create the order. payment_status only ever becomes "paid" via
       // verify-razorpay-payment, once a real signature is checked
-      // server-side - never set directly by this client-side insert.
+      // server-side - never set directly by this client-side insert. The
+      // amounts sent here are replaced by the database's own, worked out
+      // from the items once they're saved (price_order).
       const { error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -873,7 +880,6 @@ export default function Checkout() {
           discount_amount: discountAmount,
           cod_charge: codFee,
           notes: notes || null,
-          razorpay_order_id: razorpayOrderId,
           estimated_delivery_date: deliveryEta,
         });
 
@@ -981,6 +987,23 @@ export default function Checkout() {
         throw itemsError;
       }
 
+      // The database has priced the order from the items. If that isn't
+      // what this page showed (a price changed since), stop rather than
+      // charge a different amount.
+      const { data: priced, error: pricedError } = await supabase
+        .from("orders")
+        .select("total")
+        .eq("id", newOrderId)
+        .single();
+      if (pricedError || Math.abs(Number(priced.total) - total) >= 0.01) {
+        await supabase.rpc("cancel_pending_order", { _order_id: newOrderId });
+        throw new Error(
+          pricedError
+            ? "Could not save your order. Please try again."
+            : `Your order now comes to ${formatINR(Number(priced.total))} - prices changed. Please check your cart and place the order again.`,
+        );
+      }
+
       // Decrement real inventory per line item. Unlike increment_discount_usage
       // below, a failure here must stop the order rather than being logged and
       // ignored - letting checkout continue after a stock call fails would
@@ -1043,6 +1066,19 @@ export default function Checkout() {
         }
       }
 
+      // The Razorpay order, for what's left to pay on the saved order -
+      // the server works the amount out and stores the id on the order.
+      let razorpay: { razorpayOrderId: string; amount: number; keyId: string } | null = null;
+      if (orderPaymentMethod === "razorpay") {
+        const { data, error } = await supabase.functions.invoke("create-razorpay-order", {
+          body: { orderId: newOrderId },
+        });
+        if (error || !data?.razorpayOrderId) {
+          throw new Error("Could not start online payment. Please try again.");
+        }
+        razorpay = data;
+      }
+
       // Save this address for next time (skipped if it's an unedited reuse
       // of one already saved) - independent of payment method/outcome,
       // since the shipping details themselves are already locked in.
@@ -1085,10 +1121,10 @@ export default function Checkout() {
       // rather than in a finally here.
       savePendingPayment({ orderId: newOrderId, userId: user.id, buyNow, startedAt: Date.now() });
       await openRazorpayCheckout({
-        key: razorpayKeyId!,
-        amount: Math.round(payNow * 100),
+        key: razorpay!.keyId,
+        amount: razorpay!.amount,
         currency: "INR",
-        order_id: razorpayOrderId!,
+        order_id: razorpay!.razorpayOrderId,
         name: "AllBoutiqs",
         description: `Order ${newOrderId.slice(0, 8)}`,
         prefill: {
@@ -1523,26 +1559,33 @@ export default function Checkout() {
                   />
                 )}
                 {codUnavailableReason && (
-                  <p className={cn("text-sm", belowOnlineMinimum ? "text-destructive" : "text-muted-foreground")}>
+                  <p className={cn("text-sm", onlineUnavailable ? "text-destructive" : "text-muted-foreground")}>
                     {codUnavailableReason}{" "}
                     {belowOnlineMinimum
                       ? `This order is also below the ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} minimum for online payment - add another item to check out.`
-                      : "Please pay online."}
+                      : aboveOnlineMaximum
+                        ? `This order is also above the ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} limit for one online payment - remove an item and place it as a separate order.`
+                        : "Please pay online."}
+                  </p>
+                )}
+                {aboveOnlineMaximum && !codUnavailableReason && (
+                  <p className="text-sm text-muted-foreground">
+                    Online payment is limited to {formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order. Pay by Cash on Delivery, or split the cart into smaller orders.
                   </p>
                 )}
                 <PaymentOption
                   value="razorpay"
                   selected={paymentChoice === "razorpay"}
-                  disabled={belowOnlineMinimum}
+                  disabled={onlineUnavailable}
                   icon={CreditCard}
                   title="Pay online"
                   text={
-                    belowOnlineMinimum
-                      ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)} - use Cash on Delivery`
+                    onlineUnavailable
+                      ? `${onlineUnavailableText}${codDisabled ? "" : " - use Cash on Delivery"}`
                       : "Card, UPI or netbanking — pick your method at checkout"
                   }
                   extra={
-                    !belowOnlineMinimum && (
+                    !onlineUnavailable && (
                       <span className="hidden gap-1.5 sm:flex">
                         {["UPI", "Cards", "Netbanking"].map((m) => (
                           <span key={m} className="border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
