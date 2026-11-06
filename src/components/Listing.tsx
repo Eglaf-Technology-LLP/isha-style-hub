@@ -1,4 +1,4 @@
-import { Check, SlidersHorizontal, X } from 'lucide-react-native';
+import { Check, ChevronDown, SlidersHorizontal, X } from 'lucide-react-native';
 import { ReactElement, ReactNode, useMemo, useState } from 'react';
 import {
   Modal,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Boutique, Category, Product } from '@/lib/catalog';
+import { tap } from '@/lib/haptics';
 import {
   BUDGETS,
   emptyFilters,
@@ -24,8 +25,19 @@ import { colors, fonts } from '@/theme';
 import { ProductGrid } from './ProductLists';
 import { Button, Serif, Touch } from './ui';
 
-// A product listing with category chips and the sticky Sort | Filter bar.
-// Filters, counts and sorting are the website's (src/lib/listing.ts).
+type Facet =
+  | 'category'
+  | 'boutique'
+  | 'price'
+  | 'size'
+  | 'colour'
+  | 'availability'
+  | 'offers';
+
+// A product listing in the Myntra / Ajio layout: category chips, quick
+// filter chips, the grid, the sticky Sort | Filter bar, a sort sheet and a
+// full-screen two-pane filter (facets left, options right, Apply at the
+// bottom). Filters, counts and sorting are the website's (src/lib/listing.ts).
 export function Listing({
   products,
   loading,
@@ -53,36 +65,23 @@ export function Listing({
 }) {
   const insets = useSafeAreaInsets();
   const [f, setF] = useState<ListingFilters>(initial);
-  const [sheet, setSheet] = useState<'sort' | 'filter' | null>(null);
-  const { results, facets, activeCount } = useMemo(
+  const [sortOpen, setSortOpen] = useState(false);
+  const [filterAt, setFilterAt] = useState<Facet | null>(null);
+  const { results, activeCount } = useMemo(
     () => runListing(products, f, scopeCategoryId),
     [products, f, scopeCategoryId],
   );
-  const set = (next: Partial<ListingFilters>) =>
-    setF(cur => ({ ...cur, ...next }));
-  const toggle = (
-    key: 'categories' | 'boutiques' | 'sizes' | 'colors',
-    value: string,
-  ) =>
-    setF(cur => ({
-      ...cur,
-      [key]: cur[key].includes(value)
-        ? cur[key].filter(v => v !== value)
-        : [...cur[key], value],
-    }));
 
-  const sizeList = sortSizes([...facets.sizes.keys()]);
-  const colorList = [...facets.colors.keys()].sort((a, b) =>
-    a.localeCompare(b),
-  );
-  const boutiqueList = (boutiques ?? []).filter(
-    b => facets.boutiques.has(b.id) || f.boutiques.includes(b.id),
-  );
-  const categoryList = (categories ?? []).filter(
-    c =>
-      c.id !== scopeCategoryId &&
-      (facets.categories.has(c.id) || f.categories.includes(c.id)),
-  );
+  const quick: { facet: Facet; label: string; on: boolean }[] = [
+    { facet: 'size', label: 'Size', on: f.sizes.length > 0 },
+    { facet: 'price', label: 'Price', on: f.min != null || f.max != null },
+    { facet: 'colour', label: 'Colour', on: f.colors.length > 0 },
+    {
+      facet: 'availability',
+      label: 'Availability',
+      on: f.availability !== 'all' || f.inStock,
+    },
+  ];
 
   return (
     <View style={styles.flex}>
@@ -116,6 +115,38 @@ export function Listing({
                 ))}
               </ScrollView>
             ) : null}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.quick}
+            >
+              {quick.map(q => (
+                <Touch
+                  key={q.facet}
+                  style={[styles.quickChip, q.on && styles.quickOn]}
+                  onPress={() => setFilterAt(q.facet)}
+                >
+                  <Text style={[styles.quickText, q.on && styles.primary]}>
+                    {q.label}
+                  </Text>
+                  <ChevronDown
+                    size={13}
+                    color={q.on ? colors.primary : colors.mutedForeground}
+                  />
+                </Touch>
+              ))}
+              <Touch
+                style={[styles.quickChip, f.sale && styles.quickOn]}
+                onPress={() => {
+                  tap();
+                  setF(cur => ({ ...cur, sale: !cur.sale }));
+                }}
+              >
+                <Text style={[styles.quickText, f.sale && styles.primary]}>
+                  On sale
+                </Text>
+              </Touch>
+            </ScrollView>
             <Text style={styles.count}>
               {results.length} {results.length === 1 ? 'piece' : 'pieces'}
               {f.search ? ` for "${f.search}"` : ''}
@@ -125,12 +156,12 @@ export function Listing({
       />
 
       <View style={[styles.bar, { paddingBottom: insets.bottom }]}>
-        <Touch style={styles.barButton} onPress={() => setSheet('sort')}>
+        <Touch style={styles.barButton} onPress={() => setSortOpen(true)}>
           <Text style={styles.barText}>Sort</Text>
           {f.sort !== 'featured' ? <View style={styles.dot} /> : null}
         </Touch>
         <View style={styles.barDivider} />
-        <Touch style={styles.barButton} onPress={() => setSheet('filter')}>
+        <Touch style={styles.barButton} onPress={() => setFilterAt('price')}>
           <SlidersHorizontal
             size={16}
             color={colors.foreground}
@@ -146,17 +177,17 @@ export function Listing({
       </View>
 
       <Sheet
-        visible={sheet === 'sort'}
+        visible={sortOpen}
         title="Sort by"
-        onClose={() => setSheet(null)}
+        onClose={() => setSortOpen(false)}
       >
         {(Object.keys(SORT_LABELS) as SortKey[]).map(key => (
           <Touch
             key={key}
             style={styles.option}
             onPress={() => {
-              set({ sort: key });
-              setSheet(null);
+              setF(cur => ({ ...cur, sort: key }));
+              setSortOpen(false);
             }}
           >
             <Text
@@ -169,153 +200,307 @@ export function Listing({
         ))}
       </Sheet>
 
-      <Sheet
-        visible={sheet === 'filter'}
-        title="Filters"
-        onClose={() => setSheet(null)}
-        scroll
-        footer={
-          <View style={styles.footer}>
-            <Button
-              label="Clear all"
-              variant="outline"
-              style={styles.flex}
-              onPress={() =>
-                setF(emptyFilters({ search: f.search, sort: f.sort }))
-              }
-            />
-            <Button
-              label={`Show ${results.length}`}
-              style={styles.flex}
-              onPress={() => setSheet(null)}
-            />
-          </View>
-        }
-      >
-        {categoryList.length ? (
-          <Group title={scopeCategoryId ? 'Add categories' : 'Category'}>
-            {categoryList.map(c => (
-              <CheckRow
-                key={c.id}
-                label={c.name}
-                count={facets.categories.get(c.id) ?? 0}
-                checked={f.categories.includes(c.id)}
-                onPress={() => toggle('categories', c.id)}
-              />
-            ))}
-          </Group>
-        ) : null}
-        {boutiqueList.length ? (
-          <Group title="Boutique">
-            {boutiqueList.map(b => (
-              <CheckRow
-                key={b.id}
-                label={b.name}
-                count={facets.boutiques.get(b.id) ?? 0}
-                checked={f.boutiques.includes(b.id)}
-                onPress={() => toggle('boutiques', b.id)}
-              />
-            ))}
-          </Group>
-        ) : null}
-        <Group title="Price">
-          <View style={styles.wrap}>
-            {BUDGETS.map(b => {
-              const on =
-                (f.min ?? null) === (b.min ?? null) &&
-                (f.max ?? null) === (b.max ?? null);
-              return (
-                <Chip
-                  key={b.label}
-                  label={b.label}
-                  active={on}
-                  onPress={() =>
-                    set(
-                      on
-                        ? { min: null, max: null }
-                        : { min: b.min ?? null, max: b.max ?? null },
-                    )
-                  }
-                />
-              );
-            })}
-          </View>
-        </Group>
-        {sizeList.length ? (
-          <Group title="Size">
-            <View style={styles.wrap}>
-              {sizeList.map(s => (
-                <Chip
-                  key={s}
-                  label={s}
-                  active={f.sizes.includes(s)}
-                  onPress={() => toggle('sizes', s)}
-                />
-              ))}
-            </View>
-          </Group>
-        ) : null}
-        {colorList.length ? (
-          <Group title="Colour">
-            {colorList.map(c => (
-              <CheckRow
-                key={c}
-                label={c}
-                count={facets.colors.get(c) ?? 0}
-                checked={f.colors.includes(c)}
-                onPress={() => toggle('colors', c)}
-              />
-            ))}
-          </Group>
-        ) : null}
-        <Group title="Availability">
-          <CheckRow
-            label="Ready to ship"
-            count={facets.ready}
-            checked={f.availability === 'ready'}
-            onPress={() =>
-              set({
-                availability: f.availability === 'ready' ? 'all' : 'ready',
-              })
-            }
-          />
-          <CheckRow
-            label="Made to order"
-            count={facets.madeToOrder}
-            checked={f.availability === 'made-to-order'}
-            onPress={() =>
-              set({
-                availability:
-                  f.availability === 'made-to-order' ? 'all' : 'made-to-order',
-              })
-            }
-          />
-          <CheckRow
-            label="In stock only"
-            count={facets.inStock}
-            checked={f.inStock}
-            onPress={() => set({ inStock: !f.inStock })}
-          />
-        </Group>
-        <Group title="Offers">
-          <CheckRow
-            label="On sale"
-            count={facets.sale}
-            checked={f.sale}
-            onPress={() => set({ sale: !f.sale })}
-          />
-        </Group>
-      </Sheet>
+      <FilterScreen
+        open={filterAt}
+        applied={f}
+        products={products}
+        scopeCategoryId={scopeCategoryId}
+        categories={categories}
+        boutiques={boutiques}
+        onClose={() => setFilterAt(null)}
+        onApply={next => {
+          setF(next);
+          setFilterAt(null);
+        }}
+      />
     </View>
   );
 }
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+// Full-screen filters: facets on the left, options on the right, live count
+// on Apply. Choices are a draft until Apply (Close throws them away).
+function FilterScreen({
+  open,
+  applied,
+  products,
+  scopeCategoryId,
+  categories,
+  boutiques,
+  onClose,
+  onApply,
+}: {
+  open: Facet | null;
+  applied: ListingFilters;
+  products: Product[];
+  scopeCategoryId: string | null;
+  categories?: Category[];
+  boutiques?: Boutique[];
+  onClose: () => void;
+  onApply: (f: ListingFilters) => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [draft, setDraft] = useState<ListingFilters>(applied);
+  const [facet, setFacet] = useState<Facet>('price');
+  const [lastOpen, setLastOpen] = useState<Facet | null>(null);
+  if (open !== lastOpen) {
+    // Each time it opens: start from what's applied, at the facet asked for.
+    setLastOpen(open);
+    if (open) {
+      setDraft(applied);
+      setFacet(open);
+    }
+  }
+
+  const { results, facets } = useMemo(
+    () => runListing(products, draft, scopeCategoryId),
+    [products, draft, scopeCategoryId],
+  );
+  const set = (next: Partial<ListingFilters>) =>
+    setDraft(cur => ({ ...cur, ...next }));
+  const toggle = (
+    key: 'categories' | 'boutiques' | 'sizes' | 'colors',
+    value: string,
+  ) =>
+    setDraft(cur => ({
+      ...cur,
+      [key]: cur[key].includes(value)
+        ? cur[key].filter(v => v !== value)
+        : [...cur[key], value],
+    }));
+
+  const sizeList = sortSizes([...facets.sizes.keys()]);
+  const colorList = [...facets.colors.keys()].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const boutiqueList = (boutiques ?? []).filter(
+    b => facets.boutiques.has(b.id) || draft.boutiques.includes(b.id),
+  );
+  const categoryList = (categories ?? []).filter(
+    c =>
+      c.id !== scopeCategoryId &&
+      (facets.categories.has(c.id) || draft.categories.includes(c.id)),
+  );
+
+  const facetList: {
+    key: Facet;
+    label: string;
+    count: number;
+    show: boolean;
+  }[] = [
+    {
+      key: 'category',
+      label: scopeCategoryId ? 'Add categories' : 'Category',
+      count: draft.categories.length,
+      show: categoryList.length > 0,
+    },
+    {
+      key: 'boutique',
+      label: 'Boutique',
+      count: draft.boutiques.length,
+      show: boutiqueList.length > 0,
+    },
+    {
+      key: 'price',
+      label: 'Price',
+      count: draft.min != null || draft.max != null ? 1 : 0,
+      show: true,
+    },
+    {
+      key: 'size',
+      label: 'Size',
+      count: draft.sizes.length,
+      show: sizeList.length > 0,
+    },
+    {
+      key: 'colour',
+      label: 'Colour',
+      count: draft.colors.length,
+      show: colorList.length > 0,
+    },
+    {
+      key: 'availability',
+      label: 'Availability',
+      count: (draft.availability !== 'all' ? 1 : 0) + (draft.inStock ? 1 : 0),
+      show: true,
+    },
+    { key: 'offers', label: 'Offers', count: draft.sale ? 1 : 0, show: true },
+  ];
+  const shown = facetList.filter(x => x.show);
+  const current = shown.some(x => x.key === facet) ? facet : 'price';
+
   return (
-    <View>
-      <Text style={styles.group}>{title}</Text>
-      {children}
-    </View>
+    <Modal
+      visible={!!open}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+      navigationBarTranslucent
+    >
+      <View style={[styles.fs, { paddingTop: insets.top }]}>
+        <View style={styles.fsHead}>
+          <Text style={styles.fsTitle}>Filters</Text>
+          <Touch
+            hitSlop={8}
+            onPress={() =>
+              setDraft(emptyFilters({ search: draft.search, sort: draft.sort }))
+            }
+          >
+            <Text style={styles.clear}>Clear all</Text>
+          </Touch>
+        </View>
+        <View style={styles.panes}>
+          <ScrollView style={styles.left}>
+            {shown.map(x => (
+              <Touch
+                key={x.key}
+                style={[styles.facet, current === x.key && styles.facetOn]}
+                onPress={() => setFacet(x.key)}
+              >
+                {current === x.key ? <View style={styles.facetBar} /> : null}
+                <Text
+                  style={[
+                    styles.facetText,
+                    current === x.key && styles.facetTextOn,
+                  ]}
+                >
+                  {x.label}
+                </Text>
+                {x.count ? (
+                  <Text style={styles.facetCount}>{x.count}</Text>
+                ) : null}
+              </Touch>
+            ))}
+          </ScrollView>
+          <ScrollView
+            style={styles.right}
+            contentContainerStyle={styles.rightBody}
+          >
+            {current === 'category'
+              ? categoryList.map(c => (
+                  <CheckRow
+                    key={c.id}
+                    label={c.name}
+                    count={facets.categories.get(c.id) ?? 0}
+                    checked={draft.categories.includes(c.id)}
+                    onPress={() => toggle('categories', c.id)}
+                  />
+                ))
+              : null}
+            {current === 'boutique'
+              ? boutiqueList.map(b => (
+                  <CheckRow
+                    key={b.id}
+                    label={b.name}
+                    count={facets.boutiques.get(b.id) ?? 0}
+                    checked={draft.boutiques.includes(b.id)}
+                    onPress={() => toggle('boutiques', b.id)}
+                  />
+                ))
+              : null}
+            {current === 'price'
+              ? BUDGETS.map(b => {
+                  const on =
+                    (draft.min ?? null) === (b.min ?? null) &&
+                    (draft.max ?? null) === (b.max ?? null);
+                  return (
+                    <CheckRow
+                      key={b.label}
+                      label={b.label}
+                      checked={on}
+                      round
+                      onPress={() =>
+                        set(
+                          on
+                            ? { min: null, max: null }
+                            : { min: b.min ?? null, max: b.max ?? null },
+                        )
+                      }
+                    />
+                  );
+                })
+              : null}
+            {current === 'size' ? (
+              <View style={styles.wrap}>
+                {sizeList.map(s => (
+                  <Chip
+                    key={s}
+                    label={s}
+                    active={draft.sizes.includes(s)}
+                    onPress={() => toggle('sizes', s)}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {current === 'colour'
+              ? colorList.map(c => (
+                  <CheckRow
+                    key={c}
+                    label={c}
+                    count={facets.colors.get(c) ?? 0}
+                    checked={draft.colors.includes(c)}
+                    onPress={() => toggle('colors', c)}
+                  />
+                ))
+              : null}
+            {current === 'availability' ? (
+              <>
+                <CheckRow
+                  label="Ready to ship"
+                  count={facets.ready}
+                  checked={draft.availability === 'ready'}
+                  onPress={() =>
+                    set({
+                      availability:
+                        draft.availability === 'ready' ? 'all' : 'ready',
+                    })
+                  }
+                />
+                <CheckRow
+                  label="Made to order"
+                  count={facets.madeToOrder}
+                  checked={draft.availability === 'made-to-order'}
+                  onPress={() =>
+                    set({
+                      availability:
+                        draft.availability === 'made-to-order'
+                          ? 'all'
+                          : 'made-to-order',
+                    })
+                  }
+                />
+                <CheckRow
+                  label="In stock only"
+                  count={facets.inStock}
+                  checked={draft.inStock}
+                  onPress={() => set({ inStock: !draft.inStock })}
+                />
+              </>
+            ) : null}
+            {current === 'offers' ? (
+              <CheckRow
+                label="On sale"
+                count={facets.sale}
+                checked={draft.sale}
+                onPress={() => set({ sale: !draft.sale })}
+              />
+            ) : null}
+          </ScrollView>
+        </View>
+        <View style={[styles.fsFoot, { paddingBottom: 10 + insets.bottom }]}>
+          <Button
+            label="Close"
+            variant="outline"
+            style={styles.flex}
+            onPress={onClose}
+          />
+          <Button
+            label={`Apply (${results.length})`}
+            style={styles.flex}
+            onPress={() => onApply(draft)}
+          />
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -324,20 +509,24 @@ function CheckRow({
   count,
   checked,
   onPress,
+  round,
 }: {
   label: string;
-  count: number;
+  count?: number;
   checked: boolean;
   onPress: () => void;
+  round?: boolean;
 }) {
   return (
     <Touch
       onPress={onPress}
       style={styles.checkRow}
-      accessibilityRole="checkbox"
+      accessibilityRole={round ? 'radio' : 'checkbox'}
       accessibilityState={{ checked }}
     >
-      <View style={[styles.box, checked && styles.boxOn]}>
+      <View
+        style={[styles.box, round && styles.boxRound, checked && styles.boxOn]}
+      >
         {checked ? (
           <Check size={13} color={colors.primaryForeground} strokeWidth={3} />
         ) : null}
@@ -345,7 +534,7 @@ function CheckRow({
       <Text style={[styles.checkLabel, checked && styles.primary]}>
         {label}
       </Text>
-      <Text style={styles.checkCount}>{count}</Text>
+      {count != null ? <Text style={styles.checkCount}>{count}</Text> : null}
     </Touch>
   );
 }
@@ -455,12 +644,30 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   chipTextOn: { color: colors.primaryForeground },
+  quick: { gap: 8, paddingHorizontal: 16, paddingTop: 12 },
+  quickChip: {
+    height: 32,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    backgroundColor: colors.ivory,
+  },
+  quickOn: { borderColor: colors.primary, backgroundColor: colors.accent },
+  quickText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    color: colors.foreground,
+  },
   count: {
     fontFamily: fonts.sans,
     fontSize: 13,
     color: colors.mutedForeground,
     paddingHorizontal: 16,
-    paddingTop: 14,
+    paddingTop: 12,
     paddingBottom: 4,
   },
   bar: {
@@ -499,6 +706,66 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: colors.primary,
   },
+  // full-screen filter
+  fs: { flex: 1, backgroundColor: colors.ivory },
+  fsHead: {
+    height: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  fsTitle: {
+    fontFamily: fonts.sansSemi,
+    fontSize: 14,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
+    color: colors.foreground,
+  },
+  clear: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.primary },
+  panes: { flex: 1, flexDirection: 'row' },
+  left: { width: '38%', flexGrow: 0, backgroundColor: colors.background },
+  facet: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 6,
+  },
+  facetOn: { backgroundColor: colors.ivory },
+  facetBar: {
+    position: 'absolute',
+    left: 0,
+    top: 10,
+    bottom: 10,
+    width: 3,
+    backgroundColor: colors.primary,
+  },
+  facetText: {
+    flex: 1,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  facetTextOn: { fontFamily: fonts.sansSemi, color: colors.primary },
+  facetCount: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    color: colors.primary,
+  },
+  right: { flex: 1 },
+  rightBody: { padding: 16 },
+  fsFoot: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  // sheets
   scrim: { flex: 1, backgroundColor: 'rgba(27,22,19,0.45)' },
   sheet: {
     backgroundColor: colors.ivory,
@@ -526,21 +793,12 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   optionOn: { color: colors.primary, fontFamily: fonts.sansMedium },
-  group: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    color: colors.gold,
-    marginTop: 18,
-    marginBottom: 8,
-  },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 9,
+    paddingVertical: 11,
   },
   box: {
     width: 18,
@@ -550,6 +808,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  boxRound: { borderRadius: 9 },
   boxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkLabel: {
     flex: 1,
@@ -562,5 +821,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.mutedForeground,
   },
-  footer: { flexDirection: 'row', gap: 10, marginTop: 16 },
 });
