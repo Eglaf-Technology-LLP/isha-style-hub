@@ -60,13 +60,14 @@ Deno.serve(async (req) => {
         if (orderItemIds.length > 0) {
           const { data: eligibleItems, error: oiErr } = await supabase
             .from("order_items")
-            .select("id, price, quantity, is_returnable")
+            .select("id, price, delivery_charge, quantity, is_returnable")
             .in("id", orderItemIds);
           if (oiErr) throw oiErr;
 
           const eligibleTotal = (eligibleItems ?? [])
             .filter((oi) => oi.is_returnable)
-            .reduce((sum, oi) => sum + Number(oi.price) * oi.quantity, 0);
+            // A return gives back the goods, not AllBoutiqs' courier.
+            .reduce((sum, oi) => sum + (Number(oi.price) - Number(oi.delivery_charge ?? 0)) * oi.quantity, 0);
           if (refundAmount > eligibleTotal) {
             return jsonResponse(
               {

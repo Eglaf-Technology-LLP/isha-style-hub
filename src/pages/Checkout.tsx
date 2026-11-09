@@ -433,8 +433,6 @@ export default function Checkout() {
   );
   const discountAmount = coupon?.total ?? 0;
   const goodsDue = Math.round((subtotal - discountAmount + shippingCost) * 100) / 100;
-  // AllBoutiqs' courier inside the item prices (shown under the subtotal).
-  const courierInPrices = items.reduce((sum, i) => sum + Math.min(courierPerPiece, parseFloat(i.price.amount)) * i.quantity, 0);
 
   // Cash on Delivery charge (Extra list M): Shiprocket's real COD charge for
   // this order's parcel to this PIN code, at this order value - paid by the
@@ -1761,11 +1759,6 @@ export default function Checkout() {
                     <dt className="text-muted-foreground">Subtotal</dt>
                     <dd>{formatINR(subtotal)}</dd>
                   </div>
-                  {courierInPrices > 0 && (
-                    <p className="-mt-1.5 text-xs text-muted-foreground">
-                      Includes AllBoutiqs courier {formatINR(courierInPrices)} ({formatINR(courierPerPiece)} per piece)
-                    </p>
-                  )}
                   {appliedDiscount && (
                     <div className="flex justify-between text-primary">
                       <dt>Discount</dt>

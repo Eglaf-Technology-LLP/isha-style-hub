@@ -907,7 +907,15 @@ Deno.serve(async (req) => {
         const reason = String(body.reason ?? "").trim() || "Could not be delivered";
         const results = [];
         for (const vo of vendorOrders ?? []) {
-          const result = await cancelOneVendorOrder(supabase, { vendorOrder: vo, order: order!, cancelledBy: userId, reason, force: true });
+          // Back undelivered: the courier inside the prices isn't refunded.
+          const result = await cancelOneVendorOrder(supabase, {
+            vendorOrder: vo,
+            order: order!,
+            cancelledBy: userId,
+            reason,
+            force: true,
+            keepCourier: true,
+          });
           await supabase.rpc("create_boutique_send_back", { _vendor_order_id: vo.id, _reason: "rto_cancelled", _notes: reason });
           results.push(result);
         }

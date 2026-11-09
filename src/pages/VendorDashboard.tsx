@@ -415,6 +415,8 @@ export default function VendorDashboard() {
           o.items = itemsByVendorOrder.get(o.id) ?? [];
           // Only the coupon share on this boutique's own items.
           o.discount_amount = boutiqueDiscountShare(o.items, o.discount_amount, map.get(o.order_id)?.subtotal);
+          // Its own goods, without AllBoutiqs' courier (items are already).
+          if (o.items.length) o.subtotal = Math.round(o.items.reduce((s, i) => s + Number(i.price) * i.quantity, 0) * 100) / 100;
         });
       }
       setOrders(vOrders);

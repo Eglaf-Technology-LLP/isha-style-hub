@@ -11,8 +11,14 @@
 --   * a coupon takes money off the goods only, never off the courier.
 -- Each order line keeps the courier per piece it was sold with
 -- (order_items.delivery_charge); orders placed before this have 0, so their
--- figures don't change. Refunds are untouched: a refund still gives back
--- what the customer paid for the piece, courier included.
+-- figures don't change.
+--
+-- Refunds (client, same day): the courier is not given back on a return,
+-- nor when a parcel the courier took out comes back undelivered (RTO). It is
+-- given back only when the piece never went out to the customer (their own
+-- cancellation before shipping, an item that failed the warehouse check).
+-- A return's item price is the piece's goods price (less coupon share);
+-- cancellations: supabase/functions/_shared/cancellation.ts.
 
 -- ---------------------------------------------------------------------------
 -- 1. The setting
@@ -238,14 +244,16 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 4. The order's amounts: coupon on the goods only; a boutique's part is its
---    goods without the courier
+-- 4. The order's amounts: coupon on the goods only
 -- ---------------------------------------------------------------------------
 
--- As 20261103150000_server_side_order_prices, except: the coupon covers each
--- line's goods (price less courier) - src/lib/coupons.ts does the same - and
--- vendor_orders.subtotal is the boutique's goods without the courier. The
--- order's subtotal and total still include the courier the customer pays.
+-- As 20261103150000_server_side_order_prices, except that the coupon covers
+-- each line's goods (price less courier) - src/lib/coupons.ts does the same.
+-- The order's subtotal and total, and each part's vendor_orders.subtotal,
+-- stay what the customer pays (courier included): Cash on Delivery
+-- collection, cancellation refunds and courier bookings all read them. The
+-- boutique's own goods are vendor_orders.goods_value (after coupon, no
+-- courier).
 CREATE OR REPLACE FUNCTION public.price_order(_order_id uuid)
 RETURNS void
 LANGUAGE plpgsql
@@ -339,10 +347,9 @@ BEGIN
   FROM public.platform_settings ps WHERE ps.id;
   PERFORM set_config('app.vendor_order_fee_calc', 'on', true);
   FOR g IN
-    -- gross: what checkout shows (courier included) - the free-shipping
-    -- threshold is on that, as in Checkout.tsx; goods: the boutique's part.
+    -- What checkout shows (courier included): the free-shipping threshold is
+    -- on that, as in Checkout.tsx, and it is the part's subtotal.
     SELECT oi.vendor_id, round(sum(oi.price * oi.quantity), 2) AS gross,
-           round(sum((oi.price - oi.delivery_charge) * oi.quantity), 2) AS goods,
            v.id AS vendor_found, v.shipping_flat_rate, v.free_shipping_threshold
     FROM public.order_items oi
     LEFT JOIN public.vendors v ON v.id = oi.vendor_id
@@ -357,7 +364,7 @@ BEGIN
     END;
     v_shipping := v_shipping + v_group_shipping;
     IF g.vendor_id IS NOT NULL THEN
-      UPDATE public.vendor_orders SET subtotal = g.goods, shipping_cost = v_group_shipping
+      UPDATE public.vendor_orders SET subtotal = g.gross, shipping_cost = v_group_shipping
       WHERE order_id = o.id AND vendor_id = g.vendor_id;
     END IF;
   END LOOP;
@@ -580,9 +587,10 @@ $function$;
 --    courier; the courier on each part shown (for AllBoutiqs' side)
 -- ---------------------------------------------------------------------------
 -- As 20261025180000_cod_charge_to_customer, except: "refunded" and the TCS
--- base use only the goods part of a refund (a refund gives back the courier
--- too), and two columns are added at the end - delivery_charge (AllBoutiqs'
--- courier the customer paid on this part) and delivery_refunded.
+-- base use only the goods part of a refund, and two columns are added at the
+-- end - delivery_charge (AllBoutiqs' courier the customer paid on this part)
+-- and delivery_refunded. A return never gives the courier back (section 7);
+-- a cancellation refund is the goods first, any rest is courier.
 DROP FUNCTION IF EXISTS public.statement_lines(uuid, date, date);
 
 CREATE OR REPLACE FUNCTION public.statement_lines(_vendor_id uuid, _from date, _to date)
@@ -611,12 +619,9 @@ BEGIN
               FROM order_items oi WHERE oi.vendor_order_id = vo.id),
              CASE WHEN coalesce(o.subtotal, 0) > 0 THEN round(coalesce(o.discount_amount, 0) * vo.subtotal / o.subtotal, 2) ELSE 0 END
            ) AS disc_share,
-           -- AllBoutiqs' courier on this part, and the part's lines in full
-           -- (goods after coupon + courier) - to split a refund.
+           -- AllBoutiqs' courier on this part.
            (SELECT coalesce(round(sum(oi.delivery_charge * oi.quantity), 2), 0)
-              FROM order_items oi WHERE oi.vendor_order_id = vo.id) AS delivery_total,
-           (SELECT coalesce(round(sum(oi.price * oi.quantity - coalesce(oi.discount_amount, 0)), 2), 0)
-              FROM order_items oi WHERE oi.vendor_order_id = vo.id) AS lines_total
+              FROM order_items oi WHERE oi.vendor_order_id = vo.id) AS delivery_total
     FROM vendor_orders vo
     JOIN orders o ON o.id = vo.order_id
     JOIN vendors v ON v.id = vo.vendor_id
@@ -628,7 +633,6 @@ BEGIN
   ),
   -- Refunds that reached the customer, per boutique order: cancellations
   -- directly; returns shared across their items' boutique orders by value.
-  -- Each is split into goods and courier by the lines' own amounts.
   cancel_refunds AS (
     SELECT oc.vendor_order_id AS vo_id, sum(r.amount) AS amt
     FROM order_cancellations oc JOIN refunds r ON r.id = oc.refund_id
@@ -636,12 +640,11 @@ BEGIN
     GROUP BY oc.vendor_order_id
   ),
   return_items AS (
-    -- What the customer paid for the returned pieces (after their coupon
-    -- share), and the courier inside it.
+    -- The returned pieces' goods (after their coupon share) - a return
+    -- never gives the courier back.
     SELECT r.id AS refund_id, r.amount, oi.vendor_order_id AS vo_id,
-           (oi.price - coalesce(oi.discount_amount, 0) / greatest(oi.quantity, 1))
-             * coalesce((elem->>'quantity')::int, oi.quantity) AS item_value,
-           oi.delivery_charge * coalesce((elem->>'quantity')::int, oi.quantity) AS item_delivery
+           (oi.price - oi.delivery_charge - coalesce(oi.discount_amount, 0) / greatest(oi.quantity, 1))
+             * coalesce((elem->>'quantity')::int, oi.quantity) AS item_value
     FROM refunds r
     JOIN return_requests rr ON rr.id = r.return_request_id
     CROSS JOIN LATERAL jsonb_array_elements(coalesce(rr.items, '[]'::jsonb)) AS elem
@@ -649,26 +652,22 @@ BEGIN
     WHERE r.status = 'processed' AND oi.vendor_order_id IN (SELECT id FROM base)
   ),
   return_refunds AS (
-    SELECT ri.vo_id,
-           sum(ri.amount * ri.item_value / nullif(t.total_value, 0)) AS amt,
-           sum(ri.amount * ri.item_delivery / nullif(t.total_value, 0)) AS delivery_amt
+    SELECT ri.vo_id, sum(ri.amount * ri.item_value / nullif(t.total_value, 0)) AS amt
     FROM return_items ri
     JOIN (SELECT refund_id, sum(item_value) AS total_value FROM return_items GROUP BY refund_id) t ON t.refund_id = ri.refund_id
     GROUP BY ri.vo_id
   ),
+  -- A cancellation refund is the goods first (the whole sale is undone);
+  -- anything above them is the courier, given back when the piece never
+  -- went out to the customer.
   calc AS (
     SELECT b.*,
-           round(coalesce(cr.amt, 0) * CASE WHEN b.lines_total > 0 THEN least(b.delivery_total / b.lines_total, 1) ELSE 0 END
-                 + coalesce(rf.delivery_amt, 0), 2) AS delivery_refund_amt,
-           round(coalesce(cr.amt, 0) + coalesce(rf.amt, 0), 2) AS all_refunded,
+           round(least(coalesce(cr.amt, 0), b.goods_value) + coalesce(rf.amt, 0), 2) AS refunded_amt,
+           round(least(greatest(coalesce(cr.amt, 0) - b.goods_value, 0), b.delivery_total), 2) AS delivery_refund_amt,
            (b.status = 'cancelled') AS is_cancelled
     FROM base b
     LEFT JOIN cancel_refunds cr ON cr.vo_id = b.id
     LEFT JOIN return_refunds rf ON rf.vo_id = b.id
-  ),
-  split AS (
-    SELECT c.*, greatest(c.all_refunded - c.delivery_refund_amt, 0) AS refunded_amt
-    FROM calc c
   ),
   taxed AS (
     SELECT c.*,
@@ -676,7 +675,7 @@ BEGIN
                 ELSE greatest(0, c.product_value - CASE WHEN c.goods_value > 0
                      THEN round(least(c.refunded_amt, c.goods_value) * c.product_value / c.goods_value, 2) ELSE 0 END)
            END AS net_tax
-    FROM split c
+    FROM calc c
   )
   SELECT t.vendor_id, t.bcode, t.bname, t.id,
          '#' || upper(left(t.order_id::text, 8)),
@@ -717,3 +716,63 @@ $function$;
 
 REVOKE ALL ON FUNCTION public.statement_lines(uuid, date, date) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.statement_lines(uuid, date, date) TO authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. A return gives back the goods, never the courier
+-- ---------------------------------------------------------------------------
+-- As 20261102100000_customer_wallet, except each returned item's price is
+-- its goods price (the courier inside it taken off), less its coupon share.
+CREATE OR REPLACE FUNCTION public.prepare_return_request()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_customer boolean := coalesce(auth.role(), '') IN ('anon', 'authenticated') AND NOT public.has_role(auth.uid(), 'admin');
+  v_method text;
+BEGIN
+  SELECT payment_method INTO v_method FROM public.orders
+  WHERE id = NEW.order_id AND (NOT v_customer OR user_id = auth.uid());
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Order not found';
+  END IF;
+
+  IF v_customer THEN
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements(coalesce(NEW.items, '[]'::jsonb)) e
+      WHERE NOT EXISTS (SELECT 1 FROM public.order_items oi
+                        WHERE oi.id::text = e->>'order_item_id' AND oi.order_id = NEW.order_id)) THEN
+      RAISE EXCEPTION 'An item in this request isn''t on the order';
+    END IF;
+    NEW.refund_amount := 0;
+    NEW.refund_fee := 0;
+    NEW.refund_fee_gst := 0;
+    NEW.items := (
+      SELECT coalesce(jsonb_agg(
+        e || jsonb_build_object(
+          'price', round(oi.price - oi.delivery_charge - coalesce(oi.discount_amount, 0) / greatest(oi.quantity, 1), 2),
+          'quantity', least(greatest(coalesce((e->>'quantity')::integer, oi.quantity), 1), oi.quantity))
+        ORDER BY t.ord), '[]'::jsonb)
+      FROM jsonb_array_elements(coalesce(NEW.items, '[]'::jsonb)) WITH ORDINALITY AS t(e, ord)
+      JOIN public.order_items oi ON oi.id::text = t.e->>'order_item_id'
+    );
+  END IF;
+
+  IF NEW.request_type IS DISTINCT FROM 'return' THEN
+    NEW.refund_method := NULL;
+  ELSIF v_method = 'wallet' THEN
+    -- Paid from the wallet: it goes back to the wallet.
+    NEW.refund_method := 'wallet';
+  ELSIF NEW.refund_method IS NULL THEN
+    IF v_customer THEN
+      RAISE EXCEPTION 'Choose how you''d like your refund' USING ERRCODE = 'check_violation';
+    END IF;
+    NEW.refund_method := CASE WHEN v_method = 'cod' THEN 'bank' ELSE 'original' END;
+  ELSIF (v_method = 'cod' AND NEW.refund_method = 'original')
+     OR (v_method <> 'cod' AND NEW.refund_method = 'bank') THEN
+    RAISE EXCEPTION 'That refund option isn''t available for this order' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
