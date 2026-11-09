@@ -402,12 +402,13 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, delivery_charge, discount_amount, customisation")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
           const list = itemsByVendorOrder.get(item.vendor_order_id) ?? [];
-          list.push(item);
+          // The boutique sees its own price: AllBoutiqs' courier taken out.
+          list.push({ ...item, price: Number(item.price) - Number(item.delivery_charge ?? 0) });
           itemsByVendorOrder.set(item.vendor_order_id, list);
         });
         vOrders.forEach((o) => {

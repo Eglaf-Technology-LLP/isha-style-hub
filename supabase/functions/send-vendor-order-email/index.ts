@@ -61,14 +61,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("vendor_id, product_title, quantity, price, customisation")
+      .select("vendor_id, product_title, quantity, price, delivery_charge, customisation")
       .eq("order_id", orderId);
 
     const byVendor = new Map<string, { product_title: string; quantity: number; price: number; customisation?: unknown }[]>();
     (items ?? []).forEach((item) => {
       if (!item.vendor_id) return;
       const list = byVendor.get(item.vendor_id) ?? [];
-      list.push(item);
+      // The boutique's own price: without AllBoutiqs' courier inside it.
+      list.push({ ...item, price: Number(item.price) - Number(item.delivery_charge ?? 0) });
       byVendor.set(item.vendor_id, list);
     });
 

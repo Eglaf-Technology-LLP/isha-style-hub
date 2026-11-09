@@ -1484,6 +1484,7 @@ export type Database = {
           created_at: string
           customisation: Json | null
           customisation_price: number
+          delivery_charge: number
           discount_amount: number | null
           id: string
           is_returnable: boolean
@@ -1505,6 +1506,7 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
+          delivery_charge?: number
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
@@ -1526,6 +1528,7 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
+          delivery_charge?: number
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
@@ -1852,6 +1855,9 @@ export type Database = {
       platform_settings: {
         Row: {
           customer_shipping_enabled: boolean
+          delivery_charge_gst_pct: number
+          delivery_charge_per_piece: number
+          delivery_charge_sac: string
           default_prep_days: number
           eway_bill_email: string
           eway_bill_portal_user_id: string | null
@@ -1880,6 +1886,9 @@ export type Database = {
         }
         Insert: {
           customer_shipping_enabled?: boolean
+          delivery_charge_gst_pct?: number
+          delivery_charge_per_piece?: number
+          delivery_charge_sac?: string
           default_prep_days?: number
           eway_bill_email?: string
           eway_bill_portal_user_id?: string | null
@@ -1908,6 +1917,9 @@ export type Database = {
         }
         Update: {
           customer_shipping_enabled?: boolean
+          delivery_charge_gst_pct?: number
+          delivery_charge_per_piece?: number
+          delivery_charge_sac?: string
           default_prep_days?: number
           eway_bill_email?: string
           eway_bill_portal_user_id?: string | null
@@ -4332,6 +4344,11 @@ export type Database = {
           vendor_name: string
         }[]
       }
+      customer_price_for: {
+        Args: { _category_id: string; _value: number }
+        Returns: number
+      }
+      delivery_charge_per_piece: { Args: never; Returns: number }
       price_with_gst: {
         Args: { _category_id: string; _value: number }
         Returns: number
@@ -4428,6 +4445,8 @@ export type Database = {
           product_value: number
           refunded: number
           shipping_credit: number
+          delivery_charge: number
+          delivery_refunded: number
           status: string
           supply_type: string
           tcs_cgst: number

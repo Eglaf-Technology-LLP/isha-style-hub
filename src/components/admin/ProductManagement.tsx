@@ -71,6 +71,7 @@ import {
 import { CUSTOMISATION_ENABLED, readSetup } from "@/lib/customisation";
 import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
+import { useDeliveryCharge } from "@/hooks/useDeliveryCharge";
 import { titleCase } from "@/lib/text";
 import { parseNetQuantity } from "@/lib/productRules";
 import { formatINR } from "@/lib/format";
@@ -99,6 +100,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const gstRules = useCategoryGstRules();
+  const courier = useDeliveryCharge();
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productForm, setProductForm] = useState<ProductFormData>({
     vendor_id: null,
@@ -399,7 +401,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
               }))
             }
           />
-          <CustomerPriceHint value={productForm.compare_at_value ?? 0} categoryId={productForm.category_id} label="Crossed-out MRP" />
+          <CustomerPriceHint value={productForm.compare_at_value ?? 0} categoryId={productForm.category_id} label="Crossed-out MRP" showCourierNote={false} />
         </div>
       </div>
 
@@ -632,7 +634,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         onChange={setProductVariants}
         basePrice={productForm.product_value}
         mrpFor={(v) =>
-          productForm.category_id ? gstBreakdown(gstRules.ruleFor(productForm.category_id), v)?.price ?? null : null
+          productForm.category_id ? gstBreakdown(gstRules.ruleFor(productForm.category_id), v, courier)?.price ?? null : null
         }
       />
 
