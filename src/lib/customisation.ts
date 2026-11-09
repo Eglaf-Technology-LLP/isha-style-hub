@@ -5,10 +5,9 @@ import { formatINR } from "@/lib/format";
 // the server (enforce_order_item_customisation) - see migration
 // 20261015110000_product_customisation.sql.
 
-// Hidden for now (2026-10-15) - the whole feature is built and kept, just
-// switched off in the storefront and the product forms. Set to true to bring
-// it back.
-export const CUSTOMISATION_ENABLED = false;
+// Hidden 2026-10-15, switched back on 2026-11-09. False hides it in the
+// storefront and the product forms (the feature itself stays built).
+export const CUSTOMISATION_ENABLED = true;
 
 export interface CustomisationOption {
   id: string;
