@@ -54,7 +54,7 @@ export interface RefundCharge {
   gstPct: number;
 }
 
-export const DEFAULT_REFUND_CHARGE: RefundCharge = { pct: 3, gstPct: 18 };
+export const DEFAULT_REFUND_CHARGE: RefundCharge = { pct: 5, gstPct: 18 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 

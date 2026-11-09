@@ -218,7 +218,7 @@ export async function loadRefundCharge(supabase: SupabaseClient): Promise<Refund
     .from("platform_settings")
     .select("refund_charge_pct, refund_charge_gst_pct")
     .maybeSingle();
-  return { pct: Number(data?.refund_charge_pct ?? 3), gstPct: Number(data?.refund_charge_gst_pct ?? 18) };
+  return { pct: Number(data?.refund_charge_pct ?? 5), gstPct: Number(data?.refund_charge_gst_pct ?? 18) };
 }
 
 // What's left of the order's Razorpay payment itself - what executeRefund
