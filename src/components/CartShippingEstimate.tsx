@@ -59,8 +59,8 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
   const [pincode, setPincode] = useState("");
   const [groups, setGroups] = useState<VendorShippingGroup[]>([]);
   const [checking, setChecking] = useState(false);
-  // One date for the whole cart: everything arrives together in one parcel
-  // from the AllBoutiqs warehouse.
+  // One date for the whole cart - when its last part should arrive (parts
+  // leave the AllBoutiqs warehouse as soon as each one is in).
   const [cartEta, setCartEta] = useState<string | null | undefined>(undefined);
   const autoChecked = useRef(false);
 

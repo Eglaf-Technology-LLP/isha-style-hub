@@ -276,7 +276,8 @@ function PackedParcel({
   );
 }
 
-// Orders being put together: every part in and passed -> pack one parcel.
+// Orders with parts at the warehouse: whatever is in and passed is packed
+// and sent at once - no waiting for the other boutiques' parts.
 export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps) {
   const today = istToday();
   const productIds = useMemo(() => data.vendorOrders.flatMap((vo) => vo.items.map((i) => i.product_id)), [data.vendorOrders]);
@@ -421,62 +422,39 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                 />
               ))}
 
+              {/* No waiting for the other boutiques' parts: whatever is in and
+                  passed goes out now; a later part follows in its own parcel. */}
               {ready.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {missing.length === 0 ? (
-                    <PackParcelDialog
-                      triggerLabel="Pack parcel"
-                      title={`Pack order ${orderRef(o.id)}`}
-                      description="Every part is in and passed. Pack everything in one AllBoutiqs parcel, then weigh and measure it."
-                      initial={suggestParcel(ready, productParcelData)}
-                      note={SUGGESTED_NOTE}
-                      onSubmit={async (s) => {
-                        const ok = await runRpc(
-                          "warehouse_create_dispatch",
-                          {
-                            _order_id: o.id,
-                            _vendor_order_ids: ready.map((p) => p.id),
-                            _weight_kg: s.weightKg,
-                            _length_cm: s.lengthCm,
-                            _breadth_cm: s.breadthCm,
-                            _height_cm: s.heightCm,
-                          },
-                          "Packed - print the slip and book the courier",
-                        );
-                        if (ok) data.refetch();
-                        return ok;
-                      }}
-                    />
-                  ) : isAdmin ? (
-                    <PackParcelDialog
-                      triggerLabel="Send what has arrived"
-                      variant="outline"
-                      title={`Send part of order ${orderRef(o.id)}`}
-                      description={`Packs only the ${ready.length} part(s) that are ready. The rest follows in its own parcel when it arrives - or cancel it above.`}
-                      initial={suggestParcel(ready, productParcelData)}
-                      note={SUGGESTED_NOTE}
-                      onSubmit={async (s) => {
-                        const ok = await runRpc(
-                          "warehouse_create_dispatch",
-                          {
-                            _order_id: o.id,
-                            _vendor_order_ids: ready.map((p) => p.id),
-                            _weight_kg: s.weightKg,
-                            _length_cm: s.lengthCm,
-                            _breadth_cm: s.breadthCm,
-                            _height_cm: s.heightCm,
-                            _allow_partial: true,
-                          },
-                          "Packed the parts that arrived",
-                        );
-                        if (ok) data.refetch();
-                        return ok;
-                      }}
-                    />
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Waiting for {missing.length} more part(s). Only an admin can send part of an order.
-                    </p>
+                  <PackParcelDialog
+                    triggerLabel="Pack parcel"
+                    title={`Pack order ${orderRef(o.id)}`}
+                    description={
+                      missing.length === 0
+                        ? "Every part is in and passed. Pack it in one AllBoutiqs parcel, then weigh and measure it."
+                        : `Packs the ${ready.length} part(s) that are ready, in one AllBoutiqs parcel. The other ${missing.length} part(s) follow in their own parcel when they arrive.`
+                    }
+                    initial={suggestParcel(ready, productParcelData)}
+                    note={SUGGESTED_NOTE}
+                    onSubmit={async (s) => {
+                      const ok = await runRpc(
+                        "warehouse_create_dispatch",
+                        {
+                          _order_id: o.id,
+                          _vendor_order_ids: ready.map((p) => p.id),
+                          _weight_kg: s.weightKg,
+                          _length_cm: s.lengthCm,
+                          _breadth_cm: s.breadthCm,
+                          _height_cm: s.heightCm,
+                        },
+                        "Packed - print the slip and book the courier",
+                      );
+                      if (ok) data.refetch();
+                      return ok;
+                    }}
+                  />
+                  {missing.length > 0 && (
+                    <p className="text-xs text-muted-foreground">{missing.length} more part(s) still to come - they go in their own parcel.</p>
                   )}
                 </div>
               )}

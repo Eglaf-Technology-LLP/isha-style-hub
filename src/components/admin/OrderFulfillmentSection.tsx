@@ -158,8 +158,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     <div className="space-y-3">
       {viaWarehouse && (
         <div className="text-xs rounded-md bg-primary/5 border border-primary/20 p-2">
-          Ships through the AllBoutiqs warehouse: each boutique sends its part there, and the warehouse packs one parcel
-          for the customer.{" "}
+          Ships through the AllBoutiqs warehouse: each boutique sends its part there, and the warehouse sends each part
+          on to the customer as soon as it arrives and passes inspection.{" "}
           <Link to={`/warehouse?tab=pack&focus=${order.id}`} className="text-primary hover:underline">
             Open in Warehouse
           </Link>

@@ -36,8 +36,8 @@ import { WarehouseInfo } from "@/components/warehouse/shared";
 import { WarehouseTiming } from "@/lib/warehouse";
 import logo from "@/assets/logo.png";
 
-// The AllBoutiqs warehouse: receive boutique parcels, inspect, pack each
-// order into one parcel and book it to the customer; receive and inspect
+// The AllBoutiqs warehouse: receive boutique parcels, inspect, pack what
+// has arrived (no waiting for the rest) and book it to the customer; receive and inspect
 // returns; send items back to boutiques. For warehouse staff and admins.
 export default function Warehouse() {
   const navigate = useNavigate();
