@@ -1,7 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { errorMessage } from "./auth.ts";
 import { cancelShiprocketShipment } from "./shiprocket.ts";
-import { loadRefundCharge, refundCustomer, RefundValidationError } from "./refunds.ts";
+import { refundCustomer, RefundValidationError } from "./refunds.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 
 // A vendor_order past this point already finished its own lifecycle -
@@ -21,18 +21,10 @@ export interface CancelOneVendorOrderParams {
   // The customer's choice for a paid order: their wallet (instant) or the
   // original payment. An order paid from the wallet always goes back there.
   refundMethod?: "wallet" | "original";
-  // The customer cancelling their own order and taking the money back to
-  // the original payment pays the refund charge. Not when the boutique or
-  // AllBoutiqs cancels.
-  chargeRefundFee?: boolean;
   // Warehouse decisions (an item failing inspection, an undelivered parcel
   // the admin cancels) cancel boutique orders past the normal cut-off and
   // record their own send-back to the boutique.
   force?: boolean;
-  // The parcel went out to the customer and came back undelivered (RTO):
-  // AllBoutiqs' courier inside the prices is not given back (client, 10 Nov
-  // 2026). Otherwise the piece never went out and the courier is refunded.
-  keepCourier?: boolean;
 }
 
 export interface CancelOneVendorOrderResult {
@@ -60,7 +52,7 @@ export async function cancelOneVendorOrder(
   supabase: SupabaseClient,
   params: CancelOneVendorOrderParams,
 ): Promise<CancelOneVendorOrderResult> {
-  const { vendorOrder, order, cancelledBy, reason, refundMethod, chargeRefundFee = false, force = false, keepCourier = false } = params;
+  const { vendorOrder, order, cancelledBy, reason, refundMethod, force = false } = params;
   const skip = (skippedReason: string): CancelOneVendorOrderResult => ({
     vendorOrderId: vendorOrder.id,
     cancelled: false,
@@ -165,8 +157,7 @@ export async function cancelOneVendorOrder(
   // subtotal + shipping_cost, less its items' share of any coupon, is what
   // the customer actually paid for this shipment - net_payable is the
   // vendor's post-commission payout figure and would under-refund them.
-  // subtotal includes AllBoutiqs' courier per piece, taken off again when the
-  // parcel already went out (keepCourier).
+  // subtotal includes AllBoutiqs' courier per piece: it is refunded too.
   let refundId: string | null = null;
   let refundError: string | null = null;
   let walletRefund = 0;
@@ -174,14 +165,11 @@ export async function cancelOneVendorOrder(
   let feeGst = 0;
   const { data: discountRows } = await supabase
     .from("order_items")
-    .select("discount_amount, delivery_charge, quantity")
+    .select("discount_amount")
     .eq("vendor_order_id", vendorOrder.id);
   const couponShare = (discountRows ?? []).reduce((sum, r) => sum + Number(r.discount_amount ?? 0), 0);
-  const courierKept = keepCourier
-    ? (discountRows ?? []).reduce((sum, r) => sum + Number(r.delivery_charge ?? 0) * Number(r.quantity ?? 0), 0)
-    : 0;
   const refundAmount =
-    Math.round((Number(vendorOrder.subtotal) + Number(vendorOrder.shipping_cost) - couponShare - courierKept) * 100) / 100;
+    Math.round((Number(vendorOrder.subtotal) + Number(vendorOrder.shipping_cost) - couponShare) * 100) / 100;
   const method = order.payment_method === "wallet" || refundMethod === "wallet" ? "wallet" : "original";
   if (
     (order.payment_method === "razorpay" || order.payment_method === "wallet") &&
@@ -198,7 +186,10 @@ export async function cancelOneVendorOrder(
         reason: `Order cancelled by customer: ${reason}`,
         initiatedBy: cancelledBy,
         vendorOrderId: vendorOrder.id,
-        charge: chargeRefundFee && method === "original" ? await loadRefundCharge(supabase) : null,
+        // Back to the wallet or the online payment: in full. The refund
+        // charge is only on a Cash on Delivery order's bank transfer (client,
+        // 10 Nov 2026) - a cancellation never is one.
+        charge: null,
       });
       refundId = result.refundId;
       walletRefund = result.walletAmount;

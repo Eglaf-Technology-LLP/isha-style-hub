@@ -24,7 +24,6 @@ import { formatMoney } from "@/lib/format";
 import { RefundMethodPicker } from "@/components/RefundMethodPicker";
 import { BANK_REFUND_DAYS, CHARGE_FREE_RETURN_REASONS, RefundMethod, refundOptions } from "@/lib/wallet";
 import { useRefundCharge } from "@/hooks/useWallet";
-import { useDeliveryCharge } from "@/hooks/useDeliveryCharge";
 import { COMPANY } from "@/lib/company";
 
 // Front, back and a close-up of the tag (the database checks the same:
@@ -104,8 +103,6 @@ export function ReturnRequestForm({
   const [submitting, setSubmitting] = useState(false);
   const refundChoices = refundOptions(paymentMethod);
   const refundCharge = useRefundCharge();
-  // The courier inside each piece's price - kept on a return (client, 10 Nov 2026).
-  const courierPerPiece = useDeliveryCharge();
   const [refundMethod, setRefundMethod] = useState<RefundMethod | null>(
     refundChoices.length === 1 ? refundChoices[0] : null,
   );
@@ -516,12 +513,6 @@ export function ReturnRequestForm({
             </RadioGroup>
           </div>
 
-          {requestType === "return" && (
-            <p className="text-xs text-muted-foreground">
-              The refund is each item's price less {formatMoney(courierPerPiece)} per piece for delivery, which isn't
-              refunded on returns.
-            </p>
-          )}
           {requestType === "return" && (
             <RefundMethodPicker
               options={refundChoices}

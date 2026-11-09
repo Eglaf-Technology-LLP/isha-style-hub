@@ -776,11 +776,12 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                           placeholder="0"
                         />
                         {(() => {
-                          // What the customer actually receives: the wallet is free; the bank /
-                          // original payment loses the refund charge unless the fault was the
+                          // What the customer actually receives: only a Cash on Delivery
+                          // order's bank transfer loses the refund charge (the wallet and the
+                          // online payment are in full), and not when the fault was the
                           // boutique's. Once charged, the recorded charge.
                           const method = selectedRequest.refund_method;
-                          if (!method || method === "wallet") return null;
+                          if (method !== "bank") return null;
                           const recorded = Number(selectedRequest.refund_fee) + Number(selectedRequest.refund_fee_gst);
                           const waived = CHARGE_FREE_RETURN_REASONS.includes(selectedRequest.reason);
                           const gross = parseFloat(refundAmount) || 0;

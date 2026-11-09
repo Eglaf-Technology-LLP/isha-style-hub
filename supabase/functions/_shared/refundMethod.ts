@@ -26,8 +26,9 @@ export const CHARGE_FREE_RETURN_REASONS = [
   "Colour is different from what was shown",
 ];
 
-// The refund charge on money sent back to the bank / original payment
-// (platform_settings.refund_charge_pct, plus GST on it). The wallet is free.
+// The refund charge (platform_settings.refund_charge_pct, plus GST on it):
+// only on a Cash on Delivery order's refund by bank transfer (client, 10 Nov
+// 2026). The wallet and the original online payment get the full amount.
 export interface RefundCharge {
   pct: number;
   gstPct: number;

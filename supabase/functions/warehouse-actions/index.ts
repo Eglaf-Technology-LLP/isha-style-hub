@@ -736,10 +736,11 @@ Deno.serve(async (req) => {
         // is done by hand once they email their bank details.
         const method = returnRefundMethod(ctx.rr, ctx.order);
         const automatic = method === "wallet" || (method === "original" && ctx.order.payment_method === "razorpay");
-        // Refund charge on money back to the bank / original payment, unless
-        // the fault was the boutique's.
+        // Refund charge only on a Cash on Delivery order's bank transfer
+        // (client, 10 Nov 2026) - the wallet and the online payment get the
+        // full amount - and not when the fault was the boutique's.
         const charge =
-          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(ctx.rr.reason) ? await loadRefundCharge(supabase) : null;
+          method === "bank" && !CHARGE_FREE_RETURN_REASONS.includes(ctx.rr.reason) ? await loadRefundCharge(supabase) : null;
         let refundError: string | null = null;
         let charged = { fee: 0, feeGst: 0 };
         if (automatic && amount > 0) {
@@ -907,15 +908,7 @@ Deno.serve(async (req) => {
         const reason = String(body.reason ?? "").trim() || "Could not be delivered";
         const results = [];
         for (const vo of vendorOrders ?? []) {
-          // Back undelivered: the courier inside the prices isn't refunded.
-          const result = await cancelOneVendorOrder(supabase, {
-            vendorOrder: vo,
-            order: order!,
-            cancelledBy: userId,
-            reason,
-            force: true,
-            keepCourier: true,
-          });
+          const result = await cancelOneVendorOrder(supabase, { vendorOrder: vo, order: order!, cancelledBy: userId, reason, force: true });
           await supabase.rpc("create_boutique_send_back", { _vendor_order_id: vo.id, _reason: "rto_cancelled", _notes: reason });
           results.push(result);
         }

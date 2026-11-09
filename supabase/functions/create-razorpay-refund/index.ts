@@ -60,14 +60,13 @@ Deno.serve(async (req) => {
         if (orderItemIds.length > 0) {
           const { data: eligibleItems, error: oiErr } = await supabase
             .from("order_items")
-            .select("id, price, delivery_charge, quantity, is_returnable")
+            .select("id, price, quantity, is_returnable")
             .in("id", orderItemIds);
           if (oiErr) throw oiErr;
 
           const eligibleTotal = (eligibleItems ?? [])
             .filter((oi) => oi.is_returnable)
-            // A return gives back the goods, not AllBoutiqs' courier.
-            .reduce((sum, oi) => sum + (Number(oi.price) - Number(oi.delivery_charge ?? 0)) * oi.quantity, 0);
+            .reduce((sum, oi) => sum + Number(oi.price) * oi.quantity, 0);
           if (refundAmount > eligibleTotal) {
             return jsonResponse(
               {
@@ -101,7 +100,8 @@ Deno.serve(async (req) => {
         if (orderErr) throw orderErr;
         const method = returnRefundMethod(rr ?? {}, order);
         const charge =
-          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(rr?.reason ?? "") ? await loadRefundCharge(supabase) : null;
+          // Only a Cash on Delivery order's bank transfer (client, 10 Nov 2026).
+          method === "bank" && !CHARGE_FREE_RETURN_REASONS.includes(rr?.reason ?? "") ? await loadRefundCharge(supabase) : null;
         // Cash on Delivery by bank transfer: done by hand. Record the charge
         // and say how much to transfer.
         if (method === "bank") {

@@ -51,10 +51,10 @@ export function WalletSection() {
           </li>
           <li>At checkout, your balance can pay for part of an order or the whole of it.</li>
           <li>
-            Wallet balance can't be topped up, withdrawn to a bank account or transferred to someone else. If you'd rather
-            have a refund back in your bank, choose that option when you return or cancel - a refund charge of{" "}
-            {refundChargeLabel(refundCharge)} is deducted (not when the item arrived damaged, was the wrong item or wasn't
-            as described).
+            Wallet balance can't be topped up, withdrawn to a bank account or transferred to someone else. You can also
+            take a refund back to the card, UPI or netbanking you paid with, in full. For a Cash on Delivery order
+            refunded to your bank account, a refund charge of {refundChargeLabel(refundCharge)} is deducted (not when the
+            item arrived damaged, was the wrong item or wasn't as described).
           </li>
         </ul>
       </div>

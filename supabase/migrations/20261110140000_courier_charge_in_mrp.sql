@@ -13,12 +13,10 @@
 -- (order_items.delivery_charge); orders placed before this have 0, so their
 -- figures don't change.
 --
--- Refunds (client, same day): the courier is not given back on a return,
--- nor when a parcel the courier took out comes back undelivered (RTO). It is
--- given back only when the piece never went out to the customer (their own
--- cancellation before shipping, an item that failed the warehouse check).
--- A return's item price is the piece's goods price (less coupon share);
--- cancellations: supabase/functions/_shared/cancellation.ts.
+-- Refunds (client, same day): a refund gives the customer back what they
+-- paid for the piece, the courier included; the courier is never the
+-- boutique's, whatever happens (a return, RTO, an item failing the
+-- warehouse check).
 
 -- ---------------------------------------------------------------------------
 -- 1. The setting
@@ -589,8 +587,9 @@ $function$;
 -- As 20261025180000_cod_charge_to_customer, except: "refunded" and the TCS
 -- base use only the goods part of a refund, and two columns are added at the
 -- end - delivery_charge (AllBoutiqs' courier the customer paid on this part)
--- and delivery_refunded. A return never gives the courier back (section 7);
--- a cancellation refund is the goods first, any rest is courier.
+-- and delivery_refunded. Each refund is the goods first (the sale is undone
+-- in full for GST and TCS), anything above them is the courier - so a refund
+-- charge kept on a bank refund comes off AllBoutiqs' courier part.
 DROP FUNCTION IF EXISTS public.statement_lines(uuid, date, date);
 
 CREATE OR REPLACE FUNCTION public.statement_lines(_vendor_id uuid, _from date, _to date)
@@ -640,11 +639,11 @@ BEGIN
     GROUP BY oc.vendor_order_id
   ),
   return_items AS (
-    -- The returned pieces' goods (after their coupon share) - a return
-    -- never gives the courier back.
+    -- The returned pieces' goods (after their coupon share) and courier.
     SELECT r.id AS refund_id, r.amount, oi.vendor_order_id AS vo_id,
            (oi.price - oi.delivery_charge - coalesce(oi.discount_amount, 0) / greatest(oi.quantity, 1))
-             * coalesce((elem->>'quantity')::int, oi.quantity) AS item_value
+             * coalesce((elem->>'quantity')::int, oi.quantity) AS item_goods,
+           oi.delivery_charge * coalesce((elem->>'quantity')::int, oi.quantity) AS item_delivery
     FROM refunds r
     JOIN return_requests rr ON rr.id = r.return_request_id
     CROSS JOIN LATERAL jsonb_array_elements(coalesce(rr.items, '[]'::jsonb)) AS elem
@@ -652,18 +651,20 @@ BEGIN
     WHERE r.status = 'processed' AND oi.vendor_order_id IN (SELECT id FROM base)
   ),
   return_refunds AS (
-    SELECT ri.vo_id, sum(ri.amount * ri.item_value / nullif(t.total_value, 0)) AS amt
+    SELECT ri.vo_id,
+           sum(least(ri.amount, t.total_goods) * ri.item_goods / nullif(t.total_goods, 0)) AS amt,
+           sum(least(greatest(ri.amount - t.total_goods, 0), t.total_delivery) * ri.item_delivery / nullif(t.total_delivery, 0)) AS delivery_amt
     FROM return_items ri
-    JOIN (SELECT refund_id, sum(item_value) AS total_value FROM return_items GROUP BY refund_id) t ON t.refund_id = ri.refund_id
+    JOIN (SELECT refund_id, sum(item_goods) AS total_goods, sum(item_delivery) AS total_delivery
+          FROM return_items GROUP BY refund_id) t ON t.refund_id = ri.refund_id
     GROUP BY ri.vo_id
   ),
-  -- A cancellation refund is the goods first (the whole sale is undone);
-  -- anything above them is the courier, given back when the piece never
-  -- went out to the customer.
+  -- Goods first, the rest courier (see above).
   calc AS (
     SELECT b.*,
            round(least(coalesce(cr.amt, 0), b.goods_value) + coalesce(rf.amt, 0), 2) AS refunded_amt,
-           round(least(greatest(coalesce(cr.amt, 0) - b.goods_value, 0), b.delivery_total), 2) AS delivery_refund_amt,
+           round(least(greatest(coalesce(cr.amt, 0) - b.goods_value, 0), b.delivery_total)
+                 + coalesce(rf.delivery_amt, 0), 2) AS delivery_refund_amt,
            (b.status = 'cancelled') AS is_cancelled
     FROM base b
     LEFT JOIN cancel_refunds cr ON cr.vo_id = b.id
@@ -717,62 +718,3 @@ $function$;
 REVOKE ALL ON FUNCTION public.statement_lines(uuid, date, date) FROM public, anon;
 GRANT EXECUTE ON FUNCTION public.statement_lines(uuid, date, date) TO authenticated, service_role;
 
--- ---------------------------------------------------------------------------
--- 7. A return gives back the goods, never the courier
--- ---------------------------------------------------------------------------
--- As 20261102100000_customer_wallet, except each returned item's price is
--- its goods price (the courier inside it taken off), less its coupon share.
-CREATE OR REPLACE FUNCTION public.prepare_return_request()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_customer boolean := coalesce(auth.role(), '') IN ('anon', 'authenticated') AND NOT public.has_role(auth.uid(), 'admin');
-  v_method text;
-BEGIN
-  SELECT payment_method INTO v_method FROM public.orders
-  WHERE id = NEW.order_id AND (NOT v_customer OR user_id = auth.uid());
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Order not found';
-  END IF;
-
-  IF v_customer THEN
-    IF EXISTS (
-      SELECT 1 FROM jsonb_array_elements(coalesce(NEW.items, '[]'::jsonb)) e
-      WHERE NOT EXISTS (SELECT 1 FROM public.order_items oi
-                        WHERE oi.id::text = e->>'order_item_id' AND oi.order_id = NEW.order_id)) THEN
-      RAISE EXCEPTION 'An item in this request isn''t on the order';
-    END IF;
-    NEW.refund_amount := 0;
-    NEW.refund_fee := 0;
-    NEW.refund_fee_gst := 0;
-    NEW.items := (
-      SELECT coalesce(jsonb_agg(
-        e || jsonb_build_object(
-          'price', round(oi.price - oi.delivery_charge - coalesce(oi.discount_amount, 0) / greatest(oi.quantity, 1), 2),
-          'quantity', least(greatest(coalesce((e->>'quantity')::integer, oi.quantity), 1), oi.quantity))
-        ORDER BY t.ord), '[]'::jsonb)
-      FROM jsonb_array_elements(coalesce(NEW.items, '[]'::jsonb)) WITH ORDINALITY AS t(e, ord)
-      JOIN public.order_items oi ON oi.id::text = t.e->>'order_item_id'
-    );
-  END IF;
-
-  IF NEW.request_type IS DISTINCT FROM 'return' THEN
-    NEW.refund_method := NULL;
-  ELSIF v_method = 'wallet' THEN
-    -- Paid from the wallet: it goes back to the wallet.
-    NEW.refund_method := 'wallet';
-  ELSIF NEW.refund_method IS NULL THEN
-    IF v_customer THEN
-      RAISE EXCEPTION 'Choose how you''d like your refund' USING ERRCODE = 'check_violation';
-    END IF;
-    NEW.refund_method := CASE WHEN v_method = 'cod' THEN 'bank' ELSE 'original' END;
-  ELSIF (v_method = 'cod' AND NEW.refund_method = 'original')
-     OR (v_method <> 'cod' AND NEW.refund_method = 'bank') THEN
-    RAISE EXCEPTION 'That refund option isn''t available for this order' USING ERRCODE = 'check_violation';
-  END IF;
-  RETURN NEW;
-END;
-$$;
