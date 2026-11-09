@@ -297,7 +297,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           {STORE_SHIPPING_RETURNS_ENABLED && (
             <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
               <h4 className="font-semibold">Shipping &amp; returns</h4>
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="vs-ship">Flat shipping (₹)</Label>
                   <Input
@@ -318,16 +318,8 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                     onChange={(e) => set("free_shipping_threshold", e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vs-window">Return window (days)</Label>
-                  <Input
-                    id="vs-window"
-                    type="number"
-                    min={0}
-                    value={form.return_window_days}
-                    onChange={(e) => set("return_window_days", e.target.value)}
-                  />
-                </div>
+                {/* No return window here: AllBoutiqs sets one for every boutique
+                    (Admin > Returns > Return settings, 24 hours). */}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vs-prep">Ready to ship in (days)</Label>

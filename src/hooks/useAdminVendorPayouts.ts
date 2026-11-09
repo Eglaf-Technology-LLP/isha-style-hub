@@ -15,6 +15,10 @@ export interface AdminVendorPayout {
   status: string;
   paidAt: string | null;
   paymentReference: string | null;
+  // Proof of the bank transfer (payout-proofs bucket).
+  paymentProofPath: string | null;
+  // The weekly payout day it was prepared for.
+  payoutDate: string | null;
   createdAt: string;
   orderCount: number;
   bankLast4: string | null;
@@ -52,7 +56,7 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
       const { data, error } = await supabase
         .from("vendor_payouts")
         .select("*, vendor:vendors(name)")
-        .order("period_start", { ascending: false });
+        .order("created_at", { ascending: false });
       if (error) throw error;
 
       setPayouts(
@@ -68,6 +72,8 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
           status: p.status,
           paidAt: p.paid_at,
           paymentReference: p.payment_reference,
+          paymentProofPath: p.payment_proof_path,
+          payoutDate: p.payout_date,
           createdAt: p.created_at,
           orderCount: p.order_count,
           bankLast4: p.bank_account_last4,
@@ -115,18 +121,24 @@ export function useAdminVendorPayouts(isAdmin: boolean) {
     await fetchPayouts();
   };
 
-  // The DB requires the UTR (proof of transfer) and notifies the boutique.
-  const markPaid = async (payoutId: string, paymentReference: string) => {
+  // Paid by hand: the DB requires the UTR and the uploaded proof, then
+  // emails and notifies the boutique.
+  const markPaid = async (payoutId: string, paymentReference: string, proofPath: string) => {
     const { error } = await supabase
       .from("vendor_payouts")
-      .update({ status: "paid", paid_at: new Date().toISOString(), payment_reference: paymentReference.trim() })
+      .update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_reference: paymentReference.trim(),
+        payment_proof_path: proofPath,
+      })
       .eq("id", payoutId);
 
     if (error) {
       toast.error(error.message || "Failed to mark payout as credited");
       return false;
     }
-    toast.success("Payout marked credited - the boutique has been emailed");
+    toast.success("Payout marked paid - the boutique has been emailed");
     await fetchPayouts();
     return true;
   };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
+import { returnWindowAdjective, useReturnWindowHours } from "@/hooks/useReturnWindowHours";
 import { useParams, Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -34,6 +35,8 @@ export default function StorePage() {
   const { shippingCharged } = useCustomerShipping();
   const { slug } = useParams<{ slug: string }>();
   const [vendor, setVendor] = useState<StoreVendor | null>(null);
+  // One return window for every boutique, set by AllBoutiqs.
+  const windowHours = useReturnWindowHours();
   const [loading, setLoading] = useState(true);
   const { data: allProducts = [], isLoading: productsLoading } = useStoreProducts();
   const { data: categories = [] } = useStoreCategories();
@@ -151,7 +154,10 @@ export default function StorePage() {
                 </div>
                 <div className="flex items-start gap-3">
                   <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-                  <span className="text-muted-foreground">{vendor.return_policy || `${vendor.return_window_days}-day returns & exchanges`}</span>
+                  <span className="text-muted-foreground">
+                    {returnWindowAdjective(windowHours)} returns &amp; exchanges
+                    {vendor.return_policy && <span className="mt-0.5 block text-xs">{vendor.return_policy}</span>}
+                  </span>
                 </div>
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />

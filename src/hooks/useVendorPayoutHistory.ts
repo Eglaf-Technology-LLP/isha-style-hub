@@ -11,6 +11,9 @@ export interface VendorPayout {
   status: string;
   paid_at: string | null;
   payment_reference: string | null;
+  // Proof of the bank transfer, opened through a private link.
+  payment_proof_path: string | null;
+  payout_date: string | null;
   created_at: string;
   order_count: number;
   vendor_order_ids: string[] | null;

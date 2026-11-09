@@ -1,4 +1,9 @@
-import { AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, Hourglass, Landmark, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, Banknote, CalendarClock, CheckCircle2, Clock, FileText, Hourglass, Landmark, Loader2, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { PayoutBreakdownDialog } from "@/components/PayoutBreakdownDialog";
+import { openPayoutProof } from "@/lib/payoutProof";
+import { returnWindowAdjective, useReturnWindowHours } from "@/hooks/useReturnWindowHours";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,10 +81,10 @@ function TransferStatus({ p }: { p: VendorPayout }) {
     return (
       <div>
         <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-          <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
+          <CheckCircle2 className="h-3 w-3 mr-1" /> Paid
         </Badge>
         <div className="text-xs text-muted-foreground mt-1">
-          {p.paid_at ? formatDate(new Date(p.paid_at)) : ""}
+          {p.paid_at ? `Sent ${formatDate(new Date(p.paid_at))}` : ""}
           {p.payment_reference ? ` · UTR ${p.payment_reference}` : ""}
         </div>
       </div>
@@ -99,7 +104,7 @@ function TransferStatus({ p }: { p: VendorPayout }) {
   }
   return (
     <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-      <Loader2 className="h-3 w-3 mr-1" /> Processing
+      <Loader2 className="h-3 w-3 mr-1" /> Being transferred
     </Badge>
   );
 }
@@ -107,6 +112,11 @@ function TransferStatus({ p }: { p: VendorPayout }) {
 export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, accountStatus }: VendorPayoutStagesProps) {
   const { payouts, loading } = useVendorPayoutHistory(vendorId);
   const today = todayIst();
+  const windowHours = useReturnWindowHours();
+  const showProof = async (path: string) => {
+    const problem = await openPayoutProof(path);
+    if (problem) toast.error(problem);
+  };
 
   const routeSent = (o: PayoutOrder) => o.rzp_transfer_status === "released";
   const unpaid = orders.filter(
@@ -144,9 +154,10 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
             <Landmark className="h-5 w-5" /> Your money
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Payouts are weekly: an order is ready once its return/exchange window has closed (and at least 24 hours
-            after delivery), and everything ready by Tuesday 11:59 PM is paid on Wednesday. You get an email at every
-            step.
+            Payouts are weekly. Customers can return or exchange for {windowHours} hours after delivery; once that{" "}
+            {returnWindowAdjective(windowHours)} window has closed (and the payment has reached AllBoutiqs), the order is
+            ready. Everything ready by Tuesday 11:59 PM is transferred to your bank on Wednesday, with commission, fees and
+            taxes already taken off - it reaches your account within 1 working day. You get an email at every step.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -156,17 +167,17 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
             <Stage
               icon={Loader2}
               tone="blue"
-              label="Sent - reaching your bank"
+              label="Being transferred to your bank"
               amount={
                 processing.reduce((s, p) => s + Number(p.net_payable), 0) +
                 routeProcessing.reduce((s, o) => s + routeAmount(o), 0)
               }
-              hint={`${processing.length + routeProcessing.length} payout(s) on the way`}
+              hint={`${processing.length + routeProcessing.length} payout(s) this week`}
             />
             <Stage
               icon={CheckCircle2}
               tone="green"
-              label="Credited to your bank"
+              label="Paid to your bank"
               amount={
                 credited.reduce((s, p) => s + Number(p.net_payable), 0) + routeCredited.reduce((s, o) => s + routeAmount(o), 0)
               }
@@ -279,7 +290,7 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                             <div className="text-xs text-destructive mt-1 max-w-[240px]">{o.rzp_transfer_error}</div>
                           </div>
                         ) : (
-                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Sent in the next daily payout</Badge>
+                          <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Paid on the next Wednesday</Badge>
                         )}
                       </TableCell>
                     </TableRow>
@@ -291,69 +302,72 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CheckCircle2 className="h-4 w-4" /> Sent to your bank (Razorpay)
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Razorpay usually credits your bank within 2 working days of sending. "Credited" shows the bank reference (UTR).
-          </p>
-        </CardHeader>
-        <CardContent>
-          {sentViaRazorpay.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No payouts sent yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order</TableHead>
-                    <TableHead>Sent</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sentViaRazorpay.map((o) => (
-                    <TableRow key={o.id} data-focus-id={o.id}>
-                      <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
-                      <TableCell className="text-sm">{o.rzp_released_at ? formatDate(new Date(o.rzp_released_at)) : "—"}</TableCell>
-                      <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
-                      <TableCell>
-                        {o.rzp_settled_at ? (
-                          <div>
-                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
-                            </Badge>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {formatDate(new Date(o.rzp_settled_at))}
-                              {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
+      {sentViaRazorpay.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CheckCircle2 className="h-4 w-4" /> Sent to your bank (Razorpay)
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Razorpay usually credits your bank within 2 working days of sending. "Credited" shows the bank reference (UTR).
+            </p>
+          </CardHeader>
+          <CardContent>
+            {sentViaRazorpay.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No payouts sent yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Sent</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sentViaRazorpay.map((o) => (
+                      <TableRow key={o.id} data-focus-id={o.id}>
+                        <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
+                        <TableCell className="text-sm">{o.rzp_released_at ? formatDate(new Date(o.rzp_released_at)) : "—"}</TableCell>
+                        <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
+                        <TableCell>
+                          {o.rzp_settled_at ? (
+                            <div>
+                              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
+                              </Badge>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {formatDate(new Date(o.rzp_settled_at))}
+                                {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                            <Loader2 className="h-3 w-3 mr-1" /> On its way to your bank
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                              <Loader2 className="h-3 w-3 mr-1" /> On its way to your bank
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {payouts.length > 0 && (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Landmark className="h-4 w-4" /> Manual bank transfers
+            <Landmark className="h-4 w-4" /> Bank transfers from AllBoutiqs
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            "Credited" shows the bank reference (UTR) - match it with the credit on your bank statement.
+            Every Wednesday we transfer what's ready to your bank. It reaches your account within 1 working day (often
+            sooner). Each transfer shows its bank reference (UTR) - match it with your bank statement - the proof of the
+            transfer and the breakdown of every charge.
           </p>
         </CardHeader>
         <CardContent>
@@ -362,25 +376,26 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
           ) : payouts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No bank transfers yet.</p>
+            <p className="text-sm text-muted-foreground">No bank transfers yet - the first one comes on the Wednesday after your first order is ready.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Started</TableHead>
+                    <TableHead>Payout day</TableHead>
                     <TableHead>Orders</TableHead>
-                    <TableHead>Gross</TableHead>
+                    <TableHead>Sales</TableHead>
                     <TableHead>Commission</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>To account</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {payouts.map((p) => (
                     <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
-                      <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.created_at))}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.payout_date ?? p.created_at))}</TableCell>
                       <TableCell className="text-sm">{p.order_count}</TableCell>
                       <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>
                       <TableCell className="text-sm text-muted-foreground tabular-nums">
@@ -391,6 +406,24 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
                       <TableCell>
                         <TransferStatus p={p} />
                       </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <PayoutBreakdownDialog
+                            size="xs"
+                            payout={{
+                              id: p.id,
+                              netPayable: Number(p.net_payable),
+                              paymentReference: p.payment_reference,
+                              paymentProofPath: p.payment_proof_path,
+                            }}
+                          />
+                          {p.payment_proof_path && (
+                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => showProof(p.payment_proof_path!)}>
+                              <FileText className="h-3.5 w-3.5 mr-1" /> Proof
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -399,7 +432,6 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
           )}
         </CardContent>
       </Card>
-      )}
     </div>
   );
 }

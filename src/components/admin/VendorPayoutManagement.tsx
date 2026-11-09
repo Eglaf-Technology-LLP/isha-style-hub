@@ -22,22 +22,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle, Send } from "lucide-react";
+import { Loader2, Landmark, RefreshCw, CheckCircle2, XCircle, Send, FileText } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminVendorPayouts, AdminVendorPayout } from "@/hooks/useAdminVendorPayouts";
+import { PayoutBreakdownDialog } from "@/components/PayoutBreakdownDialog";
+import { PAYOUT_PROOF_ACCEPT, openPayoutProof, payoutProofProblem, uploadPayoutProof } from "@/lib/payoutProof";
 import { formatDate } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 
 const statusClass: Record<string, string> = {
-  pending: "bg-blue-100 text-blue-800",
+  pending: "bg-amber-100 text-amber-800",
   processing: "bg-blue-100 text-blue-800",
   paid: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",
 };
 const statusLabel: Record<string, string> = {
-  pending: "Ready to send",
+  pending: "To transfer",
   processing: "Sending",
-  paid: "Credited",
+  paid: "Paid",
   failed: "Declined",
 };
 
@@ -59,10 +61,12 @@ interface VendorPayoutManagementProps {
   isAdmin: boolean;
 }
 
-// Razorpay Route isn't enabled on this account, so there's no automated
-// bank disbursement - this is the admin-operated ledger instead: generate
-// a run, do the actual bank transfer yourself outside the app, record the
-// reference here so the vendor has something to reconcile against.
+// Boutique payouts are bank transfers an admin makes (Razorpay's automatic
+// payouts need conditions AllBoutiqs doesn't meet). Every payout day
+// (Wednesday, 9:30 AM) the ready orders are batched into one payout per
+// boutique with every charge already taken off; the admin transfers each
+// amount from the bank, uploads the proof and marks it paid with the UTR,
+// and the boutique is emailed and sees it on its dashboard.
 export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps) {
   const { payouts, loading, generating, generatePayouts, markPaid, markFailed, sending, sendViaRazorpayX } =
     useAdminVendorPayouts(isAdmin);
@@ -70,6 +74,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
   const [decliningPayout, setDecliningPayout] = useState<AdminVendorPayout | null>(null);
   const [transfer, setTransfer] = useState<TransferDetails | null | undefined>(undefined);
   const [reference, setReference] = useState("");
+  const [proof, setProof] = useState<File | null>(null);
   const [declineReason, setDeclineReason] = useState(DECLINE_REASONS[0]);
   const [declineNote, setDeclineNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -78,6 +83,8 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
   useEffect(() => {
     if (!markingPayout) return;
     setTransfer(undefined);
+    setReference("");
+    setProof(null);
     supabase
       .from("vendor_payout_accounts")
       .select("account_holder_name, bank_account_number, bank_ifsc")
@@ -117,17 +124,23 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
     );
   }
 
-  const pendingCount = payouts.filter((p) => p.status === "pending").length;
+  const toTransfer = payouts.filter((p) => p.status === "pending");
+  const toTransferTotal = toTransfer.reduce((s, p) => s + p.netPayable, 0);
 
   const handleConfirmPaid = async () => {
     if (!markingPayout) return;
     if (!reference.trim()) return toast.error("Enter the bank transfer reference (UTR)");
+    const problem = payoutProofProblem(proof);
+    if (problem) return toast.error(problem);
     setSubmitting(true);
-    const ok = await markPaid(markingPayout.id, reference);
-    setSubmitting(false);
-    if (ok) {
-      setMarkingPayout(null);
-      setReference("");
+    try {
+      const path = await uploadPayoutProof(markingPayout.vendorId, markingPayout.id, proof!);
+      const ok = await markPaid(markingPayout.id, reference, path);
+      if (ok) setMarkingPayout(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't upload the proof");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -144,21 +157,25 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
     }
   };
 
+  const showProof = async (path: string) => {
+    const problem = await openPayoutProof(path);
+    if (problem) toast.error(problem);
+  };
+
   return (
     <Card>
-      <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
-        <div>
-          <h3 className="text-lg font-semibold">Manual payouts (fallback)</h3>
+      <div className="flex flex-row items-start justify-between p-6 border-b border-border flex-wrap gap-3">
+        <div className="max-w-3xl">
+          <h3 className="text-lg font-semibold">Boutique payouts</h3>
           <p className="text-sm text-muted-foreground">
-            Only for exceptions Razorpay can't pay automatically - generate a run, transfer the money yourself, then record the UTR
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Orders become payable after the boutique's return window (same day if nothing is returnable) and after
-            Razorpay settles online payments.
+            Every Wednesday at 9:30 AM the orders that are ready - delivered, return window closed, money received - are
+            put into one payout per boutique, with commission, fees and taxes already taken off. Transfer each amount from
+            the bank, then press <span className="font-medium">Mark paid</span>, enter the UTR and upload the proof. The
+            boutique is emailed and sees it on its dashboard.
           </p>
           <div className="flex items-center gap-2 mt-2 text-sm">
             <Label htmlFor="settle-days" className="text-xs text-muted-foreground font-normal">
-              Razorpay settlement time
+              Online payments reach AllBoutiqs after
             </Label>
             <Input
               id="settle-days"
@@ -183,12 +200,16 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {pendingCount > 0 && <Badge variant="destructive">{pendingCount} ready to send</Badge>}
+          {toTransfer.length > 0 && (
+            <Badge variant="destructive">
+              {toTransfer.length} to transfer · {formatMoney(toTransferTotal)}
+            </Badge>
+          )}
           <Button size="sm" variant="outline" onClick={generatePayouts} disabled={generating}>
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Prepare ready payouts
           </Button>
-          {RAZORPAYX_PAYOUTS_ENABLED && pendingCount > 0 && (
+          {RAZORPAYX_PAYOUTS_ENABLED && toTransfer.length > 0 && (
             <Button size="sm" onClick={() => sendViaRazorpayX("all")} disabled={sending}>
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
               Send all via RazorpayX
@@ -202,43 +223,49 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
           <div className="text-center py-12">
             <Landmark className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">No payouts yet</h3>
-            <p className="text-muted-foreground">Generate the first run once you have delivered, paid orders</p>
+            <p className="text-muted-foreground">
+              They appear here every Wednesday once orders are ready - or press "Prepare ready payouts".
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12">#</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Vendor</TableHead>
-                  <TableHead>Gross</TableHead>
-                  <TableHead>Commission</TableHead>
-                  <TableHead>Net Payable</TableHead>
+                  <TableHead>Payout day</TableHead>
+                  <TableHead>Boutique</TableHead>
                   <TableHead>Orders</TableHead>
+                  <TableHead>Sales</TableHead>
+                  <TableHead>Commission</TableHead>
+                  <TableHead>To transfer</TableHead>
                   <TableHead>To account</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Reference (UTR)</TableHead>
+                  <TableHead>UTR &amp; proof</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payouts.map((p, idx) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-sm text-muted-foreground">{idx + 1}</TableCell>
+                {payouts.map((p) => (
+                  <TableRow key={p.id} data-focus-id={p.id}>
                     <TableCell className="text-sm whitespace-nowrap">
-                      {formatDate(new Date(p.periodStart))} - {formatDate(new Date(p.periodEnd))}
+                      {formatDate(new Date(p.payoutDate ?? p.createdAt))}
+                      <div className="text-xs text-muted-foreground">
+                        Delivered {formatDate(new Date(p.periodStart))} - {formatDate(new Date(p.periodEnd))}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">{p.vendorName}</TableCell>
-                    <TableCell className="text-sm">{formatMoney(p.grossSales)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">-{formatMoney(p.commissionAmount)}</TableCell>
-                    <TableCell className="font-medium">{formatMoney(p.netPayable)}</TableCell>
                     <TableCell className="text-sm">{p.orderCount}</TableCell>
+                    <TableCell className="text-sm tabular-nums">{formatMoney(p.grossSales)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground tabular-nums">-{formatMoney(p.commissionAmount)}</TableCell>
+                    <TableCell className="font-semibold tabular-nums">{formatMoney(p.netPayable)}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{p.bankLast4 ? `••${p.bankLast4}` : "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={statusClass[p.status] || "bg-muted"}>
                         {statusLabel[p.status] ?? p.status}
                       </Badge>
+                      {p.status === "paid" && p.paidAt && (
+                        <div className="text-xs text-muted-foreground mt-1">{formatDate(new Date(p.paidAt))}</div>
+                      )}
                       {p.status === "failed" && p.failureReason && (
                         <div className="text-xs text-destructive mt-1 max-w-[220px]">{p.failureReason}</div>
                       )}
@@ -252,30 +279,50 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                         <div className="text-xs text-destructive mt-1 max-w-[220px]">{p.rzpxError}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground font-mono text-xs">
-                      {p.paymentReference || "—"}
+                    <TableCell className="text-xs">
+                      <div className="font-mono text-muted-foreground">{p.paymentReference || "—"}</div>
+                      {p.paymentProofPath && (
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1 text-primary hover:underline"
+                          onClick={() => showProof(p.paymentProofPath!)}
+                        >
+                          <FileText className="h-3 w-3" /> Proof
+                        </button>
+                      )}
                     </TableCell>
                     <TableCell>
-                      {p.status === "pending" && (
-                        <div className="flex flex-wrap gap-1">
-                          {RAZORPAYX_PAYOUTS_ENABLED && (
-                            <Button size="sm" onClick={() => sendViaRazorpayX([p.id])} disabled={sending}>
-                              <Send className="h-4 w-4 mr-1" /> Send via RazorpayX
+                      <div className="flex flex-wrap gap-1">
+                        <PayoutBreakdownDialog
+                          payout={{
+                            id: p.id,
+                            vendorName: p.vendorName,
+                            netPayable: p.netPayable,
+                            paymentReference: p.paymentReference,
+                            paymentProofPath: p.paymentProofPath,
+                          }}
+                        />
+                        {p.status === "pending" && (
+                          <>
+                            {RAZORPAYX_PAYOUTS_ENABLED && (
+                              <Button size="sm" onClick={() => sendViaRazorpayX([p.id])} disabled={sending}>
+                                <Send className="h-4 w-4 mr-1" /> Send via RazorpayX
+                              </Button>
+                            )}
+                            <Button size="sm" onClick={() => setMarkingPayout(p)}>
+                              <CheckCircle2 className="h-4 w-4 mr-1" /> Mark paid
                             </Button>
-                          )}
-                          <Button size="sm" variant="outline" onClick={() => setMarkingPayout(p)}>
-                            <CheckCircle2 className="h-4 w-4 mr-1" /> Mark credited
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDecliningPayout(p)}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" /> Declined
-                          </Button>
-                        </div>
-                      )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setDecliningPayout(p)}
+                            >
+                              <XCircle className="h-4 w-4 mr-1" /> Declined
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -285,13 +332,13 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
         )}
       </CardContent>
 
-      <Dialog open={!!markingPayout} onOpenChange={(open) => !open && setMarkingPayout(null)}>
-        <DialogContent className="max-w-md">
+      <Dialog open={!!markingPayout} onOpenChange={(open) => !open && !submitting && setMarkingPayout(null)}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Mark payout credited</DialogTitle>
+            <DialogTitle>Mark payout paid</DialogTitle>
             <DialogDescription>
-              Transfer the money from your bank first, then record the bank's reference (UTR). The boutique gets an
-              email with it so they can match the credit on their statement.
+              Transfer the amount from the bank first (online or at the branch). Then enter the bank's reference (UTR) and
+              upload the proof - the boutique is emailed both and sees them on its dashboard.
             </DialogDescription>
           </DialogHeader>
           {markingPayout && (
@@ -326,7 +373,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                   <p className="text-destructive">This boutique has no bank details on file.</p>
                 )}
               </div>
-              <div>
+              <div className="space-y-1.5">
                 <Label htmlFor="payout-reference">Bank reference / UTR (required)</Label>
                 <Input
                   id="payout-reference"
@@ -335,9 +382,25 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                   placeholder="e.g. HDFCN52026100612345"
                 />
               </div>
-              <Button className="w-full" onClick={handleConfirmPaid} disabled={submitting || !reference.trim() || !transfer}>
+              <div className="space-y-1.5">
+                <Label htmlFor="payout-proof">Proof of transfer (required)</Label>
+                <Input
+                  id="payout-proof"
+                  type="file"
+                  accept={PAYOUT_PROOF_ACCEPT}
+                  onChange={(e) => setProof(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Bank screenshot, transfer receipt or deposit slip - photo or PDF, up to 10 MB.
+                </p>
+              </div>
+              <Button
+                className="w-full"
+                onClick={handleConfirmPaid}
+                disabled={submitting || !reference.trim() || !proof || !transfer}
+              >
                 {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Confirm credited
+                Upload proof &amp; mark paid
               </Button>
             </div>
           )}

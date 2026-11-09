@@ -1154,7 +1154,7 @@ export default function SellWithUs() {
               </FormSection>
 
               <FormSection icon={Wallet} title="Shipping & returns">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className={accountLabelClass} htmlFor="shipping_flat_rate">Flat shipping (₹)</Label>
                     <Input
@@ -1177,17 +1177,7 @@ export default function SellWithUs() {
                       onChange={(e) => set("free_shipping_threshold", e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className={accountLabelClass} htmlFor="return_window_days">Return window (days)</Label>
-                    <Input
-                      id="return_window_days"
-                      className={accountFieldClass}
-                      type="number"
-                      min={0}
-                      value={form.return_window_days}
-                      onChange={(e) => set("return_window_days", e.target.value)}
-                    />
-                  </div>
+                  {/* No return window to choose: AllBoutiqs sets one for every boutique. */}
                 </div>
                 <div className="space-y-2">
                   <Label className={accountLabelClass} htmlFor="return_policy">Return policy</Label>

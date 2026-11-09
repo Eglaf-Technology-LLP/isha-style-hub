@@ -84,7 +84,7 @@ const handler = async (req: Request): Promise<Response> => {
           <p style="margin:0 0 8px; font-weight:700; font-size:13px; color:#1a1a1a;">Why shop with us?</p>
           <ul style="color: #5a5a5a; margin: 0; padding-left: 18px; font-size: 13px; line-height:1.7;">
             <li>${freeShippingLine}</li>
-            <li>Easy 7-day returns</li>
+            <li>Easy returns &amp; exchanges</li>
             <li>100% authentic products</li>
           </ul>
         </td></tr>

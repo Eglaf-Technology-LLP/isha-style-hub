@@ -24,7 +24,6 @@ import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, buildWarehouseOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
-import { formatShortDate, istToday } from "@/lib/warehouse";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatDate, formatDateTime } from "@/lib/dates";
@@ -70,6 +69,8 @@ interface VendorOrderInfo {
   // Last day this part can be returned/exchanged (its boutique's window
   // from the day it was delivered). Set on delivery.
   return_window_ends_on: string | null;
+  // The moment returns close (24 hours after delivery by default).
+  return_window_ends_at: string | null;
   delivered_at?: string | null;
 }
 
@@ -164,36 +165,47 @@ const shipmentStatusColors: Record<string, string> = {
   ndr: "bg-orange-100 text-orange-800",
 };
 
-// Each boutique's part can be returned or exchanged from the day it is
-// delivered until its return window ends - the server enforces the same rule.
-function returnWindowFor(order: Order): { items: OrderItem[]; note: string | null; closedOn: string | null } {
-  const today = istToday();
+// Each boutique's part can be returned or exchanged from its delivery until
+// its return window closes (24 hours by default) - the server enforces the
+// same rule (enforce_return_window).
+function windowEnd(vo: Order["vendor_orders"][number]): number | null {
+  if (vo.return_window_ends_at) return new Date(vo.return_window_ends_at).getTime();
+  // Delivered before windows were timed: open to the end of that day (IST).
+  if (vo.return_window_ends_on) return new Date(`${vo.return_window_ends_on}T23:59:59+05:30`).getTime() + 1000;
+  return null;
+}
+
+function returnWindowFor(order: Order): { items: OrderItem[]; note: string | null; closedAt: number | null } {
+  const now = Date.now();
   const delivered = order.vendor_orders.filter((vo) => vo.status === "delivered");
-  const open = delivered.filter((vo) => !vo.return_window_ends_on || vo.return_window_ends_on >= today);
+  const open = delivered.filter((vo) => {
+    const end = windowEnd(vo);
+    return end === null || end > now;
+  });
   const openIds = new Set(open.map((vo) => vo.id));
   // A customised piece can come back (damaged / wrong item) for 24 hours
   // after its part was delivered.
   const customisedOpen = new Set(
     delivered
-      .filter((vo) => Date.now() - new Date(vo.delivered_at ?? 0).getTime() < 24 * 3600_000)
+      .filter((vo) => now - new Date(vo.delivered_at ?? 0).getTime() < 24 * 3600_000)
       .map((vo) => vo.id),
   );
   const items = order.order_items.filter(
     (i) => i.vendor_order_id && (i.customisation ? customisedOpen.has(i.vendor_order_id) : openIds.has(i.vendor_order_id)),
   );
-  const deadlines = [...new Set(open.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d))].sort();
+  const deadlines = [...new Set(open.map(windowEnd).filter((d): d is number => d !== null))].sort((x, y) => x - y);
   const note =
     deadlines.length === 0
       ? null
       : deadlines.length === 1
-        ? `Available until ${formatShortDate(deadlines[0])}`
-        : `Available until ${formatShortDate(deadlines[0])} for some items, ${formatShortDate(deadlines[deadlines.length - 1])} for others`;
+        ? `Available until ${formatDateTime(deadlines[0])}`
+        : `Available until ${formatDateTime(deadlines[0])} for some items, ${formatDateTime(deadlines[deadlines.length - 1])} for others`;
   // (A customised piece never had a return window to close.)
-  const closedOn =
+  const closedAt =
     items.length === 0 && order.order_items.some((i) => !i.customisation)
-      ? delivered.map((vo) => vo.return_window_ends_on).filter((d): d is string => !!d).sort().pop() ?? null
+      ? delivered.map(windowEnd).filter((d): d is number => d !== null).sort((x, y) => x - y).pop() ?? null
       : null;
-  return { items, note, closedOn };
+  return { items, note, closedAt };
 }
 
 export default function OrderHistory() {
@@ -248,7 +260,7 @@ export default function OrderHistory() {
             supabase
               .from("vendor_orders")
               .select(
-                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, delivered_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, return_window_ends_at, delivered_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
             // The warehouse's own parcels to the customer (warehouse route).
@@ -287,6 +299,7 @@ export default function OrderHistory() {
                 arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
                 parcel,
                 return_window_ends_on: vo.return_window_ends_on,
+                return_window_ends_at: vo.return_window_ends_at,
                 delivered_at: vo.delivered_at,
                 shipment: forwardShipment
                   ? {
@@ -849,9 +862,9 @@ export default function OrderHistory() {
                               {returnWindow.note && <p className="text-xs text-muted-foreground">{returnWindow.note}</p>}
                             </div>
                           ) : (
-                            returnWindow.closedOn && (
+                            returnWindow.closedAt && (
                               <p className="border-t border-border pt-5 text-xs text-muted-foreground">
-                                Return / exchange window closed on {formatShortDate(returnWindow.closedOn)}
+                                Return / exchange window closed on {formatDateTime(returnWindow.closedAt)}
                               </p>
                             )
                           )}

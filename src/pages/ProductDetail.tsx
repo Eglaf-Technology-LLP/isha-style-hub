@@ -50,6 +50,7 @@ import { ProductCustomiser, buildCustomisation, emptyCustomiser, type Customiser
 import { CUSTOMISATION_ENABLED, customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
 import { useAuth } from "@/hooks/useAuth";
 import { useStaffRole } from "@/hooks/useStaffRole";
+import { returnWindowAdjective, returnWindowSpan, useReturnWindowHours } from "@/hooks/useReturnWindowHours";
 import { isStaffProductView } from "@/lib/staffMode";
 import { discountPercent, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,8 @@ export default function ProductDetail() {
   // Admins and boutiques see the product on its own, to look at only.
   const { role } = useStaffRole();
   const viewOnly = isStaffProductView(role);
+  // One return window for every boutique, set by AllBoutiqs (24 hours by default).
+  const windowHours = useReturnWindowHours();
 
   const addItem = useCartStore((state) => state.addItem);
   const setBuyNowItem = useBuyNowStore((state) => state.setItem);
@@ -512,7 +515,7 @@ export default function ProductDetail() {
   const services = [
     { icon: Truck, title: shippingTitle, text: shippingText },
     isRefundable
-      ? { icon: RotateCcw, title: "Easy returns", text: `${vendorInfo?.return_window_days ?? 7}-day return policy` }
+      ? { icon: RotateCcw, title: "Easy returns", text: `${returnWindowAdjective(windowHours)} return policy` }
       : { icon: RotateCcw, title: "Non-refundable", text: "Not eligible for return & refund - exchange only" },
     codAvailable
       ? { icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }
@@ -829,7 +832,7 @@ export default function ProductDetail() {
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Returns</dt>
                           <dd className="mt-0.5 text-sm">
-                            {isRefundable ? `${vendorInfo.return_window_days}-day window` : "Non-refundable (exchange only)"}
+                            {isRefundable ? `Within ${returnWindowSpan(windowHours)} of delivery` : "Non-refundable (exchange only)"}
                           </dd>
                         </div>
                       )}

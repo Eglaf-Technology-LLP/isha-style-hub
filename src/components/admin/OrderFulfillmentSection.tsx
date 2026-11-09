@@ -21,9 +21,18 @@ import { ShipNowDialog } from "./ShipNowDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { Link } from "react-router-dom";
-import { formatShortDate, vendorOrderStatusLabel } from "@/lib/warehouse";
+import { vendorOrderStatusLabel } from "@/lib/warehouse";
+import { formatDateTime } from "@/lib/dates";
 import { Input } from "@/components/ui/input";
 import { boutiqueDiscountShare } from "@/lib/coupons";
+
+// ISO time -> the value a datetime-local input shows, in the admin's own time zone.
+const toLocalInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
@@ -74,11 +83,11 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     if (vendorOrderIds.length === 0) return;
     supabase
       .from("vendor_orders")
-      .select("id, status, subtotal, shipping_cost, return_window_ends_on")
+      .select("id, status, subtotal, shipping_cost, return_window_ends_at")
       .in("id", vendorOrderIds)
       .then(({ data }) => {
         setVendorOrderStatuses(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.status])));
-        setReturnWindows(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.return_window_ends_on])));
+        setReturnWindows(Object.fromEntries((data ?? []).map((vo) => [vo.id, vo.return_window_ends_at])));
         setVendorOrderFinancials(
           Object.fromEntries((data ?? []).map((vo) => [vo.id, { subtotal: vo.subtotal, shipping_cost: vo.shipping_cost }]))
         );
@@ -125,12 +134,13 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
     refetchVendorOrderStatuses();
   };
 
-  // An exception (e.g. damage reported late): give this part more days.
+  // An exception (e.g. damage reported late): give this part more time. The
+  // payout date moves with it (reschedule_payout_on_window_change).
   const saveReturnWindow = async (vendorOrderId: string) => {
     if (!windowDate) return;
     const { error } = await supabase
       .from("vendor_orders")
-      .update({ return_window_ends_on: windowDate })
+      .update({ return_window_ends_at: new Date(windowDate).toISOString() })
       .eq("id", vendorOrderId);
     if (error) {
       toast.error(error.message);
@@ -175,16 +185,16 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 <div className="flex items-center gap-2 flex-wrap text-xs">
                   <span className="text-muted-foreground">
                     {returnWindows[vendorOrderId]
-                      ? `Returns until ${formatShortDate(returnWindows[vendorOrderId])}`
+                      ? `Returns until ${formatDateTime(returnWindows[vendorOrderId])}`
                       : "Return window not set"}
                   </span>
                   {editingWindowId === vendorOrderId ? (
                     <>
                       <Input
-                        type="date"
+                        type="datetime-local"
                         value={windowDate}
                         onChange={(e) => setWindowDate(e.target.value)}
-                        className="h-7 w-40 text-xs"
+                        className="h-7 w-52 text-xs"
                       />
                       <Button size="sm" className="h-7 text-xs" onClick={() => saveReturnWindow(vendorOrderId)} disabled={!windowDate}>
                         Save
@@ -198,7 +208,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                       className="text-primary hover:underline"
                       onClick={() => {
                         setEditingWindowId(vendorOrderId);
-                        setWindowDate(returnWindows[vendorOrderId] ?? "");
+                        setWindowDate(toLocalInput(returnWindows[vendorOrderId]));
                       }}
                       title="For an exception, e.g. damage reported late"
                     >

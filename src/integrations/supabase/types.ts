@@ -1868,6 +1868,7 @@ export type Database = {
           refund_charge_pct: number
           return_evidence_required: boolean
           return_vendor_sla_hours: number
+          return_window_hours: number
           review_images_require_approval: boolean
           updated_at: string
           updated_by: string | null
@@ -1895,6 +1896,7 @@ export type Database = {
           refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
+          return_window_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -1922,6 +1924,7 @@ export type Database = {
           refund_charge_pct?: number
           return_evidence_required?: boolean
           return_vendor_sla_hours?: number
+          return_window_hours?: number
           review_images_require_approval?: boolean
           updated_at?: string
           updated_by?: string | null
@@ -3242,6 +3245,7 @@ export type Database = {
           received_by: string | null
           reminder_sent_at: string | null
           return_window_ends_on: string | null
+          return_window_ends_at: string | null
           rzp_released_at: string | null
           rzp_reversed_amount: number
           rzp_settled_at: string | null
@@ -3311,6 +3315,7 @@ export type Database = {
           received_by?: string | null
           reminder_sent_at?: string | null
           return_window_ends_on?: string | null
+          return_window_ends_at?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
           rzp_settled_at?: string | null
@@ -3380,6 +3385,7 @@ export type Database = {
           received_by?: string | null
           reminder_sent_at?: string | null
           return_window_ends_on?: string | null
+          return_window_ends_at?: string | null
           rzp_released_at?: string | null
           rzp_reversed_amount?: number
           rzp_settled_at?: string | null
@@ -3550,6 +3556,7 @@ export type Database = {
           order_count: number
           paid_at: string | null
           payment_reference: string | null
+          payment_proof_path: string | null
           payout_date: string | null
           period_end: string
           period_start: string
@@ -3579,6 +3586,7 @@ export type Database = {
           order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
+          payment_proof_path?: string | null
           payout_date?: string | null
           period_end: string
           period_start: string
@@ -3608,6 +3616,7 @@ export type Database = {
           order_count?: number
           paid_at?: string | null
           payment_reference?: string | null
+          payment_proof_path?: string | null
           payout_date?: string | null
           period_end?: string
           period_start?: string

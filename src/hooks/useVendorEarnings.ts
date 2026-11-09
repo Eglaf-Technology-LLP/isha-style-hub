@@ -8,6 +8,7 @@ export interface VendorOrderEarning {
   id: string;
   orderId: string;
   createdAt: string;
+  deliveredAt: string | null;
   status: string;
   // What the customer paid for this boutique's pieces (incl. GST), plus
   // the delivery charge when it goes to the boutique.
@@ -42,14 +43,58 @@ export interface VendorEarningsSummary {
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
-const ZERO_FEES: FeeBreakdown = { techFee: 0, feeGst: 0, gateway: 0, courierAndCod: 0, tcs: 0, tds: 0 };
-const sumFees = (f: FeeBreakdown) => r2(f.techFee + f.feeGst + f.gateway + f.courierAndCod + f.tcs + f.tds);
+export const ZERO_FEES: FeeBreakdown = { techFee: 0, feeGst: 0, gateway: 0, courierAndCod: 0, tcs: 0, tds: 0 };
+export const sumFees = (f: FeeBreakdown) => r2(f.techFee + f.feeGst + f.gateway + f.courierAndCod + f.tcs + f.tds);
+export const addFees = (a: FeeBreakdown, b: FeeBreakdown): FeeBreakdown => ({
+  techFee: r2(a.techFee + b.techFee),
+  feeGst: r2(a.feeGst + b.feeGst),
+  gateway: r2(a.gateway + b.gateway),
+  courierAndCod: r2(a.courierAndCod + b.courierAndCod),
+  tcs: r2(a.tcs + b.tcs),
+  tds: r2(a.tds + b.tds),
+});
 
 // A nested embed via a single FK column can come back as an object or a
 // one-element array depending on the client/typegen combo - same defensive
 // unwrap already used in usePlatformRevenue.ts / useVendorPerformance.ts.
 const unwrapOne = <T,>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+
+// The vendor_orders columns an earning is worked out from.
+export const VENDOR_EARNING_COLUMNS =
+  "id, order_id, created_at, delivered_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, rzp_reversed_amount, order:orders(payment_status, cod_charge)";
+
+// One boutique order's sale, commission, fees and net - the same stored
+// figures net_payable is made of, so Gross - Commission - Fees always equals
+// Net Payable (Developer Corrections Part 8, 6).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function toVendorOrderEarning(vo: any): VendorOrderEarning {
+  const n = (v: unknown) => Number(v ?? 0);
+  const toBoutique = !!vo.shipping_to_boutique;
+  const fees: FeeBreakdown = {
+    techFee: n(vo.tech_fee_amount),
+    feeGst: n(vo.fee_gst_amount),
+    gateway: n(vo.gateway_fee_amount),
+    // A COD charge the customer paid at checkout isn't the boutique's (Extra list M).
+    courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + (n(unwrapOne(vo.order)?.cod_charge) > 0 ? 0 : n(vo.cod_handling_charge))),
+    tcs: n(vo.tcs_amount),
+    tds: n(vo.tds_amount),
+  };
+  return {
+    id: vo.id,
+    orderId: vo.order_id,
+    createdAt: vo.created_at,
+    deliveredAt: vo.delivered_at ?? null,
+    status: vo.status,
+    grossSales: r2((vo.goods_value != null ? n(vo.goods_value) : n(vo.subtotal)) + (toBoutique ? n(vo.shipping_cost) : 0)),
+    commissionRate: n(vo.commission_rate),
+    commissionAmount: n(vo.commission_amount),
+    fees,
+    feesTotal: sumFees(fees),
+    // What the boutique is actually paid (less anything Razorpay took back).
+    netPayable: r2(n(vo.net_payable) - n(vo.rzp_reversed_amount)),
+  };
+}
 
 // The commission/net_payable breakdown a vendor is entitled to see was
 // already RLS-permitted on their own vendor_orders rows - this hook is the
@@ -73,9 +118,7 @@ export function useVendorEarnings(vendorId: string | undefined) {
     try {
       const { data: vendorOrders, error } = await supabase
         .from("vendor_orders")
-        .select(
-          "id, order_id, created_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, order:orders(payment_status, cod_charge)",
-        )
+        .select(VENDOR_EARNING_COLUMNS)
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -87,45 +130,9 @@ export function useVendorEarnings(vendorId: string | undefined) {
         return order?.payment_status === "paid" && vo.status !== "cancelled";
       });
 
-      // The same stored figures net_payable is made of, so Gross - Commission
-      // - Fees always equals Net Payable (Developer Corrections Part 8, 6).
-      const orders: VendorOrderEarning[] = eligible.map((vo) => {
-        const n = (v: unknown) => Number(v ?? 0);
-        const toBoutique = !!vo.shipping_to_boutique;
-        const fees: FeeBreakdown = {
-          techFee: n(vo.tech_fee_amount),
-          feeGst: n(vo.fee_gst_amount),
-          gateway: n(vo.gateway_fee_amount),
-          // A COD charge the customer paid at checkout isn't the boutique's (Extra list M).
-          courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + (n(unwrapOne(vo.order)?.cod_charge) > 0 ? 0 : n(vo.cod_handling_charge))),
-          tcs: n(vo.tcs_amount),
-          tds: n(vo.tds_amount),
-        };
-        return {
-          id: vo.id,
-          orderId: vo.order_id,
-          createdAt: vo.created_at,
-          status: vo.status,
-          grossSales: r2((vo.goods_value != null ? n(vo.goods_value) : n(vo.subtotal)) + (toBoutique ? n(vo.shipping_cost) : 0)),
-          commissionRate: n(vo.commission_rate),
-          commissionAmount: n(vo.commission_amount),
-          fees,
-          feesTotal: sumFees(fees),
-          netPayable: n(vo.net_payable),
-        };
-      });
+      const orders: VendorOrderEarning[] = eligible.map(toVendorOrderEarning);
 
-      const fees = orders.reduce<FeeBreakdown>(
-        (t, o) => ({
-          techFee: r2(t.techFee + o.fees.techFee),
-          feeGst: r2(t.feeGst + o.fees.feeGst),
-          gateway: r2(t.gateway + o.fees.gateway),
-          courierAndCod: r2(t.courierAndCod + o.fees.courierAndCod),
-          tcs: r2(t.tcs + o.fees.tcs),
-          tds: r2(t.tds + o.fees.tds),
-        }),
-        ZERO_FEES,
-      );
+      const fees = orders.reduce<FeeBreakdown>((t, o) => addFees(t, o.fees), ZERO_FEES);
       setSummary({
         grossSales: r2(orders.reduce((s, o) => s + o.grossSales, 0)),
         commissionDeducted: r2(orders.reduce((s, o) => s + o.commissionAmount, 0)),
