@@ -41,14 +41,14 @@ export function useVendorAnalytics(
     try {
       const { data: vendorOrders, error: voError } = await supabase
         .from("vendor_orders")
-        .select("subtotal, goods_value, shipping_cost, status, created_at, order:orders(payment_status)")
+        .select("subtotal, shipping_cost, status, created_at, order:orders(payment_status)")
         .eq("vendor_id", vendorId)
         .gte("created_at", dateFilter.toISOString());
       if (voError) throw voError;
 
       const { data: prevVendorOrders, error: prevError } = await supabase
         .from("vendor_orders")
-        .select("subtotal, goods_value, shipping_cost, status, order:orders(payment_status)")
+        .select("subtotal, shipping_cost, status, order:orders(payment_status)")
         .eq("vendor_id", vendorId)
         .gte("created_at", previousPeriodStart.toISOString())
         .lt("created_at", dateFilter.toISOString());
@@ -79,10 +79,8 @@ export function useVendorAnalytics(
       const paidOrders = (vendorOrders || []).filter(
         (vo) => paymentStatusOf(vo.order) === "paid" && vo.status !== "cancelled",
       );
-      // The boutique's own goods (goods_value: after coupon, without
-      // AllBoutiqs' courier); subtotal only for orders from before it.
-      const orderRevenue = (vo: { subtotal: number; goods_value: number | null; shipping_cost: number }) =>
-        Number(vo.goods_value || vo.subtotal || 0) + Number(vo.shipping_cost || 0);
+      const orderRevenue = (vo: { subtotal: number; shipping_cost: number }) =>
+        Number(vo.subtotal || 0) + Number(vo.shipping_cost || 0);
 
       const totalRevenue = paidOrders.reduce((sum, vo) => sum + orderRevenue(vo), 0);
       const totalOrders = vendorOrders?.length || 0;
@@ -126,7 +124,7 @@ export function useVendorAnalytics(
           };
         }
         productSales[key].quantity += item.quantity;
-        productSales[key].revenue += (Number(item.price) - Number(item.delivery_charge ?? 0)) * item.quantity;
+        productSales[key].revenue += Number(item.price) * item.quantity;
       });
       const topProducts = Object.values(productSales)
         .sort((a, b) => b.revenue - a.revenue)
@@ -142,7 +140,7 @@ export function useVendorAnalytics(
         if (!catPerf[catId]) {
           catPerf[catId] = { categoryId: catId, categoryName: catName, revenue: 0, orders: 0 };
         }
-        catPerf[catId].revenue += (Number(item.price) - Number(item.delivery_charge ?? 0)) * item.quantity;
+        catPerf[catId].revenue += Number(item.price) * item.quantity;
         catPerf[catId].orders += 1;
       });
       const categoryPerformance = Object.values(catPerf).sort((a, b) => b.revenue - a.revenue);

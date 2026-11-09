@@ -12,7 +12,7 @@ const FEE_LINES: [keyof FeeBreakdown, string][] = [
   ["techFee", "Technology fee"],
   ["feeGst", "GST on AllBoutiqs fees"],
   ["gateway", "Payment gateway fee"],
-  ["courierAndCod", "Courier & COD"],
+  ["courierAndCod", "Courier & logistics, COD"],
   ["tcs", "GST TCS"],
   ["tds", "Income-tax TDS"],
 ];

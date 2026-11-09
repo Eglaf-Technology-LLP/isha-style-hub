@@ -402,21 +402,18 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, delivery_charge, discount_amount, customisation")
+          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
           const list = itemsByVendorOrder.get(item.vendor_order_id) ?? [];
-          // The boutique sees its own price: AllBoutiqs' courier taken out.
-          list.push({ ...item, price: Number(item.price) - Number(item.delivery_charge ?? 0) });
+          list.push(item);
           itemsByVendorOrder.set(item.vendor_order_id, list);
         });
         vOrders.forEach((o) => {
           o.items = itemsByVendorOrder.get(o.id) ?? [];
           // Only the coupon share on this boutique's own items.
           o.discount_amount = boutiqueDiscountShare(o.items, o.discount_amount, map.get(o.order_id)?.subtotal);
-          // Its own goods, without AllBoutiqs' courier (items are already).
-          if (o.items.length) o.subtotal = Math.round(o.items.reduce((s, i) => s + Number(i.price) * i.quantity, 0) * 100) / 100;
         });
       }
       setOrders(vOrders);

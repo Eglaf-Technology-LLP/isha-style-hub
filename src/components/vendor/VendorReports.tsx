@@ -71,9 +71,9 @@ export function VendorReports({ vendorId }: { vendorId: string }) {
   const deductions: [string, number, string?][] = [
     ["Marketplace commission", sum((l) => n(l.commission)), "Platform fee"],
     ["Technology & service fee", sum((l) => n(l.tech_fee)), "Platform fee"],
-    ["GST on AllBoutiqs fees", sum((l) => n(l.fee_gst)), "18% on the two fees above"],
+    ["GST on AllBoutiqs fees", sum((l) => n(l.fee_gst)), "18% on the commission, technology fee and courier & logistics charge"],
     ["Payment gateway fee", sum((l) => n(l.gateway_fee)), "Transaction fee on online payments"],
-    ["Courier & shipping", sum((l) => n(l.courier)), "Shipping fee, when charged to you"],
+    ["Courier & logistics", sum((l) => n(l.courier)), "Fixed charge per piece shipped (+ GST, above)"],
     ["COD handling charge", sum((l) => n(l.cod_charge))],
     ["GST TCS", sum(tcsOf), "Section 52, CGST Act - claim it in your GST return"],
     ["Income-tax TDS", sum((l) => n(l.tds)), "Section 194-O - claim it in your income-tax return"],

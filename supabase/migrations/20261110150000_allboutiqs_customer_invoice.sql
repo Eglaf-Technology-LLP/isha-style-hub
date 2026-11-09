@@ -1,19 +1,19 @@
--- AllBoutiqs' own invoice to the customer for what is AllBoutiqs' supply,
--- not the boutique's (client, 10 Nov 2026): the Rs 500 courier per piece
--- inside the MRP, any shipping charge the customer paid while it isn't the
--- boutique's, and the Cash on Delivery charge. One per boutique part
--- (vendor_order), issued together with the boutique's tax invoice for the
--- goods (when they leave the boutique), so the two always match: goods
--- invoice + AllBoutiqs invoice = what the customer paid for that part.
+-- AllBoutiqs' own invoice to the customer for what the customer pays
+-- AllBoutiqs rather than the boutique (shipping is AllBoutiqs' supply -
+-- client, 10 Nov 2026): the Cash on Delivery charge, and a shipping charge
+-- while customers are charged one and it isn't the boutique's. One per
+-- boutique part (vendor_order) that has any, issued together with the
+-- boutique's tax invoice for the goods, so goods invoice + AllBoutiqs
+-- invoice = what the customer paid. (The courier & logistics charge is the
+-- boutique's to pay, on AllBoutiqs' fee invoice to it - not the customer's.)
 --
 -- * Numbering: AllBoutiqs' own series per financial year, ABS/2627/00001
 --   (fee invoices to boutiques are ABF/...).
--- * Amounts include GST (delivery_charge_gst_pct, 18%), SAC
---   delivery_charge_sac (996812). Place of supply: the customer's delivery
---   state (CGST + SGST in Gujarat, else IGST) - to be confirmed by the CA.
+-- * Amounts include 18% GST, SAC 996812. Place of supply: the customer's
+--   delivery state (CGST + SGST in Gujarat, else IGST) - to be confirmed by
+--   the CA.
 -- * The COD charge goes on the first AllBoutiqs invoice of the order.
--- * Parts with nothing of AllBoutiqs' on them (orders before the courier
---   charge) get none.
+-- * Parts with nothing of AllBoutiqs' on them get none.
 
 CREATE TABLE IF NOT EXISTS public.platform_invoice_series (
   fiscal_year text PRIMARY KEY CHECK (fiscal_year ~ '^[0-9]{4}$'),
@@ -39,10 +39,7 @@ CREATE TABLE IF NOT EXISTS public.platform_invoices (
   supply_type text NOT NULL CHECK (supply_type IN ('intra_state', 'inter_state')),
   sac_code text NOT NULL,
   gst_rate numeric(5,2) NOT NULL,
-  pieces integer NOT NULL DEFAULT 0,
-  courier_per_piece numeric(10,2),
   -- Each including GST.
-  courier_amount numeric(12,2) NOT NULL DEFAULT 0,
   shipping_amount numeric(12,2) NOT NULL DEFAULT 0,
   cod_amount numeric(12,2) NOT NULL DEFAULT 0,
   taxable_value numeric(12,2) NOT NULL,
@@ -89,11 +86,8 @@ AS $$
 DECLARE
   vo public.vendor_orders;
   o public.orders;
-  ps public.platform_settings;
   v_id uuid;
-  v_pieces integer;
-  v_courier numeric;
-  v_per_piece numeric;
+  v_rate numeric := 18;
   v_shipping numeric;
   v_cod numeric;
   v_total numeric;
@@ -108,27 +102,22 @@ BEGIN
   SELECT * INTO vo FROM vendor_orders WHERE id = _vendor_order_id;
   IF NOT FOUND THEN RETURN NULL; END IF;
   SELECT * INTO o FROM orders WHERE id = vo.order_id;
-  SELECT * INTO ps FROM platform_settings WHERE id;
-
-  SELECT coalesce(sum(quantity), 0), coalesce(round(sum(delivery_charge * quantity), 2), 0), max(delivery_charge)
-  INTO v_pieces, v_courier, v_per_piece
-  FROM order_items WHERE vendor_order_id = vo.id;
   v_shipping := CASE WHEN coalesce(vo.shipping_to_boutique, false) THEN 0 ELSE coalesce(vo.shipping_cost, 0) END;
   v_cod := CASE WHEN EXISTS (SELECT 1 FROM platform_invoices WHERE order_id = o.id AND cod_amount > 0) THEN 0
                 ELSE coalesce(o.cod_charge, 0) END;
-  v_total := round(v_courier + v_shipping + v_cod, 2);
+  v_total := round(v_shipping + v_cod, 2);
   IF v_total <= 0 THEN RETURN NULL; END IF;
 
   v_pos := gst_state_code(o.shipping_address->>'state');
   v_intra := v_pos = '24';
-  v_taxable := round(v_total / (1 + coalesce(ps.delivery_charge_gst_pct, 18) / 100), 2);
+  v_taxable := round(v_total / (1 + v_rate / 100), 2);
   v_tax := v_total - v_taxable;
 
   INSERT INTO platform_invoices (
     invoice_number, order_id, vendor_order_id, goods_invoice_id, issued_at,
     supplier_name, supplier_gstin, supplier_state_code,
     billing_name, billing_address, billing_state, place_of_supply_code, supply_type,
-    sac_code, gst_rate, pieces, courier_per_piece, courier_amount, shipping_amount, cod_amount,
+    sac_code, gst_rate, shipping_amount, cod_amount,
     taxable_value, cgst_amount, sgst_amount, igst_amount, total
   ) VALUES (
     next_platform_invoice_number(now()), o.id, vo.id,
@@ -137,8 +126,7 @@ BEGIN
     o.customer_name, o.shipping_address,
     (SELECT s.name FROM indian_states s WHERE s.gst_code = v_pos), v_pos,
     CASE WHEN v_intra THEN 'intra_state' ELSE 'inter_state' END,
-    coalesce(ps.delivery_charge_sac, '996812'), coalesce(ps.delivery_charge_gst_pct, 18),
-    v_pieces, nullif(v_per_piece, 0), v_courier, v_shipping, v_cod,
+    '996812', v_rate, v_shipping, v_cod,
     v_taxable,
     CASE WHEN v_intra THEN round(v_tax / 2, 2) ELSE 0 END,
     CASE WHEN v_intra THEN v_tax - round(v_tax / 2, 2) ELSE 0 END,

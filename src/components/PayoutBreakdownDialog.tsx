@@ -29,7 +29,7 @@ const FEE_COLUMNS: [keyof FeeBreakdown, string][] = [
   ["techFee", "Technology fee"],
   ["feeGst", "GST on fees"],
   ["gateway", "Payment gateway"],
-  ["courierAndCod", "Courier & COD"],
+  ["courierAndCod", "Courier & logistics, COD"],
   ["tcs", "GST TCS"],
   ["tds", "Income-tax TDS"],
 ];

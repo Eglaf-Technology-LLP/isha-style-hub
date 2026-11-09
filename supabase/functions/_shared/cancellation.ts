@@ -157,7 +157,6 @@ export async function cancelOneVendorOrder(
   // subtotal + shipping_cost, less its items' share of any coupon, is what
   // the customer actually paid for this shipment - net_payable is the
   // vendor's post-commission payout figure and would under-refund them.
-  // subtotal includes AllBoutiqs' courier per piece: it is refunded too.
   let refundId: string | null = null;
   let refundError: string | null = null;
   let walletRefund = 0;

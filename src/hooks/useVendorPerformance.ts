@@ -53,11 +53,11 @@ export function useVendorPerformance(isAdmin: boolean = false) {
           supabase
             .from("vendor_orders")
             .select(
-              "id, vendor_id, status, subtotal, goods_value, shipping_cost, commission_amount, net_payable, created_at, order:orders(payment_status)"
+              "id, vendor_id, status, subtotal, shipping_cost, commission_amount, net_payable, created_at, order:orders(payment_status)"
             ),
           supabase
             .from("order_items")
-            .select("vendor_id, vendor_order_id, product_id, quantity, price, delivery_charge, order:orders(payment_status)")
+            .select("vendor_id, vendor_order_id, product_id, quantity, price, order:orders(payment_status)")
             .not("vendor_id", "is", null),
           supabase.from("products").select("id, vendor_id, category_id, approval_status, is_active"),
           supabase.from("categories").select("id, name"),
@@ -105,8 +105,7 @@ export function useVendorPerformance(isAdmin: boolean = false) {
         ).length;
 
         const grossRevenue = paidVendorOrders.reduce(
-          // The boutique's goods (no AllBoutiqs courier); subtotal for older orders.
-          (sum, vo) => sum + Number(vo.goods_value || vo.subtotal || 0) + Number(vo.shipping_cost || 0),
+          (sum, vo) => sum + Number(vo.subtotal || 0) + Number(vo.shipping_cost || 0),
           0
         );
         const commissionEarned = paidVendorOrders.reduce(
@@ -149,7 +148,7 @@ export function useVendorPerformance(isAdmin: boolean = false) {
               revenue: 0,
               quantity: 0,
             };
-            existing.revenue += (Number(item.price || 0) - Number(item.delivery_charge ?? 0)) * item.quantity;
+            existing.revenue += Number(item.price || 0) * item.quantity;
             existing.quantity += item.quantity;
             categoryTotals.set(categoryId, existing);
           });

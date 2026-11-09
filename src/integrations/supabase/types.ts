@@ -696,6 +696,8 @@ export type Database = {
           founding_waiver: boolean
           gst_rate: number
           id: string
+          logistics_fee_amount: number
+          logistics_sac_code: string | null
           igst_amount: number
           invoice_number: string
           issued_at: string
@@ -729,6 +731,8 @@ export type Database = {
           founding_waiver?: boolean
           gst_rate: number
           id?: string
+          logistics_fee_amount?: number
+          logistics_sac_code?: string | null
           igst_amount?: number
           invoice_number: string
           issued_at?: string
@@ -762,6 +766,8 @@ export type Database = {
           founding_waiver?: boolean
           gst_rate?: number
           id?: string
+          logistics_fee_amount?: number
+          logistics_sac_code?: string | null
           igst_amount?: number
           invoice_number?: string
           issued_at?: string
@@ -1484,7 +1490,6 @@ export type Database = {
           created_at: string
           customisation: Json | null
           customisation_price: number
-          delivery_charge: number
           discount_amount: number | null
           id: string
           is_returnable: boolean
@@ -1506,7 +1511,6 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
-          delivery_charge?: number
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
@@ -1528,7 +1532,6 @@ export type Database = {
           created_at?: string
           customisation?: Json | null
           customisation_price?: number
-          delivery_charge?: number
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
@@ -1793,8 +1796,6 @@ export type Database = {
           billing_state: string | null
           cgst_amount: number
           cod_amount: number
-          courier_amount: number
-          courier_per_piece: number | null
           goods_invoice_id: string | null
           gst_rate: number
           id: string
@@ -1802,7 +1803,6 @@ export type Database = {
           invoice_number: string
           issued_at: string
           order_id: string
-          pieces: number
           place_of_supply_code: string | null
           sac_code: string
           sgst_amount: number
@@ -1821,8 +1821,6 @@ export type Database = {
           billing_state?: string | null
           cgst_amount?: number
           cod_amount?: number
-          courier_amount?: number
-          courier_per_piece?: number | null
           goods_invoice_id?: string | null
           gst_rate: number
           id?: string
@@ -1830,7 +1828,6 @@ export type Database = {
           invoice_number: string
           issued_at?: string
           order_id: string
-          pieces?: number
           place_of_supply_code?: string | null
           sac_code: string
           sgst_amount?: number
@@ -1849,8 +1846,6 @@ export type Database = {
           billing_state?: string | null
           cgst_amount?: number
           cod_amount?: number
-          courier_amount?: number
-          courier_per_piece?: number | null
           goods_invoice_id?: string | null
           gst_rate?: number
           id?: string
@@ -1858,7 +1853,6 @@ export type Database = {
           invoice_number?: string
           issued_at?: string
           order_id?: string
-          pieces?: number
           place_of_supply_code?: string | null
           sac_code?: string
           sgst_amount?: number
@@ -1883,6 +1877,8 @@ export type Database = {
           fee_sac_code: string
           gst_tcs_pct: number
           id: string
+          logistics_fee_per_piece: number
+          logistics_sac_code: string
           marketplace_commission_pct: number
           note: string | null
           payment_gateway_fee_pct: number
@@ -1904,6 +1900,8 @@ export type Database = {
           fee_sac_code?: string
           gst_tcs_pct?: number
           id?: string
+          logistics_fee_per_piece?: number
+          logistics_sac_code?: string
           marketplace_commission_pct?: number
           note?: string | null
           payment_gateway_fee_pct?: number
@@ -1925,6 +1923,8 @@ export type Database = {
           fee_sac_code?: string
           gst_tcs_pct?: number
           id?: string
+          logistics_fee_per_piece?: number
+          logistics_sac_code?: string
           marketplace_commission_pct?: number
           note?: string | null
           payment_gateway_fee_pct?: number
@@ -1942,9 +1942,6 @@ export type Database = {
       platform_settings: {
         Row: {
           customer_shipping_enabled: boolean
-          delivery_charge_gst_pct: number
-          delivery_charge_per_piece: number
-          delivery_charge_sac: string
           default_prep_days: number
           eway_bill_email: string
           eway_bill_portal_user_id: string | null
@@ -1973,9 +1970,6 @@ export type Database = {
         }
         Insert: {
           customer_shipping_enabled?: boolean
-          delivery_charge_gst_pct?: number
-          delivery_charge_per_piece?: number
-          delivery_charge_sac?: string
           default_prep_days?: number
           eway_bill_email?: string
           eway_bill_portal_user_id?: string | null
@@ -2004,9 +1998,6 @@ export type Database = {
         }
         Update: {
           customer_shipping_enabled?: boolean
-          delivery_charge_gst_pct?: number
-          delivery_charge_per_piece?: number
-          delivery_charge_sac?: string
           default_prep_days?: number
           eway_bill_email?: string
           eway_bill_portal_user_id?: string | null
@@ -3326,6 +3317,8 @@ export type Database = {
           goods_value: number
           hsn_missing: boolean
           id: string
+          logistics_fee_amount: number
+          logistics_fee_rate: number
           late_reminder_sent_at: string | null
           net_payable: number
           order_id: string
@@ -3396,6 +3389,8 @@ export type Database = {
           goods_value?: number
           hsn_missing?: boolean
           id?: string
+          logistics_fee_amount?: number
+          logistics_fee_rate?: number
           late_reminder_sent_at?: string | null
           net_payable?: number
           order_id: string
@@ -3466,6 +3461,8 @@ export type Database = {
           goods_value?: number
           hsn_missing?: boolean
           id?: string
+          logistics_fee_amount?: number
+          logistics_fee_rate?: number
           late_reminder_sent_at?: string | null
           net_payable?: number
           order_id?: string
@@ -4431,11 +4428,6 @@ export type Database = {
           vendor_name: string
         }[]
       }
-      customer_price_for: {
-        Args: { _category_id: string; _value: number }
-        Returns: number
-      }
-      delivery_charge_per_piece: { Args: never; Returns: number }
       issue_missing_platform_invoices: { Args: never; Returns: number }
       price_with_gst: {
         Args: { _category_id: string; _value: number }
@@ -4533,8 +4525,6 @@ export type Database = {
           product_value: number
           refunded: number
           shipping_credit: number
-          delivery_charge: number
-          delivery_refunded: number
           status: string
           supply_type: string
           tcs_cgst: number

@@ -8,14 +8,14 @@ import type { StatementLine } from "@/lib/statement";
 //   * the boutique's GSTR-1 (sales register, B2CS, B2CL, HSN summary,
 //     documents issued, Table 14 - supplies through AllBoutiqs) from its
 //     customer tax invoices, by invoice date;
-//   * its ITC register from AllBoutiqs' fee invoices (= AllBoutiqs' GSTR-1
-//     B2B to boutiques);
+//   * its ITC register from AllBoutiqs' fee invoices - commission,
+//     technology fee, courier & logistics charge (= AllBoutiqs' GSTR-1 B2B);
 //   * GST TCS per boutique GSTIN and month (= AllBoutiqs' GSTR-8) from the
 //     statement lines;
 //   * payouts (bank credits) from the statement lines;
-//   * AllBoutiqs only: its courier invoices to customers and an order-by-order
-//     check that what the customer paid = boutique goods + AllBoutiqs'
-//     courier/shipping/COD, and that each boutique part's goods = fees +
+//   * AllBoutiqs only: its invoices to customers (COD charge, shipping) and an
+//     order-by-order check that what the customer paid = boutique goods +
+//     shipping + COD charge, and that each boutique part's goods = fees +
 //     taxes + payout.
 
 type Tables = Database["public"]["Tables"];
@@ -167,6 +167,8 @@ export function feeInvoiceRows(fees: FeeInvoice[], withBoutique: boolean) {
     Orders: f.order_count,
     "Marketplace commission": n(f.commission_amount),
     "Technology & service fee": n(f.tech_fee_amount),
+    "Courier & logistics": n(f.logistics_fee_amount),
+    "Courier & logistics SAC": f.logistics_sac_code ?? "",
     "Taxable value": n(f.taxable_value),
     "GST rate %": n(f.gst_rate),
     CGST: n(f.cgst_amount),
@@ -221,15 +223,13 @@ export function payoutRows(lines: StatementLine[], withBoutique: boolean) {
 
 // ---------- AllBoutiqs only ----------
 
-// AllBoutiqs' courier invoices to customers (its own GSTR-1, B2C).
+// AllBoutiqs' invoices to customers (its own GSTR-1, B2C): COD charge, shipping.
 export function courierInvoiceRows(invoices: CourierInvoice[]) {
   return invoices.map((i) => ({
     "Invoice no.": i.invoice_number,
     "Invoice date": day(i.issued_at),
     "Place of supply": pos(i.place_of_supply_code, i.billing_state),
     SAC: i.sac_code,
-    Pieces: i.pieces,
-    Courier: n(i.courier_amount),
     Shipping: n(i.shipping_amount),
     "COD charge": n(i.cod_amount),
     "Taxable value": n(i.taxable_value),
@@ -261,9 +261,10 @@ export interface ReconOrder {
   payment_method: string | null;
 }
 
-// One row per order: customer paid vs boutique goods + AllBoutiqs' part, and
-// each part's goods vs its fees, taxes and payout. "Difference" columns are 0
-// when everything adds up; a cancelled part shows its refund instead.
+// One row per order: customer paid vs boutique goods + shipping + COD charge,
+// and each part's goods vs its fees (the courier & logistics charge among
+// them), taxes and payout. "Difference" columns are 0 when everything adds
+// up; an order with a cancelled part says so instead.
 export function reconciliationRows(
   lines: StatementLine[],
   orderByVendorOrder: Map<string, ReconOrder>,
@@ -274,8 +275,7 @@ export function reconciliationRows(
     const o = orderByVendorOrder.get(parts[0].vendor_order_id);
     const cancelled = parts.some((l) => l.status === "cancelled");
     const goods = sum(parts, (l) => n(l.goods_value));
-    const courier = sum(parts, (l) => n(l.delivery_charge));
-    const allboutiqs = r2(courier + n(o?.shipping_cost) + n(o?.cod_charge));
+    const allboutiqs = r2(n(o?.shipping_cost) + n(o?.cod_charge));
     const boutiqueCheck = sum(
       parts,
       (l) =>
@@ -299,12 +299,11 @@ export function reconciliationRows(
       Boutiques: parts.map((l) => l.boutique_code).join(", "),
       "Customer paid": n(o?.total),
       "Boutique goods (incl. GST)": goods,
-      "AllBoutiqs courier": courier,
-      "Shipping + COD charge": r2(n(o?.shipping_cost) + n(o?.cod_charge)),
-      "Difference (paid - goods - AllBoutiqs)": cancelled ? "has cancellations" : r2(n(o?.total) - goods - allboutiqs),
+      "Shipping + COD charge": allboutiqs,
+      "Difference (paid - goods - shipping - COD)": cancelled ? "has cancellations" : r2(n(o?.total) - goods - allboutiqs),
       "AllBoutiqs invoices issued": courierInvoiced,
-      "Refunded - goods": sum(parts, (l) => n(l.refunded)),
-      "Refunded - courier": sum(parts, (l) => n(l.delivery_refunded)),
+      "Courier & logistics charged to boutique": sum(parts, (l) => n(l.courier)),
+      Refunded: sum(parts, (l) => n(l.refunded)),
       "Boutique check (goods - fees - taxes - payout)": r2(boutiqueCheck),
     };
   });

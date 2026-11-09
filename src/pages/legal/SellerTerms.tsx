@@ -105,7 +105,10 @@ const sections: LegalSection[] = [
       <>
         <p>For each order, your payout is the price the customer paid for your items, less:</p>
         <ul>
-          <li>AllBoutiqs' commission (0% during a Founding Boutique period) and technology fee, with GST on both;</li>
+          <li>
+            AllBoutiqs' commission (0% during a Founding Boutique period), technology fee and courier &amp; logistics
+            charge for each piece shipped, with GST on each;
+          </li>
           <li>the payment gateway fee on online payments;</li>
           <li>courier and Cash on Delivery charges, where they are charged to you;</li>
           <li>GST TCS (section 52, CGST Act) and income-tax TDS (section 194-O), at the rates set by law;</li>

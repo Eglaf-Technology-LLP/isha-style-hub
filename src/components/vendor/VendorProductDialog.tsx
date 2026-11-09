@@ -47,7 +47,6 @@ import { ProductVideoField } from "@/components/ProductVideoField";
 import type { AiContentStatus } from "@/lib/aiContent";
 import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
-import { useDeliveryCharge } from "@/hooks/useDeliveryCharge";
 import { titleCase } from "@/lib/text";
 import { NET_QTY_WARN_ABOVE, checkStock, parseNetQuantity } from "@/lib/productRules";
 import { cn } from "@/lib/utils";
@@ -205,7 +204,6 @@ export function VendorProductForm({
 }: FormProps) {
   const { categories } = useCategories();
   const gstRules = useCategoryGstRules();
-  const courier = useDeliveryCharge();
   const [form, setForm] = useState(() => formFrom(product));
   const [images, setImages] = useState<string[]>(() => product?.images || []);
   const [variants, setVariants] = useState<ProductVariant[]>(() => product?.variants || []);
@@ -526,7 +524,7 @@ export function VendorProductForm({
           variants={variants}
           onChange={setVariants}
           basePrice={Number(form.product_value) || 0}
-          mrpFor={(v) => (form.category_id ? gstBreakdown(gstRules.ruleFor(form.category_id), v, courier)?.price ?? null : null)}
+          mrpFor={(v) => (form.category_id ? gstBreakdown(gstRules.ruleFor(form.category_id), v)?.price ?? null : null)}
           uploadFolder="vendor-uploads"
         />
 

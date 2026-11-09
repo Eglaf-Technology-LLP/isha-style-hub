@@ -23,9 +23,6 @@ export interface PlatformInvoice {
   supply_type: "intra_state" | "inter_state";
   sac_code: string;
   gst_rate: number;
-  pieces: number;
-  courier_per_piece: number | null;
-  courier_amount: number;
   shipping_amount: number;
   cod_amount: number;
   taxable_value: number;
@@ -48,19 +45,14 @@ const addressLines = (a: Address) =>
       ) as string[])
     : [];
 
-// AllBoutiqs' own tax invoice to the customer for the courier inside the
-// prices (and any shipping / COD charge) - issued with the boutique's goods
-// invoice (platform_invoices, migration 20261110150000). Amounts include GST.
+// AllBoutiqs' own tax invoice to the customer for the Cash on Delivery
+// charge (and any shipping charge that isn't the boutique's) - issued with
+// the boutique's goods invoice (platform_invoices, migration
+// 20261110150000). Amounts include GST.
 export function PlatformInvoiceView({ invoice }: { invoice: PlatformInvoice }) {
   const intra = invoice.supply_type === "intra_state";
   const rate = Number(invoice.gst_rate);
   const rows: [string, number][] = [
-    [
-      invoice.courier_per_piece
-        ? `Courier & delivery charges - ${invoice.pieces} piece(s) × ₹${money(invoice.courier_per_piece)}`
-        : "Courier & delivery charges",
-      Number(invoice.courier_amount),
-    ],
     ["Shipping charges", Number(invoice.shipping_amount)],
     ["Cash on Delivery charge", Number(invoice.cod_amount)],
   ];
@@ -72,7 +64,7 @@ export function PlatformInvoiceView({ invoice }: { invoice: PlatformInvoice }) {
       <div className="flex items-start justify-between gap-4 border-b-2 border-foreground pb-3">
         <div>
           <p className="text-lg font-bold tracking-wide">TAX INVOICE</p>
-          <p className="text-muted-foreground">Courier & delivery · Original for recipient</p>
+          <p className="text-muted-foreground">AllBoutiqs services · Original for recipient</p>
         </div>
         <div className="text-right space-y-0.5">
           <p>
@@ -169,8 +161,7 @@ export function PlatformInvoiceView({ invoice }: { invoice: PlatformInvoice }) {
       </div>
 
       <p className="border-t border-border pt-3 text-[11px] text-muted-foreground">
-        The courier charge is part of the price shown for each piece. This is a computer-generated invoice and does not
-        need a signature.
+        This is a computer-generated invoice and does not need a signature.
       </p>
 
       <Button

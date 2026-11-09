@@ -240,7 +240,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const reports = useMemo(() => {
     const courierByVo = new Map(docs.courier.map((c) => [c.vendor_order_id, c]));
     return {
-      orders: orderRows(filtered, allBoutiques, admin),
+      orders: orderRows(filtered, allBoutiques),
       gst: monthlyGstRows(filtered, allBoutiques),
       tds: quarterlyTdsRows(filtered, allBoutiques),
       sales: salesRegisterRows(docs.sales, allBoutiques),
@@ -256,7 +256,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       courierB2cs: courierB2csRows(docs.courier),
       recon: reconciliationRows(filtered, orderByVendorOrder, courierByVo),
     };
-  }, [filtered, allBoutiques, admin, docs, orderByVendorOrder]);
+  }, [filtered, allBoutiques, docs, orderByVendorOrder]);
   const t = totals(filtered);
   const who = allBoutiques ? "all-boutiques" : (vendors.find((v) => v.id === boutique)?.name ?? "boutique").replace(/\W+/g, "-").toLowerCase();
   const fileBase = `allboutiqs-statement-${who}-${rangeFrom}-to-${rangeTo}`;
@@ -275,7 +275,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     itc: { name: admin ? "Fee invoices (B2B)" : "ITC - AllBoutiqs fee invoices", rows: reports.itc },
     tcs: { name: admin ? "GSTR-8 TCS" : "GST TCS (AllBoutiqs GSTR-8)", rows: reports.tcs },
     payouts: { name: "Payouts", rows: reports.payouts },
-    courier: { name: "AllBoutiqs courier invoices", rows: reports.courier },
+    courier: { name: "AllBoutiqs invoices to customers", rows: reports.courier },
     courierB2cs: { name: "AllBoutiqs B2CS", rows: reports.courierB2cs },
     recon: { name: "Order check", rows: reports.recon },
   } as const;
@@ -292,8 +292,8 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       "itc",
       admin ? "AllBoutiqs fee invoices (its GSTR-1 B2B)" : "ITC · AllBoutiqs fee invoices",
       admin
-        ? "Commission + technology fee invoices to boutiques - report these as B2B so each boutique sees them in GSTR-2B."
-        : "GST on AllBoutiqs' commission and technology fee - claim it as input tax credit (GSTR-3B 4A(5)) once it shows in GSTR-2B.",
+        ? "Commission, technology fee and courier & logistics invoices to boutiques - report these as B2B so each boutique sees them in GSTR-2B."
+        : "GST on AllBoutiqs' commission, technology fee and courier & logistics charge - claim it as input tax credit (GSTR-3B 4A(5)) once it shows in GSTR-2B.",
       false,
     ],
     [
@@ -305,12 +305,12 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       false,
     ],
     ["payouts", "Payouts", "What reached the bank, with the UTR - match it with your bank statement.", false],
-    ["courier", "AllBoutiqs courier invoices", "AllBoutiqs' own invoices to customers for the courier (its GSTR-1, B2C).", true],
-    ["courierB2cs", "AllBoutiqs courier · B2CS", "The courier invoices by place of supply - AllBoutiqs' GSTR-1 B2CS.", true],
+    ["courier", "AllBoutiqs invoices to customers", "AllBoutiqs' own invoices to customers for the COD charge (its GSTR-1, B2C).", true],
+    ["courierB2cs", "AllBoutiqs invoices to customers · B2CS", "Those invoices by place of supply - AllBoutiqs' GSTR-1 B2CS.", true],
     [
       "recon",
       "Order check",
-      "Customer paid = boutique goods + AllBoutiqs courier, shipping and COD charge; and boutique goods - fees - taxes - payout = 0.",
+      "Customer paid = boutique goods + shipping and COD charge; and boutique goods - fees (incl. the courier & logistics charge) - taxes - payout = 0.",
       true,
     ],
   ];

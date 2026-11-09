@@ -62,7 +62,7 @@ const unwrapOne = <T,>(value: T | T[] | null | undefined): T | null =>
 
 // The vendor_orders columns an earning is worked out from.
 export const VENDOR_EARNING_COLUMNS =
-  "id, order_id, created_at, delivered_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, tcs_amount, tds_amount, net_payable, rzp_reversed_amount, order:orders(payment_status, cod_charge)";
+  "id, order_id, created_at, delivered_at, status, subtotal, shipping_cost, goods_value, shipping_to_boutique, commission_rate, commission_amount, tech_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, logistics_fee_amount, cod_handling_charge, tcs_amount, tds_amount, net_payable, rzp_reversed_amount, order:orders(payment_status, cod_charge)";
 
 // One boutique order's sale, commission, fees and net - the same stored
 // figures net_payable is made of, so Gross - Commission - Fees always equals
@@ -75,8 +75,13 @@ export function toVendorOrderEarning(vo: any): VendorOrderEarning {
     techFee: n(vo.tech_fee_amount),
     feeGst: n(vo.fee_gst_amount),
     gateway: n(vo.gateway_fee_amount),
-    // A COD charge the customer paid at checkout isn't the boutique's (Extra list M).
-    courierAndCod: r2((toBoutique ? n(vo.courier_charge) : 0) + (n(unwrapOne(vo.order)?.cod_charge) > 0 ? 0 : n(vo.cod_handling_charge))),
+    // The courier & logistics charge per piece (its GST is in feeGst); a COD
+    // charge the customer paid at checkout isn't the boutique's (Extra list M).
+    courierAndCod: r2(
+      n(vo.logistics_fee_amount) +
+        (toBoutique ? n(vo.courier_charge) : 0) +
+        (n(unwrapOne(vo.order)?.cod_charge) > 0 ? 0 : n(vo.cod_handling_charge)),
+    ),
     tcs: n(vo.tcs_amount),
     tds: n(vo.tds_amount),
   };

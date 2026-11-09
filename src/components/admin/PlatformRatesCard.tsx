@@ -38,7 +38,13 @@ function Summary({ r }: { r: PlatformRates }) {
     ["Technology & service fee", pct(r.technology_fee_pct)],
     ["GST on AllBoutiqs fees", `${pct(r.fee_gst_pct)} · SAC ${r.fee_sac_code}`],
     ["Payment gateway fee", `${pct(r.payment_gateway_fee_pct)} (online only)`],
-    ["Courier & logistics", r.charge_courier_to_boutique ? "Charged to boutique" : "Borne by AllBoutiqs"],
+    [
+      "Courier & logistics charge",
+      Number(r.logistics_fee_per_piece) > 0
+        ? `${formatINR(Number(r.logistics_fee_per_piece))} per piece + GST, off the payout · SAC ${r.logistics_sac_code}`
+        : "None",
+    ],
+    ["Actual courier cost", r.charge_courier_to_boutique ? "Also charged to boutique" : "Borne by AllBoutiqs"],
     ["GST TCS", pct(r.gst_tcs_pct)],
     ["Income-tax TDS", `${pct(r.tds_pct)} · ${pct(r.tds_no_pan_pct)} without PAN · individuals exempt up to ${formatINR(Number(r.tds_individual_exempt_upto))}`],
     [
@@ -205,6 +211,23 @@ export function PlatformRatesCard() {
                   </div>
                 ))}
                 <div className="space-y-1.5">
+                  <Label htmlFor="rates-logistics">
+                    Courier &amp; logistics charge to boutique{" "}
+                    <span className="text-muted-foreground font-normal">(₹ per piece, before GST)</span>
+                  </Label>
+                  <Input
+                    id="rates-logistics"
+                    type="number"
+                    min={0}
+                    value={form.logistics_fee_per_piece}
+                    onChange={(e) => set("logistics_fee_per_piece", Number(e.target.value))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="rates-logistics-sac">SAC code for the courier &amp; logistics charge</Label>
+                  <Input id="rates-logistics-sac" value={form.logistics_sac_code} onChange={(e) => set("logistics_sac_code", e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="rates-sac">SAC code for AllBoutiqs fees</Label>
                   <Input id="rates-sac" value={form.fee_sac_code} onChange={(e) => set("fee_sac_code", e.target.value)} />
                 </div>
@@ -220,7 +243,7 @@ export function PlatformRatesCard() {
                 </div>
               </div>
               <label className="flex items-center justify-between rounded-md border border-border p-3 text-sm">
-                Charge courier &amp; logistics cost to the boutique
+                Also charge the actual courier cost of each parcel to the boutique
                 <Switch checked={form.charge_courier_to_boutique} onCheckedChange={(v) => set("charge_courier_to_boutique", v)} />
               </label>
               <div className="grid sm:grid-cols-4 gap-3">

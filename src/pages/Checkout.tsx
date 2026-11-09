@@ -36,7 +36,6 @@ import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
-import { useDeliveryCharge } from "@/hooks/useDeliveryCharge";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { CheckoutShell } from "@/components/storefront/checkout/CheckoutShell";
 import { SmartImage } from "@/components/storefront/SmartImage";
@@ -168,8 +167,6 @@ export default function Checkout() {
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
-  // AllBoutiqs' courier inside each piece's price - a coupon never comes off it.
-  const courierPerPiece = useDeliveryCharge();
   // Today's prices for what's in the cart (they may have changed since it was added).
   useSyncCartPrices(!buyNow);
   const platformRates = usePlatformRates();
@@ -410,22 +407,17 @@ export default function Checkout() {
   }, [shippingAddress.pincode, etaVendorItems]);
 
   // A coupon comes off only the lines it covers (its categories, products,
-  // boutique - Extra list D), and only off their goods - never AllBoutiqs'
-  // courier inside the price (as price_order, migration 20261110140000);
-  // each line's share is saved with the order.
+  // boutique - Extra list D); each line's share is saved with the order.
   const couponLines = useMemo<CouponLine[]>(
     () =>
-      items.map((i) => {
-        const price = parseFloat(i.price.amount);
-        return {
-          key: cartLineKey(i),
-          productId: i.productId,
-          vendorId: i.vendorId,
-          categoryId: categoryByProduct[i.productId] ?? null,
-          amount: Math.round((price - Math.min(courierPerPiece, price)) * i.quantity * 100) / 100,
-        };
-      }),
-    [items, categoryByProduct, courierPerPiece],
+      items.map((i) => ({
+        key: cartLineKey(i),
+        productId: i.productId,
+        vendorId: i.vendorId,
+        categoryId: categoryByProduct[i.productId] ?? null,
+        amount: parseFloat(i.price.amount) * i.quantity,
+      })),
+    [items, categoryByProduct],
   );
   const coupon = useMemo(
     () => (appliedDiscount ? splitCouponDiscount(appliedDiscount, couponLines) : null),
@@ -603,8 +595,7 @@ export default function Checkout() {
       // A coupon for some categories / products / a boutique: only the
       // items it covers count, also towards its minimum order.
       let categoryNames: string[] = [];
-      // Goods only (no courier), as the server checks the minimum.
-      let coveredSubtotal = Math.round(couponLines.reduce((s, l) => s + l.amount, 0) * 100) / 100;
+      let coveredSubtotal = subtotal;
       if (isLimitedCoupon(terms)) {
         const categories = await loadProductCategories();
         if (terms.category_ids) {

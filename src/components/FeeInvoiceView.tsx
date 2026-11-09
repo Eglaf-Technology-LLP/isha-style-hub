@@ -36,6 +36,17 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
       detail: `${pctOf(Number(invoice.tech_fee_amount), Number(invoice.product_value))} of product value ₹${money(invoice.product_value)}`,
       amount: Number(invoice.tech_fee_amount),
     },
+    // Rs 500 a piece (from 10 Nov 2026), its own SAC.
+    ...(Number(invoice.logistics_fee_amount) > 0
+      ? [
+          {
+            label: "Courier & logistics charge",
+            detail: "per piece shipped",
+            amount: Number(invoice.logistics_fee_amount),
+            sac: invoice.logistics_sac_code ?? invoice.sac_code,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -117,7 +128,7 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
                       {l.label}
                       <div className="text-muted-foreground">{l.detail}</div>
                     </td>
-                    <td className="py-1.5 pr-2 font-mono">{invoice.sac_code}</td>
+                    <td className="py-1.5 pr-2 font-mono">{"sac" in l ? l.sac : invoice.sac_code}</td>
                     <td className="py-1.5 text-right">₹{money(l.amount)}</td>
                   </tr>
                 ))}
