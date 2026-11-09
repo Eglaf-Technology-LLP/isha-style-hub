@@ -7,14 +7,18 @@ import {
   isVendorMember,
   errorMessage,
 } from "../_shared/auth.ts";
-import { ensureInvoice, findInvoice, InvoiceError } from "../_shared/invoice.ts";
+import { ensureInvoice, findInvoice, findPlatformInvoice, InvoiceError } from "../_shared/invoice.ts";
 
 // The customer's GST tax invoice for one boutique part of an order - see
 // _shared/invoice.ts for how it's made. Normally issued when the boutique
 // ships (Ship Now); otherwise on first request here, once it may be.
 // Returned with the e-way bill numbers the goods travelled on under it.
 
-async function withEwayBills(supabase: ReturnType<typeof serviceClient>, result: { invoice: any; lines: any[] }) {
+async function withEwayBills(
+  supabase: ReturnType<typeof serviceClient>,
+  result: { invoice: any; lines: any[] },
+  withPlatformInvoice = false,
+) {
   const { data: ewayBills } = await supabase
     .from("eway_bills")
     .select("ewb_number, ewb_date, leg")
@@ -22,7 +26,9 @@ async function withEwayBills(supabase: ReturnType<typeof serviceClient>, result:
     .eq("document_type", "tax_invoice")
     .eq("status", "active")
     .order("created_at");
-  return { invoice: result.invoice, lines: result.lines, eway_bills: ewayBills ?? [] };
+  // AllBoutiqs' own invoice for the courier etc. - for the customer and admins.
+  const platformInvoice = withPlatformInvoice ? await findPlatformInvoice(supabase, result.invoice.vendor_order_id) : null;
+  return { invoice: result.invoice, lines: result.lines, eway_bills: ewayBills ?? [], platform_invoice: platformInvoice };
 }
 
 Deno.serve(async (req) => {
@@ -55,16 +61,21 @@ Deno.serve(async (req) => {
     if (orderErr) throw orderErr;
     if (!order) return jsonResponse({ error: "Order not found" }, 404);
 
-    // Warehouse staff print each boutique's invoice to go in the parcel.
+    const isCustomer = order.user_id === userId;
+    const isAdminUser = !isCustomer && (await isAdmin(supabase, userId));
+    // AllBoutiqs' own invoice (courier etc.) is between AllBoutiqs and the
+    // customer - the boutique and the warehouse get only the goods invoice.
+    const showPlatformInvoice = isCustomer || isAdminUser;
     const authorized =
-      order.user_id === userId ||
+      isCustomer ||
+      isAdminUser ||
       (await isVendorMember(supabase, userId, vendorOrder.vendor_id)) ||
-      (await isAdmin(supabase, userId)) ||
+      // Warehouse staff print each boutique's invoice to go in the parcel.
       (await supabase.rpc("can_operate_warehouse", { _user_id: userId })).data === true;
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     const existing = await findInvoice(supabase, vendor_order_id);
-    if (existing) return jsonResponse(await withEwayBills(supabase, existing));
+    if (existing) return jsonResponse(await withEwayBills(supabase, existing, showPlatformInvoice));
 
     if (vendorOrder.status === "cancelled" || vendorOrder.status === "qc_failed" || vendorOrder.qc_status === "failed") {
       return jsonResponse({ error: "This item was cancelled - no invoice applies" }, 400);
@@ -88,7 +99,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    return jsonResponse(await withEwayBills(supabase, await ensureInvoice(supabase, vendor_order_id)));
+    return jsonResponse(await withEwayBills(supabase, await ensureInvoice(supabase, vendor_order_id), showPlatformInvoice));
   } catch (e) {
     console.error("generate-invoice error", e);
     if (e instanceof InvoiceError) return jsonResponse({ error: e.message }, e.status);

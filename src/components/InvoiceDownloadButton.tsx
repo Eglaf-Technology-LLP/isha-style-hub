@@ -8,6 +8,7 @@ import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
 import { formatEwbNumber } from "@/lib/ewayBill";
+import { PlatformInvoiceView, type PlatformInvoice } from "@/components/PlatformInvoiceView";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
 
@@ -86,13 +87,20 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [lines, setLines] = useState<InvoiceLine[]>([]);
   // E-way bills the goods travelled on under this invoice.
   const [ewayBills, setEwayBills] = useState<{ ewb_number: string; ewb_date: string | null }[]>([]);
+  // AllBoutiqs' own invoice for the courier etc. (customers and admins only).
+  const [platformInvoice, setPlatformInvoice] = useState<PlatformInvoice | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || invoice || loading) return;
     setLoading(true);
     setError(null);
-    invokeEdgeFunction<{ invoice: Invoice; lines: InvoiceLine[]; eway_bills?: { ewb_number: string; ewb_date: string | null }[] }>(
+    invokeEdgeFunction<{
+      invoice: Invoice;
+      lines: InvoiceLine[];
+      eway_bills?: { ewb_number: string; ewb_date: string | null }[];
+      platform_invoice?: PlatformInvoice | null;
+    }>(
       "generate-invoice",
       { vendor_order_id: vendorOrderId },
     ).then(
@@ -102,6 +110,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
           setInvoice(data.invoice);
           setLines(data.lines ?? []);
           setEwayBills(data.eway_bills ?? []);
+          setPlatformInvoice(data.platform_invoice ?? null);
         }
         setLoading(false);
       },
@@ -337,6 +346,12 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
               </Button>
             </div>
           ) : null}
+
+          {invoice && platformInvoice && (
+            <div className="mt-8 border-t-4 border-double border-border pt-6">
+              <PlatformInvoiceView invoice={platformInvoice} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>

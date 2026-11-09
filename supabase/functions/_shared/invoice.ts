@@ -18,8 +18,13 @@ import { getWarehouse } from "./warehouse.ts";
 //   across all lines by value. Each boutique's invoice shows its share.
 // * Same state (boutique's GSTIN state = delivery state) -> CGST + SGST,
 //   otherwise IGST.
-// * Shipping is part of the goods' supply: taxed at the rate of the
-//   invoice's main (highest-value) product, under its HSN.
+// * AllBoutiqs' courier inside each price (order_items.delivery_charge) and
+//   any shipping charge that isn't the boutique's are AllBoutiqs' supply, not
+//   the boutique's (client, 10 Nov 2026): they are left off this invoice and
+//   billed on AllBoutiqs' own invoice to the customer (platform_invoices,
+//   issued by a trigger when this one is). Shipping stays on this invoice
+//   only while it is the boutique's (vendor_orders.shipping_to_boutique) -
+//   taxed at the rate of the main (highest-value) product, under its HSN.
 // * Warehouse route: billed to the customer, shipped to the AllBoutiqs
 //   warehouse - the goods leave the boutique on this invoice (agreed with the
 //   CA for the e-way bill, Nov 2026).
@@ -82,7 +87,7 @@ export async function ensureInvoice(
 
   const { data: vendorOrder, error: voErr } = await supabase
     .from("vendor_orders")
-    .select("id, order_id, vendor_id, shipping_cost")
+    .select("id, order_id, vendor_id, shipping_cost, shipping_to_boutique")
     .eq("id", vendorOrderId)
     .maybeSingle();
   if (voErr) throw voErr;
@@ -121,7 +126,7 @@ export async function ensureInvoice(
   // ---------- lines ----------
   const { data: items, error: itemsErr } = await supabase
     .from("order_items")
-    .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
+    .select("id, product_id, product_title, variant_title, size, color, sku, quantity, price, delivery_charge, discount_amount, customisation")
     .eq("vendor_order_id", vendorOrder.id)
     .order("created_at");
   if (itemsErr) throw itemsErr;
@@ -134,7 +139,9 @@ export async function ensureInvoice(
     .in("id", productIds);
   const productById = new Map((products ?? []).map((p: any) => [String(p.id), p]));
 
-  const itemsGross = round2(items.reduce((s, i) => s + Number(i.price) * i.quantity, 0));
+  // The boutique's own price per piece: AllBoutiqs' courier taken out.
+  const goodsPrice = (i: { price: number; delivery_charge?: number | null }) => round2(Number(i.price) - Number(i.delivery_charge ?? 0));
+  const itemsGross = round2(items.reduce((s, i) => s + goodsPrice(i) * i.quantity, 0));
   const orderGross = Number(order.subtotal) || itemsGross;
   const orderDiscount = Number(order.discount_amount) || 0;
 
@@ -146,7 +153,7 @@ export async function ensureInvoice(
       const where = product?.categories?.name ? `category "${product.categories.name}"` : `"${item.product_title}" (no category)`;
       throw new InvoiceError(`No HSN code for ${where} - set it in Admin > Categories before invoicing`);
     }
-    const gross = Number(item.price) * item.quantity;
+    const gross = goodsPrice(item) * item.quantity;
     const discount =
       item.discount_amount != null
         ? Number(item.discount_amount)
@@ -170,7 +177,7 @@ export async function ensureInvoice(
       color: item.color,
       sku: item.sku,
       quantity: item.quantity,
-      unit_price: Number(item.price),
+      unit_price: goodsPrice(item),
       discount,
       taxable_value: t.taxable,
       gst_rate: Number(rate),
@@ -181,7 +188,8 @@ export async function ensureInvoice(
     });
   }
 
-  const shipping = Number(vendorOrder.shipping_cost) || 0;
+  // Shipping only while it's the boutique's; otherwise it's on AllBoutiqs' invoice.
+  const shipping = vendorOrder.shipping_to_boutique ? Number(vendorOrder.shipping_cost) || 0 : 0;
   if (shipping > 0) {
     const main = [...lines].sort((a, b) => b.total - a.total)[0];
     const t = splitTax(shipping, main.gst_rate, intraState);
@@ -266,4 +274,12 @@ export async function ensureInvoice(
   }
 
   return { invoice, lines, created: true };
+}
+
+// AllBoutiqs' own invoice to the customer for the same part (courier,
+// shipping that isn't the boutique's, COD charge) - null when there's none.
+export async function findPlatformInvoice(supabase: SupabaseClient, vendorOrderId: string) {
+  const { data, error } = await supabase.from("platform_invoices").select("*").eq("vendor_order_id", vendorOrderId).maybeSingle();
+  if (error) throw error;
+  return data;
 }
