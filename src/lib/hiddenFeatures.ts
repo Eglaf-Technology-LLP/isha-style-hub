@@ -33,3 +33,8 @@ export const PAYOUT_RATES_CARD_ENABLED = false;
 // Warehouse > Settings: the Rules, Holidays and Warehouse staff cards (the
 // warehouse address stays).
 export const WAREHOUSE_EXTRA_SETTINGS_ENABLED = false;
+
+// Boutique's add / edit product page: the "Returnable" switch (the product's
+// return policy). New products are returnable, edits keep what the product
+// has; admins still set it in Vendors > Manage Catalogue.
+export const VENDOR_RETURNABLE_SWITCH_ENABLED = false;

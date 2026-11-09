@@ -49,7 +49,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { VendorProductDialog } from "@/components/vendor/VendorProductDialog";
+import { VENDOR_PRODUCT_COLUMNS } from "@/lib/vendorProduct";
 import { VendorSettingsDialog } from "@/components/vendor/VendorSettingsDialog";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
@@ -226,8 +226,6 @@ export default function VendorDashboard() {
     "all",
   );
   const [dataLoading, setDataLoading] = useState(true);
-  const [productDialogOpen, setProductDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<VendorProduct | null>(null);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccountForm>({
     account_holder_name: "",
     bank_account_number: "",
@@ -332,9 +330,7 @@ export default function VendorDashboard() {
       const [prodRes, voRes, payoutRes] = await Promise.all([
         supabase
           .from("products")
-          .select(
-            "id, name, price, product_value, compare_at_value, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, is_returnable, cod_available, prep_days, made_to_order, customisable, customisation_options, custom_size_price, customisation_days, ai_content_status, ai_original_photo_paths, video_url, video_is_primary, video_status, product_variants(*)"
-          )
+          .select(VENDOR_PRODUCT_COLUMNS)
           .eq("vendor_id", vendor.id)
           .order("created_at", { ascending: false }),
         supabase
@@ -763,14 +759,11 @@ export default function VendorDashboard() {
                     isVendorTrusted={vendor.is_trusted}
                     onImported={fetchAll}
                   />
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductDialogOpen(true);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" /> Add product
+                  {/* Its own page, not a pop-up (pages/VendorProductEditor.tsx). */}
+                  <Button size="sm" asChild>
+                    <Link to="/vendor/products/new">
+                      <Plus className="h-4 w-4 mr-2" /> Add product
+                    </Link>
                   </Button>
                 </div>
               </CardHeader>
@@ -913,16 +906,10 @@ export default function VendorDashboard() {
                               </Select>
                             </TableCell>
                             <TableCell className="text-right whitespace-nowrap">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Edit ${p.name}`}
-                                onClick={() => {
-                                  setEditingProduct(p);
-                                  setProductDialogOpen(true);
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
+                              <Button variant="ghost" size="icon" aria-label={`Edit ${p.name}`} asChild>
+                                <Link to={`/vendor/products/${p.id}`}>
+                                  <Pencil className="h-4 w-4" />
+                                </Link>
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1441,15 +1428,6 @@ export default function VendorDashboard() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <VendorProductDialog
-        open={productDialogOpen}
-        onOpenChange={setProductDialogOpen}
-        vendorId={vendor.id}
-        isTrusted={vendor.is_trusted}
-        product={editingProduct}
-        onSaved={fetchAll}
-      />
 
       <VendorSettingsDialog
         open={settingsOpen}

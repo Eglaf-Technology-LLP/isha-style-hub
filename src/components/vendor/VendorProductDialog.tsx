@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,8 @@ import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 import { titleCase } from "@/lib/text";
 import { NET_QTY_WARN_ABOVE, checkStock, parseNetQuantity } from "@/lib/productRules";
+import { cn } from "@/lib/utils";
+import { listingReviewNote } from "@/lib/vendorProduct";
 
 export interface VendorProductRow {
   id: string;
@@ -97,6 +99,48 @@ interface Props {
   onSaved: () => void;
 }
 
+// The product form in a pop-up - used by admins in Vendors > Manage
+// Catalogue. Boutiques use the same form on its own page
+// (pages/VendorProductEditor.tsx).
+export function VendorProductDialog({ open, onOpenChange, vendorId, isTrusted, product, onSaved }: Props) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{product ? "Edit product" : "Add product"}</DialogTitle>
+          <DialogDescription>{listingReviewNote(isTrusted)}</DialogDescription>
+        </DialogHeader>
+        {/* The pop-up's content only exists while open, so the form starts
+            fresh from the product each time. */}
+        <VendorProductForm
+          key={product?.id ?? "new"}
+          vendorId={vendorId}
+          isTrusted={isTrusted}
+          product={product}
+          onSaved={() => {
+            onSaved();
+            onOpenChange(false);
+          }}
+          onCancel={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+interface FormProps {
+  vendorId: string;
+  isTrusted: boolean;
+  product: VendorProductRow | null;
+  onSaved: () => void;
+  onCancel: () => void;
+  // "page": fields in a card, buttons in a bar fixed to the bottom of the screen.
+  variant?: "dialog" | "page";
+  // The "Returnable" switch; when hidden the product keeps what it has
+  // (new products: returnable).
+  showReturnable?: boolean;
+}
+
 const empty = {
   name: "",
   description: "",
@@ -121,31 +165,10 @@ const empty = {
   made_to_order: false,
 };
 
-export function VendorProductDialog({
-  open,
-  onOpenChange,
-  vendorId,
-  isTrusted,
-  product,
-  onSaved,
-}: Props) {
-  const { categories } = useCategories();
-  const gstRules = useCategoryGstRules();
-  const [form, setForm] = useState({ ...empty });
-  const [images, setImages] = useState<string[]>([]);
-  const [variants, setVariants] = useState<ProductVariant[]>([]);
-  const [specifications, setSpecifications] = useState<ProductSpecification[]>([]);
-  const [aiContentStatus, setAiContentStatus] = useState<AiContentStatus | null>(null);
-  const [originalPhotos, setOriginalPhotos] = useState<string[]>([]);
-  const [video, setVideo] = useState<{ videoUrl: string | null; isPrimary: boolean }>({ videoUrl: null, isPrimary: false });
-  const [customisation, setCustomisation] = useState<CustomisationForm>(emptyCustomisationForm);
-  const needsOriginals = !!aiContentStatus && aiContentStatus !== "none";
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    if (product) {
-      setForm({
+// Form fields from a product being edited (empty for a new one).
+const formFrom = (product: VendorProductRow | null): typeof empty =>
+  product
+    ? {
         name: product.name || "",
         description: product.description || "",
         category_id: product.category_id || "",
@@ -167,32 +190,42 @@ export function VendorProductDialog({
         cod_available: product.cod_available ?? true,
         prep_days: product.prep_days != null ? String(product.prep_days) : "",
         made_to_order: product.made_to_order ?? false,
-      });
-      setImages(product.images || []);
-      setVariants(product.variants || []);
-      setSpecifications(product.specifications || []);
-      setAiContentStatus(product.ai_content_status ?? null);
-      setOriginalPhotos(product.ai_original_photo_paths || []);
-      setVideo({ videoUrl: product.video_url ?? null, isPrimary: product.video_is_primary ?? false });
-      setCustomisation(
-        customisationFormFrom({
+      }
+    : { ...empty };
+
+export function VendorProductForm({
+  vendorId,
+  isTrusted,
+  product,
+  onSaved,
+  onCancel,
+  variant = "dialog",
+  showReturnable = true,
+}: FormProps) {
+  const { categories } = useCategories();
+  const gstRules = useCategoryGstRules();
+  const [form, setForm] = useState(() => formFrom(product));
+  const [images, setImages] = useState<string[]>(() => product?.images || []);
+  const [variants, setVariants] = useState<ProductVariant[]>(() => product?.variants || []);
+  const [specifications, setSpecifications] = useState<ProductSpecification[]>(() => product?.specifications || []);
+  const [aiContentStatus, setAiContentStatus] = useState<AiContentStatus | null>(() => product?.ai_content_status ?? null);
+  const [originalPhotos, setOriginalPhotos] = useState<string[]>(() => product?.ai_original_photo_paths || []);
+  const [video, setVideo] = useState<{ videoUrl: string | null; isPrimary: boolean }>(() => ({
+    videoUrl: product?.video_url ?? null,
+    isPrimary: product?.video_is_primary ?? false,
+  }));
+  const [customisation, setCustomisation] = useState<CustomisationForm>(() =>
+    product
+      ? customisationFormFrom({
           customisable: product.customisable,
           custom_size_price: product.custom_size_price,
           customisation_options: (Array.isArray(product.customisation_options) ? product.customisation_options : []) as CustomisationOption[],
           customisation_days: product.customisation_days,
-        }),
-      );
-    } else {
-      setForm({ ...empty });
-      setImages([]);
-      setVariants([]);
-      setSpecifications([]);
-      setAiContentStatus(null);
-      setOriginalPhotos([]);
-      setVideo({ videoUrl: null, isPrimary: false });
-      setCustomisation(emptyCustomisationForm);
-    }
-  }, [open, product]);
+        })
+      : emptyCustomisationForm,
+  );
+  const needsOriginals = !!aiContentStatus && aiContentStatus !== "none";
+  const [saving, setSaving] = useState(false);
 
   const set = (k: keyof typeof empty, v: string | boolean) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -281,7 +314,6 @@ export function VendorProductDialog({
         );
       }
       onSaved();
-      onOpenChange(false);
     } catch (e: any) {
       console.error("save product error:", e);
       toast.error(e.message || "Failed to save product");
@@ -290,235 +322,238 @@ export function VendorProductDialog({
     }
   };
 
+  const actions = (
+    <>
+      <Button variant="ghost" onClick={onCancel} disabled={saving}>
+        Cancel
+      </Button>
+      <Button onClick={handleSave} disabled={saving}>
+        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+        {product ? "Save changes" : "Create product"}
+      </Button>
+    </>
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{product ? "Edit product" : "Add product"}</DialogTitle>
-          <DialogDescription>
-            {isTrusted
-              ? "As a trusted partner your listings go live immediately."
-              : "New and edited listings are reviewed by the marketplace team before going live."}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <div className={cn("space-y-4", variant === "page" && "rounded-lg border border-border bg-card p-4 sm:p-6")}>
+        <div className="space-y-2">
+          <Label htmlFor="vp-name">Product name</Label>
+          <Input
+            id="vp-name"
+            value={form.name}
+            onChange={(e) => set("name", e.target.value)}
+            placeholder="Banarasi Silk Saree"
+          />
+        </div>
 
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="vp-name">Product name</Label>
-            <Input
-              id="vp-name"
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Banarasi Silk Saree"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="vp-desc">Description *</Label>
+          <Textarea
+            id="vp-desc"
+            rows={4}
+            value={form.description}
+            onChange={(e) => set("description", e.target.value)}
+            placeholder="Fabric, fit, care instructions..."
+          />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="vp-desc">Description *</Label>
-            <Textarea
-              id="vp-desc"
-              rows={4}
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Fabric, fit, care instructions..."
-            />
-          </div>
-
-          {/* Was "Listed on storefront" further down, next to the AI originals, where it read as part of
-              them (Developer Corrections Part 7, 8.1). */}
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
-            <div>
-              <Label htmlFor="vp-active" className="text-sm font-medium">
-                Show on store (visible to customers)
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Off: the product stays in your catalogue but customers can't see or buy it.
-              </p>
-            </div>
-            <Switch id="vp-active" checked={form.is_active} onCheckedChange={(v) => set("is_active", v)} />
-          </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Category *</Label>
-              <Select
-                value={form.category_id}
-                onValueChange={(v) => set("category_id", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-sku">SKU</Label>
-              <Input
-                id="vp-sku"
-                value={form.sku}
-                onChange={(e) => set("sku", e.target.value)}
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vp-price">Product Value (excl. GST) (₹)</Label>
-              <Input
-                id="vp-price"
-                type="number"
-                min="0"
-                value={form.product_value}
-                onChange={(e) => set("product_value", e.target.value)}
-              />
-              <CustomerPriceHint value={form.product_value} categoryId={form.category_id} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-mrp">Compare-at value (excl. GST) (₹)</Label>
-              <Input
-                id="vp-mrp"
-                type="number"
-                min="0"
-                placeholder="Optional"
-                value={form.compare_at_value}
-                onChange={(e) => set("compare_at_value", e.target.value)}
-              />
-              <CustomerPriceHint value={form.compare_at_value} categoryId={form.category_id} label="Crossed-out MRP" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-stock">Stock {variants.length === 0 && !form.made_to_order && "*"}</Label>
-              <Input
-                id="vp-stock"
-                type="number"
-                min="0"
-                placeholder="Pieces ready"
-                value={form.stock_quantity}
-                onChange={(e) => set("stock_quantity", e.target.value)}
-              />
-              {variants.length > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Ignored while variants below are set - stock is tracked per variant instead.
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">The real number you have ready. 0 only for Made to order.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2 rounded-lg border border-border p-3">
-            <Label className="text-sm text-muted-foreground">
-              Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
+        {/* Was "Listed on storefront" further down, next to the AI originals, where it read as part of
+            them (Developer Corrections Part 7, 8.1). */}
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+          <div>
+            <Label htmlFor="vp-active" className="text-sm font-medium">
+              Show on store (visible to customers)
             </Label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="space-y-1 col-span-2 sm:col-span-1">
-                <Label htmlFor="vp-weight" className="text-xs">Weight (one piece, packed)</Label>
-                <WeightInput
-                  id="vp-weight"
-                  grams={form.weight_grams ? Number(form.weight_grams) : null}
-                  onChange={(g) => set("weight_grams", g == null ? "" : String(g))}
-                  warnAboveGrams={10000}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="vp-length" className="text-xs">Length (cm)</Label>
-                <Input
-                  id="vp-length"
-                  type="number"
-                  min="0"
-                  value={form.length_cm}
-                  onChange={(e) => set("length_cm", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="vp-breadth" className="text-xs">Breadth (cm)</Label>
-                <Input
-                  id="vp-breadth"
-                  type="number"
-                  min="0"
-                  value={form.breadth_cm}
-                  onChange={(e) => set("breadth_cm", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="vp-height" className="text-xs">Height (cm)</Label>
-                <Input
-                  id="vp-height"
-                  type="number"
-                  min="0"
-                  value={form.height_cm}
-                  onChange={(e) => set("height_cm", e.target.value)}
-                />
-              </div>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Off: the product stays in your catalogue but customers can't see or buy it.
+            </p>
           </div>
+          <Switch id="vp-active" checked={form.is_active} onCheckedChange={(v) => set("is_active", v)} />
+        </div>
 
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="vp-origin">Country of Origin</Label>
-              <Input
-                id="vp-origin"
-                value={form.country_of_origin}
-                onChange={(e) => set("country_of_origin", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vp-netqty">Net Quantity</Label>
-              <Input
-                id="vp-netqty"
-                placeholder="e.g. 1 N, 1 Set, 1 Pair"
-                value={form.net_quantity}
-                onChange={(e) => set("net_quantity", e.target.value)}
-              />
-              {form.net_quantity.trim() && !parseNetQuantity(form.net_quantity) ? (
-                <p className="text-xs text-destructive">A number followed by N, Set or Pair - e.g. 1 N</p>
-              ) : (parseNetQuantity(form.net_quantity)?.count ?? 0) > NET_QTY_WARN_ABOVE ? (
-                <p className="text-xs text-amber-700">More than {NET_QTY_WARN_ABOVE} in one listing - check this is right.</p>
-              ) : null}
-            </div>
-          </div>
-
-          <ProductSpecificationsEditor specifications={specifications} onChange={setSpecifications} />
-
-          <VariantManager
-            variants={variants}
-            onChange={setVariants}
-            basePrice={Number(form.product_value) || 0}
-            mrpFor={(v) => (form.category_id ? gstBreakdown(gstRules.ruleFor(form.category_id), v)?.price ?? null : null)}
-            uploadFolder="vendor-uploads"
-          />
-
+        <div className="grid sm:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Product Images</Label>
-            <ImageDropzone folder="vendor-uploads" value={images} onChange={setImages} />
+            <Label>Category *</Label>
+            <Select
+              value={form.category_id}
+              onValueChange={(v) => set("category_id", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-sku">SKU</Label>
+            <Input
+              id="vp-sku"
+              value={form.sku}
+              onChange={(e) => set("sku", e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+        </div>
 
-          <ProductVideoField
-            folder="vendor-uploads"
-            idPrefix="vp"
-            videoUrl={video.videoUrl}
-            isPrimary={video.isPrimary}
-            onChange={setVideo}
-            note={
-              isTrusted
-                ? "As a trusted partner it goes live with the listing."
-                : product?.video_status === "rejected" && product.video_url === video.videoUrl
-                  ? "This video was not approved - upload a different one."
-                  : "Shown to shoppers once the AllBoutiqs team approves it."
-            }
-          />
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="vp-price">Product Value (excl. GST) (₹)</Label>
+            <Input
+              id="vp-price"
+              type="number"
+              min="0"
+              value={form.product_value}
+              onChange={(e) => set("product_value", e.target.value)}
+            />
+            <CustomerPriceHint value={form.product_value} categoryId={form.category_id} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-mrp">Compare-at value (excl. GST) (₹)</Label>
+            <Input
+              id="vp-mrp"
+              type="number"
+              min="0"
+              placeholder="Optional"
+              value={form.compare_at_value}
+              onChange={(e) => set("compare_at_value", e.target.value)}
+            />
+            <CustomerPriceHint value={form.compare_at_value} categoryId={form.category_id} label="Crossed-out MRP" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-stock">Stock {variants.length === 0 && !form.made_to_order && "*"}</Label>
+            <Input
+              id="vp-stock"
+              type="number"
+              min="0"
+              placeholder="Pieces ready"
+              value={form.stock_quantity}
+              onChange={(e) => set("stock_quantity", e.target.value)}
+            />
+            {variants.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Ignored while variants below are set - stock is tracked per variant instead.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">The real number you have ready. 0 only for Made to order.</p>
+            )}
+          </div>
+        </div>
 
-          <AiDeclarationField idPrefix="vp" value={aiContentStatus} onChange={setAiContentStatus} />
-          {needsOriginals && (
-            <AiOriginalPhotosField ownerFolder={vendorId} value={originalPhotos} onChange={setOriginalPhotos} />
-          )}
+        <div className="space-y-2 rounded-lg border border-border p-3">
+          <Label className="text-sm text-muted-foreground">
+            Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
+          </Label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="space-y-1 col-span-2 sm:col-span-1">
+              <Label htmlFor="vp-weight" className="text-xs">Weight (one piece, packed)</Label>
+              <WeightInput
+                id="vp-weight"
+                grams={form.weight_grams ? Number(form.weight_grams) : null}
+                onChange={(g) => set("weight_grams", g == null ? "" : String(g))}
+                warnAboveGrams={10000}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="vp-length" className="text-xs">Length (cm)</Label>
+              <Input
+                id="vp-length"
+                type="number"
+                min="0"
+                value={form.length_cm}
+                onChange={(e) => set("length_cm", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="vp-breadth" className="text-xs">Breadth (cm)</Label>
+              <Input
+                id="vp-breadth"
+                type="number"
+                min="0"
+                value={form.breadth_cm}
+                onChange={(e) => set("breadth_cm", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="vp-height" className="text-xs">Height (cm)</Label>
+              <Input
+                id="vp-height"
+                type="number"
+                min="0"
+                value={form.height_cm}
+                onChange={(e) => set("height_cm", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
 
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="vp-origin">Country of Origin</Label>
+            <Input
+              id="vp-origin"
+              value={form.country_of_origin}
+              onChange={(e) => set("country_of_origin", e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="vp-netqty">Net Quantity</Label>
+            <Input
+              id="vp-netqty"
+              placeholder="e.g. 1 N, 1 Set, 1 Pair"
+              value={form.net_quantity}
+              onChange={(e) => set("net_quantity", e.target.value)}
+            />
+            {form.net_quantity.trim() && !parseNetQuantity(form.net_quantity) ? (
+              <p className="text-xs text-destructive">A number followed by N, Set or Pair - e.g. 1 N</p>
+            ) : (parseNetQuantity(form.net_quantity)?.count ?? 0) > NET_QTY_WARN_ABOVE ? (
+              <p className="text-xs text-amber-700">More than {NET_QTY_WARN_ABOVE} in one listing - check this is right.</p>
+            ) : null}
+          </div>
+        </div>
+
+        <ProductSpecificationsEditor specifications={specifications} onChange={setSpecifications} />
+
+        <VariantManager
+          variants={variants}
+          onChange={setVariants}
+          basePrice={Number(form.product_value) || 0}
+          mrpFor={(v) => (form.category_id ? gstBreakdown(gstRules.ruleFor(form.category_id), v)?.price ?? null : null)}
+          uploadFolder="vendor-uploads"
+        />
+
+        <div className="space-y-2">
+          <Label>Product Images</Label>
+          <ImageDropzone folder="vendor-uploads" value={images} onChange={setImages} />
+        </div>
+
+        <ProductVideoField
+          folder="vendor-uploads"
+          idPrefix="vp"
+          videoUrl={video.videoUrl}
+          isPrimary={video.isPrimary}
+          onChange={setVideo}
+          note={
+            isTrusted
+              ? "As a trusted partner it goes live with the listing."
+              : product?.video_status === "rejected" && product.video_url === video.videoUrl
+                ? "This video was not approved - upload a different one."
+                : "Shown to shoppers once the AllBoutiqs team approves it."
+          }
+        />
+
+        <AiDeclarationField idPrefix="vp" value={aiContentStatus} onChange={setAiContentStatus} />
+        {needsOriginals && (
+          <AiOriginalPhotosField ownerFolder={vendorId} value={originalPhotos} onChange={setOriginalPhotos} />
+        )}
+
+        {showReturnable && (
           <div className="flex items-center justify-between rounded-lg border border-border p-3">
             <div>
               <p className="text-sm font-medium">Returnable</p>
@@ -532,74 +567,72 @@ export function VendorProductDialog({
               onCheckedChange={(v) => set("is_returnable", v)}
             />
           </div>
+        )}
 
-          <div className="flex items-center justify-between rounded-lg border border-border p-3">
-            <div>
-              <Label htmlFor="vp-cod" className="text-sm font-medium">
-                Cash on Delivery
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                Off for high-value or custom-made pieces - customers then pay online for any order that includes
-                this product. AllBoutiqs may also change this.
-              </p>
-            </div>
-            <Switch id="vp-cod" checked={form.cod_available} onCheckedChange={(v) => set("cod_available", v)} />
+        <div className="flex items-center justify-between rounded-lg border border-border p-3">
+          <div>
+            <Label htmlFor="vp-cod" className="text-sm font-medium">
+              Cash on Delivery
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Off for high-value or custom-made pieces - customers then pay online for any order that includes
+              this product. AllBoutiqs may also change this.
+            </p>
           </div>
-
-          <div className="rounded-lg border border-border p-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <Label htmlFor="vp-mto" className="text-sm font-medium">
-                  Made to order
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Shows "Made to order: ships in N days" on the product page, so a later delivery date doesn't look
-                  like a mistake.
-                </p>
-              </div>
-              <Switch id="vp-mto" checked={form.made_to_order} onCheckedChange={(v) => set("made_to_order", v)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="vp-prep" className="text-sm font-medium">
-                Ready to ship in (days)
-              </Label>
-              <Input
-                id="vp-prep"
-                type="number"
-                min={0}
-                max={90}
-                placeholder="Your store default"
-                value={form.prep_days}
-                onChange={(e) => set("prep_days", e.target.value)}
-                className="max-w-[200px]"
-              />
-              <p className="text-xs text-muted-foreground">
-                Working days you need to make or pack this product before the courier collects it. Leave empty to
-                use your store's default.
-              </p>
-            </div>
-          </div>
-
-          {CUSTOMISATION_ENABLED && (
-            <CustomisationEditor
-              idPrefix="vp-cz"
-              value={customisation}
-              onChange={setCustomisation}
-              note="AllBoutiqs may also change this."
-            />
-          )}
+          <Switch id="vp-cod" checked={form.cod_available} onCheckedChange={(v) => set("cod_available", v)} />
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {product ? "Save changes" : "Create product"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="rounded-lg border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="vp-mto" className="text-sm font-medium">
+                Made to order
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Shows "Made to order: ships in N days" on the product page, so a later delivery date doesn't look
+                like a mistake.
+              </p>
+            </div>
+            <Switch id="vp-mto" checked={form.made_to_order} onCheckedChange={(v) => set("made_to_order", v)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="vp-prep" className="text-sm font-medium">
+              Ready to ship in (days)
+            </Label>
+            <Input
+              id="vp-prep"
+              type="number"
+              min={0}
+              max={90}
+              placeholder="Your store default"
+              value={form.prep_days}
+              onChange={(e) => set("prep_days", e.target.value)}
+              className="max-w-[200px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Working days you need to make or pack this product before the courier collects it. Leave empty to
+              use your store's default.
+            </p>
+          </div>
+        </div>
+
+        {CUSTOMISATION_ENABLED && (
+          <CustomisationEditor
+            idPrefix="vp-cz"
+            value={customisation}
+            onChange={setCustomisation}
+            note="AllBoutiqs may also change this."
+          />
+        )}
+      </div>
+
+      {variant === "page" ? (
+        <div className="sticky bottom-0 z-10 mt-6 flex justify-end gap-2 border-t border-border bg-background/95 py-3 backdrop-blur">
+          {actions}
+        </div>
+      ) : (
+        <DialogFooter>{actions}</DialogFooter>
+      )}
+    </>
   );
 }
