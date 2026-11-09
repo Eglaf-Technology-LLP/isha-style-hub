@@ -99,6 +99,7 @@ export function orderRows(lines: StatementLine[], withBoutique: boolean) {
     "Courier & logistics": n(l.courier),
     "COD handling charge": n(l.cod_charge),
     Refunded: n(l.refunded),
+    "Returned (taxable value)": n(l.returned_value),
     "Net taxable (after returns)": n(l.net_taxable),
     "GST TCS": r2(tcsTotal(l)),
     "Income-tax TDS": n(l.tds),

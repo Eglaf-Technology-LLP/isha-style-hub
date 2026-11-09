@@ -3319,6 +3319,7 @@ export type Database = {
           id: string
           logistics_fee_amount: number
           logistics_fee_rate: number
+          logistics_kept: boolean
           late_reminder_sent_at: string | null
           net_payable: number
           order_id: string
@@ -3391,6 +3392,7 @@ export type Database = {
           id?: string
           logistics_fee_amount?: number
           logistics_fee_rate?: number
+          logistics_kept?: boolean
           late_reminder_sent_at?: string | null
           net_payable?: number
           order_id: string
@@ -3463,6 +3465,7 @@ export type Database = {
           id?: string
           logistics_fee_amount?: number
           logistics_fee_rate?: number
+          logistics_kept?: boolean
           late_reminder_sent_at?: string | null
           net_payable?: number
           order_id?: string
@@ -4524,6 +4527,7 @@ export type Database = {
           payout_status: string
           product_value: number
           refunded: number
+          returned_value: number
           shipping_credit: number
           status: string
           supply_type: string

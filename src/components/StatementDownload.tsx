@@ -310,7 +310,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     [
       "recon",
       "Order check",
-      "Customer paid = boutique goods + shipping and COD charge; and boutique goods - fees (incl. the courier & logistics charge) - taxes - payout = 0.",
+      "Customer paid - refunds = boutique goods (after returns) + shipping and COD charge - a refund charge kept shows as a difference; and boutique goods - fees (incl. the courier & logistics charge) - taxes - payout = 0.",
       true,
     ],
   ];

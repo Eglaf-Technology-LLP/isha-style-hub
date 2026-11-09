@@ -60,7 +60,13 @@ export function VendorReports({ vendorId }: { vendorId: string }) {
   }, [vendorId, rangeFrom, rangeTo]);
 
   const shown = useMemo(
-    () => (lines ?? []).filter((l) => (scope === "completed" ? l.status === "delivered" : l.status !== "cancelled")),
+    () =>
+      (lines ?? []).filter(
+        (l) =>
+          (scope === "completed" ? l.status === "delivered" : l.status !== "cancelled") ||
+          // Back undelivered / cancelled after it left: the courier charge is owed.
+          (l.status === "cancelled" && Number(l.courier) > 0),
+      ),
     [lines, scope],
   );
 

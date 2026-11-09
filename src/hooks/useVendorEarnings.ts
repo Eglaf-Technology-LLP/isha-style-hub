@@ -132,7 +132,9 @@ export function useVendorEarnings(vendorId: string | undefined) {
       // a cancelled vendor_order's figures must not count as live earnings.
       const eligible = (vendorOrders || []).filter((vo) => {
         const order = unwrapOne(vo.order);
-        return order?.payment_status === "paid" && vo.status !== "cancelled";
+        // A part cancelled / back undelivered after it left the boutique still
+        // owes the courier & logistics charge.
+        return (order?.payment_status === "paid" && vo.status !== "cancelled") || (vo.status === "cancelled" && Number(vo.logistics_fee_amount) > 0);
       });
 
       const orders: VendorOrderEarning[] = eligible.map(toVendorOrderEarning);

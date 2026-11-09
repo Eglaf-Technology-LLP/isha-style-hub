@@ -182,7 +182,8 @@ export function feeInvoiceRows(fees: FeeInvoice[], withBoutique: boolean) {
 
 export function tcsRows(lines: StatementLine[], gstinByVendor: Map<string, string>, withBoutique: boolean) {
   return groupBy(lines, (l) => `${withBoutique ? l.boutique_name : ""}|${l.order_date.slice(0, 7)}`).map(([, g]) => {
-    const gross = sum(g, (l) => n(l.product_value));
+    // product_value is after returned pieces; returned_value adds them back.
+    const gross = sum(g, (l) => n(l.product_value) + n(l.returned_value));
     const net = sum(g, (l) => n(l.net_taxable));
     return {
       ...(withBoutique ? { Boutique: `${g[0].boutique_name} (${g[0].boutique_code})` } : {}),
@@ -276,6 +277,8 @@ export function reconciliationRows(
     const cancelled = parts.some((l) => l.status === "cancelled");
     const goods = sum(parts, (l) => n(l.goods_value));
     const allboutiqs = r2(n(o?.shipping_cost) + n(o?.cod_charge));
+    // Goods are after returned pieces; what went back to the customer.
+    const refunded = sum(parts, (l) => n(l.refunded));
     const boutiqueCheck = sum(
       parts,
       (l) =>
@@ -300,10 +303,12 @@ export function reconciliationRows(
       "Customer paid": n(o?.total),
       "Boutique goods (incl. GST)": goods,
       "Shipping + COD charge": allboutiqs,
-      "Difference (paid - goods - shipping - COD)": cancelled ? "has cancellations" : r2(n(o?.total) - goods - allboutiqs),
+      "Difference (paid - refunded - goods - shipping - COD)": cancelled
+        ? "has cancellations"
+        : r2(n(o?.total) - refunded - goods - allboutiqs),
       "AllBoutiqs invoices issued": courierInvoiced,
       "Courier & logistics charged to boutique": sum(parts, (l) => n(l.courier)),
-      Refunded: sum(parts, (l) => n(l.refunded)),
+      Refunded: refunded,
       "Boutique check (goods - fees - taxes - payout)": r2(boutiqueCheck),
     };
   });
