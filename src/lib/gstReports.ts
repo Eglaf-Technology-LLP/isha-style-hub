@@ -5,9 +5,10 @@ import type { StatementLine } from "@/lib/statement";
 
 // The tax reports in Download Statement, built from the same records for the
 // boutique and for AllBoutiqs so both sides always show the same numbers:
-//   * the boutique's GSTR-1 (sales register, B2CS, B2CL, HSN summary,
-//     documents issued, Table 14 - supplies through AllBoutiqs) from its
-//     customer tax invoices, by invoice date;
+//   * the boutique's GSTR-1 (sales register, B2CS, B2CL, credit notes,
+//     CDNUR, HSN summary, documents issued, Table 14 - supplies through
+//     AllBoutiqs) from its customer tax invoices and credit notes, by their
+//     dates; B2CS, HSN and Table 14 are net of credit notes;
 //   * its ITC register from AllBoutiqs' fee invoices - commission,
 //     technology fee, courier & logistics charge (= AllBoutiqs' GSTR-1 B2B);
 //   * GST TCS per boutique GSTIN and month (= AllBoutiqs' GSTR-8) from the
@@ -22,6 +23,7 @@ type Tables = Database["public"]["Tables"];
 export type SalesInvoice = Tables["invoices"]["Row"] & { invoice_lines: Tables["invoice_lines"]["Row"][] };
 export type FeeInvoice = Tables["fee_invoices"]["Row"];
 export type CourierInvoice = Tables["platform_invoices"]["Row"];
+export type CreditNote = Tables["credit_notes"]["Row"] & { credit_note_lines: Tables["credit_note_lines"]["Row"][] };
 
 const n = (v: unknown) => Number(v ?? 0);
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -36,6 +38,7 @@ const pos = (code: string | null | undefined, state: string | null | undefined) 
   code ? `${code}-${state ?? ""}` : state ?? "";
 
 const isB2cl = (i: SalesInvoice) => i.supply_type === "inter_state" && n(i.total) > B2CL_LIMIT;
+const isB2clCreditNote = (c: CreditNote) => c.supply_type === "inter_state" && n(c.invoice_total) > B2CL_LIMIT;
 
 function groupBy<T>(rows: T[], key: (r: T) => string): [string, T[]][] {
   const m = new Map<string, T[]>();
@@ -71,21 +74,46 @@ export function salesRegisterRows(invoices: SalesInvoice[], withBoutique: boolea
   );
 }
 
-export function b2csRows(invoices: SalesInvoice[], withBoutique: boolean) {
-  const lines = invoices
-    .filter((i) => !isB2cl(i))
-    .flatMap((i) => i.invoice_lines.map((l) => ({ i, l })));
-  return groupBy(lines, ({ i, l }) =>
-    [withBoutique ? boutiqueOf(i) : "", pos(i.place_of_supply_code, i.billing_state), n(l.gst_rate)].join("|"),
-  ).map(([, g]) => ({
-    ...(withBoutique ? { Boutique: boutiqueOf(g[0].i) } : {}),
+// A line of an invoice (+) or of a credit note (-), for the tables that net
+// them: B2CS, HSN summary, Table 14.
+interface SignedLine {
+  who: string;
+  pos: string;
+  sign: 1 | -1;
+  l: {
+    hsn_code: string | null;
+    quantity: number;
+    gst_rate: number;
+    taxable_value: number;
+    igst_amount: number;
+    cgst_amount: number;
+    sgst_amount: number;
+    total: number;
+  };
+}
+const signedLines = (invoices: SalesInvoice[], creditNotes: CreditNote[]): SignedLine[] => [
+  ...invoices.flatMap((i) =>
+    i.invoice_lines.map((l) => ({ who: boutiqueOf(i), pos: pos(i.place_of_supply_code, i.billing_state), sign: 1 as const, l })),
+  ),
+  ...creditNotes.flatMap((c) =>
+    c.credit_note_lines.map((l) => ({ who: boutiqueOf(c), pos: pos(c.place_of_supply_code, c.billing_state), sign: -1 as const, l })),
+  ),
+];
+const ssum = (g: SignedLine[], f: (l: SignedLine["l"]) => number) => sum(g, (x) => x.sign * n(f(x.l)));
+
+// B2CS: invoices less credit notes, by place of supply and rate (B2CL ones
+// are reported invoice by invoice: B2CL and CDNUR).
+export function b2csRows(invoices: SalesInvoice[], creditNotes: CreditNote[], withBoutique: boolean) {
+  const lines = signedLines(invoices.filter((i) => !isB2cl(i)), creditNotes.filter((c) => !isB2clCreditNote(c)));
+  return groupBy(lines, (x) => [withBoutique ? x.who : "", x.pos, n(x.l.gst_rate)].join("|")).map(([, g]) => ({
+    ...(withBoutique ? { Boutique: g[0].who } : {}),
     Type: "E",
-    "Place of supply": pos(g[0].i.place_of_supply_code, g[0].i.billing_state),
+    "Place of supply": g[0].pos,
     "Rate %": n(g[0].l.gst_rate),
-    "Taxable value": sum(g, ({ l }) => n(l.taxable_value)),
-    IGST: sum(g, ({ l }) => n(l.igst_amount)),
-    CGST: sum(g, ({ l }) => n(l.cgst_amount)),
-    SGST: sum(g, ({ l }) => n(l.sgst_amount)),
+    "Taxable value": ssum(g, (l) => l.taxable_value),
+    IGST: ssum(g, (l) => l.igst_amount),
+    CGST: ssum(g, (l) => l.cgst_amount),
+    SGST: ssum(g, (l) => l.sgst_amount),
     "E-commerce GSTIN": COMPANY.gstin,
   }));
 }
@@ -106,31 +134,34 @@ export function b2clRows(invoices: SalesInvoice[], withBoutique: boolean) {
   );
 }
 
-export function hsnRows(invoices: SalesInvoice[], withBoutique: boolean) {
-  const lines = invoices.flatMap((i) => i.invoice_lines.map((l) => ({ i, l })));
-  return groupBy(lines, ({ i, l }) => [withBoutique ? boutiqueOf(i) : "", l.hsn_code ?? "", n(l.gst_rate)].join("|")).map(
-    ([, g]) => ({
-      ...(withBoutique ? { Boutique: boutiqueOf(g[0].i) } : {}),
-      HSN: g[0].l.hsn_code ?? "",
-      UQC: "PCS-PIECES",
-      "Total quantity": g.reduce((s, { l }) => s + l.quantity, 0),
-      "Rate %": n(g[0].l.gst_rate),
-      "Total value": sum(g, ({ l }) => n(l.total)),
-      "Taxable value": sum(g, ({ l }) => n(l.taxable_value)),
-      IGST: sum(g, ({ l }) => n(l.igst_amount)),
-      CGST: sum(g, ({ l }) => n(l.cgst_amount)),
-      SGST: sum(g, ({ l }) => n(l.sgst_amount)),
-    }),
-  );
+// Table 12, net of credit notes.
+export function hsnRows(invoices: SalesInvoice[], creditNotes: CreditNote[], withBoutique: boolean) {
+  const lines = signedLines(invoices, creditNotes);
+  return groupBy(lines, (x) => [withBoutique ? x.who : "", x.l.hsn_code ?? "", n(x.l.gst_rate)].join("|")).map(([, g]) => ({
+    ...(withBoutique ? { Boutique: g[0].who } : {}),
+    HSN: g[0].l.hsn_code ?? "",
+    UQC: "PCS-PIECES",
+    "Total quantity": g.reduce((s, x) => s + x.sign * x.l.quantity, 0),
+    "Rate %": n(g[0].l.gst_rate),
+    "Total value": ssum(g, (l) => l.total),
+    "Taxable value": ssum(g, (l) => l.taxable_value),
+    IGST: ssum(g, (l) => l.igst_amount),
+    CGST: ssum(g, (l) => l.cgst_amount),
+    SGST: ssum(g, (l) => l.sgst_amount),
+  }));
 }
 
-// Table 13: the invoice number range used in the period.
-export function documentsIssuedRows(invoices: SalesInvoice[], withBoutique: boolean) {
-  return groupBy(invoices, (i) => (withBoutique ? boutiqueOf(i) : "")).map(([, g]) => {
-    const numbers = g.map((i) => i.invoice_number).sort();
+// Table 13: the invoice and credit note number ranges used in the period.
+export function documentsIssuedRows(invoices: SalesInvoice[], creditNotes: CreditNote[], withBoutique: boolean) {
+  const docs = [
+    ...invoices.map((i) => ({ who: boutiqueOf(i), kind: "Invoices for outward supply", no: i.invoice_number })),
+    ...creditNotes.map((c) => ({ who: boutiqueOf(c), kind: "Credit notes", no: c.credit_note_number })),
+  ];
+  return groupBy(docs, (d) => `${withBoutique ? d.who : ""}|${d.kind}`).map(([, g]) => {
+    const numbers = g.map((d) => d.no).sort();
     return {
-      ...(withBoutique ? { Boutique: boutiqueOf(g[0]) } : {}),
-      "Nature of document": "Invoices for outward supply",
+      ...(withBoutique ? { Boutique: g[0].who } : {}),
+      "Nature of document": g[0].kind,
       "Sr. no. from": numbers[0],
       "Sr. no. to": numbers[numbers.length - 1],
       "Total number": numbers.length,
@@ -139,17 +170,59 @@ export function documentsIssuedRows(invoices: SalesInvoice[], withBoutique: bool
   });
 }
 
-// Table 14: supplies made through an e-commerce operator that collects TCS.
-export function ecoRows(invoices: SalesInvoice[], withBoutique: boolean) {
-  return groupBy(invoices, (i) => (withBoutique ? boutiqueOf(i) : "")).map(([, g]) => ({
-    ...(withBoutique ? { Boutique: boutiqueOf(g[0]) } : {}),
+// Table 14: supplies made through an e-commerce operator that collects TCS,
+// net of credit notes.
+export function ecoRows(invoices: SalesInvoice[], creditNotes: CreditNote[], withBoutique: boolean) {
+  const lines = signedLines(invoices, creditNotes);
+  return groupBy(lines, (x) => (withBoutique ? x.who : "")).map(([, g]) => ({
+    ...(withBoutique ? { Boutique: g[0].who } : {}),
     "E-commerce operator": COMPANY.legalName,
     "E-commerce GSTIN": COMPANY.gstin,
-    "Net value of supplies": sum(g, (i) => n(i.taxable_value)),
-    IGST: sum(g, (i) => n(i.igst_amount)),
-    CGST: sum(g, (i) => n(i.cgst_amount)),
-    SGST: sum(g, (i) => n(i.sgst_amount)),
+    "Net value of supplies": ssum(g, (l) => l.taxable_value),
+    IGST: ssum(g, (l) => l.igst_amount),
+    CGST: ssum(g, (l) => l.cgst_amount),
+    SGST: ssum(g, (l) => l.sgst_amount),
   }));
+}
+
+const CN_REASON: Record<string, string> = { return: "Return", cancelled: "Cancelled", undelivered: "Not delivered (RTO)" };
+
+// Every credit note issued in the period (by credit note date).
+export function creditNoteRows(creditNotes: CreditNote[], withBoutique: boolean) {
+  return creditNotes.map((c) => ({
+    ...(withBoutique ? { Boutique: boutiqueOf(c) } : {}),
+    "Credit note no.": c.credit_note_number,
+    "Credit note date": day(c.issued_at),
+    "Against invoice": c.invoice_number,
+    "Invoice date": day(c.invoice_date),
+    Reason: CN_REASON[c.reason] ?? c.reason,
+    "Place of supply": pos(c.place_of_supply_code, c.billing_state),
+    Supply: c.supply_type === "intra_state" ? "Intra-state" : "Inter-state",
+    "Taxable value": n(c.taxable_value),
+    CGST: n(c.cgst_amount),
+    SGST: n(c.sgst_amount),
+    IGST: n(c.igst_amount),
+    "Credit note value": n(c.total),
+  }));
+}
+
+// CDNUR: credit notes against B2CL invoices, by rate.
+export function cdnurRows(creditNotes: CreditNote[], withBoutique: boolean) {
+  return creditNotes.filter(isB2clCreditNote).flatMap((c) =>
+    groupBy(c.credit_note_lines, (l) => String(n(l.gst_rate))).map(([, g]) => ({
+      ...(withBoutique ? { Boutique: boutiqueOf(c) } : {}),
+      "UR type": "B2CL",
+      "Note no.": c.credit_note_number,
+      "Note date": day(c.issued_at),
+      "Note type": "C",
+      "Place of supply": pos(c.place_of_supply_code, c.billing_state),
+      "Note value": n(c.total),
+      "Rate %": n(g[0].gst_rate),
+      "Taxable value": sum(g, (l) => n(l.taxable_value)),
+      IGST: sum(g, (l) => n(l.igst_amount)),
+      "Against invoice": c.invoice_number,
+    })),
+  );
 }
 
 // ---------- ITC: AllBoutiqs' fee invoices ----------

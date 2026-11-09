@@ -32,6 +32,8 @@ import { formatINR } from "@/lib/format";
 import {
   b2clRows,
   b2csRows,
+  cdnurRows,
+  creditNoteRows,
   courierB2csRows,
   courierInvoiceRows,
   documentsIssuedRows,
@@ -43,6 +45,7 @@ import {
   salesRegisterRows,
   tcsRows,
   type CourierInvoice,
+  type CreditNote,
   type FeeInvoice,
   type ReconOrder,
   type SalesInvoice,
@@ -63,11 +66,12 @@ const chunks = <T,>(xs: T[], size = 150) => Array.from({ length: Math.ceil(xs.le
 
 interface TaxDocs {
   sales: SalesInvoice[];
+  creditNotes: CreditNote[];
   fees: FeeInvoice[];
   courier: CourierInvoice[];
   gstins: Map<string, string>;
 }
-const NO_DOCS: TaxDocs = { sales: [], fees: [], courier: [], gstins: new Map() };
+const NO_DOCS: TaxDocs = { sales: [], creditNotes: [], fees: [], courier: [], gstins: new Map() };
 
 const ALL = "__all__";
 const money = (v: number) => `${formatINR(v)}`;
@@ -166,6 +170,11 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
         if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
         return q.order("invoice_number").range(a, b);
       });
+      const creditNotes = await allRows<CreditNote>((a, b) => {
+        let q = supabase.from("credit_notes").select("*, credit_note_lines(*)").gte("issued_at", fromTs).lt("issued_at", toTs);
+        if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
+        return q.order("credit_note_number").range(a, b);
+      });
       const fees = await allRows<FeeInvoice>((a, b) => {
         let q = supabase.from("fee_invoices").select("*").gte("issued_at", fromTs).lt("issued_at", toTs);
         if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
@@ -187,7 +196,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
           supabase.from("platform_invoices").select("*").gte("issued_at", fromTs).lt("issued_at", toTs).order("invoice_number").range(a, b),
         );
       }
-      return { sales, fees, courier, gstins };
+      return { sales, creditNotes, fees, courier, gstins };
     })()
       .then((d) => alive && setDocs(d))
       .catch((e: Error) => alive && toast.error(e.message))
@@ -244,11 +253,13 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       gst: monthlyGstRows(filtered, allBoutiques),
       tds: quarterlyTdsRows(filtered, allBoutiques),
       sales: salesRegisterRows(docs.sales, allBoutiques),
-      b2cs: b2csRows(docs.sales, allBoutiques),
+      b2cs: b2csRows(docs.sales, docs.creditNotes, allBoutiques),
       b2cl: b2clRows(docs.sales, allBoutiques),
-      hsn: hsnRows(docs.sales, allBoutiques),
-      docsIssued: documentsIssuedRows(docs.sales, allBoutiques),
-      eco: ecoRows(docs.sales, allBoutiques),
+      creditNotes: creditNoteRows(docs.creditNotes, allBoutiques),
+      cdnur: cdnurRows(docs.creditNotes, allBoutiques),
+      hsn: hsnRows(docs.sales, docs.creditNotes, allBoutiques),
+      docsIssued: documentsIssuedRows(docs.sales, docs.creditNotes, allBoutiques),
+      eco: ecoRows(docs.sales, docs.creditNotes, allBoutiques),
       itc: feeInvoiceRows(docs.fees, allBoutiques),
       tcs: tcsRows(filtered, docs.gstins, allBoutiques),
       payouts: payoutRows(filtered, allBoutiques),
@@ -269,6 +280,8 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     sales: { name: "GSTR-1 Sales register", rows: reports.sales },
     b2cs: { name: "GSTR-1 B2CS", rows: reports.b2cs },
     b2cl: { name: "GSTR-1 B2CL", rows: reports.b2cl },
+    creditNotes: { name: "GSTR-1 Credit notes", rows: reports.creditNotes },
+    cdnur: { name: "GSTR-1 CDNUR", rows: reports.cdnur },
     hsn: { name: "GSTR-1 HSN summary", rows: reports.hsn },
     docsIssued: { name: "GSTR-1 Documents issued", rows: reports.docsIssued },
     eco: { name: "GSTR-1 Table 14 (ECO)", rows: reports.eco },
@@ -283,11 +296,23 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   // The tax reports below the statement: [key, title, what it is for, admins only].
   const TAX_SECTIONS: [SheetKey, string, string, boolean][] = [
     ["sales", "GSTR-1 · Sales register", "Every line of every customer tax invoice issued in the period (by invoice date).", false],
-    ["b2cs", "GSTR-1 · B2CS", "Sales to customers by place of supply and GST rate, through AllBoutiqs (e-commerce GSTIN).", false],
+    [
+      "b2cs",
+      "GSTR-1 · B2CS",
+      "Sales to customers by place of supply and GST rate, less credit notes, through AllBoutiqs (e-commerce GSTIN).",
+      false,
+    ],
     ["b2cl", "GSTR-1 · B2CL", "Inter-state invoices above ₹1,00,000.", false],
-    ["hsn", "GSTR-1 · HSN summary", "Table 12.", false],
-    ["docsIssued", "GSTR-1 · Documents issued", "Table 13 - the invoice numbers used.", false],
-    ["eco", "GSTR-1 · Table 14", "Supplies made through AllBoutiqs, which collects TCS on them.", false],
+    [
+      "creditNotes",
+      "GSTR-1 · Credit notes",
+      "Issued in your name for returned pieces and for orders cancelled or not delivered after their invoice - they reduce your sales.",
+      false,
+    ],
+    ["cdnur", "GSTR-1 · CDNUR", "Credit notes against B2CL invoices.", false],
+    ["hsn", "GSTR-1 · HSN summary", "Table 12, less credit notes.", false],
+    ["docsIssued", "GSTR-1 · Documents issued", "Table 13 - the invoice and credit note numbers used.", false],
+    ["eco", "GSTR-1 · Table 14", "Supplies made through AllBoutiqs, which collects TCS on them - less credit notes.", false],
     [
       "itc",
       admin ? "AllBoutiqs fee invoices (its GSTR-1 B2B)" : "ITC · AllBoutiqs fee invoices",

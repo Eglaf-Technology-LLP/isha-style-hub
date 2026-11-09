@@ -247,6 +247,157 @@ export type Database = {
         }
         Relationships: []
       }
+      credit_note_lines: {
+        Row: {
+          cgst_amount: number
+          credit_note_id: string
+          description: string
+          gst_rate: number
+          hsn_code: string | null
+          id: string
+          igst_amount: number
+          invoice_line_id: string
+          line_no: number
+          order_item_id: string | null
+          quantity: number
+          sgst_amount: number
+          taxable_value: number
+          total: number
+        }
+        Insert: {
+          cgst_amount?: number
+          credit_note_id: string
+          description: string
+          gst_rate: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_line_id: string
+          line_no: number
+          order_item_id?: string | null
+          quantity: number
+          sgst_amount?: number
+          taxable_value: number
+          total: number
+        }
+        Update: {
+          cgst_amount?: number
+          credit_note_id?: string
+          description?: string
+          gst_rate?: number
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number
+          invoice_line_id?: string
+          line_no?: number
+          order_item_id?: string | null
+          quantity?: number
+          sgst_amount?: number
+          taxable_value?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_note_lines_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_notes: {
+        Row: {
+          billing_name: string | null
+          billing_state: string | null
+          cgst_amount: number
+          credit_note_number: string
+          id: string
+          igst_amount: number
+          invoice_date: string
+          invoice_id: string
+          invoice_number: string
+          invoice_total: number
+          issued_at: string
+          order_id: string
+          place_of_supply_code: string | null
+          reason: string
+          return_request_id: string | null
+          seller_gstin: string | null
+          seller_legal_name: string | null
+          seller_name: string
+          seller_state_code: string | null
+          sgst_amount: number
+          supply_type: string | null
+          taxable_value: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Insert: {
+          billing_name?: string | null
+          billing_state?: string | null
+          cgst_amount?: number
+          credit_note_number: string
+          id?: string
+          igst_amount?: number
+          invoice_date: string
+          invoice_id: string
+          invoice_number: string
+          invoice_total: number
+          issued_at?: string
+          order_id: string
+          place_of_supply_code?: string | null
+          reason: string
+          return_request_id?: string | null
+          seller_gstin?: string | null
+          seller_legal_name?: string | null
+          seller_name: string
+          seller_state_code?: string | null
+          sgst_amount?: number
+          supply_type?: string | null
+          taxable_value: number
+          total: number
+          vendor_id: string
+          vendor_order_id: string
+        }
+        Update: {
+          billing_name?: string | null
+          billing_state?: string | null
+          cgst_amount?: number
+          credit_note_number?: string
+          id?: string
+          igst_amount?: number
+          invoice_date?: string
+          invoice_id?: string
+          invoice_number?: string
+          invoice_total?: number
+          issued_at?: string
+          order_id?: string
+          place_of_supply_code?: string | null
+          reason?: string
+          return_request_id?: string | null
+          seller_gstin?: string | null
+          seller_legal_name?: string | null
+          seller_name?: string
+          seller_state_code?: string | null
+          sgst_amount?: number
+          supply_type?: string | null
+          taxable_value?: number
+          total?: number
+          vendor_id?: string
+          vendor_order_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_challans: {
         Row: {
           challan_number: string
@@ -4431,6 +4582,7 @@ export type Database = {
           vendor_name: string
         }[]
       }
+      issue_missing_credit_notes: { Args: never; Returns: number }
       issue_missing_platform_invoices: { Args: never; Returns: number }
       price_with_gst: {
         Args: { _category_id: string; _value: number }
