@@ -1786,6 +1786,93 @@ export type Database = {
           },
         ]
       }
+      platform_invoices: {
+        Row: {
+          billing_address: Json | null
+          billing_name: string | null
+          billing_state: string | null
+          cgst_amount: number
+          cod_amount: number
+          courier_amount: number
+          courier_per_piece: number | null
+          goods_invoice_id: string | null
+          gst_rate: number
+          id: string
+          igst_amount: number
+          invoice_number: string
+          issued_at: string
+          order_id: string
+          pieces: number
+          place_of_supply_code: string | null
+          sac_code: string
+          sgst_amount: number
+          shipping_amount: number
+          supplier_gstin: string
+          supplier_name: string
+          supplier_state_code: string
+          supply_type: string
+          taxable_value: number
+          total: number
+          vendor_order_id: string
+        }
+        Insert: {
+          billing_address?: Json | null
+          billing_name?: string | null
+          billing_state?: string | null
+          cgst_amount?: number
+          cod_amount?: number
+          courier_amount?: number
+          courier_per_piece?: number | null
+          goods_invoice_id?: string | null
+          gst_rate: number
+          id?: string
+          igst_amount?: number
+          invoice_number: string
+          issued_at?: string
+          order_id: string
+          pieces?: number
+          place_of_supply_code?: string | null
+          sac_code: string
+          sgst_amount?: number
+          shipping_amount?: number
+          supplier_gstin: string
+          supplier_name: string
+          supplier_state_code: string
+          supply_type: string
+          taxable_value: number
+          total: number
+          vendor_order_id: string
+        }
+        Update: {
+          billing_address?: Json | null
+          billing_name?: string | null
+          billing_state?: string | null
+          cgst_amount?: number
+          cod_amount?: number
+          courier_amount?: number
+          courier_per_piece?: number | null
+          goods_invoice_id?: string | null
+          gst_rate?: number
+          id?: string
+          igst_amount?: number
+          invoice_number?: string
+          issued_at?: string
+          order_id?: string
+          pieces?: number
+          place_of_supply_code?: string | null
+          sac_code?: string
+          sgst_amount?: number
+          shipping_amount?: number
+          supplier_gstin?: string
+          supplier_name?: string
+          supplier_state_code?: string
+          supply_type?: string
+          taxable_value?: number
+          total?: number
+          vendor_order_id?: string
+        }
+        Relationships: []
+      }
       platform_rates: {
         Row: {
           charge_courier_to_boutique: boolean
@@ -4349,6 +4436,7 @@ export type Database = {
         Returns: number
       }
       delivery_charge_per_piece: { Args: never; Returns: number }
+      issue_missing_platform_invoices: { Args: never; Returns: number }
       price_with_gst: {
         Args: { _category_id: string; _value: number }
         Returns: number

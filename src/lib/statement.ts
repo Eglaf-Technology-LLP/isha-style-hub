@@ -79,7 +79,9 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 const tcsTotal = (l: StatementLine) => n(l.tcs_cgst) + n(l.tcs_sgst) + n(l.tcs_igst);
 
 // The order lines as they appear in the statement (Excel columns / PDF).
-export function orderRows(lines: StatementLine[], withBoutique: boolean) {
+// AllBoutiqs' courier inside the customer's price is never the boutique's:
+// admins see it in its own columns.
+export function orderRows(lines: StatementLine[], withBoutique: boolean, forAdmin = false) {
   return lines.map((l) => ({
     ...(withBoutique ? { Boutique: `${l.boutique_name} (${l.boutique_code})` } : {}),
     "Order no.": l.order_number,
@@ -87,7 +89,8 @@ export function orderRows(lines: StatementLine[], withBoutique: boolean) {
     "Delivered on": l.delivered_on ?? "",
     Status: l.status,
     Payment: l.payment_method === "cod" ? "COD" : "Prepaid",
-    "Paid by customer": n(l.goods_value),
+    ...(forAdmin ? { "AllBoutiqs courier (paid by customer)": n(l.delivery_charge) } : {}),
+    "Goods paid by customer": n(l.goods_value),
     "Coupon discount": n(l.discount),
     "Shipping charged to customer": n(l.shipping_credit),
     "Product value": n(l.product_value),
@@ -98,7 +101,8 @@ export function orderRows(lines: StatementLine[], withBoutique: boolean) {
     "Payment gateway fee": n(l.gateway_fee),
     "Courier & logistics": n(l.courier),
     "COD handling charge": n(l.cod_charge),
-    Refunded: n(l.refunded),
+    "Refunded (goods)": n(l.refunded),
+    ...(forAdmin ? { "AllBoutiqs courier refunded": n(l.delivery_refunded) } : {}),
     "Net taxable (after returns)": n(l.net_taxable),
     "GST TCS": r2(tcsTotal(l)),
     "Income-tax TDS": n(l.tds),
