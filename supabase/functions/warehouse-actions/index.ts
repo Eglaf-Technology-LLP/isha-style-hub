@@ -729,7 +729,14 @@ Deno.serve(async (req) => {
         }
 
         // A return: refund now, then the items go on to the boutique(s).
-        const itemsValue = ((ctx.rr.items ?? []) as any[]).reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0);
+        // Each item's own refund amount (exactly what its credit note takes);
+        // price x quantity only for requests from before that.
+        const itemsValue = round2(
+          ((ctx.rr.items ?? []) as any[]).reduce(
+            (s, i) => s + (i.amount != null ? Number(i.amount) : Number(i.price ?? 0) * Number(i.quantity ?? 1)),
+            0,
+          ),
+        );
         const amount = round2(Number(ctx.rr.refund_amount) > 0 ? Number(ctx.rr.refund_amount) : itemsValue);
         // The customer's choice: wallet (credited now) or the original
         // online payment are automatic; a Cash on Delivery bank transfer

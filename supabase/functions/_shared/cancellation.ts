@@ -170,11 +170,13 @@ export async function cancelOneVendorOrder(
   const refundAmount =
     Math.round((Number(vendorOrder.subtotal) + Number(vendorOrder.shipping_cost) - couponShare) * 100) / 100;
   const method = order.payment_method === "wallet" || refundMethod === "wallet" ? "wallet" : "original";
-  if (
+  const refundDue =
     (order.payment_method === "razorpay" || order.payment_method === "wallet") &&
     (order.payment_status === "paid" || order.payment_status === "partially_refunded") &&
     refundAmount > 0
-  ) {
+      ? refundAmount
+      : 0;
+  if (refundDue > 0) {
     try {
       const result = await refundCustomer(supabase, {
         orderId: order.id,
@@ -215,6 +217,8 @@ export async function cancelOneVendorOrder(
       refund_method: refundId || walletRefund > 0 ? method : null,
       refund_fee: fee,
       refund_fee_gst: feeGst,
+      // What was due back (before any refund charge), wherever it went.
+      refund_amount: refundDue > 0 ? refundDue : null,
     })
     .select("id")
     .single();

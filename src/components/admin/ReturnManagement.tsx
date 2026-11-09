@@ -165,8 +165,10 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
     // to what was in `items`, so an admin could accidentally refund the
     // wrong amount. Still freely editable below; a previously-saved value
     // takes priority over recomputing (don't clobber an admin's own entry).
+    // Each item's own refund amount (what its credit note takes); price x
+    // quantity only for requests from before that.
     const itemsTotal = (request.items || []).reduce(
-      (sum, item) => sum + (item.price ?? 0) * item.quantity,
+      (sum, item) => sum + (item.amount != null ? Number(item.amount) : (item.price ?? 0) * item.quantity),
       0
     );
     setRefundAmount(

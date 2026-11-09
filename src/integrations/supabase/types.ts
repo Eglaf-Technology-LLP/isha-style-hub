@@ -1578,6 +1578,7 @@ export type Database = {
           id: string
           order_id: string
           reason: string | null
+          refund_amount: number | null
           refund_fee: number
           refund_fee_gst: number
           refund_id: string | null
@@ -1591,6 +1592,7 @@ export type Database = {
           id?: string
           order_id: string
           reason?: string | null
+          refund_amount?: number | null
           refund_fee?: number
           refund_fee_gst?: number
           refund_id?: string | null
@@ -1604,6 +1606,7 @@ export type Database = {
           id?: string
           order_id?: string
           reason?: string | null
+          refund_amount?: number | null
           refund_fee?: number
           refund_fee_gst?: number
           refund_id?: string | null
@@ -4584,6 +4587,17 @@ export type Database = {
       }
       issue_missing_credit_notes: { Args: never; Returns: number }
       issue_missing_platform_invoices: { Args: never; Returns: number }
+      money_checks: {
+        Args: { _from: string; _to: string; _vendor_id: string }
+        Returns: {
+          actual: number
+          boutique_name: string
+          check_name: string
+          difference: number
+          expected: number
+          reference: string
+        }[]
+      }
       price_with_gst: {
         Args: { _category_id: string; _value: number }
         Returns: number
@@ -4654,6 +4668,25 @@ export type Database = {
           verified_at: string | null
           verified_by: string | null
         }
+      }
+      tcs_document_lines: {
+        Args: { _from: string; _to: string; _vendor_id: string }
+        Returns: {
+          boutique_code: string
+          boutique_name: string
+          doc_date: string
+          doc_number: string
+          doc_type: string
+          gstin: string
+          supply_type: string
+          taxable: number
+          tcs_cgst: number
+          tcs_igst: number
+          tcs_rate: number
+          tcs_sgst: number
+          vendor_id: string
+          vendor_order_id: string
+        }[]
       }
       statement_lines: {
         Args: { _from: string; _to: string; _vendor_id: string }

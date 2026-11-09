@@ -40,13 +40,19 @@ import {
   ecoRows,
   feeInvoiceRows,
   hsnRows,
+  checkRows,
   payoutRows,
   reconciliationRows,
   salesRegisterRows,
-  tcsRows,
+  tcsDocumentRows,
+  tcsMonthlyRows,
   type CourierInvoice,
   type CreditNote,
   type FeeInvoice,
+  type MoneyCheck,
+  type PayoutPart,
+  type PayoutTransfer,
+  type TcsDocLine,
   type ReconOrder,
   type SalesInvoice,
 } from "@/lib/gstReports";
@@ -69,9 +75,14 @@ interface TaxDocs {
   creditNotes: CreditNote[];
   fees: FeeInvoice[];
   courier: CourierInvoice[];
-  gstins: Map<string, string>;
+  tcsDocs: TcsDocLine[];
+  transfers: PayoutTransfer[];
+  checks: MoneyCheck[];
 }
-const NO_DOCS: TaxDocs = { sales: [], creditNotes: [], fees: [], courier: [], gstins: new Map() };
+const NO_DOCS: TaxDocs = { sales: [], creditNotes: [], fees: [], courier: [], tcsDocs: [], transfers: [], checks: [] };
+
+const PART_COLUMNS =
+  "id, payout_id, goods_value, commission_amount, tech_fee_amount, logistics_fee_amount, fee_gst_amount, gateway_fee_amount, courier_charge, cod_handling_charge, shipping_to_boutique, shipping_cost, tcs_amount, tds_amount, net_payable, rzp_reversed_amount";
 
 const ALL = "__all__";
 const money = (v: number) => `${formatINR(v)}`;
@@ -180,15 +191,35 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
         if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
         return q.order("invoice_number").range(a, b);
       });
-      const gstins = new Map<string, string>();
-      const { data: vendorRows } = await (vendorFilter
-        ? supabase.from("vendors").select("id, gst_number").eq("id", vendorFilter)
-        : supabase.from("vendors").select("id, gst_number"));
-      (vendorRows ?? []).forEach((v) => v.gst_number && gstins.set(v.id, v.gst_number));
-      const { data: kycRows } = await (vendorFilter
-        ? supabase.from("vendor_kyc").select("vendor_id, gstin").eq("vendor_id", vendorFilter)
-        : supabase.from("vendor_kyc").select("vendor_id, gstin"));
-      (kycRows ?? []).forEach((k) => k.gstin && gstins.set(k.vendor_id, k.gstin));
+      // GST TCS by document date, and every money check, from the database.
+      const [tcsRes, checksRes] = await Promise.all([
+        supabase.rpc("tcs_document_lines", { _vendor_id: vendorFilter as string, _from: rangeFrom, _to: rangeTo }),
+        supabase.rpc("money_checks", { _vendor_id: vendorFilter as string, _from: rangeFrom, _to: rangeTo }),
+      ]);
+      if (tcsRes.error) throw new Error(tcsRes.error.message);
+      if (checksRes.error) throw new Error(checksRes.error.message);
+      // The bank transfers made in the period, with their orders.
+      const payouts = await allRows<PayoutTransfer>((a, b) => {
+        let q = supabase.from("vendor_payouts").select("*").gte("payout_date", rangeFrom).lte("payout_date", rangeTo);
+        if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
+        return q.order("payout_date").range(a, b) as never;
+      });
+      const parts: PayoutPart[] = [];
+      for (const ids of chunks(payouts.map((p) => p.id))) {
+        const { data } = await supabase.from("vendor_orders").select(PART_COLUMNS).in("payout_id", ids);
+        parts.push(...((data ?? []) as PayoutPart[]));
+      }
+      const names = new Map<string, string>();
+      const vendorIds = [...new Set(payouts.map((p) => p.vendor_id))];
+      for (const ids of chunks(vendorIds)) {
+        const { data } = await supabase.from("vendors").select("id, name, boutique_code").in("id", ids);
+        (data ?? []).forEach((v) => names.set(v.id, `${v.name} (${v.boutique_code ?? ""})`));
+      }
+      const transfers = payouts.map((p) => ({
+        ...p,
+        vendor_name: names.get(p.vendor_id) ?? "",
+        parts: parts.filter((x) => x.payout_id === p.id),
+      }));
       // AllBoutiqs' own side: its courier invoices to customers.
       let courier: CourierInvoice[] = [];
       if (admin) {
@@ -196,7 +227,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
           supabase.from("platform_invoices").select("*").gte("issued_at", fromTs).lt("issued_at", toTs).order("invoice_number").range(a, b),
         );
       }
-      return { sales, creditNotes, fees, courier, gstins };
+      return { sales, creditNotes, fees, courier, tcsDocs: tcsRes.data ?? [], transfers, checks: checksRes.data ?? [] };
     })()
       .then((d) => alive && setDocs(d))
       .catch((e: Error) => alive && toast.error(e.message))
@@ -261,14 +292,17 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       docsIssued: documentsIssuedRows(docs.sales, docs.creditNotes, allBoutiques),
       eco: ecoRows(docs.sales, docs.creditNotes, allBoutiques),
       itc: feeInvoiceRows(docs.fees, allBoutiques),
-      tcs: tcsRows(filtered, docs.gstins, allBoutiques),
-      payouts: payoutRows(filtered, allBoutiques),
+      tcs: tcsMonthlyRows(docs.tcsDocs, allBoutiques),
+      tcsDocs: tcsDocumentRows(docs.tcsDocs, allBoutiques),
+      payouts: payoutRows(docs.transfers, allBoutiques),
+      checks: checkRows(docs.checks),
       courier: courierInvoiceRows(docs.courier),
       courierB2cs: courierB2csRows(docs.courier),
       recon: reconciliationRows(filtered, orderByVendorOrder, courierByVo),
     };
   }, [filtered, allBoutiques, docs, orderByVendorOrder]);
   const t = totals(filtered);
+  const mismatches = docs.checks.filter((c) => Number(c.difference) !== 0).length;
   const who = allBoutiques ? "all-boutiques" : (vendors.find((v) => v.id === boutique)?.name ?? "boutique").replace(/\W+/g, "-").toLowerCase();
   const fileBase = `allboutiqs-statement-${who}-${rangeFrom}-to-${rangeTo}`;
   const titleLine = `Statement ${formatDate(new Date(rangeFrom))} - ${formatDate(new Date(rangeTo))}`;
@@ -287,7 +321,9 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     eco: { name: "GSTR-1 Table 14 (ECO)", rows: reports.eco },
     itc: { name: admin ? "Fee invoices (B2B)" : "ITC - AllBoutiqs fee invoices", rows: reports.itc },
     tcs: { name: admin ? "GSTR-8 TCS" : "GST TCS (AllBoutiqs GSTR-8)", rows: reports.tcs },
+    tcsDocs: { name: "GST TCS by document", rows: reports.tcsDocs },
     payouts: { name: "Payouts", rows: reports.payouts },
+    checks: { name: "Checks", rows: reports.checks },
     courier: { name: "AllBoutiqs invoices to customers", rows: reports.courier },
     courierB2cs: { name: "AllBoutiqs B2CS", rows: reports.courierB2cs },
     recon: { name: "Order check", rows: reports.recon },
@@ -325,11 +361,28 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       "tcs",
       admin ? "GSTR-8 · GST TCS by boutique" : "GST TCS collected by AllBoutiqs",
       admin
-        ? "File in GSTR-8 by the 10th - each boutique's statement shows the same figures."
-        : "AllBoutiqs files these in its GSTR-8; accept them on the GST portal and they reach your cash ledger.",
+        ? "By tax invoice / credit note month (the GSTR-1 dates) - file in GSTR-8 by the 10th. Each boutique's statement shows the same figures."
+        : "By tax invoice / credit note month, as AllBoutiqs files it in GSTR-8 - accept it on the GST portal and it reaches your cash ledger.",
       false,
     ],
-    ["payouts", "Payouts", "What reached the bank, with the UTR - match it with your bank statement.", false],
+    [
+      "tcsDocs",
+      "GST TCS by document",
+      "Each tax invoice and credit note with its TCS - over an order's documents it adds up to exactly the TCS taken off its payout.",
+      false,
+    ],
+    [
+      "payouts",
+      "Payouts",
+      "Each bank transfer in the period with its UTR (match it with your bank statement) and every amount its orders add up to.",
+      false,
+    ],
+    [
+      "checks",
+      "Checks",
+      "Every figure that has to agree with another - payout, fees, GST, invoices less credit notes, TCS, fee invoices, transfers, return refunds - with the difference. All 0.00 = everything matches to the paisa.",
+      false,
+    ],
     ["courier", "AllBoutiqs invoices to customers", "AllBoutiqs' own invoices to customers for the COD charge (its GSTR-1, B2C).", true],
     ["courierB2cs", "AllBoutiqs invoices to customers · B2CS", "Those invoices by place of supply - AllBoutiqs' GSTR-1 B2CS.", true],
     [
@@ -517,8 +570,9 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
                 {sectionButtons("gst", "statement-gst")}
               </div>
               <p className="text-xs text-muted-foreground">
-                GST TCS is 0.25% CGST + 0.25% SGST when the customer is in the boutique's state, else 0.5% IGST, on the
-                net taxable value after returns - credited to the boutique's GST cash ledger.
+                By order date. GST TCS is 0.25% CGST + 0.25% SGST when the customer is in the boutique's state, else 0.5%
+                IGST, on the net taxable value after returns. For GSTR-8 use "GST TCS" below - by tax invoice / credit note
+                date; both add up to the same TCS over an order's life.
               </p>
               <ReportTable rows={reports.gst} countColumns={["Orders"]} />
             </section>
@@ -529,6 +583,17 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
               </div>
               <ReportTable rows={reports.tds} countColumns={["Orders"]} />
             </section>
+            {!docsLoading && (
+              <p
+                className={`rounded-md border p-2 text-sm ${
+                  mismatches ? "border-destructive text-destructive" : "border-green-600/40 text-green-700"
+                }`}
+              >
+                {mismatches
+                  ? `${mismatches} of ${docs.checks.length} checks don't match - see Checks below.`
+                  : `${docs.checks.length} checks - everything matches to the paisa.`}
+              </p>
+            )}
             {docsLoading ? (
               <p className="text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin inline" /> Loading invoices…

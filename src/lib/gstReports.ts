@@ -11,9 +11,10 @@ import type { StatementLine } from "@/lib/statement";
 //     dates; B2CS, HSN and Table 14 are net of credit notes;
 //   * its ITC register from AllBoutiqs' fee invoices - commission,
 //     technology fee, courier & logistics charge (= AllBoutiqs' GSTR-1 B2B);
-//   * GST TCS per boutique GSTIN and month (= AllBoutiqs' GSTR-8) from the
-//     statement lines;
-//   * payouts (bank credits) from the statement lines;
+//   * GST TCS per boutique GSTIN and month (= AllBoutiqs' GSTR-8) by
+//     document date, each document adding up to the TCS deducted;
+//   * payouts: each bank transfer with what its orders add up to;
+//   * checks: every money equality with its difference (money_checks).
 //   * AllBoutiqs only: its invoices to customers (COD charge, shipping) and an
 //     order-by-order check that what the customer paid = boutique goods +
 //     shipping + COD charge, and that each boutique part's goods = fees +
@@ -24,6 +25,8 @@ export type SalesInvoice = Tables["invoices"]["Row"] & { invoice_lines: Tables["
 export type FeeInvoice = Tables["fee_invoices"]["Row"];
 export type CourierInvoice = Tables["platform_invoices"]["Row"];
 export type CreditNote = Tables["credit_notes"]["Row"] & { credit_note_lines: Tables["credit_note_lines"]["Row"][] };
+export type TcsDocLine = Database["public"]["Functions"]["tcs_document_lines"]["Returns"][number];
+export type MoneyCheck = Database["public"]["Functions"]["money_checks"]["Returns"][number];
 
 const n = (v: unknown) => Number(v ?? 0);
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -252,19 +255,39 @@ export function feeInvoiceRows(fees: FeeInvoice[], withBoutique: boolean) {
 }
 
 // ---------- GST TCS (section 52) = AllBoutiqs' GSTR-8 ----------
+// By tax invoice / credit note date (the GSTR-1 dates). Each document carries
+// the change in its order's TCS, so over an order's documents they add up to
+// exactly the TCS taken off its payout (tcs_document_lines).
 
-export function tcsRows(lines: StatementLine[], gstinByVendor: Map<string, string>, withBoutique: boolean) {
-  return groupBy(lines, (l) => `${withBoutique ? l.boutique_name : ""}|${l.order_date.slice(0, 7)}`).map(([, g]) => {
-    // product_value is after returned pieces; returned_value adds them back.
-    const gross = sum(g, (l) => n(l.product_value) + n(l.returned_value));
-    const net = sum(g, (l) => n(l.net_taxable));
+export function tcsDocumentRows(lines: TcsDocLine[], withBoutique: boolean) {
+  return lines.map((l) => ({
+    ...(withBoutique ? { Boutique: `${l.boutique_name} (${l.boutique_code})` } : {}),
+    "Supplier GSTIN": l.gstin ?? "",
+    Document: l.doc_type === "invoice" ? "Tax invoice" : "Credit note",
+    "Document no.": l.doc_number,
+    "Document date": l.doc_date,
+    Supply: l.supply_type === "intra_state" ? "Intra-state" : "Inter-state",
+    "Taxable value": n(l.taxable),
+    "TCS - IGST": n(l.tcs_igst),
+    "TCS - CGST": n(l.tcs_cgst),
+    "TCS - SGST": n(l.tcs_sgst),
+    "TCS total": r2(n(l.tcs_igst) + n(l.tcs_cgst) + n(l.tcs_sgst)),
+  }));
+}
+
+// GSTR-8 by supplier and month: gross supplies (invoices), returns (credit
+// notes), net and the TCS on it - the document lines added up.
+export function tcsMonthlyRows(lines: TcsDocLine[], withBoutique: boolean) {
+  return groupBy(lines, (l) => `${withBoutique ? l.boutique_name : ""}|${l.gstin ?? ""}|${l.doc_date.slice(0, 7)}`).map(([, g]) => {
+    const gross = sum(g, (l) => (l.doc_type === "invoice" ? n(l.taxable) : 0));
+    const returns = sum(g, (l) => (l.doc_type === "invoice" ? 0 : -n(l.taxable)));
     return {
       ...(withBoutique ? { Boutique: `${g[0].boutique_name} (${g[0].boutique_code})` } : {}),
-      Month: format(new Date(`${g[0].order_date.slice(0, 7)}-01`), "MMM yyyy"),
-      "Supplier GSTIN": gstinByVendor.get(g[0].vendor_id) ?? "",
+      Month: format(new Date(`${g[0].doc_date.slice(0, 7)}-01`), "MMM yyyy"),
+      "Supplier GSTIN": g[0].gstin ?? "",
       "Gross value of supplies": gross,
-      "Value of returns": r2(gross - net),
-      "Net value (TCS base)": net,
+      "Value of returns": returns,
+      "Net value (TCS base)": r2(gross - returns),
       "TCS - IGST": sum(g, (l) => n(l.tcs_igst)),
       "TCS - CGST": sum(g, (l) => n(l.tcs_cgst)),
       "TCS - SGST": sum(g, (l) => n(l.tcs_sgst)),
@@ -274,25 +297,70 @@ export function tcsRows(lines: StatementLine[], gstinByVendor: Map<string, strin
   });
 }
 
-// ---------- payouts: what reached the bank ----------
+// ---------- payouts: the bank transfers ----------
 
-export function payoutRows(lines: StatementLine[], withBoutique: boolean) {
-  const paid = lines.filter((l) => l.payout_status === "paid");
-  return groupBy(paid, (l) => `${withBoutique ? l.boutique_name : ""}|${l.payment_date ?? ""}|${l.utr ?? ""}`).map(
-    ([, g]) => ({
-      ...(withBoutique ? { Boutique: `${g[0].boutique_name} (${g[0].boutique_code})` } : {}),
-      "Payment date": g[0].payment_date ?? "",
-      "UTR / reference": g[0].utr ?? "",
-      Orders: g.length,
-      "Goods (after coupon)": sum(g, (l) => n(l.goods_value)),
-      "AllBoutiqs fees incl. GST": sum(g, (l) => n(l.commission) + n(l.tech_fee) + n(l.fee_gst)),
-      "Gateway, courier & COD": sum(g, (l) => n(l.gateway_fee) + n(l.courier) + n(l.cod_charge)),
-      "GST TCS": sum(g, (l) => n(l.tcs_igst) + n(l.tcs_cgst) + n(l.tcs_sgst)),
-      "Income-tax TDS": sum(g, (l) => n(l.tds)),
-      "Amount paid": sum(g, (l) => n(l.net_payout)),
-      "Fee invoices": [...new Set(g.map((l) => l.fee_invoice_number).filter(Boolean))].join(", "),
-    }),
-  );
+export type PayoutPart = Pick<
+  Tables["vendor_orders"]["Row"],
+  | "id"
+  | "payout_id"
+  | "goods_value"
+  | "commission_amount"
+  | "tech_fee_amount"
+  | "logistics_fee_amount"
+  | "fee_gst_amount"
+  | "gateway_fee_amount"
+  | "courier_charge"
+  | "cod_handling_charge"
+  | "shipping_to_boutique"
+  | "shipping_cost"
+  | "tcs_amount"
+  | "tds_amount"
+  | "net_payable"
+  | "rzp_reversed_amount"
+>;
+export type PayoutTransfer = Tables["vendor_payouts"]["Row"] & { vendor_name: string; parts: PayoutPart[] };
+
+// One row per transfer (match it with the bank statement), every amount the
+// orders in it add up to, and the difference from what was transferred.
+export function payoutRows(transfers: PayoutTransfer[], withBoutique: boolean) {
+  return transfers.map((t) => {
+    const p = t.parts;
+    const ordersNet = sum(p, (x) => n(x.net_payable) - n(x.rzp_reversed_amount));
+    return {
+      ...(withBoutique ? { Boutique: t.vendor_name } : {}),
+      "Payout date": t.payout_date ?? "",
+      "Paid on": t.paid_at ? day(t.paid_at) : "",
+      Status: t.status,
+      "UTR / reference": t.payment_reference ?? "",
+      Orders: p.length,
+      "Goods (after coupon, returns)": sum(p, (x) => n(x.goods_value)),
+      "Shipping credited": sum(p, (x) => (x.shipping_to_boutique ? n(x.shipping_cost) : 0)),
+      "Marketplace commission": sum(p, (x) => n(x.commission_amount)),
+      "Technology & service fee": sum(p, (x) => n(x.tech_fee_amount)),
+      "Courier & logistics": sum(p, (x) => n(x.logistics_fee_amount)),
+      "GST on AllBoutiqs fees": sum(p, (x) => n(x.fee_gst_amount)),
+      "Payment gateway fee": sum(p, (x) => n(x.gateway_fee_amount)),
+      "Courier cost / COD handling": sum(p, (x) => (x.shipping_to_boutique ? n(x.courier_charge) : 0) + n(x.cod_handling_charge)),
+      "GST TCS": sum(p, (x) => n(x.tcs_amount)),
+      "Income-tax TDS": sum(p, (x) => n(x.tds_amount)),
+      "Orders' payouts": ordersNet,
+      Transferred: n(t.net_payable),
+      Difference: r2(n(t.net_payable) - ordersNet),
+    };
+  });
+}
+
+// ---------- checks ----------
+
+export function checkRows(checks: MoneyCheck[]) {
+  return checks.map((c) => ({
+    Check: c.check_name,
+    Boutique: c.boutique_name ?? "",
+    Reference: c.reference ?? "",
+    Expected: n(c.expected),
+    Actual: n(c.actual),
+    Difference: n(c.difference),
+  }));
 }
 
 // ---------- AllBoutiqs only ----------

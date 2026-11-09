@@ -69,6 +69,9 @@ export interface ReturnItem {
   size?: string | null;
   color?: string | null;
   price?: number;
+  // What these pieces are refunded (set by the database, exactly what their
+  // credit note takes); absent on requests from before 10 Nov 2026.
+  amount?: number;
   // Required for every new submission (return or exchange) - proof the
   // tag is still attached. Optional in the type only so old rows
   // (submitted before this existed) don't fail to render.
