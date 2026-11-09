@@ -28,6 +28,7 @@ import { EwayBillRecordDialog } from "./EwayBillRecordDialog";
 import { EwayBillBulkEntryDialog, EwayBillPdfUploadDialog } from "./EwayBillBulkDialogs";
 import { EwayBillCreateDialog, EwayBillExtendDialog } from "./EwayBillActionDialogs";
 import { EwaySettingsTab } from "./EwayBillSetupTabs";
+import { EWAY_BILL_SETTINGS_ENABLED } from "@/lib/hiddenFeatures";
 
 const EXPIRING_SOON_MS = 8 * 3_600_000;
 
@@ -112,7 +113,9 @@ function PdfCell({ bill, onDone }: { bill: AdminEwayBill; onDone: () => void }) 
 //   3. enter the numbers in bulk and attach the PDFs - each boutique is
 //      emailed and can print its copy, the warehouse is told to book.
 export function EwayBillsManagement() {
-  const [sub, setSub] = useUrlTab("requests", "sub");
+  const [urlSub, setSub] = useUrlTab("requests", "sub");
+  // Settings may be hidden (src/lib/hiddenFeatures.ts): then only Requests.
+  const sub = EWAY_BILL_SETTINGS_ENABLED ? urlSub : "requests";
   const { bills, settings, loading, refetch } = useEwayBillsAdmin();
   useFlashFocus(!loading && sub === "requests");
 
@@ -176,17 +179,19 @@ export function EwayBillsManagement() {
 
   return (
     <Tabs value={sub} onValueChange={setSub} className="space-y-6">
-      <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">
-        <TabsTrigger value="requests" className="gap-1.5">
-          Requests
-          {pending.length > 0 && (
-            <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
-              {pending.length}
-            </Badge>
-          )}
-        </TabsTrigger>
-        <TabsTrigger value="settings">Settings</TabsTrigger>
-      </TabsList>
+      {EWAY_BILL_SETTINGS_ENABLED && (
+        <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">
+          <TabsTrigger value="requests" className="gap-1.5">
+            Requests
+            {pending.length > 0 && (
+              <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
+                {pending.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+      )}
 
       <TabsContent value="requests" className="space-y-6">
         {loading ? (
@@ -199,10 +204,16 @@ export function EwayBillsManagement() {
               <Card className="border-amber-300 bg-amber-50">
                 <CardContent className="py-3 text-sm text-amber-950 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  Enter AllBoutiqs' transporter ID in Settings - the JSON for the portal needs it.
-                  <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={() => setSub("settings")}>
-                    Settings
-                  </Button>
+                  {EWAY_BILL_SETTINGS_ENABLED ? (
+                    <>
+                      Enter AllBoutiqs' transporter ID in Settings - the JSON for the portal needs it.
+                      <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={() => setSub("settings")}>
+                        Settings
+                      </Button>
+                    </>
+                  ) : (
+                    "AllBoutiqs' transporter ID isn't set - the JSON for the portal needs it."
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -424,9 +435,11 @@ export function EwayBillsManagement() {
         )}
       </TabsContent>
 
-      <TabsContent value="settings">
-        <EwaySettingsTab onSaved={refetch} />
-      </TabsContent>
+      {EWAY_BILL_SETTINGS_ENABLED && (
+        <TabsContent value="settings">
+          <EwaySettingsTab onSaved={refetch} />
+        </TabsContent>
+      )}
     </Tabs>
   );
 }

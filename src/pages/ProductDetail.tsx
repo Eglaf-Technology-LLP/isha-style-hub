@@ -49,6 +49,8 @@ import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { ProductCustomiser, buildCustomisation, emptyCustomiser, type CustomiserState } from "@/components/ProductCustomiser";
 import { CUSTOMISATION_ENABLED, customisationPrice, customisationSummary, inr, readSetup } from "@/lib/customisation";
 import { useAuth } from "@/hooks/useAuth";
+import { useStaffRole } from "@/hooks/useStaffRole";
+import { isStaffProductView } from "@/lib/staffMode";
 import { discountPercent, formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
@@ -85,6 +87,9 @@ export default function ProductDetail() {
   const [missingChoices, setMissingChoices] = useState<("size" | "color")[]>([]);
   const [customiser, setCustomiser] = useState<CustomiserState>(emptyCustomiser);
   const { user } = useAuth();
+  // Admins and boutiques see the product on its own, to look at only.
+  const { role } = useStaffRole();
+  const viewOnly = isStaffProductView(role);
 
   const addItem = useCartStore((state) => state.addItem);
   const setBuyNowItem = useBuyNowStore((state) => state.setItem);
@@ -400,7 +405,7 @@ export default function ProductDetail() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        {!viewOnly && <Header />}
         <main className="store-container pb-20 pt-6 md:pt-10">
           <Skeleton className="mb-8 h-3 w-56 rounded-none" />
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-14 xl:gap-20">
@@ -427,7 +432,7 @@ export default function ProductDetail() {
             </div>
           </div>
         </main>
-        <Footer />
+        {!viewOnly && <Footer />}
       </div>
     );
   }
@@ -435,29 +440,31 @@ export default function ProductDetail() {
   if (!product) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        {!viewOnly && <Header />}
         <main className="store-container py-28 text-center">
           <p className="eyebrow text-gold">AllBoutiqs</p>
           <h1 className="mt-3 font-serif text-4xl md:text-5xl">This piece isn't available</h1>
           <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-            It may have sold out or been taken down by the boutique. There's plenty more to discover.
+            It may have sold out or been taken down by the boutique.{!viewOnly && " There's plenty more to discover."}
           </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link
-              to="/category/all"
-              className="inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-primary/90"
-            >
-              Shop all
-            </Link>
-            <Link
-              to="/"
-              className="inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
-            >
-              Back to home
-            </Link>
-          </div>
+          {!viewOnly && (
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Link
+                to="/category/all"
+                className="inline-flex h-12 items-center bg-primary px-8 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground hover:bg-primary/90"
+              >
+                Shop all
+              </Link>
+              <Link
+                to="/"
+                className="inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
+              >
+                Back to home
+              </Link>
+            </div>
+          )}
         </main>
-        <Footer />
+        {!viewOnly && <Footer />}
       </div>
     );
   }
@@ -513,28 +520,41 @@ export default function ProductDetail() {
     { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
   ];
 
+  // The boutique's name links to its store - not for staff, who can't open
+  // store pages.
+  const boutiqueLink = (className: string, children: React.ReactNode) =>
+    viewOnly || !vendorInfo ? (
+      <span className={className}>{children}</span>
+    ) : (
+      <Link to={`/store/${vendorInfo.slug}`} className={className}>
+        {children}
+      </Link>
+    );
+
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      {!viewOnly && <Header />}
 
       <main>
         <div className="store-container pb-14 pt-5 md:pb-20 md:pt-8">
           {/* Breadcrumb */}
-          <nav aria-label="Breadcrumb" className="mb-5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:mb-8">
-            <Link to="/" className="shrink-0 hover:text-foreground">
-              Home
-            </Link>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            {category ? (
-              <>
-                <Link to={`/category/${category.slug}`} className="shrink-0 hover:text-foreground">
-                  {category.name}
-                </Link>
-                <ChevronRight className="h-3 w-3 shrink-0" />
-              </>
-            ) : null}
-            <span className="truncate text-foreground">{product.name}</span>
-          </nav>
+          {!viewOnly && (
+            <nav aria-label="Breadcrumb" className="mb-5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground md:mb-8">
+              <Link to="/" className="shrink-0 hover:text-foreground">
+                Home
+              </Link>
+              <ChevronRight className="h-3 w-3 shrink-0" />
+              {category ? (
+                <>
+                  <Link to={`/category/${category.slug}`} className="shrink-0 hover:text-foreground">
+                    {category.name}
+                  </Link>
+                  <ChevronRight className="h-3 w-3 shrink-0" />
+                </>
+              ) : null}
+              <span className="truncate text-foreground">{product.name}</span>
+            </nav>
+          )}
 
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-14 xl:gap-20">
             {/* Product media: optional approved video + image album */}
@@ -552,9 +572,7 @@ export default function ProductDetail() {
             <div className="min-w-0 lg:max-w-[560px]">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 {vendorInfo ? (
-                  <Link to={`/store/${vendorInfo.slug}`} className="eyebrow text-gold transition-colors hover:text-primary">
-                    {vendorInfo.name}
-                  </Link>
+                  boutiqueLink("eyebrow text-gold transition-colors hover:text-primary", vendorInfo.name)
                 ) : (
                   <span className="eyebrow text-gold">AllBoutiqs</span>
                 )}
@@ -659,75 +677,81 @@ export default function ProductDetail() {
                 />
               </div>
 
-              {/* Actions */}
-              <div ref={actionsRef} className="mt-8 space-y-3">
-                <div className="flex gap-3">
-                  <div className="flex h-12 shrink-0 items-center border border-foreground/20">
+              {/* Actions (none for staff, who only look) */}
+              {!viewOnly && (
+                <div ref={actionsRef} className="mt-8 space-y-3">
+                  <div className="flex gap-3">
+                    <div className="flex h-12 shrink-0 items-center border border-foreground/20">
+                      <button
+                        type="button"
+                        onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                        className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
+                        disabled={quantity <= 1}
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="w-8 text-center text-sm tabular-nums" aria-live="polite">
+                        {quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
+                        className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
+                        disabled={soldOut || quantity >= currentStock}
+                        aria-label="Increase quantity"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                      className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
-                      disabled={quantity <= 1}
-                      aria-label="Decrease quantity"
+                      onClick={handleAddToCart}
+                      disabled={soldOut}
+                      className="h-12 flex-1 bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
                     >
-                      <Minus className="h-3.5 w-3.5" />
+                      {soldOut ? "Out of Stock" : "Add to Cart"}
                     </button>
-                    <span className="w-8 text-center text-sm tabular-nums" aria-live="polite">
-                      {quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
-                      className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
-                      disabled={soldOut || quantity >= currentStock}
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
+                    <WishlistButton
+                      productId={product.id}
+                      className="h-12 w-12 shrink-0 rounded-none border border-foreground/20 bg-transparent shadow-none backdrop-blur-none hover:border-foreground hover:bg-transparent hover:shadow-none"
+                    />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddToCart}
-                    disabled={soldOut}
-                    className="h-12 flex-1 bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+                  {!soldOut && (
+                    <button
+                      type="button"
+                      onClick={handleBuyNow}
+                      className="h-12 w-full border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
+                    >
+                      Buy Now
+                    </button>
+                  )}
+                  {/* Stock Notification for Out of Stock */}
+                  {soldOut && <StockNotificationButton productId={product.id} productName={product.name} />}
+                  {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47). */}
+                  <a
+                    href={`${COMPANY.whatsappUrl}?text=${encodeURIComponent(
+                      `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${window.location.origin}/product/${product.id}`,
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-12 w-full items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground/80 underline-offset-4 transition-colors hover:text-primary hover:underline"
                   >
-                    {soldOut ? "Out of Stock" : "Add to Cart"}
-                  </button>
-                  <WishlistButton
-                    productId={product.id}
-                    className="h-12 w-12 shrink-0 rounded-none border border-foreground/20 bg-transparent shadow-none backdrop-blur-none hover:border-foreground hover:bg-transparent hover:shadow-none"
-                  />
+                    <MessageCircle className="h-4 w-4" /> Speak to our stylist
+                  </a>
                 </div>
-                {!soldOut && (
-                  <button
-                    type="button"
-                    onClick={handleBuyNow}
-                    className="h-12 w-full border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
-                  >
-                    Buy Now
-                  </button>
-                )}
-                {/* Stock Notification for Out of Stock */}
-                {soldOut && <StockNotificationButton productId={product.id} productName={product.name} />}
-                {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47). */}
-                <a
-                  href={`${COMPANY.whatsappUrl}?text=${encodeURIComponent(
-                    `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${window.location.origin}/product/${product.id}`,
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-12 w-full items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground/80 underline-offset-4 transition-colors hover:text-primary hover:underline"
-                >
-                  <MessageCircle className="h-4 w-4" /> Speak to our stylist
-                </a>
-              </div>
+              )}
 
               <div className="mt-5 flex items-center justify-between gap-4">
-                <SocialShareButtons
-                  url={`${window.location.origin}${location.pathname}`}
-                  title={product.name}
-                  description={product.description || undefined}
-                />
+                {viewOnly ? (
+                  <span />
+                ) : (
+                  <SocialShareButtons
+                    url={`${window.location.origin}${location.pathname}`}
+                    title={product.name}
+                    description={product.description || undefined}
+                  />
+                )}
                 <span className="text-xs text-muted-foreground">Code: {product.sku || product.id.slice(0, 8)}</span>
               </div>
 
@@ -829,9 +853,7 @@ export default function ProductDetail() {
                       <InfoRow label="MRP">{formatINR(product.compare_at_price ?? product.price)} inclusive of all taxes</InfoRow>
                       <InfoRow label="Sold by">
                         {vendorInfo ? (
-                          <Link to={`/store/${vendorInfo.slug}`} className="underline-offset-4 hover:text-primary hover:underline">
-                            {vendorInfo.name}
-                          </Link>
+                          boutiqueLink("underline-offset-4 hover:text-primary hover:underline", vendorInfo.name)
                         ) : (
                           "AllBoutiqs"
                         )}
@@ -863,25 +885,27 @@ export default function ProductDetail() {
               </Accordion>
 
               {/* The boutique */}
-              {vendorInfo && (
-                <Link to={`/store/${vendorInfo.slug}`} className="group mt-8 flex items-center gap-4 bg-ivory p-5">
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gold/30 bg-background">
-                    {boutique?.logo_url ? (
-                      <img src={boutique.logo_url} alt="" className="h-full w-full object-cover" loading="lazy" />
-                    ) : (
-                      <span className="font-serif text-2xl text-primary">{vendorInfo.name.charAt(0).toUpperCase()}</span>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="eyebrow block text-muted-foreground">Sold by</span>
-                    <span className="mt-1 block font-serif text-xl leading-tight group-hover:text-primary">{vendorInfo.name}</span>
-                    {boutique?.description && (
-                      <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{boutique.description}</span>
-                    )}
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />
-                </Link>
-              )}
+              {vendorInfo &&
+                boutiqueLink(
+                  "group mt-8 flex items-center gap-4 bg-ivory p-5",
+                  <>
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-gold/30 bg-background">
+                      {boutique?.logo_url ? (
+                        <img src={boutique.logo_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <span className="font-serif text-2xl text-primary">{vendorInfo.name.charAt(0).toUpperCase()}</span>
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="eyebrow block text-muted-foreground">Sold by</span>
+                      <span className="mt-1 block font-serif text-xl leading-tight group-hover:text-primary">{vendorInfo.name}</span>
+                      {boutique?.description && (
+                        <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{boutique.description}</span>
+                      )}
+                    </span>
+                    {!viewOnly && <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />}
+                  </>,
+                )}
 
               <GrievanceOfficerNote className="mt-8" />
             </div>
@@ -889,58 +913,64 @@ export default function ProductDetail() {
         </div>
 
         {/* AI Complete the Look */}
-        <CompleteTheLook productId={product.id} />
+        {!viewOnly && <CompleteTheLook productId={product.id} />}
 
         {/* Product Reviews Section */}
         <section id="reviews" className="scroll-mt-32 border-t border-border py-14 md:py-20">
           <div className="store-container">
-            <ProductReviews productId={product.id} />
+            <ProductReviews productId={product.id} readOnly={viewOnly} />
           </div>
         </section>
 
-        <RelatedProducts
-          currentProductId={product.id}
-          categoryId={product.category_id}
-          categorySlug={category?.slug}
-          vendor={vendorInfo && product.vendor_id ? { id: product.vendor_id, name: vendorInfo.name, slug: vendorInfo.slug } : null}
-        />
+        {!viewOnly && (
+          <>
+            <RelatedProducts
+              currentProductId={product.id}
+              categoryId={product.category_id}
+              categorySlug={category?.slug}
+              vendor={vendorInfo && product.vendor_id ? { id: product.vendor_id, name: vendorInfo.name, slug: vendorInfo.slug } : null}
+            />
 
-        <div className="border-t border-border">
-          <RecentlyViewedProducts excludeProductId={product.id} />
-        </div>
+            <div className="border-t border-border">
+              <RecentlyViewedProducts excludeProductId={product.id} />
+            </div>
+          </>
+        )}
       </main>
 
-      <Footer />
+      {!viewOnly && <Footer />}
 
       {/* Phones: add-to-cart bar once the main buttons scroll away */}
-      <div
-        className={cn(
-          "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-ivory/95 backdrop-blur-md transition-transform duration-300 lg:hidden",
-          showStickyBar ? "translate-y-0" : "translate-y-full",
-        )}
-        aria-hidden={!showStickyBar}
-      >
-        <div className="store-container flex items-center gap-4 py-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm">{product.name}</p>
-            <p className="text-sm font-medium">
-              {formatINR(currentPrice)}
-              {[selectedSize, selectedColor].filter(Boolean).length > 0 && (
-                <span className="ml-2 font-normal text-muted-foreground">{[selectedSize, selectedColor].filter(Boolean).join(" / ")}</span>
-              )}
-            </p>
+      {!viewOnly && (
+        <div
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-40 border-t border-border bg-ivory/95 backdrop-blur-md transition-transform duration-300 lg:hidden",
+            showStickyBar ? "translate-y-0" : "translate-y-full",
+          )}
+          aria-hidden={!showStickyBar}
+        >
+          <div className="store-container flex items-center gap-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm">{product.name}</p>
+              <p className="text-sm font-medium">
+                {formatINR(currentPrice)}
+                {[selectedSize, selectedColor].filter(Boolean).length > 0 && (
+                  <span className="ml-2 font-normal text-muted-foreground">{[selectedSize, selectedColor].filter(Boolean).join(" / ")}</span>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={soldOut}
+              tabIndex={showStickyBar ? 0 : -1}
+              className="h-12 shrink-0 bg-primary px-7 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
+            >
+              {soldOut ? "Out of Stock" : "Add to Cart"}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            disabled={soldOut}
-            tabIndex={showStickyBar ? 0 : -1}
-            className="h-12 shrink-0 bg-primary px-7 text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground disabled:bg-muted disabled:text-muted-foreground"
-          >
-            {soldOut ? "Out of Stock" : "Add to Cart"}
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 }

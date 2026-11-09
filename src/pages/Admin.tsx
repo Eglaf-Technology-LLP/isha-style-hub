@@ -4,6 +4,12 @@ import { SignInSecurityDialog } from "@/components/auth/SignInSecurity";
 import { userContact } from "@/lib/authIdentifier";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
+import {
+  DISPUTES_TAB_ENABLED,
+  PAYOUT_RATES_CARD_ENABLED,
+  RETURN_SETTINGS_ENABLED,
+  SHIPPING_CHARGE_CARD_ENABLED,
+} from "@/lib/hiddenFeatures";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -87,7 +93,9 @@ import { formatINR } from "@/lib/format";
 export default function Admin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useUrlTab("dashboard");
+  const [urlTab, setTab] = useUrlTab("dashboard");
+  // A link to a hidden tab (src/lib/hiddenFeatures.ts) opens the dashboard.
+  const tab = urlTab === "disputes" && !DISPUTES_TAB_ENABLED ? "dashboard" : urlTab;
   const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
   const { user, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
@@ -330,10 +338,12 @@ export default function Admin() {
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">Payments</span>
             </TabsTrigger>
-            <TabsTrigger value="disputes" className="flex items-center gap-1">
-              <ShieldAlert className="h-4 w-4" />
-              <span className="hidden sm:inline">Disputes</span>
-            </TabsTrigger>
+            {DISPUTES_TAB_ENABLED && (
+              <TabsTrigger value="disputes" className="flex items-center gap-1">
+                <ShieldAlert className="h-4 w-4" />
+                <span className="hidden sm:inline">Disputes</span>
+              </TabsTrigger>
+            )}
             <TabsTrigger value="settlements" className="flex items-center gap-1">
               <Landmark className="h-4 w-4" />
               <span className="hidden sm:inline">Settlements</span>
@@ -465,7 +475,7 @@ export default function Admin() {
 
           {/* Returns Tab */}
           <TabsContent value="returns" className="space-y-6">
-            <ReturnSettingsCard />
+            {RETURN_SETTINGS_ENABLED && <ReturnSettingsCard />}
             <ReturnManagement />
           </TabsContent>
 
@@ -481,7 +491,7 @@ export default function Admin() {
 
           {/* Promotions Tab */}
           <TabsContent value="promotions" className="space-y-6">
-            <CustomerShippingCard />
+            {SHIPPING_CHARGE_CARD_ENABLED && <CustomerShippingCard />}
             <PromotionsManagement />
           </TabsContent>
 
@@ -490,9 +500,11 @@ export default function Admin() {
             <PaymentManagement isAdmin={isAdmin} />
           </TabsContent>
 
-          <TabsContent value="disputes">
-            <DisputeManagement isAdmin={isAdmin} />
-          </TabsContent>
+          {DISPUTES_TAB_ENABLED && (
+            <TabsContent value="disputes">
+              <DisputeManagement isAdmin={isAdmin} />
+            </TabsContent>
+          )}
 
           <TabsContent value="settlements">
             <SettlementLedger isAdmin={isAdmin} />
@@ -503,7 +515,7 @@ export default function Admin() {
               <div className="flex justify-end">
                 <StatementDownload admin />
               </div>
-              <PlatformRatesCard />
+              {PAYOUT_RATES_CARD_ENABLED && <PlatformRatesCard />}
               <CodTrackingCard admin />
               <FeeInvoicesCard admin />
               {/* RazorpayX payouts paused until the account number is in. */}

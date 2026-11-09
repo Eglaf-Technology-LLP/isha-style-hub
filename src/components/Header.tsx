@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
+import { CATEGORY_HOVER_MENUS_ENABLED, NEW_IN_AND_SALE_LINKS_ENABLED } from "@/lib/hiddenFeatures";
 import logo from "@/assets/logo.png";
 import { ArrowRight, BadgeCheck, ChevronRight, Heart, Home, Menu, MessageCircle, Package, Search, Store, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -327,10 +328,12 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
           <nav className="hidden lg:block" aria-label="Main">
             <ul className="flex h-11 items-center justify-center gap-9">
               {navLink("home", "Home", "/")}
-              {navLink("new", "New In", "/category/all?sort=newest")}
-              {categories.slice(0, 7).map((c) => navLink(`cat:${c.id}`, c.name, `/category/${c.slug}`, { mega: true }))}
+              {NEW_IN_AND_SALE_LINKS_ENABLED && navLink("new", "New In", "/category/all?sort=newest")}
+              {categories
+                .slice(0, 7)
+                .map((c) => navLink(`cat:${c.id}`, c.name, `/category/${c.slug}`, { mega: CATEGORY_HOVER_MENUS_ENABLED }))}
               {liveBoutiques.length > 0 && navLink("boutiques", "Boutiques", "/boutiques", { mega: true })}
-              {hasSale && navLink("sale", "Sale", "/category/all?sale=1", { highlight: true })}
+              {NEW_IN_AND_SALE_LINKS_ENABLED && hasSale && navLink("sale", "Sale", "/category/all?sale=1", { highlight: true })}
             </ul>
           </nav>
         </div>
@@ -382,12 +385,12 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
             <p className="eyebrow mb-3 text-gold">Shop</p>
             <ul className="divide-y divide-border border-y border-border">
               <MobileLink to="/" label="Home" />
-              <MobileLink to="/category/all?sort=newest" label="New In" />
+              {NEW_IN_AND_SALE_LINKS_ENABLED && <MobileLink to="/category/all?sort=newest" label="New In" />}
               {categories.map((c) => (
                 <MobileLink key={c.id} to={`/category/${c.slug}`} label={c.name} />
               ))}
               <MobileLink to="/category/all" label="Shop all" />
-              {hasSale && <MobileLink to="/category/all?sale=1" label="Sale" highlight />}
+              {NEW_IN_AND_SALE_LINKS_ENABLED && hasSale && <MobileLink to="/category/all?sale=1" label="Sale" highlight />}
             </ul>
             {liveBoutiques.length > 0 && (
               <>

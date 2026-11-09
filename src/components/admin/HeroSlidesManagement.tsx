@@ -37,6 +37,7 @@ import { HeroSlideView } from "@/components/storefront/home/HeroCarousel";
 import { HeroSlideInput, HeroSlideRow, isLiveNow, toHeroSlide, useAdminHeroSlides } from "@/hooks/useHeroSlides";
 import { useStoreCategories } from "@/hooks/useStorefront";
 import { cn } from "@/lib/utils";
+import { BANNER_SCHEDULE_ENABLED } from "@/lib/hiddenFeatures";
 
 // Admin > Home Banner: the full-width carousel at the top of the home page.
 // Any number of slides; each with its own text, buttons, photos (desktop and
@@ -125,8 +126,10 @@ const toInput = (f: FormState): HeroSlideInput => ({
   align: f.align,
   show_overlay: f.show_overlay,
   is_active: f.is_active,
-  starts_at: fromLocalInput(f.starts_at),
-  ends_at: fromLocalInput(f.ends_at),
+  // With the schedule hidden, saving clears any dates: the on/off switch
+  // alone decides.
+  starts_at: BANNER_SCHEDULE_ENABLED ? fromLocalInput(f.starts_at) : null,
+  ends_at: BANNER_SCHEDULE_ENABLED ? fromLocalInput(f.ends_at) : null,
 });
 
 const validLink = (href: string) => /^\/(?!\/)/.test(href) || /^https?:\/\/\S+$/i.test(href);
@@ -140,7 +143,7 @@ function validate(f: FormState): string | null {
     if (nn(href) && !validLink(href.trim())) return `"${href}" isn't a link - start with / for a shop page or https:// for another site`;
   }
   if (nn(f.video_url) && !/^https:\/\/\S+$/i.test(f.video_url.trim())) return "The video must be an https:// link to an .mp4 file";
-  if (f.starts_at && f.ends_at && new Date(f.ends_at) <= new Date(f.starts_at)) return "\"Show until\" must be after \"Show from\"";
+  if (BANNER_SCHEDULE_ENABLED && f.starts_at && f.ends_at && new Date(f.ends_at) <= new Date(f.starts_at)) return "\"Show until\" must be after \"Show from\"";
   return null;
 }
 
@@ -474,17 +477,20 @@ function SlideEditor({
               </div>
             </Section>
 
-            <Section title="When it shows" hint="Leave the dates empty to show it until you switch it off.">
-              <ToggleRow label="Show on the site" checked={f.is_active} onChange={(v) => set("is_active", v)} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Show from">
-                  <Input type="datetime-local" value={f.starts_at} onChange={(e) => set("starts_at", e.target.value)} />
-                </Field>
-                <Field label="Show until">
-                  <Input type="datetime-local" value={f.ends_at} onChange={(e) => set("ends_at", e.target.value)} />
-                </Field>
-              </div>
-            </Section>
+            {/* Hidden for now: slides are switched on and off from the list. */}
+            {BANNER_SCHEDULE_ENABLED && (
+              <Section title="When it shows" hint="Leave the dates empty to show it until you switch it off.">
+                <ToggleRow label="Show on the site" checked={f.is_active} onChange={(v) => set("is_active", v)} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Show from">
+                    <Input type="datetime-local" value={f.starts_at} onChange={(e) => set("starts_at", e.target.value)} />
+                  </Field>
+                  <Field label="Show until">
+                    <Input type="datetime-local" value={f.ends_at} onChange={(e) => set("ends_at", e.target.value)} />
+                  </Field>
+                </div>
+              </Section>
+            )}
           </div>
 
           <div className="space-y-3 lg:sticky lg:top-0 lg:self-start">

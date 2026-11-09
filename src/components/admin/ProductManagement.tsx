@@ -935,8 +935,9 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                       {renderFormFields(true)}
                     </DialogContent>
                   </Dialog>
-                  <Link to={`/product/${product.id}`}>
-                    <Button variant="ghost" size="icon">
+                  {/* A new tab: staff see the product on its own, with no header to come back by. */}
+                  <Link to={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="icon" aria-label="View product">
                       <Eye className="h-4 w-4" />
                     </Button>
                   </Link>

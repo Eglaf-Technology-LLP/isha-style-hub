@@ -11,6 +11,7 @@ import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DIRECT_ROUTE_ENABLED, formatShortDate } from "@/lib/warehouse";
 import { WarehouseInfo } from "./shared";
+import { WAREHOUSE_EXTRA_SETTINGS_ENABLED } from "@/lib/hiddenFeatures";
 
 export interface WarehouseSettingsRow {
   warehouse_routing_enabled: boolean;
@@ -175,7 +176,8 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
   );
 
   return (
-    <div className="grid lg:grid-cols-2 gap-6">
+    // Rules, Holidays and Warehouse staff may be hidden (src/lib/hiddenFeatures.ts).
+    <div className={WAREHOUSE_EXTRA_SETTINGS_ENABLED ? "grid lg:grid-cols-2 gap-6" : "max-w-2xl"}>
       <Card>
         <CardHeader>
           <CardTitle>Warehouse</CardTitle>
@@ -218,103 +220,105 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Rules</CardTitle>
-            <CardDescription>Used for delivery dates, dispatch deadlines and overdue alerts.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {DIRECT_ROUTE_ENABLED ? (
-              <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="text-sm font-medium">Send new orders through the warehouse</p>
-                  <p className="text-xs text-muted-foreground">
-                    Off: new orders ship straight from the boutique, as before. Orders already placed keep their route.
-                  </p>
+      {WAREHOUSE_EXTRA_SETTINGS_ENABLED && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Rules</CardTitle>
+              <CardDescription>Used for delivery dates, dispatch deadlines and overdue alerts.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {DIRECT_ROUTE_ENABLED ? (
+                <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Send new orders through the warehouse</p>
+                    <p className="text-xs text-muted-foreground">
+                      Off: new orders ship straight from the boutique, as before. Orders already placed keep their route.
+                    </p>
+                  </div>
+                  <Switch checked={routing} onCheckedChange={setRouting} />
                 </div>
-                <Switch checked={routing} onCheckedChange={setRouting} />
+              ) : (
+                <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                  Every order goes through the warehouse. Shipping straight from the boutique is switched off for now.
+                </p>
+              )}
+              <div className="grid sm:grid-cols-2 gap-4">
+                {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 1).", 10)}
+                {ruleField("warehouse_cutoff_hour", "Cut-off hour (0-23)", "Parcels received from this hour count from the next day (agreed: 17 = 5pm).", 23)}
+                {ruleField("warehouse_max_wait_days", "Wait limit (days)", "How long past its expected date a parcel may be late before admin is alerted (agreed: 3).", 30)}
+                {ruleField("default_prep_days", "Default preparation (days)", "For boutiques that haven't set their own (agreed: 2).", 60)}
+                {ruleField("warehouse_inbound_transit_days", "Courier days to the warehouse", "Planning figure until a boutique books its parcel.", 15)}
               </div>
-            ) : (
-              <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
-                Every order goes through the warehouse. Shipping straight from the boutique is switched off for now.
-              </p>
-            )}
-            <div className="grid sm:grid-cols-2 gap-4">
-              {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 1).", 10)}
-              {ruleField("warehouse_cutoff_hour", "Cut-off hour (0-23)", "Parcels received from this hour count from the next day (agreed: 17 = 5pm).", 23)}
-              {ruleField("warehouse_max_wait_days", "Wait limit (days)", "How long past its expected date a parcel may be late before admin is alerted (agreed: 3).", 30)}
-              {ruleField("default_prep_days", "Default preparation (days)", "For boutiques that haven't set their own (agreed: 2).", 60)}
-              {ruleField("warehouse_inbound_transit_days", "Courier days to the warehouse", "Planning figure until a boutique books its parcel.", 15)}
-            </div>
-            <Button onClick={saveRules} disabled={saving === "rules"}>
-              {saving === "rules" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save rules
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Holidays</CardTitle>
-            <CardDescription>The warehouse is closed on Sundays and these days - they don't count as working days.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="w-44" />
-              <Input placeholder="e.g. Diwali" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} className="flex-1 min-w-[140px]" />
-              <Button variant="outline" onClick={addHoliday} disabled={!holidayDate || !holidayName.trim()}>
-                Add
+              <Button onClick={saveRules} disabled={saving === "rules"}>
+                {saving === "rules" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Save rules
               </Button>
-            </div>
-            {holidays.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No holidays listed.</p>
-            ) : (
-              <div className="space-y-1">
-                {holidays.map((h) => (
-                  <div key={h.holiday_date} className="flex items-center justify-between text-sm">
-                    <span>
-                      {formatShortDate(h.holiday_date)} · {h.name}
-                    </span>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeHoliday(h.holiday_date)}>
-                      <Trash2 className="h-3.5 w-3.5" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Holidays</CardTitle>
+              <CardDescription>The warehouse is closed on Sundays and these days - they don't count as working days.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="w-44" />
+                <Input placeholder="e.g. Diwali" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} className="flex-1 min-w-[140px]" />
+                <Button variant="outline" onClick={addHoliday} disabled={!holidayDate || !holidayName.trim()}>
+                  Add
+                </Button>
+              </div>
+              {holidays.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No holidays listed.</p>
+              ) : (
+                <div className="space-y-1">
+                  {holidays.map((h) => (
+                    <div key={h.holiday_date} className="flex items-center justify-between text-sm">
+                      <span>
+                        {formatShortDate(h.holiday_date)} · {h.name}
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeHoliday(h.holiday_date)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Warehouse staff</CardTitle>
+              <CardDescription>
+                Staff see only the warehouse screens (receive, inspect, pack, book). They must sign up first with this email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex gap-2">
+                <Input placeholder="staff@email.com" value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} />
+                <Button variant="outline" className="gap-1" onClick={() => setStaffMember(staffEmail.trim(), true)} disabled={!staffEmail.trim()}>
+                  <UserPlus className="h-4 w-4" /> Add
+                </Button>
+              </div>
+              {staff.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No warehouse staff yet - admins can use the warehouse screens too.</p>
+              ) : (
+                staff.map((s) => (
+                  <div key={s.user_id} className="flex items-center justify-between text-sm">
+                    <span>{s.email}</span>
+                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setStaffMember(s.email, false)}>
+                      Remove
                     </Button>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Warehouse staff</CardTitle>
-            <CardDescription>
-              Staff see only the warehouse screens (receive, inspect, pack, book). They must sign up first with this email.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input placeholder="staff@email.com" value={staffEmail} onChange={(e) => setStaffEmail(e.target.value)} />
-              <Button variant="outline" className="gap-1" onClick={() => setStaffMember(staffEmail.trim(), true)} disabled={!staffEmail.trim()}>
-                <UserPlus className="h-4 w-4" /> Add
-              </Button>
-            </div>
-            {staff.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No warehouse staff yet - admins can use the warehouse screens too.</p>
-            ) : (
-              staff.map((s) => (
-                <div key={s.user_id} className="flex items-center justify-between text-sm">
-                  <span>{s.email}</span>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => setStaffMember(s.email, false)}>
-                    Remove
-                  </Button>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

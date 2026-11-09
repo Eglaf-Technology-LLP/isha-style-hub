@@ -15,6 +15,8 @@ const MAX_REVIEW_PHOTOS = 5;
 
 interface ProductReviewsProps {
   productId: string;
+  // Only the reviews, no "write a review" (staff looking at a product).
+  readOnly?: boolean;
 }
 
 function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: {
@@ -56,7 +58,7 @@ function StarRating({ rating, onRatingChange, readonly = false, size = "md" }: {
   );
 }
 
-export function ProductReviews({ productId }: ProductReviewsProps) {
+export function ProductReviews({ productId, readOnly = false }: ProductReviewsProps) {
   const { reviews, loading, userReview, addReview, deleteReview, getAverageRating, getRatingDistribution } = useProductReviews(productId);
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
@@ -140,7 +142,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
           </>
         )}
 
-        {user && !userReview && !showForm && (
+        {!readOnly && user && !userReview && !showForm && (
           <button
             type="button"
             onClick={() => setShowForm(true)}
@@ -149,7 +151,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
             Write a review
           </button>
         )}
-        {!user && (
+        {!readOnly && !user && (
           <Link
             to="/account"
             className="mt-8 flex h-12 w-full items-center justify-center border border-foreground text-[11px] font-medium uppercase tracking-[0.22em] transition-colors hover:bg-foreground hover:text-background"
@@ -161,7 +163,7 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
 
       <div className="min-w-0">
         {/* Write Review Form */}
-        {user && !userReview && showForm && (
+        {!readOnly && user && !userReview && showForm && (
           <form onSubmit={handleSubmit} className="mb-10 space-y-5 border border-border bg-ivory p-6">
             <p className="font-serif text-2xl">Your review</p>
             <div>
