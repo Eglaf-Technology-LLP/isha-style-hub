@@ -38,3 +38,9 @@ export const WAREHOUSE_EXTRA_SETTINGS_ENABLED = false;
 // return policy). New products are returnable, edits keep what the product
 // has; admins still set it in Vendors > Manage Catalogue.
 export const VENDOR_RETURNABLE_SWITCH_ENABLED = false;
+
+// Boutique's Store settings: the whole "Shipping & returns" box (flat
+// shipping, free over, return window, ready to ship in, return policy, Cash
+// on Delivery, accept returns). Saving the store then leaves those as they
+// are.
+export const STORE_SHIPPING_RETURNS_ENABLED = false;

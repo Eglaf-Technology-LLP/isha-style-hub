@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import type { Vendor } from "@/hooks/useVendor";
 import { SingleImageDropzone } from "@/components/ImageDropzone";
 import { titleCase } from "@/lib/text";
+import { STORE_SHIPPING_RETURNS_ENABLED } from "@/lib/hiddenFeatures";
 
 interface Props {
   open: boolean;
@@ -132,18 +133,22 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           ...(addressChanged && vendor.shiprocket_pickup_location
             ? { shiprocket_pickup_location: null, shiprocket_pickup_registered_at: null }
             : {}),
-          shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
-          free_shipping_threshold: form.free_shipping_threshold
-            ? Number(form.free_shipping_threshold)
-            : null,
-          return_window_days: Number(form.return_window_days) || 7,
-          return_policy: form.return_policy.trim() || null,
-          default_prep_days:
-            form.default_prep_days.trim() === ""
-              ? null
-              : Math.min(60, Math.max(0, Math.round(Number(form.default_prep_days) || 0))),
-          cod_enabled: codEnabled,
-          returns_enabled: returnsEnabled,
+          // While the "Shipping & returns" box is hidden these aren't sent,
+          // so whatever the boutique has stays exactly as it is.
+          ...(STORE_SHIPPING_RETURNS_ENABLED
+            ? {
+                shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
+                free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
+                return_window_days: Number(form.return_window_days) || 7,
+                return_policy: form.return_policy.trim() || null,
+                default_prep_days:
+                  form.default_prep_days.trim() === ""
+                    ? null
+                    : Math.min(60, Math.max(0, Math.round(Number(form.default_prep_days) || 0))),
+                cod_enabled: codEnabled,
+                returns_enabled: returnsEnabled,
+              }
+            : {}),
           logo_url: logoUrl,
           banner_url: bannerUrl,
         })
@@ -288,83 +293,86 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
             </div>
           </div>
 
-          <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
-            <h4 className="font-semibold">Shipping &amp; returns</h4>
-            <div className="grid sm:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="vs-ship">Flat shipping (₹)</Label>
-                <Input
-                  id="vs-ship"
-                  type="number"
-                  min={0}
-                  value={form.shipping_flat_rate}
-                  onChange={(e) => set("shipping_flat_rate", e.target.value)}
-                />
+          {/* Hidden for now (src/lib/hiddenFeatures.ts). */}
+          {STORE_SHIPPING_RETURNS_ENABLED && (
+            <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
+              <h4 className="font-semibold">Shipping &amp; returns</h4>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vs-ship">Flat shipping (₹)</Label>
+                  <Input
+                    id="vs-ship"
+                    type="number"
+                    min={0}
+                    value={form.shipping_flat_rate}
+                    onChange={(e) => set("shipping_flat_rate", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vs-free">Free over (₹)</Label>
+                  <Input
+                    id="vs-free"
+                    type="number"
+                    min={0}
+                    value={form.free_shipping_threshold}
+                    onChange={(e) => set("free_shipping_threshold", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vs-window">Return window (days)</Label>
+                  <Input
+                    id="vs-window"
+                    type="number"
+                    min={0}
+                    value={form.return_window_days}
+                    onChange={(e) => set("return_window_days", e.target.value)}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vs-free">Free over (₹)</Label>
+                <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
                 <Input
-                  id="vs-free"
+                  id="vs-prep"
                   type="number"
                   min={0}
-                  value={form.free_shipping_threshold}
-                  onChange={(e) => set("free_shipping_threshold", e.target.value)}
+                  max={60}
+                  placeholder="2"
+                  value={form.default_prep_days}
+                  onChange={(e) => set("default_prep_days", e.target.value)}
+                  className="max-w-[160px]"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vs-window">Return window (days)</Label>
-                <Input
-                  id="vs-window"
-                  type="number"
-                  min={0}
-                  value={form.return_window_days}
-                  onChange={(e) => set("return_window_days", e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
-              <Input
-                id="vs-prep"
-                type="number"
-                min={0}
-                max={60}
-                placeholder="2"
-                value={form.default_prep_days}
-                onChange={(e) => set("default_prep_days", e.target.value)}
-                className="max-w-[160px]"
-              />
-              <p className="text-xs text-muted-foreground">
-                How many working days you need to pack an order before handing it to the courier. Used in the
-                delivery date customers see. Leave empty for 2 days; set a longer time on made-to-order products.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vs-policy">Return policy</Label>
-              <Textarea
-                id="vs-policy"
-                rows={2}
-                value={form.return_policy}
-                onChange={(e) => set("return_policy", e.target.value)}
-              />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-              <div>
-                <Label htmlFor="vs-cod">Offer Cash on Delivery</Label>
-                <p className="text-xs text-muted-foreground">Off hides COD at checkout for your products.</p>
-              </div>
-              <Switch id="vs-cod" checked={codEnabled} onCheckedChange={setCodEnabled} />
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-              <div>
-                <Label htmlFor="vs-returns">Accept returns</Label>
                 <p className="text-xs text-muted-foreground">
-                  Off hides the return option for your products, even for items you've marked returnable.
+                  How many working days you need to pack an order before handing it to the courier. Used in the
+                  delivery date customers see. Leave empty for 2 days; set a longer time on made-to-order products.
                 </p>
               </div>
-              <Switch id="vs-returns" checked={returnsEnabled} onCheckedChange={setReturnsEnabled} />
+              <div className="space-y-2">
+                <Label htmlFor="vs-policy">Return policy</Label>
+                <Textarea
+                  id="vs-policy"
+                  rows={2}
+                  value={form.return_policy}
+                  onChange={(e) => set("return_policy", e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+                <div>
+                  <Label htmlFor="vs-cod">Offer Cash on Delivery</Label>
+                  <p className="text-xs text-muted-foreground">Off hides COD at checkout for your products.</p>
+                </div>
+                <Switch id="vs-cod" checked={codEnabled} onCheckedChange={setCodEnabled} />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+                <div>
+                  <Label htmlFor="vs-returns">Accept returns</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Off hides the return option for your products, even for items you've marked returnable.
+                  </p>
+                </div>
+                <Switch id="vs-returns" checked={returnsEnabled} onCheckedChange={setReturnsEnabled} />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <DialogFooter>
