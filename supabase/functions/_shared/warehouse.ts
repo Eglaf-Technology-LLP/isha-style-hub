@@ -32,7 +32,7 @@ export async function loadWarehouseSettings(supabase: SupabaseClient): Promise<W
   return {
     routingEnabled: data?.warehouse_routing_enabled ?? true,
     defaultPrepDays: data?.default_prep_days ?? 2,
-    handlingDays: data?.warehouse_handling_days ?? 1,
+    handlingDays: data?.warehouse_handling_days ?? 3,
     cutoffHour: data?.warehouse_cutoff_hour ?? 17,
     maxWaitDays: data?.warehouse_max_wait_days ?? 3,
     inboundTransitDays: data?.warehouse_inbound_transit_days ?? 3,
@@ -115,6 +115,9 @@ export interface EstimateGroup {
 
 export interface WarehouseEstimate {
   available: boolean;
+  // When the parcel leaves the AllBoutiqs warehouse for the customer, after
+  // the quality check ("Ships by" on the product page).
+  shipsByDate: string | null;
   estimatedDeliveryDate: string | null;
   // Longest preparation time across the items (days), and whether any item
   // is made to order - for "Made to order: ships in N days".
@@ -138,6 +141,7 @@ export async function estimateWarehouseDelivery(
   const warehousePincode = warehouse.address.pincode ?? "";
   const unavailable = (reason: string): WarehouseEstimate => ({
     available: false,
+    shipsByDate: null,
     estimatedDeliveryDate: null,
     prepDays: 0,
     madeToOrder: false,
@@ -216,6 +220,7 @@ export async function estimateWarehouseDelivery(
 
   return {
     available: true,
+    shipsByDate: dispatchOn,
     estimatedDeliveryDate: addCalendarDays(dispatchOn, outboundDays),
     prepDays: maxPrep,
     madeToOrder,

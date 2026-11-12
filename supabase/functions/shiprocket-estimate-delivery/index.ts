@@ -19,8 +19,10 @@ import { EstimateGroup, estimateWarehouseDelivery, getActiveDefaultWarehouse } f
 // Body: { delivery_pincode, vendor_id, items } for one boutique (product
 // page), or { delivery_pincode, groups: [{ vendor_id, items }] } for a whole
 // cart. While orders go through the warehouse the date is: slowest boutique
-// (preparation + courier to the warehouse) + 1 working day at the warehouse +
-// courier to the customer, and `couriers` are the warehouse -> customer ones.
+// (preparation + courier to the warehouse) + the warehouse's quality-check
+// days (platform_settings.warehouse_handling_days, 3 working days) + courier
+// to the customer, and `couriers` are the warehouse -> customer ones.
+// ships_by_date is the day the parcel leaves the warehouse.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -46,6 +48,7 @@ Deno.serve(async (req) => {
       return jsonResponse({
         available: estimate.available,
         couriers: estimate.lastMileCouriers,
+        ships_by_date: estimate.shipsByDate,
         estimated_delivery_date: estimate.estimatedDeliveryDate,
         prep_days: estimate.prepDays,
         made_to_order: estimate.madeToOrder,

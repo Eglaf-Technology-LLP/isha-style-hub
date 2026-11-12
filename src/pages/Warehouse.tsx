@@ -80,7 +80,7 @@ export default function Warehouse() {
 
   const timing: WarehouseTiming = useMemo(
     () => ({
-      handlingDays: settings?.warehouse_handling_days ?? 1,
+      handlingDays: settings?.warehouse_handling_days ?? 3,
       cutoffHour: settings?.warehouse_cutoff_hour ?? 17,
       maxWaitDays: settings?.warehouse_max_wait_days ?? 3,
       holidays: new Set(holidays.map((h) => h.holiday_date)),

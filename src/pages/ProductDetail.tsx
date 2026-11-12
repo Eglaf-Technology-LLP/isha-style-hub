@@ -75,7 +75,6 @@ export default function ProductDetail() {
     cod_enabled: boolean;
     address: Record<string, string> | null;
     contact_email: string | null;
-    contact_phone: string | null;
     shipping_flat_rate: number;
     free_shipping_threshold: number | null;
     default_prep_days?: number | null;
@@ -185,12 +184,13 @@ export default function ProductDetail() {
           }
         }
 
-        // Fetch the selling vendor
+        // Fetch the selling vendor. Not its phone: a boutique's phone is
+        // never shown to customers (testing checklist, Nov 2026).
         if ((data as any).vendor_id) {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, shipping_flat_rate, free_shipping_threshold, default_prep_days"
+              "name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, shipping_flat_rate, free_shipping_threshold, default_prep_days"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -780,13 +780,13 @@ export default function ProductDetail() {
               <div className="mt-8 border border-border">
                 {product.vendor_id && (
                   <div className="border-b border-border p-5">
-                    <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.2em]">Check delivery date</p>
+                    <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.2em]">Delivery date</p>
                     <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} />
-                    {madeToOrder && (
-                      <p className="mt-2.5 text-xs text-muted-foreground">
-                        Made for you after you order - the delivery date includes the {prepDays} days it takes.
-                      </p>
-                    )}
+                    <p className="mt-2.5 text-xs text-muted-foreground">
+                      {madeToOrder
+                        ? `Made for you after you order - these dates include the ${prepDays} days it takes to make and our quality check.`
+                        : "These dates include our quality check before it ships to you."}
+                    </p>
                   </div>
                 )}
                 <ul className="grid sm:grid-cols-2">
@@ -892,7 +892,6 @@ export default function ProductDetail() {
                         {vendorInfo ? (
                           <>
                             {vendorAddress && `${vendorAddress}. `}
-                            {vendorInfo.contact_phone && `Ph: ${vendorInfo.contact_phone}. `}
                             {vendorInfo.contact_email && `Email: ${vendorInfo.contact_email}`}
                           </>
                         ) : (

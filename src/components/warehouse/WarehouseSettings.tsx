@@ -244,7 +244,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
                 </p>
               )}
               <div className="grid sm:grid-cols-2 gap-4">
-                {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 1).", 10)}
+                {ruleField("warehouse_handling_days", "Days at the warehouse", "Working days to check and repack (agreed: 3).", 10)}
                 {ruleField("warehouse_cutoff_hour", "Cut-off hour (0-23)", "Parcels received from this hour count from the next day (agreed: 17 = 5pm).", 23)}
                 {ruleField("warehouse_max_wait_days", "Wait limit (days)", "How long past its expected date a parcel may be late before admin is alerted (agreed: 3).", 30)}
                 {ruleField("default_prep_days", "Default preparation (days)", "For boutiques that haven't set their own (agreed: 2).", 60)}
