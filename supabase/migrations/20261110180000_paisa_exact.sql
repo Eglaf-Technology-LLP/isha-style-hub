@@ -39,6 +39,8 @@ $$;
 -- share), the GST rate for that, taxable value, GST and its split
 -- (CGST + SGST when the boutique's GSTIN state is the delivery state, else
 -- IGST). The rate is 0 (hsn_missing) when the category has no HSN code.
+-- Once the part's tax invoice exists, its stored lines are returned as they
+-- are.
 CREATE OR REPLACE FUNCTION public.invoice_line_amounts(_vendor_order_id uuid)
 RETURNS TABLE (order_item_id uuid, line_total numeric, discount numeric, gst_rate numeric, hsn_missing boolean,
                taxable numeric, cgst numeric, sgst numeric, igst numeric)
@@ -61,6 +63,19 @@ DECLARE
 BEGIN
   SELECT * INTO vo FROM vendor_orders WHERE id = _vendor_order_id;
   IF NOT FOUND THEN RETURN; END IF;
+
+  -- Once the tax invoice is issued, its lines are the record: everything
+  -- after (fees, credit notes, refunds) takes them as they are.
+  IF EXISTS (SELECT 1 FROM invoices i WHERE i.vendor_order_id = vo.id) THEN
+    RETURN QUERY
+    SELECT il.order_item_id, il.total, il.discount, il.gst_rate, false, il.taxable_value,
+           il.cgst_amount, il.sgst_amount, il.igst_amount
+    FROM invoices i JOIN invoice_lines il ON il.invoice_id = i.id
+    WHERE i.vendor_order_id = vo.id AND il.order_item_id IS NOT NULL
+    ORDER BY il.line_no;
+    RETURN;
+  END IF;
+
   SELECT * INTO o FROM orders WHERE id = vo.order_id;
   SELECT coalesce(k.gstin, v.gst_number) INTO v_gstin
   FROM vendors v LEFT JOIN vendor_kyc k ON k.vendor_id = v.id WHERE v.id = vo.vendor_id;
