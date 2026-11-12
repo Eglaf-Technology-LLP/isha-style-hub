@@ -1,9 +1,7 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { WeightInput } from "@/components/WeightInput";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -15,14 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,266 +23,31 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Package,
-  Plus,
-  Loader2,
-  Upload,
-  X,
-  Edit,
-  Trash2,
-  Eye,
-  Image as ImageIcon,
-} from "lucide-react";
-import { useProducts, Product, ProductFormData, ProductVariant } from "@/hooks/useProducts";
+import { Package, Plus, Loader2, Edit, Trash2, Eye, Image as ImageIcon } from "lucide-react";
+import { useProducts } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
 import { Category } from "@/hooks/useCategories";
 import { ProductImportExportDialog } from "./ProductImportExportDialog";
-import { Link } from "react-router-dom";
-import { VariantManager } from "./VariantManager";
-import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { VendorFilterSelect } from "./VendorFilterSelect";
-import { ProductVendorSelect } from "./ProductVendorSelect";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
-import { AiDeclarationField } from "@/components/AiDeclarationField";
-import { toast } from "sonner";
-import type { AiContentStatus } from "@/lib/aiContent";
-import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
-import { ProductVideoField } from "@/components/ProductVideoField";
-import {
-  CustomisationEditor,
-  customisationFormFrom,
-  customisationPayload,
-  emptyCustomisationForm,
-  type CustomisationForm,
-} from "@/components/CustomisationEditor";
-import { CUSTOMISATION_ENABLED, readSetup } from "@/lib/customisation";
-import { CustomerPriceHint } from "@/components/CustomerPriceHint";
-import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
-import { titleCase } from "@/lib/text";
-import { parseNetQuantity } from "@/lib/productRules";
 import { formatINR } from "@/lib/format";
 
 interface ProductManagementProps {
   categories: Category[];
 }
 
+// The admin's product list. Adding and editing a product happen on their own
+// page (pages/AdminProductEditor.tsx), the same form boutiques use.
 export function ProductManagement({ categories }: ProductManagementProps) {
-  const {
-    products,
-    loading,
-    addProduct,
-    updateProduct,
-    deleteProduct,
-    toggleProductStatus,
-    toggleProductCod,
-    removeProductImage,
-    refetch,
-  } = useProducts();
+  const { products, loading, deleteProduct, toggleProductStatus, toggleProductCod, refetch } = useProducts();
 
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [isAddingProduct, setIsAddingProduct] = useState(false);
-  const gstRules = useCategoryGstRules();
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [productForm, setProductForm] = useState<ProductFormData>({
-    vendor_id: null,
-    name: "",
-    description: "",
-    category_id: null,
-    product_value: 0,
-    compare_at_value: null,
-    sku: "",
-    stock_quantity: 0,
-    is_active: true,
-    weight_grams: null,
-    length_cm: null,
-    breadth_cm: null,
-    height_cm: null,
-    specifications: [],
-    country_of_origin: "India",
-    net_quantity: "1 N",
-    is_returnable: true,
-    cod_available: true,
-    ai_content_status: null,
-    ai_original_photo_paths: [],
-    video_url: null,
-    video_is_primary: false,
-  });
-  const [productImages, setProductImages] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [productVariants, setProductVariants] = useState<ProductVariant[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customisation, setCustomisation] = useState<CustomisationForm>(emptyCustomisationForm);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-
-  const resetForm = () => {
-    setProductForm({
-      vendor_id: null,
-      name: "",
-      description: "",
-      category_id: null,
-      product_value: 0,
-      compare_at_value: null,
-      sku: "",
-      stock_quantity: 0,
-      is_active: true,
-      weight_grams: null,
-      length_cm: null,
-      breadth_cm: null,
-      height_cm: null,
-      specifications: [],
-      country_of_origin: "India",
-      net_quantity: "1 N",
-      is_returnable: true,
-      cod_available: true,
-      ai_content_status: null,
-      ai_original_photo_paths: [],
-      video_url: null,
-      video_is_primary: false,
-    });
-    setCustomisation(emptyCustomisationForm);
-    setProductImages([]);
-    setImagePreviews([]);
-    setProductVariants([]);
-    setEditingProduct(null);
-  };
-
-  const addImageFiles = (fileList: FileList | File[]) => {
-    const files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-    setProductImages((prev) => [...prev, ...files]);
-
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreviews((prev) => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addImageFiles(e.target.files || []);
-  };
-
-  const [imagesDragActive, setImagesDragActive] = useState(false);
-
-  const removeNewImage = (index: number) => {
-    setProductImages((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const needsOriginals = !!productForm.ai_content_status && productForm.ai_content_status !== "none";
-
-  // Same AI-declaration rules as the vendor form; originals are cleared on "No AI".
-  const checkedAiForm = (): ProductFormData | null => {
-    if (!productForm.vendor_id) {
-      toast.error("Select the vendor (boutique) this product belongs to");
-      return null;
-    }
-    if (!productForm.ai_content_status) {
-      toast.error("Please complete the AI content declaration");
-      return null;
-    }
-    if (needsOriginals && (productForm.ai_original_photo_paths ?? []).length === 0) {
-      toast.error("AI imagery needs at least one original product photo for verification");
-      return null;
-    }
-    // While customisation is hidden its fields are left untouched.
-    const custom = CUSTOMISATION_ENABLED ? customisationPayload(customisation) : { value: {} };
-    if ("error" in custom) {
-      toast.error(custom.error);
-      return null;
-    }
-    return {
-      ...productForm,
-      // Same tidy-up as the boutique form (Part 8, 29/30).
-      name: titleCase(productForm.name),
-      specifications: (productForm.specifications ?? [])
-        .map((d) => ({ label: d.label.trim(), value: d.value.trim() }))
-        .filter((d) => d.label && d.value),
-      net_quantity: parseNetQuantity(productForm.net_quantity ?? "")?.value ?? productForm.net_quantity,
-      ai_original_photo_paths: needsOriginals ? productForm.ai_original_photo_paths : [],
-      ...custom.value,
-    };
-  };
-
-  // A variant whose stock box was left empty is saved as 0.
-  const variantsToSave = () => productVariants.map((v) => (Number.isNaN(v.stock) ? { ...v, stock: 0 } : v));
-
-  const handleAddProduct = async () => {
-    if (!productForm.name) return;
-    const form = checkedAiForm();
-    if (!form) return;
-
-    setIsSubmitting(true);
-    const result = await addProduct(form, productImages, variantsToSave());
-    setIsSubmitting(false);
-
-    if (result) {
-      resetForm();
-      setIsAddingProduct(false);
-    }
-  };
-
-  const handleEditProduct = async () => {
-    if (!editingProduct || !productForm.name) return;
-    const form = checkedAiForm();
-    if (!form) return;
-
-    setIsSubmitting(true);
-    const result = await updateProduct(
-      editingProduct.id,
-      // An older product with no boutique is approved as it's given one,
-      // the same as a product an admin adds.
-      editingProduct.vendor_id ? form : { ...form, approval_status: "approved" },
-      productImages.length > 0 ? productImages : undefined,
-      variantsToSave()
-    );
-    setIsSubmitting(false);
-
-    if (result) {
-      resetForm();
-      setEditingProduct(null);
-    }
-  };
-
-  const openEditDialog = (product: Product) => {
-    setEditingProduct(product);
-    setProductForm({
-      vendor_id: product.vendor_id,
-      name: product.name,
-      description: product.description || "",
-      category_id: product.category_id,
-      product_value: Number(product.product_value ?? product.price),
-      compare_at_value: product.compare_at_value ?? product.compare_at_price,
-      sku: product.sku || "",
-      stock_quantity: product.stock_quantity,
-      is_active: product.is_active,
-      weight_grams: product.weight_grams,
-      length_cm: product.length_cm,
-      breadth_cm: product.breadth_cm,
-      height_cm: product.height_cm,
-      specifications: product.specifications || [],
-      country_of_origin: product.country_of_origin || "India",
-      net_quantity: product.net_quantity || "1 N",
-      is_returnable: product.is_returnable ?? true,
-      cod_available: product.cod_available ?? true,
-      ai_content_status: (product.ai_content_status as AiContentStatus | null) ?? null,
-      ai_original_photo_paths: product.ai_original_photo_paths ?? [],
-      video_url: product.video_url ?? null,
-      video_is_primary: product.video_is_primary ?? false,
-    });
-    setCustomisation(customisationFormFrom(readSetup(product)));
-    setProductImages([]);
-    setImagePreviews([]);
-    setProductVariants(product.variants || []);
-  };
 
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return "Uncategorized";
@@ -328,416 +83,6 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     );
   }
 
-  const renderFormFields = (isEdit: boolean = false) => (
-    <div className="space-y-4 mt-4 max-h-[70vh] overflow-y-auto pr-2">
-      <ProductVendorSelect
-        id={isEdit ? "edit-vendor" : "add-vendor"}
-        value={productForm.vendor_id ?? null}
-        onChange={(vendor_id) => setProductForm((prev) => ({ ...prev, vendor_id }))}
-        locked={isEdit && !!editingProduct?.vendor_id}
-      />
-
-      <div className="space-y-2">
-        <Label htmlFor={isEdit ? "edit-name" : "add-name"}>Product Name *</Label>
-        <Input
-          id={isEdit ? "edit-name" : "add-name"}
-          placeholder="e.g., Cotton Summer Dress"
-          value={productForm.name}
-          onChange={(e) =>
-            setProductForm((prev) => ({ ...prev, name: e.target.value }))
-          }
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor={isEdit ? "edit-desc" : "add-desc"}>Description</Label>
-        <Textarea
-          id={isEdit ? "edit-desc" : "add-desc"}
-          placeholder="Describe this product..."
-          value={productForm.description}
-          onChange={(e) =>
-            setProductForm((prev) => ({ ...prev, description: e.target.value }))
-          }
-          rows={3}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-price" : "add-price"}>Product Value (excl. GST) (₹) *</Label>
-          <Input
-            id={isEdit ? "edit-price" : "add-price"}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="999"
-            value={productForm.product_value || ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                product_value: parseFloat(e.target.value) || 0,
-              }))
-            }
-          />
-          <CustomerPriceHint value={productForm.product_value} categoryId={productForm.category_id} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-compare" : "add-compare"}>
-            Compare-at value (excl. GST) (₹)
-          </Label>
-          <Input
-            id={isEdit ? "edit-compare" : "add-compare"}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="1499"
-            value={productForm.compare_at_value || ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                compare_at_value: parseFloat(e.target.value) || null,
-              }))
-            }
-          />
-          <CustomerPriceHint value={productForm.compare_at_value ?? 0} categoryId={productForm.category_id} label="Crossed-out MRP" showCourierNote={false} />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-sku" : "add-sku"}>SKU</Label>
-          <Input
-            id={isEdit ? "edit-sku" : "add-sku"}
-            placeholder="SKU-001"
-            value={productForm.sku}
-            onChange={(e) =>
-              setProductForm((prev) => ({ ...prev, sku: e.target.value }))
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-stock" : "add-stock"}>
-            Stock Quantity
-          </Label>
-          <Input
-            id={isEdit ? "edit-stock" : "add-stock"}
-            type="number"
-            min="0"
-            placeholder="100"
-            value={productForm.stock_quantity || ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({
-                ...prev,
-                stock_quantity: parseInt(e.target.value) || 0,
-              }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Category</Label>
-        <Select
-          value={productForm.category_id || "none"}
-          onValueChange={(value) =>
-            setProductForm((prev) => ({
-              ...prev,
-              category_id: value === "none" ? null : value,
-            }))
-          }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No Category</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {category.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex items-center justify-between">
-        <Label htmlFor={isEdit ? "edit-active" : "add-active"}>Show on store (visible to customers)</Label>
-        <Switch
-          id={isEdit ? "edit-active" : "add-active"}
-          checked={productForm.is_active}
-          onCheckedChange={(checked) =>
-            setProductForm((prev) => ({ ...prev, is_active: checked }))
-          }
-        />
-      </div>
-
-      <div className="space-y-2 rounded-lg border border-border p-3">
-        <Label className="text-sm text-muted-foreground">
-          Parcel weight &amp; size (optional - used for courier shipping, defaults apply if left blank)
-        </Label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="space-y-1 col-span-2 sm:col-span-1">
-            <Label htmlFor={isEdit ? "edit-weight" : "add-weight"} className="text-xs">Weight (one piece, packed)</Label>
-            <WeightInput
-              id={isEdit ? "edit-weight" : "add-weight"}
-              grams={productForm.weight_grams ?? null}
-              onChange={(g) => setProductForm((prev) => ({ ...prev, weight_grams: g }))}
-              warnAboveGrams={10000}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={isEdit ? "edit-length" : "add-length"} className="text-xs">Length (cm)</Label>
-            <Input
-              id={isEdit ? "edit-length" : "add-length"}
-              type="number"
-              min="0"
-              value={productForm.length_cm ?? ""}
-              onChange={(e) =>
-                setProductForm((prev) => ({
-                  ...prev,
-                  length_cm: e.target.value ? parseFloat(e.target.value) : null,
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={isEdit ? "edit-breadth" : "add-breadth"} className="text-xs">Breadth (cm)</Label>
-            <Input
-              id={isEdit ? "edit-breadth" : "add-breadth"}
-              type="number"
-              min="0"
-              value={productForm.breadth_cm ?? ""}
-              onChange={(e) =>
-                setProductForm((prev) => ({
-                  ...prev,
-                  breadth_cm: e.target.value ? parseFloat(e.target.value) : null,
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={isEdit ? "edit-height" : "add-height"} className="text-xs">Height (cm)</Label>
-            <Input
-              id={isEdit ? "edit-height" : "add-height"}
-              type="number"
-              min="0"
-              value={productForm.height_cm ?? ""}
-              onChange={(e) =>
-                setProductForm((prev) => ({
-                  ...prev,
-                  height_cm: e.target.value ? parseFloat(e.target.value) : null,
-                }))
-              }
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-origin" : "add-origin"}>Country of Origin</Label>
-          <Input
-            id={isEdit ? "edit-origin" : "add-origin"}
-            value={productForm.country_of_origin ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({ ...prev, country_of_origin: e.target.value }))
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={isEdit ? "edit-netqty" : "add-netqty"}>Net Quantity</Label>
-          <Input
-            id={isEdit ? "edit-netqty" : "add-netqty"}
-            placeholder="e.g. 1 N, 1 Set, 500 g"
-            value={productForm.net_quantity ?? ""}
-            onChange={(e) =>
-              setProductForm((prev) => ({ ...prev, net_quantity: e.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between border border-border rounded-lg p-3">
-        <div>
-          <Label htmlFor={isEdit ? "edit-returnable" : "add-returnable"}>Returnable</Label>
-          <p className="text-xs text-muted-foreground">
-            Off for hygiene/opened-item products (innerwear, cosmetics) - blocks refund requests
-            only, exchange is still allowed.
-          </p>
-        </div>
-        <Switch
-          id={isEdit ? "edit-returnable" : "add-returnable"}
-          checked={productForm.is_returnable ?? true}
-          onCheckedChange={(checked) =>
-            setProductForm((prev) => ({ ...prev, is_returnable: checked }))
-          }
-        />
-      </div>
-
-      <div className="flex items-center justify-between border border-border rounded-lg p-3">
-        <div>
-          <Label htmlFor={isEdit ? "edit-cod" : "add-cod"}>Cash on Delivery</Label>
-          <p className="text-xs text-muted-foreground">
-            Off means any order including this product must be paid online. The boutique sets this when listing;
-            changing it here overrides their choice.
-          </p>
-        </div>
-        <Switch
-          id={isEdit ? "edit-cod" : "add-cod"}
-          checked={productForm.cod_available ?? true}
-          onCheckedChange={(checked) => setProductForm((prev) => ({ ...prev, cod_available: checked }))}
-        />
-      </div>
-
-      {CUSTOMISATION_ENABLED && (
-        <CustomisationEditor
-          idPrefix={isEdit ? "edit-cz" : "add-cz"}
-          value={customisation}
-          onChange={setCustomisation}
-          note="The boutique sets this when listing; changing it here overrides their choice."
-        />
-      )}
-
-      <ProductVideoField
-        folder="products"
-        idPrefix={isEdit ? "edit" : "add"}
-        videoUrl={productForm.video_url ?? null}
-        isPrimary={productForm.video_is_primary ?? false}
-        onChange={({ videoUrl, isPrimary }) =>
-          setProductForm((prev) => ({ ...prev, video_url: videoUrl, video_is_primary: isPrimary }))
-        }
-      />
-
-      <AiDeclarationField
-        idPrefix={isEdit ? "edit" : "add"}
-        value={productForm.ai_content_status}
-        onChange={(ai_content_status) => setProductForm((prev) => ({ ...prev, ai_content_status }))}
-      />
-      {needsOriginals && (
-        <AiOriginalPhotosField
-          ownerFolder={productForm.vendor_id || "platform"}
-          value={productForm.ai_original_photo_paths ?? []}
-          onChange={(ai_original_photo_paths) => setProductForm((prev) => ({ ...prev, ai_original_photo_paths }))}
-        />
-      )}
-
-      <ProductSpecificationsEditor
-        specifications={productForm.specifications ?? []}
-        onChange={(specifications) => setProductForm((prev) => ({ ...prev, specifications }))}
-      />
-
-      {/* Variant Management */}
-      <VariantManager
-        variants={productVariants}
-        onChange={setProductVariants}
-        basePrice={productForm.product_value}
-        mrpFor={(v) =>
-          productForm.category_id ? gstBreakdown(gstRules.ruleFor(productForm.category_id), v)?.price ?? null : null
-        }
-      />
-
-      {isEdit && editingProduct && editingProduct.images.length > 0 && (
-        <div className="space-y-2">
-          <Label>Current Images</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {editingProduct.images.map((img, idx) => (
-              <div key={idx} className="relative">
-                <img
-                  src={img}
-                  alt={`Product ${idx + 1}`}
-                  className="w-full h-20 object-cover rounded-lg"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-2 -right-2 h-6 w-6"
-                  onClick={() => removeProductImage(editingProduct.id, img)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label>{isEdit ? "Add More Images" : "Product Images"}</Label>
-        <input
-          type="file"
-          ref={imageInputRef}
-          accept="image/*"
-          multiple
-          onChange={handleImageChange}
-          className="hidden"
-        />
-        {imagePreviews.length > 0 && (
-          <div className="grid grid-cols-4 gap-2 mb-2">
-            {imagePreviews.map((preview, idx) => (
-              <div key={idx} className="relative">
-                <img
-                  src={preview}
-                  alt={`Preview ${idx + 1}`}
-                  className="w-full h-20 object-cover rounded-lg"
-                />
-                <Button
-                  variant="destructive"
-                  size="icon"
-                  className="absolute -top-2 -right-2 h-6 w-6"
-                  onClick={() => removeNewImage(idx)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        <div
-          onClick={() => imageInputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setImagesDragActive(true);
-          }}
-          onDragLeave={() => setImagesDragActive(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setImagesDragActive(false);
-            addImageFiles(e.dataTransfer.files);
-          }}
-          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-            imagesDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary"
-          }`}
-        >
-          <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">Drag and drop images here, or click to upload</p>
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-3 pt-4 sticky bottom-0 bg-background">
-        <Button
-          variant="outline"
-          onClick={() => {
-            resetForm();
-            if (isEdit) {
-              setEditingProduct(null);
-            } else {
-              setIsAddingProduct(false);
-            }
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={isEdit ? handleEditProduct : handleAddProduct}
-          disabled={isSubmitting || !productForm.name}
-        >
-          {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-          {isEdit ? "Update Product" : "Add Product"}
-        </Button>
-      </div>
-    </div>
-  );
-
   return (
     <Card>
       <div className="flex flex-row items-center justify-between p-6 border-b border-border flex-wrap gap-3">
@@ -750,23 +95,12 @@ export function ProductManagement({ categories }: ProductManagementProps) {
         <div className="flex items-center gap-2">
           <VendorFilterSelect value={vendorFilter} onChange={setVendorFilter} />
           <ProductImportExportDialog products={products} categories={categories} onImported={refetch} />
-        <Dialog open={isAddingProduct} onOpenChange={setIsAddingProduct}>
-          <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
+          <Button asChild>
+            <Link to="/admin/products/new">
               <Plus className="h-4 w-4 mr-2" />
               Add Product
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Add New Product</DialogTitle>
-              <DialogDescription>
-                Add a product for one of your boutiques. Products added here skip the review queue.
-              </DialogDescription>
-            </DialogHeader>
-            {renderFormFields(false)}
-          </DialogContent>
-        </Dialog>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -840,9 +174,11 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                 : "Try a different search term or clearing a filter"}
             </p>
             {products.length === 0 && (
-              <Button onClick={() => setIsAddingProduct(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
+              <Button asChild>
+                <Link to="/admin/products/new">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </Link>
               </Button>
             )}
           </div>
@@ -908,33 +244,11 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                       toggleProductStatus(product.id, checked)
                     }
                   />
-                  <Dialog
-                    open={editingProduct?.id === product.id}
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        resetForm();
-                      }
-                    }}
-                  >
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditDialog(product)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle>Edit Product</DialogTitle>
-                        <DialogDescription>
-                          Update product details
-                        </DialogDescription>
-                      </DialogHeader>
-                      {renderFormFields(true)}
-                    </DialogContent>
-                  </Dialog>
+                  <Button asChild variant="ghost" size="icon" aria-label={`Edit ${product.name}`}>
+                    <Link to={`/admin/products/${product.id}`}>
+                      <Edit className="h-4 w-4" />
+                    </Link>
+                  </Button>
                   {/* A new tab: staff see the product on its own, with no header to come back by. */}
                   <Link to={`/product/${product.id}`} target="_blank" rel="noopener noreferrer">
                     <Button variant="ghost" size="icon" aria-label="View product">

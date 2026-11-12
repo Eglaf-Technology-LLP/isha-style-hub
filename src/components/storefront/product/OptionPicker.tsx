@@ -17,11 +17,16 @@ interface OptionPickerProps {
   aside?: ReactNode;
   // Colour codes the boutique picked, by colour name.
   swatches?: Record<string, string>;
+  // A photo of each colour (its variant's first photo), by colour name.
+  thumbnails?: Record<string, string>;
 }
 
 // Size boxes / colour swatches on the product page.
-export function OptionPicker({ id, label, type, options, selected, onSelect, unavailable, error, aside, swatches }: OptionPickerProps) {
+export function OptionPicker({ id, label, type, options, selected, onSelect, unavailable, error, aside, swatches, thumbnails }: OptionPickerProps) {
   if (options.length === 0) return null;
+  // When any colour has its own photo, every colour shows as a small box -
+  // its photo, or its colour where it has none.
+  const photoBoxes = type === "color" && !!thumbnails && Object.keys(thumbnails).length > 0;
   return (
     <div id={id} className="scroll-mt-40" aria-invalid={error ? true : undefined}>
       <div className="mb-3 flex items-center justify-between gap-4">
@@ -36,6 +41,67 @@ export function OptionPicker({ id, label, type, options, selected, onSelect, una
         {options.map((option) => {
           const active = selected === option;
           const out = unavailable?.has(option);
+
+          if (type === "color" && photoBoxes) {
+            const photo = thumbnails?.[option];
+            const multi = isMulticolour(option);
+            const hex = swatches?.[option] ?? swatchColor(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={`${option}${out ? " (out of stock)" : ""}`}
+                title={option}
+                onClick={() => onSelect(option)}
+                className="group flex w-16 flex-col items-center gap-1.5"
+              >
+                <span
+                  className={cn(
+                    "relative flex h-[76px] w-14 items-center justify-center overflow-hidden rounded-md p-[3px] transition",
+                    active ? "ring-1 ring-foreground" : "ring-1 ring-transparent group-hover:ring-foreground/30",
+                  )}
+                >
+                  {photo ? (
+                    <img src={photo} alt="" loading="lazy" className={cn("h-full w-full rounded-[4px] object-cover", out && "opacity-40")} />
+                  ) : (
+                    <span
+                      className={cn("flex h-full w-full items-center justify-center rounded-[4px] border border-foreground/15 text-[10px] uppercase", out && "opacity-40")}
+                      style={
+                        multi
+                          ? { background: "conic-gradient(#b3261e, #e8c53a, #3f7a4a, #2f5d9e, #6a3d8f, #b3261e)" }
+                          : { backgroundColor: hex ?? "hsl(var(--muted))" }
+                      }
+                    >
+                      {!hex && !multi && option.charAt(0)}
+                    </span>
+                  )}
+                  {/* The colour itself, in the corner of its photo. */}
+                  {photo && (hex || multi) && (
+                    <span
+                      className="absolute bottom-1.5 right-1.5 h-3.5 w-3.5 rounded-full border border-ivory shadow-sm"
+                      style={
+                        multi
+                          ? { background: "conic-gradient(#b3261e, #e8c53a, #3f7a4a, #2f5d9e, #6a3d8f, #b3261e)" }
+                          : { backgroundColor: hex ?? "transparent" }
+                      }
+                    />
+                  )}
+                  {out && <span className="absolute h-px w-16 -rotate-[54deg] bg-foreground/60" />}
+                </span>
+                <span
+                  className={cn(
+                    "line-clamp-2 text-center text-[11px] leading-tight",
+                    active ? "font-medium text-foreground" : "text-muted-foreground",
+                    out && "line-through",
+                  )}
+                >
+                  {option}
+                </span>
+              </button>
+            );
+          }
 
           if (type === "color") {
             const multi = isMulticolour(option);

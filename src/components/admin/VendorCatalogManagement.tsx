@@ -21,7 +21,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus, Pencil, Trash2, Store } from "lucide-react";
 import { toast } from "sonner";
-import { VendorProductDialog, VendorProductRow } from "@/components/vendor/VendorProductDialog";
+import { Link, useSearchParams } from "react-router-dom";
+import type { VendorProductRow } from "@/components/product-editor/ProductEditorForm";
 import { VariantStockDialog } from "./VariantStockDialog";
 import { mapDbVariant } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
@@ -35,17 +36,18 @@ interface VendorOption {
   is_trusted: boolean;
 }
 
-// Lets the super admin manage any vendor's catalogue on their behalf -
-// same form vendors use themselves (VendorProductDialog), just with a
-// vendor picker instead of the vendor's own session deciding the vendor_id.
+// Lets the super admin manage any vendor's catalogue on their behalf. Add
+// and edit open the admin's product page (pages/AdminProductEditor.tsx) -
+// the same form vendors use themselves - which comes back here, to the same
+// boutique (?vendor=).
 export function VendorCatalogManagement() {
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorId, setVendorId] = useState<string>("");
   const [products, setProducts] = useState<VendorProductRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<VendorProductRow | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [params, setParams] = useSearchParams();
+  const vendorParam = params.get("vendor");
 
   useEffect(() => {
     supabase
@@ -58,8 +60,12 @@ export function VendorCatalogManagement() {
           return;
         }
         setVendors((data || []) as VendorOption[]);
-        if (data && data.length > 0) setVendorId(data[0].id);
+        const back = vendorParam && data?.find((v) => v.id === vendorParam);
+        if (back) setVendorId(back.id);
+        else if (data && data.length > 0) setVendorId(data[0].id);
       });
+    // Once: ?vendor= only picks the boutique on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -116,7 +122,20 @@ export function VendorCatalogManagement() {
           <Store className="h-5 w-5" /> Manage a vendor's catalogue
         </CardTitle>
         <div className="flex items-center gap-2">
-          <Select value={vendorId} onValueChange={setVendorId}>
+          <Select
+            value={vendorId}
+            onValueChange={(v) => {
+              setVendorId(v);
+              setParams(
+                (prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set("vendor", v);
+                  return next;
+                },
+                { replace: true },
+              );
+            }}
+          >
             <SelectTrigger className="w-56 h-9">
               <SelectValue placeholder="Select a vendor" />
             </SelectTrigger>
@@ -128,15 +147,10 @@ export function VendorCatalogManagement() {
               ))}
             </SelectContent>
           </Select>
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditingProduct(null);
-              setDialogOpen(true);
-            }}
-            disabled={!vendorId}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Add product
+          <Button size="sm" asChild disabled={!vendorId}>
+            <Link to={`/admin/products/new?from=catalog&vendor=${vendorId}`}>
+              <Plus className="h-4 w-4 mr-2" /> Add product
+            </Link>
           </Button>
         </div>
       </CardHeader>
@@ -196,15 +210,10 @@ export function VendorCatalogManagement() {
                     <TableCell>{p.is_active ? "Listed" : "Hidden"}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditingProduct(p);
-                            setDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
+                        <Button size="sm" variant="ghost" asChild>
+                          <Link to={`/admin/products/${p.id}?from=catalog`} aria-label={`Edit ${p.name}`}>
+                            <Pencil className="h-4 w-4" />
+                          </Link>
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => deleteProduct(p)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -220,16 +229,6 @@ export function VendorCatalogManagement() {
         <PaginationBar page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
       </CardContent>
 
-      {vendorId && (
-        <VendorProductDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          vendorId={vendorId}
-          isTrusted={selectedVendor?.is_trusted ?? false}
-          product={editingProduct}
-          onSaved={fetchProducts}
-        />
-      )}
     </Card>
   );
 }

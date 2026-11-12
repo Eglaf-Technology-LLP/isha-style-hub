@@ -41,6 +41,7 @@ interface ModeratedProduct {
   video_url: string | null;
   video_status: string | null;
   video_is_primary: boolean;
+  video_position: number | null;
   vendors: { name: string } | null;
 }
 
@@ -122,7 +123,7 @@ export function ProductModeration() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, product_value, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, video_url, video_status, video_is_primary, vendors(name)"
+          "id, name, price, product_value, images, vendor_id, approval_status, rejection_reason, created_at, ai_content_status, ai_original_photo_paths, video_url, video_status, video_is_primary, video_position, vendors(name)"
         )
         .eq("approval_status", filter)
         .order("created_at", { ascending: false });
@@ -346,7 +347,11 @@ export function ProductModeration() {
                         >
                           Video {p.video_status ?? "pending"}
                         </Badge>
-                        <p className="text-muted-foreground">{p.video_is_primary ? "Shown first" : "Highlight frame over main image"}</p>
+                        <p className="text-muted-foreground">{(p.video_position ?? (p.video_is_primary ? 0 : null)) === 0
+                            ? "Shown first"
+                            : p.video_position != null
+                              ? `Shown after photo ${p.video_position}`
+                              : "Shown after the photos"}</p>
                         {(p.video_status === "pending" || p.video_status === "approved") && (
                           <Button
                             size="sm"

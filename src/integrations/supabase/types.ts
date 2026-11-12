@@ -190,6 +190,8 @@ export type Database = {
           id: string
           image_url: string | null
           name: string
+          show_in_header: boolean
+          show_on_home: boolean
           slug: string
           updated_at: string
         }
@@ -200,6 +202,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           name: string
+          show_in_header?: boolean
+          show_on_home?: boolean
           slug: string
           updated_at?: string
         }
@@ -210,6 +214,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           name?: string
+          show_in_header?: boolean
+          show_on_home?: boolean
           slug?: string
           updated_at?: string
         }
@@ -2263,6 +2269,7 @@ export type Database = {
           id: string
           image_url: string | null
           low_stock_threshold: number | null
+          images: string[]
           name: string
           options: Json
           price: number | null
@@ -2277,6 +2284,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           low_stock_threshold?: number | null
+          images?: string[]
           name: string
           options?: Json
           price?: number | null
@@ -2291,6 +2299,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           low_stock_threshold?: number | null
+          images?: string[]
           name?: string
           options?: Json
           price?: number | null
@@ -2349,6 +2358,7 @@ export type Database = {
           updated_at: string
           vendor_id: string | null
           video_is_primary: boolean
+          video_position: number | null
           video_status: string | null
           video_url: string | null
           weight_grams: number | null
@@ -2391,6 +2401,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           video_is_primary?: boolean
+          video_position?: number | null
           video_status?: string | null
           video_url?: string | null
           weight_grams?: number | null
@@ -2433,6 +2444,7 @@ export type Database = {
           updated_at?: string
           vendor_id?: string | null
           video_is_primary?: boolean
+          video_position?: number | null
           video_status?: string | null
           video_url?: string | null
           weight_grams?: number | null

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ChevronLeft, ChevronRight, Expand, Play, X } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { getOptimizedImageUrl } from "@/lib/imageUrl";
+import type { VideoSlot } from "@/lib/productMedia";
 import { cn } from "@/lib/utils";
 
 type MediaItem = { kind: "image"; src: string } | { kind: "video"; src: string };
@@ -12,23 +13,41 @@ type MediaItem = { kind: "image"; src: string } | { kind: "video"; src: string }
 interface ProductMediaGalleryProps {
   images: string[];
   productName: string;
-  // Only pass an approved video. isPrimary: the video is the front display;
-  // otherwise it plays in a compact highlight frame over the lead image.
-  video?: { url: string; isPrimary: boolean } | null;
+  // Only pass an approved video (lib/productMedia shopperVideo). It sits
+  // among the photos where the boutique placed it - first, or after N photos.
+  video?: VideoSlot | null;
 }
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+// Hover zoom only with a mouse - a tap on a phone opens the full-screen view.
+const canHoverZoom = () =>
+  typeof window !== "undefined" && !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+
 const sized = (src: string, width: number) => getOptimizedImageUrl(src, { width }) ?? src;
 
-// Product photos: swipe on phones, thumbnails + hover zoom on desktop, and a
-// fullscreen viewer on click/tap.
+const ZOOM = 2.5;
+// The outer 10% of the photo already shows its edge, so the corners are easy
+// to reach with the mouse.
+const EDGE = 0.1;
+const zoomPoint = (e: React.MouseEvent<HTMLElement>) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  const fit = (v: number) => Math.min(1, Math.max(0, (v - EDGE) / (1 - 2 * EDGE))) * 100;
+  return { x: fit((e.clientX - r.left) / r.width), y: fit((e.clientY - r.top) / r.height) };
+};
+
+// Product photos and video: swipe on phones, thumbnails + hover zoom on
+// desktop, and a full-screen viewer on click / tap.
 export function ProductMediaGallery({ images, productName, video }: ProductMediaGalleryProps) {
   const items: MediaItem[] = useMemo(() => {
-    const imageItems = images.map((src) => ({ kind: "image" as const, src }));
-    return video?.isPrimary ? [{ kind: "video" as const, src: video.url }, ...imageItems] : imageItems;
-  }, [images, video?.url, video?.isPrimary]);
+    const list: MediaItem[] = images.map((src) => ({ kind: "image" as const, src }));
+    if (video) {
+      const at = video.position == null ? list.length : Math.min(Math.max(0, video.position), list.length);
+      list.splice(at, 0, { kind: "video", src: video.url });
+    }
+    return list;
+  }, [images, video?.url, video?.position]);
 
   // Mouse users browse with thumbnails/arrows (so hover zoom works); touch
   // users swipe.
@@ -38,11 +57,13 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
   });
   const [selected, setSelected] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [highlightOpen, setHighlightOpen] = useState(false);
   const [zoom, setZoom] = useState<{ x: number; y: number } | null>(null);
+  const hoverZoom = useMemo(canHoverZoom, []);
+  const stageRef = useRef<HTMLDivElement>(null);
   const autoPlay = !prefersReducedMotion();
   const poster = images[0];
   const itemsKey = items.map((i) => i.src).join("|");
+  const videoIndex = items.findIndex((i) => i.kind === "video");
 
   useEffect(() => {
     if (!api) return;
@@ -53,22 +74,40 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
     };
   }, [api]);
 
-  // A different set of photos (e.g. a colour with its own picture) starts
+  // A different set of photos (e.g. a colour with its own pictures) starts
   // from the first one again.
   useEffect(() => {
     setSelected(0);
+    setZoom(null);
     api?.reInit();
     api?.scrollTo(0, true);
   }, [itemsKey, api]);
+
+  // The full-screen view plays the video with sound - the small one pauses
+  // meanwhile, and carries on after.
+  useEffect(() => {
+    const videos = stageRef.current?.querySelectorAll("video") ?? [];
+    videos.forEach((v) => {
+      if (viewerOpen) v.pause();
+      else if (autoPlay) v.play().catch(() => {});
+    });
+  }, [viewerOpen, autoPlay]);
 
   const go = useCallback(
     (index: number) => {
       const next = (index + items.length) % items.length;
       setSelected(next);
+      setZoom(null);
       api?.scrollTo(next);
     },
     [api, items.length],
   );
+
+  const openViewer = (index: number) => {
+    go(index);
+    setZoom(null);
+    setViewerOpen(true);
+  };
 
   if (items.length === 0) {
     return (
@@ -79,7 +118,9 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
   }
 
   const current = items[Math.min(selected, items.length - 1)];
-  const showHighlightFrame = !!video && !video.isPrimary && current?.kind === "image";
+  const zooming = !!zoom && current?.kind === "image";
+  // Phones: the video also plays in a small frame over the lead photo.
+  const showHighlightFrame = videoIndex > 0 && current?.kind === "image" && selected !== videoIndex;
 
   return (
     <div className="flex gap-4">
@@ -101,7 +142,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                 <img src={sized(item.src, 160)} alt="" className="h-full w-full object-cover" loading="lazy" />
               ) : (
                 <>
-                  {poster ? <img src={sized(poster, 160)} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full bg-ink" />}
+                  <video src={item.src} poster={poster} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   <span className="absolute inset-0 flex items-center justify-center bg-ink/35">
                     <Play className="h-5 w-5 fill-ivory text-ivory" />
                   </span>
@@ -113,7 +154,17 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
       )}
 
       <div className="min-w-0 flex-1">
-        <div className="group relative -mx-4 bg-ivory sm:mx-0">
+        <div
+          ref={stageRef}
+          className="group relative -mx-4 bg-ivory sm:mx-0"
+          // Zoom follows the mouse anywhere over the photo - also over the
+          // counter, arrows or buttons on top of it, so no corner is blocked.
+          onMouseMove={(e) => {
+            if (!hoverZoom || current?.kind !== "image") return;
+            setZoom(zoomPoint(e));
+          }}
+          onMouseLeave={() => setZoom(null)}
+        >
           <div ref={emblaRef} className="overflow-hidden">
             <div className="flex touch-pan-y">
               {items.map((item, index) => (
@@ -121,25 +172,16 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                   {item.kind === "image" ? (
                     <button
                       type="button"
-                      className="block h-full w-full cursor-zoom-in"
-                      onClick={() => setViewerOpen(true)}
-                      onMouseMove={(e) => {
-                        const r = e.currentTarget.getBoundingClientRect();
-                        setZoom({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
-                      }}
-                      onMouseLeave={() => setZoom(null)}
+                      className={cn("block h-full w-full", hoverZoom ? "cursor-crosshair" : "cursor-zoom-in")}
+                      onClick={() => openViewer(index)}
                       aria-label={`View ${productName} in fullscreen`}
                     >
+                      {/* The whole photo, never cropped - its corners and edges included. */}
                       <img
                         src={sized(item.src, 1200)}
                         alt={index === 0 ? productName : `${productName} - view ${index + 1}`}
                         loading={index === 0 ? "eager" : "lazy"}
-                        className="h-full w-full object-cover transition-transform duration-300 ease-out"
-                        style={
-                          zoom && index === selected
-                            ? { transform: "scale(2)", transformOrigin: `${zoom.x}% ${zoom.y}%` }
-                            : undefined
-                        }
+                        className="h-full w-full object-contain"
                       />
                     </button>
                   ) : (
@@ -151,7 +193,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                       loop
                       playsInline
                       controls
-                      className="h-full w-full bg-ink object-cover"
+                      className="h-full w-full bg-ink object-contain"
                       aria-label={`${productName} video`}
                     />
                   )}
@@ -160,13 +202,24 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
             </div>
           </div>
 
-          {/* Compact highlight video over the lead image */}
+          {/* Hover zoom: the full-size photo, 2.5x, where the mouse points */}
+          {zooming && (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden bg-ivory" aria-hidden>
+              <img
+                src={current.src}
+                alt=""
+                className="h-full w-full object-contain"
+                style={{ transform: `scale(${ZOOM})`, transformOrigin: `${zoom!.x}% ${zoom!.y}%` }}
+              />
+            </div>
+          )}
+
+          {/* Phones: the video in a small frame over the lead photo */}
           {showHighlightFrame && (
             <button
               type="button"
-              onClick={() => setHighlightOpen(true)}
-              onMouseEnter={() => setZoom(null)}
-              className="absolute bottom-4 left-4 h-32 w-24 overflow-hidden bg-ink shadow-xl ring-2 ring-ivory/90 focus-visible:outline-none focus-visible:ring-primary sm:h-36 sm:w-28"
+              onClick={() => openViewer(videoIndex)}
+              className="absolute bottom-4 left-4 h-32 w-24 overflow-hidden bg-ink shadow-xl ring-2 ring-ivory/90 focus-visible:outline-none focus-visible:ring-primary sm:h-36 sm:w-28 lg:hidden"
               aria-label={`Play ${productName} video`}
             >
               <video src={video!.url} poster={poster} autoPlay={autoPlay} muted loop playsInline className="h-full w-full object-cover" />
@@ -180,19 +233,27 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
 
           {items.length > 1 && (
             <>
-              <span className="pointer-events-none absolute right-4 top-4 bg-ivory/90 px-2.5 py-1 text-[11px] tabular-nums tracking-[0.14em]">
+              <span
+                className={cn(
+                  "pointer-events-none absolute right-4 top-4 bg-ivory/90 px-2.5 py-1 text-[11px] tabular-nums tracking-[0.14em] transition-opacity",
+                  zooming && "opacity-0",
+                )}
+              >
                 {String(selected + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
               </span>
               <GalleryArrow dir="prev" onClick={() => go(selected - 1)} />
               <GalleryArrow dir="next" onClick={() => go(selected + 1)} />
             </>
           )}
-          {current.kind === "image" && (
+          {!zooming && (
             <button
               type="button"
-              onClick={() => setViewerOpen(true)}
-              className="absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center bg-ivory/90 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
-              aria-label="Open fullscreen"
+              onClick={() => openViewer(selected)}
+              className={cn(
+                "absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center bg-ivory/90 transition-opacity",
+                current?.kind === "image" && "lg:opacity-0 lg:group-hover:opacity-100",
+              )}
+              aria-label={current?.kind === "video" ? "Play the video full screen" : "Open fullscreen"}
             >
               <Expand className="h-4 w-4" />
             </button>
@@ -224,18 +285,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
         poster={poster}
         productName={productName}
       />
-
-      {/* Highlight video, full size with sound */}
-      {video && !video.isPrimary && (
-        <Dialog open={highlightOpen} onOpenChange={setHighlightOpen}>
-          <DialogContent className="max-w-3xl overflow-hidden border-none bg-ink p-0">
-            <VisuallyHidden>
-              <DialogTitle>{productName} video</DialogTitle>
-            </VisuallyHidden>
-            <video src={video.url} poster={poster} controls autoPlay playsInline className="max-h-[85vh] w-full bg-ink" />
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }
@@ -282,7 +331,10 @@ function FullscreenViewer({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-0 border-none bg-ivory p-0 sm:rounded-none [&>button:last-child]:hidden"
+        className={cn(
+          "flex h-[100dvh] max-h-none w-screen max-w-none flex-col gap-0 border-none p-0 sm:rounded-none [&>button:last-child]:hidden",
+          current?.kind === "video" ? "bg-ink text-ivory" : "bg-ivory",
+        )}
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft") onIndex(index - 1);
           if (e.key === "ArrowRight") onIndex(index + 1);
@@ -292,8 +344,9 @@ function FullscreenViewer({
           <DialogTitle>{productName} - photos</DialogTitle>
         </VisuallyHidden>
         <div className="flex items-center justify-between px-4 py-3 sm:px-6">
-          <span className="text-[11px] tabular-nums uppercase tracking-[0.2em] text-muted-foreground">
+          <span className="text-[11px] tabular-nums uppercase tracking-[0.2em] opacity-70">
             {String(index + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
+            {current?.kind === "image" && <span className="ml-3 hidden sm:inline">{zoomed ? "Move to look around · click to zoom out" : "Click to zoom"}</span>}
           </span>
           <button type="button" onClick={() => onOpenChange(false)} className="flex h-10 w-10 items-center justify-center hover:text-primary" aria-label="Close">
             <X className="h-6 w-6" />
@@ -306,26 +359,24 @@ function FullscreenViewer({
               type="button"
               className={cn("h-full w-full", zoomed ? "cursor-zoom-out" : "cursor-zoom-in")}
               onClick={(e) => {
-                const r = e.currentTarget.getBoundingClientRect();
-                setOrigin({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
+                setOrigin(zoomPoint(e));
                 setZoomed((z) => !z);
               }}
               onMouseMove={(e) => {
-                if (!zoomed) return;
-                const r = e.currentTarget.getBoundingClientRect();
-                setOrigin({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100 });
+                if (zoomed) setOrigin(zoomPoint(e));
               }}
               aria-label={zoomed ? "Zoom out" : "Zoom in"}
             >
               <img
                 src={current.src}
                 alt={`${productName} - fullscreen view`}
-                className="h-full w-full object-contain transition-transform duration-300"
-                style={zoomed ? { transform: "scale(2.2)", transformOrigin: `${origin.x}% ${origin.y}%` } : undefined}
+                className="h-full w-full object-contain"
+                style={zoomed ? { transform: `scale(${ZOOM})`, transformOrigin: `${origin.x}% ${origin.y}%` } : undefined}
               />
             </button>
           ) : current ? (
-            <video src={current.src} poster={poster} controls autoPlay playsInline className="max-h-full max-w-full" />
+            // The whole video, start to end, with sound and its own controls.
+            <video key={current.src} src={current.src} poster={poster} controls autoPlay playsInline className="h-full w-full object-contain" />
           ) : null}
 
           {items.length > 1 && (
@@ -333,7 +384,7 @@ function FullscreenViewer({
               <button
                 type="button"
                 onClick={() => onIndex(index - 1)}
-                className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-background sm:left-6"
+                className="absolute left-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background sm:left-6"
                 aria-label="Previous"
               >
                 <ChevronLeft className="h-6 w-6" />
@@ -341,7 +392,7 @@ function FullscreenViewer({
               <button
                 type="button"
                 onClick={() => onIndex(index + 1)}
-                className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 shadow-sm hover:bg-background sm:right-6"
+                className="absolute right-3 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background sm:right-6"
                 aria-label="Next"
               >
                 <ChevronRight className="h-6 w-6" />
@@ -357,7 +408,10 @@ function FullscreenViewer({
                 key={`${item.src}-${i}`}
                 type="button"
                 onClick={() => onIndex(i)}
-                className={cn("relative h-16 w-12 shrink-0 overflow-hidden bg-background", i === index ? "ring-1 ring-foreground ring-offset-2 ring-offset-ivory" : "opacity-50 hover:opacity-100")}
+                className={cn(
+                  "relative h-16 w-12 shrink-0 overflow-hidden bg-background",
+                  i === index ? "ring-1 ring-foreground ring-offset-2 ring-offset-ivory" : "opacity-50 hover:opacity-100",
+                )}
                 aria-label={`View ${i + 1}`}
               >
                 {item.kind === "image" ? (

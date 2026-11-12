@@ -26,7 +26,7 @@ interface Props {
   products: ImportExportProduct[];
   categories: Category[];
   vendorId?: string; // set = vendor-scoped (own catalog only, no Vendor Slug column); unset = admin (full catalog)
-  isVendorTrusted?: boolean; // mirrors VendorProductDialog's own auto-approval rule
+  isVendorTrusted?: boolean; // mirrors the product form's own auto-approval rule
   onImported: () => void;
 }
 

@@ -84,7 +84,7 @@ interface ParseContext {
   categoryIdByName: Map<string, string>;
   vendorIdBySlug: Map<string, string>;
   forcedVendorId?: string; // vendor-triggered import: always this vendor, column ignored
-  // Mirrors VendorProductDialog's own isTrusted ? "approved" : "pending_review"
+  // Mirrors the product form's own isTrusted ? "approved" : "pending_review"
   // rule exactly - only meaningful alongside forcedVendorId. Admin-triggered
   // imports leave approval_status unset, same as admin's own single-product
   // "Add Product" form does today (both fall through to the DB's own

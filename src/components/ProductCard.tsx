@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Play, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import { colorOf, inStock, isNewArrival, productColors, sizeOf } from "@/hooks/u
 import { discountPercent, formatINR } from "@/lib/format";
 import { colourCodes, isMulticolour, swatchColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
+import { shopperVideo } from "@/lib/productMedia";
 
 interface ProductCardProps {
   product: Product & { vendor?: { name: string; slug?: string | null } | null };
@@ -28,7 +30,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
   const available = inStock(product);
   const colors = productColors(product);
   const codes = colourCodes(product.variants);
-  const hasVideo = !!product.video_url && product.video_status === "approved";
+  const video = shopperVideo(product);
+  const hasVideo = !!video;
+  // "Show video first": the card leads with the video too.
+  const leadVideo = video?.position === 0 ? video.url : null;
   const variants = product.variants || [];
 
   // Quick add straight from the card: a product with no options, or one
@@ -80,18 +85,22 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
     <div className="group relative">
       <Link to={`/product/${product.id}`} className="block" aria-label={product.name}>
         <div className="relative aspect-[3/4] overflow-hidden bg-ivory">
-          <SmartImage
-            src={first}
-            alt={product.name}
-            width={640}
-            priority={priority}
-            className={cn(
-              "absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]",
-              second && "group-hover:opacity-0",
-            )}
-            fallback={<BrandPlaceholder caption="Photo coming soon" />}
-          />
-          {second && (
+          {leadVideo ? (
+            <CardVideo src={leadVideo} poster={first} label={product.name} />
+          ) : (
+            <SmartImage
+              src={first}
+              alt={product.name}
+              width={640}
+              priority={priority}
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]",
+                second && "group-hover:opacity-0",
+              )}
+              fallback={<BrandPlaceholder caption="Photo coming soon" />}
+            />
+          )}
+          {second && !leadVideo && (
             <SmartImage
               src={second}
               alt=""
@@ -120,7 +129,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
             )}
           </div>
 
-          {hasVideo && (
+          {hasVideo && !leadVideo && (
             <span className="absolute bottom-3 left-3 inline-flex items-center gap-1 bg-ivory/90 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.15em] text-foreground transition-opacity md:group-hover:opacity-0">
               <Play className="h-3 w-3 fill-current" /> Video
             </span>
@@ -227,5 +236,39 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         )}
       </Link>
     </div>
+  );
+}
+
+// The product's video as the card's picture: muted, looping, and only
+// playing while the card is on screen.
+function CardVideo({ src, poster, label }: { src: string; poster?: string; label: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) el.play().catch(() => {});
+        else el.pause();
+      },
+      { threshold: 0.4 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [src]);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      poster={poster}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      aria-label={`${label} video`}
+      className="absolute inset-0 h-full w-full object-cover"
+    />
   );
 }

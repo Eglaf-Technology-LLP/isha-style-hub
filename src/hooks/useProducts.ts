@@ -15,8 +15,22 @@ export interface ProductVariant {
   sku?: string;
   stock: number;
   options: Record<string, string>;
+  // The variant's first photo (kept for order lines, invoices, the
+  // warehouse) - always images[0].
   image_url?: string | null;
+  // All the variant's photos, in the order the boutique arranged them.
+  images?: string[];
 }
+
+// A variant's photos in order - older rows only have image_url.
+export const variantImages = (v: Pick<ProductVariant, "image_url" | "images"> | null | undefined): string[] =>
+  v?.images?.length ? v.images : v?.image_url ? [v.image_url] : [];
+
+// The photo columns to write for a variant.
+const variantPhotoColumns = (v: ProductVariant) => {
+  const images = variantImages(v).filter(Boolean);
+  return { images, image_url: images[0] ?? null };
+};
 
 // adjust_stock's _variant_id/_reason/_reference_order_id are nullable uuid/text
 // columns in Postgres, but supabase gen types always marks RPC args as
@@ -92,6 +106,8 @@ export interface Product {
   ai_original_photo_paths: string[];
   video_url: string | null;
   video_is_primary: boolean;
+  // Photos shown before the video (0 = video first); null = after them all.
+  video_position?: number | null;
   video_status: string | null;
   created_at: string;
   updated_at: string;
@@ -112,6 +128,7 @@ export function mapDbVariant(v: {
   stock: number;
   options: unknown;
   image_url?: string | null;
+  images?: string[] | null;
 }): ProductVariant {
   return {
     id: v.id,
@@ -122,6 +139,7 @@ export function mapDbVariant(v: {
     stock: v.stock,
     options: (v.options as Record<string, string>) || {},
     image_url: v.image_url ?? null,
+    images: variantImages({ image_url: v.image_url ?? null, images: v.images ?? [] }),
   };
 }
 
@@ -161,13 +179,14 @@ export interface ProductFormData {
   ai_original_photo_paths?: string[];
   video_url?: string | null;
   video_is_primary?: boolean;
-  // vendor_id is always set by VendorProductDialog, the admin form (where
+  video_position?: number | null;
+  // vendor_id is always set by the product form (ProductEditorForm, where
   // it's required) and the product import; approval_status only by the
   // vendor side and admin edits. Omitting either leaves it untouched.
   vendor_id?: string | null;
   approval_status?: string;
-  // Full replacement image list, set only by VendorProductDialog (a plain
-  // URL textarea, not a file-upload flow) - see applyProductUpdate.
+  // Full replacement image list in the arranged order, set by
+  // ProductEditorForm - see applyProductUpdate.
   images?: string[];
 }
 
@@ -268,6 +287,7 @@ export async function insertProductRecord(
       ai_original_photo_paths: productData.ai_original_photo_paths ?? [],
       video_url: productData.video_url ?? null,
       video_is_primary: productData.video_is_primary ?? false,
+      ...(productData.video_position !== undefined ? { video_position: productData.video_position } : {}),
       ...(productData.country_of_origin ? { country_of_origin: productData.country_of_origin } : {}),
       ...(productData.net_quantity ? { net_quantity: productData.net_quantity } : {}),
       ...(productData.vendor_id !== undefined ? { vendor_id: productData.vendor_id } : {}),
@@ -290,7 +310,7 @@ export async function insertProductRecord(
           sku: variant.sku || null,
           options: variant.options,
           product_value: variant.product_value,
-          image_url: variant.image_url || null,
+          ...variantPhotoColumns(variant),
           stock: 0,
         })
         .select()
@@ -374,6 +394,7 @@ export async function applyProductUpdate(
   if (productData.ai_original_photo_paths !== undefined) updateData.ai_original_photo_paths = productData.ai_original_photo_paths;
   if (productData.video_url !== undefined) updateData.video_url = productData.video_url;
   if (productData.video_is_primary !== undefined) updateData.video_is_primary = productData.video_is_primary;
+  if (productData.video_position !== undefined) updateData.video_position = productData.video_position;
 
   if (productData.vendor_id !== undefined) {
     updateData.vendor_id = productData.vendor_id;
@@ -435,7 +456,7 @@ export async function applyProductUpdate(
             sku: incoming.sku || null,
             options: incoming.options,
             product_value: incoming.product_value,
-            image_url: incoming.image_url || null,
+            ...variantPhotoColumns(incoming),
             stock: 0,
           })
           .select()
@@ -461,7 +482,7 @@ export async function applyProductUpdate(
           sku: incoming.sku || null,
           options: incoming.options,
           product_value: incoming.product_value,
-          image_url: incoming.image_url || null,
+          ...variantPhotoColumns(incoming),
         })
         .eq("id", existing.id);
       if (fieldsError) throw fieldsError;

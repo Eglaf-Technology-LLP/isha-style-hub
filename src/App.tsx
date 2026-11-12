@@ -15,6 +15,7 @@ import SellWithUs from "./pages/SellWithUs";
 import VendorPending from "./pages/VendorPending";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorProductEditor from "./pages/VendorProductEditor";
+import AdminProductEditor from "./pages/AdminProductEditor";
 import StorePage from "./pages/StorePage";
 import Boutiques from "./pages/Boutiques";
 import Warehouse from "./pages/Warehouse";
@@ -51,6 +52,8 @@ const App = () => (
             <Route path="/membership" element={<Navigate to="/" replace />} />
             <Route path="/account" element={<Account />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/products/new" element={<AdminProductEditor />} />
+            <Route path="/admin/products/:id" element={<AdminProductEditor />} />
             <Route path="/sell-with-us" element={<SellWithUs />} />
             <Route path="/vendor/pending" element={<VendorPending />} />
             <Route path="/vendor" element={<VendorDashboard />} />

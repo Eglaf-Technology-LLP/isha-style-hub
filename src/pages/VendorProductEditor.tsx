@@ -7,7 +7,7 @@ import { Footer } from "@/components/Footer";
 import { useVendor } from "@/hooks/useVendor";
 import { mapDbVariant } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
-import { VendorProductForm, type VendorProductRow } from "@/components/vendor/VendorProductDialog";
+import { ProductEditorForm, type VendorProductRow } from "@/components/product-editor/ProductEditorForm";
 import { VENDOR_PRODUCT_COLUMNS, listingReviewNote } from "@/lib/vendorProduct";
 import { VENDOR_RETURNABLE_SWITCH_ENABLED } from "@/lib/hiddenFeatures";
 
@@ -15,7 +15,7 @@ const BACK_TO = "/vendor?tab=products";
 
 // A boutique adds a product (/vendor/products/new) or edits one
 // (/vendor/products/:id) on its own page - it used to be a pop-up on the
-// vendor dashboard. Same form as admins use in Vendors > Manage Catalogue.
+// vendor dashboard. Same form as admins use (pages/AdminProductEditor.tsx).
 export default function VendorProductEditor() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -73,14 +73,14 @@ export default function VendorProductEditor() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto max-w-3xl px-4 py-6">
+      <main className="container mx-auto max-w-6xl px-4 py-6">
         <Link to={BACK_TO} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> Your products
         </Link>
         <h1 className="mt-3 text-2xl font-serif font-bold">{product ? "Edit product" : "Add product"}</h1>
         <p className="mt-1 mb-6 text-sm text-muted-foreground">{listingReviewNote(vendor.is_trusted)}</p>
-        <VendorProductForm
-          variant="page"
+        <ProductEditorForm
+          mode="vendor"
           vendorId={vendor.id}
           isTrusted={vendor.is_trusted}
           product={product}

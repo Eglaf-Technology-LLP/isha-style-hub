@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Trash2 } from "lucide-react";
 import { ProductSpecification } from "@/hooks/useProducts";
 
@@ -46,13 +45,9 @@ export function ProductSpecificationsEditor({ specifications, onChange }: Produc
   };
 
   return (
-    <Card className="border-dashed">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Product Details</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-sm font-medium">Add a detail</Label>
+          <Label className="text-sm font-medium">Add a detail (fabric, wash care, fit...)</Label>
           <div className="flex flex-wrap gap-1">
             {SUGGESTED_LABELS.filter((l) => !usedLabels.has(l)).map((label) => (
               <Button
@@ -115,7 +110,6 @@ export function ProductSpecificationsEditor({ specifications, onChange }: Produc
             No details added yet - pick one above or type your own.
           </p>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }

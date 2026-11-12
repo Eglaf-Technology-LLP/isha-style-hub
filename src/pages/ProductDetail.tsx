@@ -26,7 +26,8 @@ import { useCartStore, type CartItem } from "@/stores/cartStore";
 import { useBuyNowStore } from "@/stores/buyNowStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "sonner";
-import { Product, ProductVariant, mapDbVariant } from "@/hooks/useProducts";
+import { Product, ProductVariant, mapDbVariant, variantImages } from "@/hooks/useProducts";
+import { shopperVideo } from "@/lib/productMedia";
 import { useStoreBoutiques } from "@/hooks/useStorefront";
 import { ProductMediaGallery } from "@/components/ProductMediaGallery";
 import { OptionPicker } from "@/components/storefront/product/OptionPicker";
@@ -301,12 +302,14 @@ export default function ProductDetail() {
   const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
   // Same rule checkout applies: the product and its boutique must both allow COD.
   const codAvailable = (product?.cod_available ?? true) && vendorInfo?.cod_enabled !== false;
-  // A variant with its own photo (e.g. a color swatch) replaces the shared
-  // gallery entirely while selected; falls back to the product's own
-  // images otherwise.
-  const galleryImages = selectedVariant?.image_url
-    ? [selectedVariant.image_url]
-    : product?.images || [];
+  // A variant with its own photos (every size of a colour shares them)
+  // replaces the shared gallery while selected; otherwise the product's own
+  // photos show.
+  const colourImages = (colour: string | null) =>
+    colour ? variantImages(variantList.find((v) => colorOf(v) === colour && variantImages(v).length)) : [];
+  const ownImages = variantImages(selectedVariant);
+  const variantGallery = ownImages.length ? ownImages : colourImages(selectedColor);
+  const galleryImages = variantGallery.length ? variantGallery : product?.images || [];
 
   // Shared by both "Add to Cart" and "Buy Now" - the validation and the
   // item that ends up in the cart must be identical either way, since Shop
@@ -353,7 +356,8 @@ export default function ProductDetail() {
     return {
       productId: product.id,
       productName: product.name,
-      productImage: product.images[0] || null,
+      // The chosen colour's own photo, when it has one.
+      productImage: galleryImages[0] || product.images[0] || null,
       vendorId: product.vendor_id ?? null,
       variantId,
       variantTitle,
@@ -512,14 +516,22 @@ export default function ProductDetail() {
         ? `${formatINR(vendorInfo.shipping_flat_rate)} flat rate`
         : "Calculated at checkout";
 
+  // Only what applies to this piece: Cash on Delivery only when it's
+  // available, and either its return window or that it can't be returned.
   const services = [
     { icon: Truck, title: shippingTitle, text: shippingText },
     isRefundable
-      ? { icon: RotateCcw, title: "Easy returns", text: `${returnWindowAdjective(windowHours)} return policy` }
-      : { icon: RotateCcw, title: "Non-refundable", text: "Not eligible for return & refund - exchange only" },
-    codAvailable
-      ? { icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }
-      : { icon: Banknote, title: "Prepaid only", text: "Cash on Delivery isn't available for this product - pay online at checkout" },
+      ? {
+          icon: RotateCcw,
+          title: `${returnWindowAdjective(windowHours)} returns`,
+          text: `Return or exchange within ${returnWindowSpan(windowHours)} of delivery`,
+        }
+      : {
+          icon: RotateCcw,
+          title: "Non-returnable",
+          text: `Can't be returned for a refund - exchange within ${returnWindowSpan(windowHours)} of delivery`,
+        },
+    ...(codAvailable ? [{ icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }] : []),
     { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
   ];
 
@@ -564,11 +576,7 @@ export default function ProductDetail() {
             <ProductMediaGallery
               images={galleryImages}
               productName={product.name}
-              video={
-                product.video_url && product.video_status === "approved"
-                  ? { url: product.video_url, isPrimary: product.video_is_primary }
-                  : null
-              }
+              video={shopperVideo(product)}
             />
 
             {/* Product Info */}
@@ -645,6 +653,9 @@ export default function ProductDetail() {
                   type="color"
                   options={availableColors}
                   swatches={colourCodes(Array.isArray(product.variants) ? product.variants : [])}
+                  thumbnails={Object.fromEntries(
+                    availableColors.map((c) => [c, colourImages(c)[0]]).filter(([, url]) => !!url),
+                  )}
                   selected={selectedColor}
                   onSelect={chooseColor}
                   unavailable={unavailableColors}
@@ -785,8 +796,10 @@ export default function ProductDetail() {
                       className={cn(
                         "flex gap-3 p-5",
                         i > 0 && "border-t border-border",
-                        i === 1 && "sm:border-l sm:border-t-0",
-                        i === 3 && "sm:border-l",
+                        i < 2 && "sm:border-t-0",
+                        i % 2 === 1 && "sm:border-l",
+                        // An odd one out fills the last row.
+                        i === services.length - 1 && i % 2 === 0 && "sm:col-span-2",
                       )}
                     >
                       <Icon className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.5} />
@@ -832,8 +845,16 @@ export default function ProductDetail() {
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Returns</dt>
                           <dd className="mt-0.5 text-sm">
-                            {isRefundable ? `Within ${returnWindowSpan(windowHours)} of delivery` : "Non-refundable (exchange only)"}
+                            {isRefundable
+                              ? `Returnable within ${returnWindowSpan(windowHours)} of delivery`
+                              : `Non-returnable (exchange within ${returnWindowSpan(windowHours)})`}
                           </dd>
+                        </div>
+                      )}
+                      {codAvailable && (
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Payment</dt>
+                          <dd className="mt-0.5 text-sm">Cash on Delivery available</dd>
                         </div>
                       )}
                       {madeToOrder && (
