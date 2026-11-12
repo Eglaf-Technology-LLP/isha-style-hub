@@ -22,13 +22,16 @@ import { EstimateGroup, estimateWarehouseDelivery, getActiveDefaultWarehouse } f
 // (preparation + courier to the warehouse) + the warehouse's quality-check
 // days (platform_settings.warehouse_handling_days, 3 working days) + courier
 // to the customer, and `couriers` are the warehouse -> customer ones.
-// ships_by_date is the day the parcel leaves the warehouse.
+// ships_by_date is the day the parcel leaves the warehouse. delivery_pincode
+// may be left out (a shopper who hasn't given one yet): then only
+// ships_by_date comes back, with no couriers and no delivery date.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const body = await req.json();
-    const deliveryPincode: string | undefined = body.delivery_pincode;
+    const deliveryPincode: string | null =
+      typeof body.delivery_pincode === "string" && body.delivery_pincode.trim() ? body.delivery_pincode.trim() : null;
     const groups: EstimateGroup[] = Array.isArray(body.groups)
       ? body.groups
           .filter((g: any) => g?.vendor_id && Array.isArray(g.items) && g.items.length > 0)
@@ -36,8 +39,8 @@ Deno.serve(async (req) => {
       : body.vendor_id && Array.isArray(body.items) && body.items.length > 0
         ? [{ vendorId: body.vendor_id, items: body.items }]
         : [];
-    if (!deliveryPincode || groups.length === 0) {
-      return jsonResponse({ error: "delivery_pincode and vendor_id + items (or groups) are required" }, 400);
+    if (groups.length === 0) {
+      return jsonResponse({ error: "vendor_id + items (or groups) are required" }, 400);
     }
 
     const supabase = serviceClient();
@@ -58,7 +61,8 @@ Deno.serve(async (req) => {
     }
 
     // Direct route (warehouse routing switched off): one boutique straight
-    // to the customer, as before.
+    // to the customer, as before - nothing to say without a PIN code.
+    if (!deliveryPincode) return jsonResponse({ available: false, couriers: [] });
     const group = groups[0];
     const { data: vendor, error: vendorErr } = await supabase
       .from("vendors")

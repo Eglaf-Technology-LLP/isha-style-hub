@@ -130,10 +130,12 @@ export interface WarehouseEstimate {
 
 // Estimate = slowest boutique (preparation + courier to the warehouse) + the
 // warehouse's handling days + courier from the warehouse to the customer.
+// With no PIN code (a shopper who hasn't given one yet) only the "Ships by"
+// date is worked out - it doesn't depend on where the parcel goes.
 export async function estimateWarehouseDelivery(
   supabase: SupabaseClient,
   warehouse: WarehouseRow,
-  deliveryPincode: string,
+  deliveryPincode: string | null,
   groups: EstimateGroup[],
 ): Promise<WarehouseEstimate> {
   const settings = await loadWarehouseSettings(supabase);
@@ -199,6 +201,22 @@ export async function estimateWarehouseDelivery(
     if (arrival > latestArrival) latestArrival = arrival;
   }
 
+  // The parcel may arrive on a Sunday or holiday; handling starts on the next
+  // working day either way.
+  const dispatchOn = addWorkingDays(latestArrival, settings.handlingDays, holidays);
+
+  if (!deliveryPincode) {
+    return {
+      available: true,
+      shipsByDate: dispatchOn,
+      estimatedDeliveryDate: null,
+      prepDays: maxPrep,
+      madeToOrder,
+      lastMileCouriers: [],
+      unavailableReason: null,
+    };
+  }
+
   let lastMile: CourierOption[] = [];
   try {
     const weightKg = await computeTotalWeightKg(supabase, groups.flatMap((g) => g.items));
@@ -213,9 +231,6 @@ export async function estimateWarehouseDelivery(
   }
   if (lastMile.length === 0) return unavailable("Not deliverable to this pincode");
 
-  // The parcel may arrive on a Sunday or holiday; handling starts on the next
-  // working day either way.
-  const dispatchOn = addWorkingDays(latestArrival, settings.handlingDays, holidays);
   const outboundDays = routeTransitDays(lastMile) ?? 3;
 
   return {

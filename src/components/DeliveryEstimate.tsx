@@ -51,12 +51,22 @@ function rememberPin(pin: string) {
   }
 }
 
+interface EstimateResult {
+  // The PIN code it was worked out for; null = none given yet, so only
+  // "Ships by" is known.
+  pin: string | null;
+  available: boolean;
+  shipsBy: string | null;
+  deliveryBy: string | null;
+}
+
 // Real "Ships by" / "Delivery by" dates for this specific vendor+product,
 // using the same live Shiprocket serviceability check "Ship Now" uses - not a
 // platform-wide guess. While orders go through the AllBoutiqs warehouse the
 // server adds up the whole journey (the boutique's preparation time + courier
 // to the warehouse + the warehouse's quality-check days + courier to this
-// pincode); "Ships by" is when the parcel leaves the warehouse.
+// pincode); "Ships by" is when the parcel leaves the warehouse, so it shows
+// even before a PIN code is known.
 //
 // The PIN code fills itself in: the signed-in customer's default saved
 // address, otherwise the last one checked on this device. The customer can
@@ -65,11 +75,7 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
   const { defaultAddress } = useSavedAddresses();
   const [pincode, setPincode] = useState("");
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{
-    available: boolean;
-    shipsBy: string | null;
-    deliveryBy: string | null;
-  } | null>(null);
+  const [result, setResult] = useState<EstimateResult | null>(null);
   const savedPin = defaultAddress?.pincode?.trim();
   const addressPin = isPin(savedPin) ? savedPin : null;
   // A PIN the customer checked by hand on this page - kept when they move
@@ -80,13 +86,13 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
   const lastChecked = useRef("");
   const latestRequest = useRef(0);
 
-  const check = async (pin: string) => {
-    if (!isPin(pin)) return;
-    lastChecked.current = `${vendorId}|${productId}|${pin}`;
+  const check = async (pin: string | null) => {
+    if (pin !== null && !isPin(pin)) return;
+    lastChecked.current = `${vendorId}|${productId}|${pin ?? ""}`;
     const request = ++latestRequest.current;
     setChecking(true);
     setResult(null);
-    rememberPin(pin);
+    if (pin) rememberPin(pin);
     const { data, errorMessage } = await invokeEdgeFunction<{
       available: boolean;
       couriers: CourierOption[];
@@ -94,34 +100,40 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
       estimated_delivery_date?: string | null;
     }>("shiprocket-estimate-delivery", {
       vendor_id: vendorId,
-      delivery_pincode: pin,
+      ...(pin ? { delivery_pincode: pin } : {}),
       items: [{ product_id: productId, quantity: 1 }],
     });
     // A newer check (another PIN) has started since - its answer wins.
     if (request !== latestRequest.current) return;
     setChecking(false);
+    const shipsBy = data?.ships_by_date ? dateLabel(data.ships_by_date) : null;
+    if (!pin) {
+      setResult({ pin: null, available: !errorMessage && !!data?.available, shipsBy, deliveryBy: null });
+      return;
+    }
     if (errorMessage || !data?.available || data.couriers.length === 0) {
-      setResult({ available: false, shipsBy: null, deliveryBy: null });
+      setResult({ pin, available: false, shipsBy: null, deliveryBy: null });
       return;
     }
     setResult({
+      pin,
       available: true,
-      shipsBy: data.ships_by_date ? dateLabel(data.ships_by_date) : null,
+      shipsBy,
       deliveryBy: data.estimated_delivery_date
         ? dateLabel(data.estimated_delivery_date)
         : earliestEtaLabel(data.couriers),
     });
   };
 
-  // Fill in and check the PIN: one the customer typed on this page, else
-  // their default saved address, else the last one checked on this device.
-  // Runs again when the saved addresses arrive (they load after sign-in)
-  // and when the shopper moves to another product.
+  // Work out the dates straight away: for a PIN the customer typed on this
+  // page, else their default saved address, else the last one checked on
+  // this device - or, with none of those, just "Ships by". Runs again when
+  // the saved addresses arrive (they load after sign-in) and when the
+  // shopper moves to another product.
   useEffect(() => {
     const pin = typedPin.current ?? addressPin ?? readLastPin();
-    if (!pin) return;
-    setPincode(pin);
-    if (lastChecked.current !== `${vendorId}|${productId}|${pin}`) check(pin);
+    if (pin) setPincode(pin);
+    if (lastChecked.current !== `${vendorId}|${productId}|${pin ?? ""}`) check(pin);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addressPin, vendorId, productId]);
 
@@ -160,7 +172,21 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
         </p>
       )}
       {result &&
-        (result.available && result.deliveryBy ? (
+        (result.pin === null ? (
+          // No PIN code yet: when it ships, and a prompt for the delivery date.
+          result.available &&
+          result.shipsBy && (
+            <div className="space-y-1.5 text-sm">
+              <p className="flex items-center gap-2">
+                <PackageCheck className="h-4 w-4 text-muted-foreground" /> Ships by{" "}
+                <strong className="font-medium">{result.shipsBy}</strong>
+              </p>
+              <p className="flex items-center gap-2 text-muted-foreground">
+                <Truck className="h-4 w-4" /> Enter your PIN code for the delivery date
+              </p>
+            </div>
+          )
+        ) : result.available && result.deliveryBy ? (
           <div className="space-y-1.5 text-sm">
             {result.shipsBy && (
               <p className="flex items-center gap-2">
