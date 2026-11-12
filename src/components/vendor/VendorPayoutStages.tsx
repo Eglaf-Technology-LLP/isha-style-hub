@@ -37,6 +37,11 @@ interface VendorPayoutStagesProps {
   orders: PayoutOrder[];
   hasPayoutAccount: boolean;
   accountStatus: string;
+  // Payouts > Overview: the money summary and the orders still to be paid.
+  // Payouts > Payout history: what has been sent to the bank.
+  view: "overview" | "history";
+  // Opens Payouts > Bank details (from the "bank details needed" warning).
+  onOpenBankDetails?: () => void;
 }
 
 // Every amount on the seller dashboard has paise (Part 8, 6).
@@ -109,7 +114,14 @@ function TransferStatus({ p }: { p: VendorPayout }) {
   );
 }
 
-export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, accountStatus }: VendorPayoutStagesProps) {
+export function VendorPayoutStages({
+  vendorId,
+  orders,
+  hasPayoutAccount,
+  accountStatus,
+  view,
+  onOpenBankDetails,
+}: VendorPayoutStagesProps) {
   const { payouts, loading } = useVendorPayoutHistory(vendorId);
   const today = todayIst();
   const windowHours = useReturnWindowHours();
@@ -145,6 +157,15 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
     : accountStatus === "needs_update"
       ? "declined"
       : null;
+
+  if (view === "history") {
+    return (
+      <div className="space-y-6">
+        {sentViaRazorpay.length > 0 && <RazorpaySent orders={sentViaRazorpay} amount={routeAmount} />}
+        <BankTransfers payouts={payouts} loading={loading} onShowProof={showProof} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -188,20 +209,27 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
           {blocked && (queued.length > 0 || inWindow.length > 0) && (
             <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-destructive" />
-              <p>
-                {blocked === "missing" ? (
-                  <>
-                    <strong>{rupees(sum(queued) + sum(inWindow))}</strong> is coming to you, but your payout account isn't
-                    set up. Add your bank details below - until then, ready money waits safely in your queue.
-                  </>
-                ) : (
-                  <>
-                    Your bank declined our last transfer
-                    {lastDecline?.failure_reason ? ` (${lastDecline.failure_reason})` : ""}. Please check and update your
-                    bank details below - the money is back in your queue and goes out in the next transfer after that.
-                  </>
+              <div className="space-y-2">
+                <p>
+                  {blocked === "missing" ? (
+                    <>
+                      <strong>{rupees(sum(queued) + sum(inWindow))}</strong> is coming to you, but your payout account
+                      isn't set up. Add your bank details - until then, ready money waits safely in your queue.
+                    </>
+                  ) : (
+                    <>
+                      Your bank declined our last transfer
+                      {lastDecline?.failure_reason ? ` (${lastDecline.failure_reason})` : ""}. Please check and update
+                      your bank details - the money is back in your queue and goes out in the next transfer after that.
+                    </>
+                  )}
+                </p>
+                {onOpenBankDetails && (
+                  <Button size="sm" variant="outline" className="bg-background" onClick={onOpenBankDetails}>
+                    {blocked === "missing" ? "Add bank details" : "Update bank details"}
+                  </Button>
                 )}
-              </p>
+              </div>
             </div>
           )}
         </CardContent>
@@ -301,137 +329,150 @@ export function VendorPayoutStages({ vendorId, orders, hasPayoutAccount, account
           )}
         </CardContent>
       </Card>
-
-      {sentViaRazorpay.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-4 w-4" /> Sent to your bank (Razorpay)
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Razorpay usually credits your bank within 2 working days of sending. "Credited" shows the bank reference (UTR).
-            </p>
-          </CardHeader>
-          <CardContent>
-            {sentViaRazorpay.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No payouts sent yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Order</TableHead>
-                      <TableHead>Sent</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sentViaRazorpay.map((o) => (
-                      <TableRow key={o.id} data-focus-id={o.id}>
-                        <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
-                        <TableCell className="text-sm">{o.rzp_released_at ? formatDate(new Date(o.rzp_released_at)) : "—"}</TableCell>
-                        <TableCell className="font-medium tabular-nums">{rupees(routeAmount(o))}</TableCell>
-                        <TableCell>
-                          {o.rzp_settled_at ? (
-                            <div>
-                              <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-                                <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
-                              </Badge>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {formatDate(new Date(o.rzp_settled_at))}
-                                {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
-                              </div>
-                            </div>
-                          ) : (
-                            <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                              <Loader2 className="h-3 w-3 mr-1" /> On its way to your bank
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Landmark className="h-4 w-4" /> Bank transfers from AllBoutiqs
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Every Wednesday we transfer what's ready to your bank. It reaches your account within 1 working day (often
-            sooner). Each transfer shows its bank reference (UTR) - match it with your bank statement - the proof of the
-            transfer and the breakdown of every charge.
-          </p>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
-            </div>
-          ) : payouts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No bank transfers yet - the first one comes on the Wednesday after your first order is ready.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Payout day</TableHead>
-                    <TableHead>Orders</TableHead>
-                    <TableHead>Sales</TableHead>
-                    <TableHead>Commission</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>To account</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {payouts.map((p) => (
-                    <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
-                      <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.payout_date ?? p.created_at))}</TableCell>
-                      <TableCell className="text-sm">{p.order_count}</TableCell>
-                      <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground tabular-nums">
-                        -{rupees(Number(p.commission_amount))}
-                      </TableCell>
-                      <TableCell className="font-medium tabular-nums">{rupees(Number(p.net_payable))}</TableCell>
-                      <TableCell className="font-mono text-xs">{p.bank_account_last4 ? `••${p.bank_account_last4}` : "—"}</TableCell>
-                      <TableCell>
-                        <TransferStatus p={p} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <PayoutBreakdownDialog
-                            size="xs"
-                            payout={{
-                              id: p.id,
-                              netPayable: Number(p.net_payable),
-                              paymentReference: p.payment_reference,
-                              paymentProofPath: p.payment_proof_path,
-                            }}
-                          />
-                          {p.payment_proof_path && (
-                            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => showProof(p.payment_proof_path!)}>
-                              <FileText className="h-3.5 w-3.5 mr-1" /> Proof
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
+  );
+}
+
+// Orders Razorpay Route sent straight to the boutique's bank (paused rail;
+// shown only when there are any).
+function RazorpaySent({ orders, amount }: { orders: PayoutOrder[]; amount: (o: PayoutOrder) => number }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CheckCircle2 className="h-4 w-4" /> Sent to your bank (Razorpay)
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Razorpay usually credits your bank within 2 working days of sending. "Credited" shows the bank reference (UTR).
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order</TableHead>
+                <TableHead>Sent</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((o) => (
+                <TableRow key={o.id} data-focus-id={o.id}>
+                  <TableCell className="font-mono text-sm">{o.order_id.slice(0, 8)}</TableCell>
+                  <TableCell className="text-sm">{o.rzp_released_at ? formatDate(new Date(o.rzp_released_at)) : "—"}</TableCell>
+                  <TableCell className="font-medium tabular-nums">{rupees(amount(o))}</TableCell>
+                  <TableCell>
+                    {o.rzp_settled_at ? (
+                      <div>
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                          <CheckCircle2 className="h-3 w-3 mr-1" /> Credited
+                        </Badge>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatDate(new Date(o.rzp_settled_at))}
+                          {o.rzp_settlement_utr ? ` · UTR ${o.rzp_settlement_utr}` : ""}
+                        </div>
+                      </div>
+                    ) : (
+                      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
+                        <Loader2 className="h-3 w-3 mr-1" /> On its way to your bank
+                      </Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// The weekly bank transfers AllBoutiqs made, with UTR, proof and breakdown.
+function BankTransfers({
+  payouts,
+  loading,
+  onShowProof,
+}: {
+  payouts: VendorPayout[];
+  loading: boolean;
+  onShowProof: (path: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Landmark className="h-4 w-4" /> Bank transfers from AllBoutiqs
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Every Wednesday we transfer what's ready to your bank. It reaches your account within 1 working day (often
+          sooner). Each transfer shows its bank reference (UTR) - match it with your bank statement - the proof of the
+          transfer and the breakdown of every charge.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="flex justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : payouts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No bank transfers yet - the first one comes on the Wednesday after your first order is ready.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Payout day</TableHead>
+                  <TableHead>Orders</TableHead>
+                  <TableHead>Sales</TableHead>
+                  <TableHead>Commission</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>To account</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payouts.map((p) => (
+                  <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
+                    <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.payout_date ?? p.created_at))}</TableCell>
+                    <TableCell className="text-sm">{p.order_count}</TableCell>
+                    <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground tabular-nums">
+                      -{rupees(Number(p.commission_amount))}
+                    </TableCell>
+                    <TableCell className="font-medium tabular-nums">{rupees(Number(p.net_payable))}</TableCell>
+                    <TableCell className="font-mono text-xs">{p.bank_account_last4 ? `••${p.bank_account_last4}` : "—"}</TableCell>
+                    <TableCell>
+                      <TransferStatus p={p} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <PayoutBreakdownDialog
+                          size="xs"
+                          payout={{
+                            id: p.id,
+                            netPayable: Number(p.net_payable),
+                            paymentReference: p.payment_reference,
+                            paymentProofPath: p.payment_proof_path,
+                          }}
+                        />
+                        {p.payment_proof_path && (
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onShowProof(p.payment_proof_path!)}>
+                            <FileText className="h-3.5 w-3.5 mr-1" /> Proof
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

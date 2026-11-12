@@ -41,6 +41,9 @@ import {
   Warehouse as WarehouseIcon,
   FileCheck2,
   GalleryHorizontalEnd,
+  Banknote,
+  Receipt,
+  Percent,
 } from "lucide-react";
 import { HeroSlidesManagement } from "@/components/admin/HeroSlidesManagement";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -97,6 +100,10 @@ export default function Admin() {
   // A link to a hidden tab (src/lib/hiddenFeatures.ts) opens the dashboard.
   const tab = urlTab === "disputes" && !DISPUTES_TAB_ENABLED ? "dashboard" : urlTab;
   const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
+  // Payouts > sub-tab; a link to a hidden or unknown one opens Boutique payouts.
+  const [urlPayoutsTab, setPayoutsTab] = useUrlTab("payouts", "sub");
+  const payoutsTabs = ["payouts", "cod", "invoices", ...(PAYOUT_RATES_CARD_ENABLED ? ["rates"] : [])];
+  const payoutsTab = payoutsTabs.includes(urlPayoutsTab) ? urlPayoutsTab : "payouts";
   const { user, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const { canOperate: canOperateWarehouse } = useWarehouseAccess();
@@ -510,18 +517,52 @@ export default function Admin() {
             <SettlementLedger isAdmin={isAdmin} />
           </TabsContent>
 
+          {/* Payouts - one sub-tab per job instead of every card stacked on
+              one long page. The statement covers all of them, so it sits
+              beside the sub-tabs. */}
           <TabsContent value="vendor-payouts">
-            <div className="space-y-6">
-              <div className="flex justify-end">
+            <Tabs value={payoutsTab} onValueChange={setPayoutsTab} className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList className="flex flex-wrap h-auto justify-start">
+                  <TabsTrigger value="payouts" className="flex items-center gap-1">
+                    <HandCoins className="h-4 w-4" />
+                    Boutique payouts
+                  </TabsTrigger>
+                  <TabsTrigger value="cod" className="flex items-center gap-1">
+                    <Banknote className="h-4 w-4" />
+                    Cash on Delivery
+                  </TabsTrigger>
+                  <TabsTrigger value="invoices" className="flex items-center gap-1">
+                    <Receipt className="h-4 w-4" />
+                    Fee invoices
+                  </TabsTrigger>
+                  {PAYOUT_RATES_CARD_ENABLED && (
+                    <TabsTrigger value="rates" className="flex items-center gap-1">
+                      <Percent className="h-4 w-4" />
+                      Fees &amp; rates
+                    </TabsTrigger>
+                  )}
+                </TabsList>
                 <StatementDownload admin />
               </div>
-              {PAYOUT_RATES_CARD_ENABLED && <PlatformRatesCard />}
-              <CodTrackingCard admin />
-              <FeeInvoicesCard admin />
-              {/* RazorpayX payouts paused until the account number is in. */}
-              {RAZORPAYX_PAYOUTS_ENABLED && <RazorpayXPanel />}
-              <VendorPayoutManagement isAdmin={isAdmin} />
-            </div>
+
+              <TabsContent value="payouts" className="space-y-6">
+                {/* RazorpayX payouts paused until the account number is in. */}
+                {RAZORPAYX_PAYOUTS_ENABLED && <RazorpayXPanel />}
+                <VendorPayoutManagement isAdmin={isAdmin} />
+              </TabsContent>
+              <TabsContent value="cod">
+                <CodTrackingCard admin />
+              </TabsContent>
+              <TabsContent value="invoices">
+                <FeeInvoicesCard admin />
+              </TabsContent>
+              {PAYOUT_RATES_CARD_ENABLED && (
+                <TabsContent value="rates">
+                  <PlatformRatesCard />
+                </TabsContent>
+              )}
+            </Tabs>
           </TabsContent>
 
           {/* Vendors Tab - four genuinely different jobs (approve new

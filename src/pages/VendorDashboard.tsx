@@ -71,7 +71,7 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
-import { ExternalLink, FileBarChart, Ruler, XCircle } from "lucide-react";
+import { Banknote, ExternalLink, FileBarChart, History, Receipt, Ruler, Wallet, XCircle } from "lucide-react";
 import { VendorReports } from "@/components/vendor/VendorReports";
 import { VendorSizeCharts } from "@/components/vendor/VendorSizeCharts";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
@@ -82,7 +82,7 @@ import { PayoutAccountStatusBadge } from "@/components/vendor/PayoutAccountStatu
 import { formatPayoutDate } from "@/lib/payoutDates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { BankVerificationStatus, type BankCheck } from "@/components/vendor/BankVerificationStatus";
-import { useFlashFocus, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
+import { useFlashFocus, useFocusParam, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 import { CodTrackingCard } from "@/components/CodTrackingCard";
@@ -189,6 +189,9 @@ interface VendorOrderItem {
   // What the customer asked for, if they customised it (make it from this).
   customisation: CustomisationChoice | null;
 }
+
+// Payouts tab's sub-tabs (?sub=).
+const PAYOUT_SUB_TABS = ["overview", "history", "cod", "invoices", "account"];
 
 interface PayoutAccountForm {
   account_holder_name: string;
@@ -563,6 +566,22 @@ export default function VendorDashboard() {
     setPage: setOrderPage,
     onMissing: () => toast.error("That order is no longer in your orders list."),
   });
+  // Payouts > sub-tab. A payout notification links to ?tab=payouts&focus=
+  // with an order or "account" and no &sub=, so open the sub-tab that shows it:
+  // an order already in a bank transfer is in Payout history, any other in
+  // Overview (waiting / in queue).
+  const [urlPayoutSub, setPayoutSub] = useUrlTab("", "sub");
+  const { focusId } = useFocusParam();
+  const focusedPayoutSub = (() => {
+    if (tab !== "payouts" || !focusId) return null;
+    if (focusId === "account") return "account";
+    const o = orders.find((x) => x.id === focusId);
+    if (!o) return null;
+    return o.payout_id || o.rzp_transfer_status === "released" ? "history" : "overview";
+  })();
+  const payoutSub = PAYOUT_SUB_TABS.includes(urlPayoutSub)
+    ? urlPayoutSub
+    : (focusedPayoutSub ?? "overview");
   useFlashFocus(!dataLoading && tab === "payouts");
 
   if (loading || !vendor || vendor.status !== "approved") {
@@ -1303,128 +1322,180 @@ export default function VendorDashboard() {
           </TabsContent>
 
           {/* Payouts Tab */}
-          <TabsContent value="payouts" className="space-y-6">
-            <div className="flex justify-end">
-              <StatementDownload vendorId={vendor.id} />
-            </div>
-            <VendorPayoutStages
-              vendorId={vendor.id}
-              orders={orders}
-              hasPayoutAccount={hasPayoutAccount}
-              accountStatus={vendor.payout_account_status}
-            />
-            <CodTrackingCard vendorId={vendor.id} />
-            <FeeInvoicesCard vendorId={vendor.id} />
-            <Card data-focus-id="account">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Landmark className="h-5 w-5" /> Payout details
-                </CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm text-muted-foreground">Where we send your earnings.</p>
-                  <PayoutAccountStatusBadge status={hasPayoutAccount ? vendor.payout_account_status : "not_setup"} />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 max-w-xl">
-                <div className="space-y-2">
-                  <Label htmlFor="po-name">Account holder name</Label>
-                  <Input
-                    id="po-name"
-                    value={payoutAccount.account_holder_name}
-                    onChange={(e) =>
-                      setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="po-acc">Bank account number</Label>
-                    <Input
-                      id="po-acc"
-                      value={payoutAccount.bank_account_number}
-                      onChange={(e) =>
-                        setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="po-ifsc">IFSC code</Label>
-                    <Input
-                      id="po-ifsc"
-                      value={payoutAccount.bank_ifsc}
-                      onChange={(e) =>
-                        setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="po-bank">Bank name</Label>
-                  <Input
-                    id="po-bank"
-                    value={payoutAccount.bank_name}
-                    onChange={(e) => setPayoutAccount((f) => ({ ...f, bank_name: e.target.value }))}
-                  />
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="po-pan">PAN</Label>
-                    <Input
-                      id="po-pan"
-                      value={payoutAccount.pan}
-                      maxLength={10}
-                      placeholder="ABCDE1234F"
-                      onChange={(e) => setPayoutAccount((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="po-legal">Legal business name (if different)</Label>
-                    <Input
-                      id="po-legal"
-                      value={payoutAccount.legal_business_name}
-                      placeholder="As on PAN / GST"
-                      onChange={(e) => setPayoutAccount((f) => ({ ...f, legal_business_name: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Business type</Label>
-                  <Select
-                    value={payoutAccount.business_type}
-                    onValueChange={(v) => setPayoutAccount((f) => ({ ...f, business_type: v }))}
-                  >
-                    <SelectTrigger className="w-full sm:w-64">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUSINESS_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {businessTypeLabel(t)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {RAZORPAYX_PAYOUTS_ENABLED ? (
-                  <>
-                    <BankVerificationStatus check={bankCheck} />
-                    <p className="text-xs text-muted-foreground">
-                      Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
-                      only to verify your account and pay you.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    AllBoutiqs pays you by bank transfer to this account on every payout day, for orders whose
-                    return/exchange window has closed.
-                  </p>
-                )}
-                <Button onClick={savePayoutAccount} disabled={payoutSaving}>
-                  {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Save payout details
-                </Button>
-              </CardContent>
-            </Card>
+          {/* Payouts - one sub-tab per job instead of every card stacked on
+              one long page. The statement covers all of them, so it sits
+              beside the sub-tabs. */}
+          <TabsContent value="payouts">
+            <Tabs value={payoutSub} onValueChange={setPayoutSub} className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <TabsList className="flex flex-wrap h-auto justify-start">
+                  <TabsTrigger value="overview" className="flex items-center gap-1">
+                    <Wallet className="h-4 w-4" />
+                    Overview
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="flex items-center gap-1">
+                    <History className="h-4 w-4" />
+                    Payout history
+                  </TabsTrigger>
+                  <TabsTrigger value="cod" className="flex items-center gap-1">
+                    <Banknote className="h-4 w-4" />
+                    Cash on Delivery
+                  </TabsTrigger>
+                  <TabsTrigger value="invoices" className="flex items-center gap-1">
+                    <Receipt className="h-4 w-4" />
+                    Fee invoices
+                  </TabsTrigger>
+                  <TabsTrigger value="account" className="flex items-center gap-1">
+                    <Landmark className="h-4 w-4" />
+                    Bank details
+                    {(!hasPayoutAccount ||
+                      vendor.payout_account_status === "not_setup" ||
+                      vendor.payout_account_status === "needs_update") && (
+                      <AlertTriangle className="h-3.5 w-3.5 text-destructive" aria-label="Needs attention" />
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+                <StatementDownload vendorId={vendor.id} />
+              </div>
+
+              <TabsContent value="overview">
+                <VendorPayoutStages
+                  view="overview"
+                  vendorId={vendor.id}
+                  orders={orders}
+                  hasPayoutAccount={hasPayoutAccount}
+                  accountStatus={vendor.payout_account_status}
+                  onOpenBankDetails={() => setPayoutSub("account")}
+                />
+              </TabsContent>
+              <TabsContent value="history">
+                <VendorPayoutStages
+                  view="history"
+                  vendorId={vendor.id}
+                  orders={orders}
+                  hasPayoutAccount={hasPayoutAccount}
+                  accountStatus={vendor.payout_account_status}
+                />
+              </TabsContent>
+              <TabsContent value="cod">
+                <CodTrackingCard vendorId={vendor.id} />
+              </TabsContent>
+              <TabsContent value="invoices">
+                <FeeInvoicesCard vendorId={vendor.id} />
+              </TabsContent>
+              <TabsContent value="account">
+                <Card data-focus-id="account">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Landmark className="h-5 w-5" /> Payout details
+                    </CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm text-muted-foreground">Where we send your earnings.</p>
+                      <PayoutAccountStatusBadge status={hasPayoutAccount ? vendor.payout_account_status : "not_setup"} />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4 max-w-xl">
+                    <div className="space-y-2">
+                      <Label htmlFor="po-name">Account holder name</Label>
+                      <Input
+                        id="po-name"
+                        value={payoutAccount.account_holder_name}
+                        onChange={(e) =>
+                          setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="po-acc">Bank account number</Label>
+                        <Input
+                          id="po-acc"
+                          value={payoutAccount.bank_account_number}
+                          onChange={(e) =>
+                            setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="po-ifsc">IFSC code</Label>
+                        <Input
+                          id="po-ifsc"
+                          value={payoutAccount.bank_ifsc}
+                          onChange={(e) =>
+                            setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="po-bank">Bank name</Label>
+                      <Input
+                        id="po-bank"
+                        value={payoutAccount.bank_name}
+                        onChange={(e) => setPayoutAccount((f) => ({ ...f, bank_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="po-pan">PAN</Label>
+                        <Input
+                          id="po-pan"
+                          value={payoutAccount.pan}
+                          maxLength={10}
+                          placeholder="ABCDE1234F"
+                          onChange={(e) => setPayoutAccount((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="po-legal">Legal business name (if different)</Label>
+                        <Input
+                          id="po-legal"
+                          value={payoutAccount.legal_business_name}
+                          placeholder="As on PAN / GST"
+                          onChange={(e) => setPayoutAccount((f) => ({ ...f, legal_business_name: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Business type</Label>
+                      <Select
+                        value={payoutAccount.business_type}
+                        onValueChange={(v) => setPayoutAccount((f) => ({ ...f, business_type: v }))}
+                      >
+                        <SelectTrigger className="w-full sm:w-64">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BUSINESS_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {businessTypeLabel(t)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {RAZORPAYX_PAYOUTS_ENABLED ? (
+                      <>
+                        <BankVerificationStatus check={bankCheck} />
+                        <p className="text-xs text-muted-foreground">
+                          Payouts are sent automatically through Razorpay. Your bank details and PAN are shared with Razorpay
+                          only to verify your account and pay you.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        AllBoutiqs pays you by bank transfer to this account on every payout day, for orders whose
+                        return/exchange window has closed.
+                      </p>
+                    )}
+                    <Button onClick={savePayoutAccount} disabled={payoutSaving}>
+                      {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Save payout details
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>
