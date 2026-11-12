@@ -27,6 +27,7 @@ import { LEGAL_PATHS } from "./lib/legal";
 import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 import { StaffOnlyGate } from "./components/StaffOnlyGate";
+import { ScrollToTop } from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        {/* Outside the staff gate, which swaps its children for a spinner
+            while the role loads. */}
+        <ScrollToTop />
         <StaffOnlyGate>
           <ConsentGate />
           <Routes>
