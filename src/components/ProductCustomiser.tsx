@@ -16,6 +16,7 @@ import {
   type CustomisationChoice,
   type ProductCustomisationSetup,
 } from "@/lib/customisation";
+import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED, CUSTOMISATION_REFERENCE_PHOTO_ENABLED } from "@/lib/hiddenFeatures";
 
 // Product page: the customer asks for this piece to be customised - made to
 // their measurements and/or with the boutique's priced options, plus a note
@@ -45,7 +46,7 @@ export function buildCustomisation(
   s: CustomiserState,
 ): { choice: CustomisationChoice | null } | { error: string } {
   if (!setup.customisable || !s.enabled) return { choice: null };
-  const options = setup.customisation_options.filter((o) => s.optionIds.includes(o.id));
+  const options = CUSTOMISATION_EXTRA_OPTIONS_ENABLED ? setup.customisation_options.filter((o) => s.optionIds.includes(o.id)) : [];
   let custom_size: CustomisationChoice["custom_size"] = null;
   if (s.customSize && setup.custom_size_price != null) {
     const missing = MEASUREMENTS.filter((m) => m.required && !String(s.measurements[m.key] ?? "").trim());
@@ -106,7 +107,7 @@ export function ProductCustomiser({
   const preview = buildCustomisation(setup, value);
   const extra = value.enabled
     ? customisationPrice({
-        options: setup.customisation_options.filter((o) => value.optionIds.includes(o.id)),
+        options: CUSTOMISATION_EXTRA_OPTIONS_ENABLED ? setup.customisation_options.filter((o) => value.optionIds.includes(o.id)) : [],
         custom_size: value.customSize && setup.custom_size_price != null ? { price: setup.custom_size_price, unit: "in", measurements: {} } : null,
       })
     : 0;
@@ -177,7 +178,7 @@ export function ProductCustomiser({
             </div>
           )}
 
-          {setup.customisation_options.length > 0 && (
+          {CUSTOMISATION_EXTRA_OPTIONS_ENABLED && setup.customisation_options.length > 0 && (
             <div className="space-y-2">
               {setup.customisation_options.map((o) => (
                 <label key={o.id} className="flex items-center justify-between gap-3 cursor-pointer">
@@ -210,6 +211,7 @@ export function ProductCustomiser({
             />
           </div>
 
+          {CUSTOMISATION_REFERENCE_PHOTO_ENABLED && (
           <div className="space-y-1.5">
             <p className="text-sm">
               Reference photo <span className="text-muted-foreground">(optional)</span>
@@ -238,6 +240,7 @@ export function ProductCustomiser({
               <p className="text-xs text-muted-foreground">Sign in to add a reference photo.</p>
             )}
           </div>
+          )}
 
           <div className="rounded-md bg-muted/40 p-3 text-sm space-y-1 tabular-nums">
             <div className="flex justify-between">

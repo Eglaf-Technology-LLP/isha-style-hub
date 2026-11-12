@@ -45,3 +45,11 @@ export const VENDOR_RETURNABLE_SWITCH_ENABLED = true;
 // on Delivery, accept returns). While false, saving the store leaves those
 // as they are.
 export const STORE_SHIPPING_RETURNS_ENABLED = true;
+
+// Product customisation (client, 2026-11-13): the "Other customisations,
+// each with its own price" list in the product forms, and the shopper's
+// "Reference photo" upload on the product page. While false: the forms keep
+// any options a product already has without showing them, and shoppers see
+// neither the options nor the photo upload - custom size and the note stay.
+export const CUSTOMISATION_EXTRA_OPTIONS_ENABLED = false;
+export const CUSTOMISATION_REFERENCE_PHOTO_ENABLED = false;

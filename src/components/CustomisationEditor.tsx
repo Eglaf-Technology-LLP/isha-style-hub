@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { newOptionId, type ProductCustomisationSetup } from "@/lib/customisation";
+import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED } from "@/lib/hiddenFeatures";
+import { cn } from "@/lib/utils";
 
 // Product form section (boutique and admin): can the customer customise this
 // product, and at what price for each customisation.
@@ -57,8 +59,12 @@ export function customisationPayload(f: CustomisationForm): { value: ProductCust
   if (f.offerCustomSize && (f.customSizePrice.trim() === "" || Number(f.customSizePrice) < 0)) {
     return { error: "Enter the custom size price (0 if it's free)" };
   }
-  if (!f.offerCustomSize && options.length === 0) {
-    return { error: "To offer customisation, offer custom size or add at least one option" };
+  if (!f.offerCustomSize && (options.length === 0 || !CUSTOMISATION_EXTRA_OPTIONS_ENABLED)) {
+    return {
+      error: CUSTOMISATION_EXTRA_OPTIONS_ENABLED
+        ? "To offer customisation, offer custom size or add at least one option"
+        : "To offer customisation, switch on Custom size",
+    };
   }
   return {
     value: {
@@ -75,26 +81,31 @@ export function CustomisationEditor({
   onChange,
   idPrefix = "cz",
   note,
+  className,
 }: {
   value: CustomisationForm;
   onChange: (next: CustomisationForm) => void;
   idPrefix?: string;
   note?: string;
+  // The outer box (e.g. to match the product page's sections).
+  className?: string;
 }) {
   const set = <K extends keyof CustomisationForm>(k: K, v: CustomisationForm[K]) => onChange({ ...value, [k]: v });
   const setOption = (id: string, patch: Partial<CustomisationForm["options"][number]>) =>
     set("options", value.options.map((o) => (o.id === id ? { ...o, ...patch } : o)));
 
   return (
-    <div className="rounded-lg border border-border p-3 space-y-3">
+    <div className={cn("rounded-lg border border-border p-3 space-y-3", className)}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <Label htmlFor={`${idPrefix}-on`} className="text-sm font-medium flex items-center gap-1.5">
             <Scissors className="h-4 w-4" /> Customisation available
           </Label>
           <p className="text-xs text-muted-foreground">
-            Customers can have this made to their measurements and/or choose extras. Each customisation's price is
-            added to the product price. Customised pieces can't be returned or exchanged.
+            {CUSTOMISATION_EXTRA_OPTIONS_ENABLED
+              ? "Customers can have this made to their measurements and/or choose extras. Each customisation's price is added to the product price."
+              : "Customers can have this made to their measurements. The custom size price is added to the product price."}{" "}
+            Customised pieces can't be returned or exchanged.
             {note ? ` ${note}` : ""}
           </p>
         </div>
@@ -132,6 +143,7 @@ export function CustomisationEditor({
             )}
           </div>
 
+          {CUSTOMISATION_EXTRA_OPTIONS_ENABLED && (
           <div className="space-y-2">
             <Label className="text-sm">Other customisations, each with its own price</Label>
             {value.options.length === 0 && (
@@ -180,6 +192,7 @@ export function CustomisationEditor({
               </Button>
             )}
           </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-days`} className="text-sm">
