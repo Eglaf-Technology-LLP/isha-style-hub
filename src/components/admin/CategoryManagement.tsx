@@ -5,6 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +40,8 @@ import { useCategories, Category } from "@/hooks/useCategories";
 import { describeGst, useHsnCodes } from "@/hooks/useHsnCodes";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CategoryImportExportDialog } from "./CategoryImportExportDialog";
+import { HEADER_CATEGORY_LIMIT } from "@/hooks/useStorefront";
+import { SIZE_CHART_STANDARD_ONLY } from "@/lib/sizeCharts";
 
 export function CategoryManagement() {
   const {
@@ -44,6 +49,7 @@ export function CategoryManagement() {
     loading,
     addCategory,
     updateCategory,
+    setPlacement,
     deleteCategory,
   } = useCategories();
 
@@ -54,6 +60,8 @@ export function CategoryManagement() {
     name: "",
     description: "",
     hsn_code_id: "",
+    show_in_header: false,
+    show_on_home: false,
   });
   const [categoryImage, setCategoryImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -61,7 +69,7 @@ export function CategoryManagement() {
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
-    setCategoryForm({ name: "", description: "", hsn_code_id: "" });
+    setCategoryForm({ name: "", description: "", hsn_code_id: "", show_in_header: false, show_on_home: false });
     setCategoryImage(null);
     setImagePreview(null);
     setEditingCategory(null);
@@ -92,7 +100,8 @@ export function CategoryManagement() {
       categoryForm.description,
       categoryImage || undefined,
       undefined,
-      categoryForm.hsn_code_id || null
+      categoryForm.hsn_code_id || null,
+      { show_in_header: categoryForm.show_in_header, show_on_home: categoryForm.show_on_home }
     );
     setIsSubmitting(false);
 
@@ -112,6 +121,8 @@ export function CategoryManagement() {
         name: categoryForm.name,
         description: categoryForm.description,
         hsn_code_id: categoryForm.hsn_code_id || null,
+        show_in_header: categoryForm.show_in_header,
+        show_on_home: categoryForm.show_on_home,
       },
       categoryImage || undefined
     );
@@ -129,6 +140,8 @@ export function CategoryManagement() {
       name: category.name,
       description: category.description || "",
       hsn_code_id: category.hsn_code_id || "",
+      show_in_header: category.show_in_header ?? true,
+      show_on_home: category.show_on_home ?? true,
     });
     setCategoryImage(null);
     setImagePreview(category.image_url || null);
@@ -197,6 +210,32 @@ export function CategoryManagement() {
             Without an HSN code, products in this category can't be taxed on the customer invoice.
           </p>
         )}
+      </div>
+
+      <div className="space-y-3 rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor={isEdit ? "edit-header" : "add-header"}>Show in the site header</Label>
+            <p className="text-xs text-muted-foreground">A link in the top menu (room for about {HEADER_CATEGORY_LIMIT}).</p>
+          </div>
+          <Switch
+            id={isEdit ? "edit-header" : "add-header"}
+            checked={categoryForm.show_in_header}
+            onCheckedChange={(v) => setCategoryForm((prev) => ({ ...prev, show_in_header: v }))}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor={isEdit ? "edit-home" : "add-home"}>Show on the home page</Label>
+            <p className="text-xs text-muted-foreground">A tile under "Shop by category".</p>
+          </div>
+          <Switch
+            id={isEdit ? "edit-home" : "add-home"}
+            checked={categoryForm.show_on_home}
+            onCheckedChange={(v) => setCategoryForm((prev) => ({ ...prev, show_on_home: v }))}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">Every category is always in the shop's category filter.</p>
       </div>
 
       <div className="space-y-2">
@@ -308,6 +347,13 @@ export function CategoryManagement() {
         </div>
       </div>
 
+      {categories.length > 0 && (
+        <PlacementPanel
+          categories={categories}
+          onToggle={(id, patch) => setPlacement(id, patch)}
+        />
+      )}
+
       <CardContent className="p-6">
         {categories.length === 0 ? (
           <div className="text-center py-12">
@@ -340,6 +386,13 @@ export function CategoryManagement() {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium">{category.name}</h4>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(category.show_in_header ?? true) && <Badge variant="secondary" className="text-[10px]">Header</Badge>}
+                        {(category.show_on_home ?? true) && <Badge variant="secondary" className="text-[10px]">Home page</Badge>}
+                        {!(category.show_in_header ?? true) && !(category.show_on_home ?? true) && (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">Filter only</Badge>
+                        )}
+                      </div>
                       {category.description && (
                         <p className="text-sm text-muted-foreground line-clamp-1">
                           {category.description}
@@ -357,7 +410,9 @@ export function CategoryManagement() {
                       })()}
                     </div>
                     <div className="flex items-center gap-1">
-                      <SizeChartTemplateButton categoryId={category.id} categoryName={category.name} />
+                      {!SIZE_CHART_STANDARD_ONLY && (
+                        <SizeChartTemplateButton categoryId={category.id} categoryName={category.name} />
+                      )}
                       <Dialog
                         open={editingCategory?.id === category.id}
                         onOpenChange={(open) => {
@@ -424,5 +479,73 @@ export function CategoryManagement() {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// Which categories are header links and which are home page tiles - all on
+// one screen, saved as they're ticked. The rest are only in the shop's
+// category filter.
+function PlacementPanel({
+  categories,
+  onToggle,
+}: {
+  categories: Category[];
+  onToggle: (id: string, patch: { show_in_header?: boolean; show_on_home?: boolean }) => void;
+}) {
+  const inHeader = categories.filter((c) => c.show_in_header ?? true).length;
+  const onHome = categories.filter((c) => c.show_on_home ?? true).length;
+  return (
+    <div className="border-b border-border px-6 py-5">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h4 className="font-medium">Header &amp; home page</h4>
+          <p className="text-sm text-muted-foreground">
+            Tick where each category shows. The rest are only in the shop&apos;s category filter. Header links show only
+            once the category has a live product.
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Header: <span className={inHeader > HEADER_CATEGORY_LIMIT ? "font-medium text-destructive" : "font-medium text-foreground"}>{inHeader}</span>
+          {" "}/ {HEADER_CATEGORY_LIMIT} · Home page: <span className="font-medium text-foreground">{onHome}</span>
+        </p>
+      </div>
+      {inHeader > HEADER_CATEGORY_LIMIT && (
+        <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          The header has room for {HEADER_CATEGORY_LIMIT} - only the first {HEADER_CATEGORY_LIMIT} (A to Z) show. Untick some.
+        </p>
+      )}
+      <div className="max-h-72 overflow-y-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Category</th>
+              <th className="w-28 px-3 py-2 text-center font-medium">Header</th>
+              <th className="w-28 px-3 py-2 text-center font-medium">Home page</th>
+            </tr>
+          </thead>
+          <tbody>
+            {categories.map((c) => (
+              <tr key={c.id} className="border-t border-border">
+                <td className="px-3 py-1.5">{c.name}</td>
+                <td className="px-3 py-1.5 text-center">
+                  <Checkbox
+                    aria-label={`Show ${c.name} in the header`}
+                    checked={c.show_in_header ?? true}
+                    onCheckedChange={(v) => onToggle(c.id, { show_in_header: v === true })}
+                  />
+                </td>
+                <td className="px-3 py-1.5 text-center">
+                  <Checkbox
+                    aria-label={`Show ${c.name} on the home page`}
+                    checked={c.show_on_home ?? true}
+                    onCheckedChange={(v) => onToggle(c.id, { show_on_home: v === true })}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

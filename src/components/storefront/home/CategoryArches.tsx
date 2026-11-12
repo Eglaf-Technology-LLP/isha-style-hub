@@ -5,10 +5,12 @@ import { SectionHeading } from "../SectionHeading";
 import { SmartImage } from "../SmartImage";
 import { BrandPlaceholder } from "../BrandPlaceholder";
 
-// "Shop by category": each category in an Indian arch frame, using its own
-// image, else a product photo from it, else the pattern design.
+// "Shop by category": the categories the admin picked for the home page
+// (Admin > Categories), each in an Indian arch frame, using its own image,
+// else a product photo from it, else the pattern design.
 export function CategoryArches() {
-  const { data: categories = [] } = useStoreCategories();
+  const { data: all = [] } = useStoreCategories();
+  const categories = all.filter((c) => c.show_on_home !== false);
   const { data: products = [] } = useStoreProducts();
   if (categories.length === 0) return null;
 

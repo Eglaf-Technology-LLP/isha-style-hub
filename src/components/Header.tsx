@@ -19,7 +19,14 @@ import { NotificationBell } from "./NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { useVendor } from "@/hooks/useVendor";
 import { useAdmin } from "@/hooks/useAdmin";
-import { categoryCover, StoreCategory, useMenuCategories, useStoreBoutiques, useStoreProducts } from "@/hooks/useStorefront";
+import {
+  categoryCover,
+  HEADER_CATEGORY_LIMIT,
+  StoreCategory,
+  useMenuCategories,
+  useStoreBoutiques,
+  useStoreProducts,
+} from "@/hooks/useStorefront";
 import { useUiStore } from "@/stores/uiStore";
 import { AnnouncementBar } from "@/components/storefront/AnnouncementBar";
 import { SearchPanel } from "@/components/storefront/SearchPanel";
@@ -330,7 +337,7 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
               {navLink("home", "Home", "/")}
               {NEW_IN_AND_SALE_LINKS_ENABLED && navLink("new", "New In", "/category/all?sort=newest")}
               {categories
-                .slice(0, 7)
+                .slice(0, HEADER_CATEGORY_LIMIT)
                 .map((c) => navLink(`cat:${c.id}`, c.name, `/category/${c.slug}`, { mega: CATEGORY_HOVER_MENUS_ENABLED }))}
               {liveBoutiques.length > 0 && navLink("boutiques", "Boutiques", "/boutiques", { mega: true })}
               {NEW_IN_AND_SALE_LINKS_ENABLED && hasSale && navLink("sale", "Sale", "/category/all?sale=1", { highlight: true })}

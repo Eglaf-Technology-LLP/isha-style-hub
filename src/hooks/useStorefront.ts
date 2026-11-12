@@ -12,6 +12,9 @@ export interface StoreCategory {
   slug: string;
   description: string | null;
   image_url: string | null;
+  // Admin's choice (Categories): a header link / a home page tile.
+  show_in_header?: boolean;
+  show_on_home?: boolean;
 }
 
 export interface StoreBoutique {
@@ -61,7 +64,8 @@ export function useStoreCategories() {
     queryFn: async (): Promise<StoreCategory[]> => {
       const { data, error } = await supabase
         .from("categories")
-        .select("id, name, slug, description, image_url")
+        // "*": also works before the header / home page columns exist.
+        .select("*")
         .order("name");
       if (error) throw error;
       return data || [];
@@ -69,15 +73,21 @@ export function useStoreCategories() {
   });
 }
 
-// Categories for the top menu and footer (Developer Corrections Part 8, 11):
-// only ones with at least one live product - an empty category makes the
-// shop look closed - and nothing until both lists have loaded.
+// Categories for the top menu and footer: the ones the admin put in the
+// header (Admin > Categories, client 2026-11-13) - the rest are in the
+// listing page's filter - and only ones with at least one live product, as
+// an empty category makes the shop look closed (Developer Corrections Part
+// 8, 11). Nothing until both lists have loaded.
+export const HEADER_CATEGORY_LIMIT = 8;
 export function useMenuCategories() {
   const categories = useStoreCategories();
   const products = useStoreProducts();
   const ready = categories.isSuccess && products.isSuccess;
   const live = new Set((products.data ?? []).map((p) => p.category_id).filter(Boolean));
-  return { data: ready ? (categories.data ?? []).filter((c) => live.has(c.id)) : [], ready };
+  return {
+    data: ready ? (categories.data ?? []).filter((c) => c.show_in_header !== false && live.has(c.id)) : [],
+    ready,
+  };
 }
 
 export function useStoreBoutiques() {
@@ -109,8 +119,10 @@ export function productColors(p: Product): string[] {
   return [...new Set((p.variants || []).map(colorOf).filter((c): c is string => !!c))];
 }
 
-// Days since it went live - "New" badge for the last 30 days.
-export function isNewArrival(p: Product, days = 30): boolean {
+// "New" badge: listed in the last 7 days; it drops off after a week
+// (client, 2026-11-13 - it was 30 days).
+export const NEW_BADGE_DAYS = 7;
+export function isNewArrival(p: Product, days = NEW_BADGE_DAYS): boolean {
   return Date.now() - new Date(p.created_at).getTime() < days * 86_400_000;
 }
 

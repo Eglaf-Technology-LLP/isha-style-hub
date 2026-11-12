@@ -11,6 +11,10 @@ export interface Category {
   // GST: the category's HSN code (see hsn_codes); its products are taxed at
   // that code's rate on the customer invoice.
   hsn_code_id?: string | null;
+  // Where it shows on the storefront: a link in the site header, a tile on
+  // the home page. Every category is in the listing page's filter anyway.
+  show_in_header?: boolean;
+  show_on_home?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +50,7 @@ export function useCategories() {
     imageFile?: File,
     imageUrl?: string,
     hsnCodeId?: string | null,
+    placement?: { show_in_header: boolean; show_on_home: boolean },
   ) => {
     try {
       const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
@@ -80,6 +85,7 @@ export function useCategories() {
           description: description || null,
           image_url,
           hsn_code_id: hsnCodeId ?? null,
+          ...(placement ?? {}),
         })
         .select()
         .single();
@@ -147,6 +153,19 @@ export function useCategories() {
     }
   };
 
+  // Header / home page switches, saved as they're flipped (no toast for each).
+  const setPlacement = async (id: string, patch: { show_in_header?: boolean; show_on_home?: boolean }) => {
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    const { error } = await supabase.from('categories').update(patch).eq('id', id);
+    if (error) {
+      console.error('Error updating category placement:', error);
+      toast.error("Couldn't save that - please try again");
+      fetchCategories();
+      return false;
+    }
+    return true;
+  };
+
   const deleteCategory = async (id: string) => {
     try {
       const { error } = await supabase
@@ -171,6 +190,7 @@ export function useCategories() {
     loading,
     addCategory,
     updateCategory,
+    setPlacement,
     deleteCategory,
     refetch: fetchCategories,
   };
