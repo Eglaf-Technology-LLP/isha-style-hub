@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  fetchTemplate,
+  fetchChart,
   fetchVendorChart,
   hasAnyValue,
   standardValues,
@@ -28,12 +28,14 @@ export function SizeGuideModal({ categoryId, vendorId }: { categoryId?: string |
     setValues(null);
     if (!categoryId) return;
     (async () => {
-      const t = await fetchTemplate(categoryId);
+      const t = await fetchChart(categoryId);
       if (!live || !t) return;
       const own = vendorId ? await fetchVendorChart(vendorId, categoryId) : null;
       if (!live) return;
       setTemplate(t);
-      setValues(hasAnyValue(own) ? own : hasAnyValue(standardValues(t)) ? standardValues(t) : null);
+      // The boutique's own numbers for this chart's rows, else the standard ones.
+      const ownRows = own ? Object.fromEntries(t.measurements.map((m) => [m.key, own[m.key] ?? {}])) : null;
+      setValues(hasAnyValue(ownRows) ? ownRows : hasAnyValue(standardValues(t)) ? standardValues(t) : null);
     })();
     return () => {
       live = false;

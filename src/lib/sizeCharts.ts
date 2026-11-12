@@ -43,15 +43,64 @@ export function parseTemplate(row: any): SizeChartTemplate {
   };
 }
 
+// Client, 2026-11-13: every category's chart is Bust, Waist and Hip, XS to
+// 6XL, starting from these numbers (inches); other measurements are hidden.
+// While true, the per-category templates (size_guides) only give the chart
+// its name, every category has a chart (even without a template), and
+// Admin > Categories hides the template editor. A boutique's numbers for
+// other measurements stay saved, just not shown.
+export const SIZE_CHART_STANDARD_ONLY = true;
+
+export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"];
+const STANDARD_ROWS: { key: string; name: string; hint: string; from: number }[] = [
+  { key: "bust", name: "Bust", hint: "Around the fullest part of the chest, tape level", from: 32 },
+  { key: "waist", name: "Waist", hint: "Around the natural waist, the narrowest part", from: 26 },
+  { key: "hip", name: "Hip", hint: "Around the fullest part of the hips", from: 36 },
+];
+
+// The standard chart for a category: 2 inches up per size from XS.
+export function standardTemplate(categoryId: string | null, name: string): SizeChartTemplate {
+  return {
+    id: `standard-${categoryId ?? "none"}`,
+    category_id: categoryId,
+    name,
+    unit: "in",
+    sizes: STANDARD_SIZES,
+    measurements: STANDARD_ROWS.map((r) => ({
+      key: r.key,
+      name: r.name,
+      hint: r.hint,
+      values: Object.fromEntries(STANDARD_SIZES.map((size, i) => [size, String(r.from + i * 2)])),
+    })),
+  };
+}
+
+// The chart to use for a category: its template, or the standard one.
+export function chartFor(template: SizeChartTemplate | null, categoryId: string, categoryName: string): SizeChartTemplate | null {
+  if (SIZE_CHART_STANDARD_ONLY) return standardTemplate(categoryId, template?.name || categoryName);
+  return template;
+}
+
 export const hasAnyValue = (values: ChartValues | null | undefined) =>
   !!values && Object.values(values).some((row) => Object.values(row ?? {}).some((v) => String(v ?? "").trim()));
 
 export const standardValues = (t: SizeChartTemplate): ChartValues =>
   Object.fromEntries(t.measurements.map((m) => [m.key, m.values ?? {}]));
 
+// The category's own template (what admins edit).
 export async function fetchTemplate(categoryId: string): Promise<SizeChartTemplate | null> {
   const { data } = await supabase.from("size_guides").select("*").eq("category_id", categoryId).maybeSingle();
   return data ? parseTemplate(data) : null;
+}
+
+// The chart shoppers and boutiques see for a category (see chartFor).
+export async function fetchChart(categoryId: string): Promise<SizeChartTemplate | null> {
+  if (!SIZE_CHART_STANDARD_ONLY) return fetchTemplate(categoryId);
+  const [template, { data: category }] = await Promise.all([
+    fetchTemplate(categoryId),
+    supabase.from("categories").select("name").eq("id", categoryId).maybeSingle(),
+  ]);
+  return chartFor(template, categoryId, category?.name ?? "Size chart");
 }
 
 export async function fetchVendorChart(vendorId: string, categoryId: string): Promise<ChartValues | null> {

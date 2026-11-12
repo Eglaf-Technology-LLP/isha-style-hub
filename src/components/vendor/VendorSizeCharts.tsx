@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
+  SIZE_CHART_STANDARD_ONLY,
+  chartFor,
   cleanNumber,
   hasAnyValue,
   parseTemplate,
@@ -20,9 +23,16 @@ import {
 // Boutique "Size charts": one chart per category, in AllBoutiqs' fixed
 // template - the boutique only fills in the numbers. Shown on its product
 // pages in that category straight away (no approval).
-// A chart the boutique hasn't saved starts from AllBoutiqs' starting values.
+// The boutique's numbers for the rows this chart shows.
+const shownRows = (t: SizeChartTemplate, values: ChartValues | undefined): ChartValues =>
+  Object.fromEntries(t.measurements.map((m) => [m.key, values?.[m.key] ?? {}]));
+
+// A chart the boutique hasn't filled in starts from AllBoutiqs' starting
+// values (numbers it saved for rows no longer shown are kept).
 const startingDraft = (t: SizeChartTemplate, own: ChartValues | undefined): ChartValues =>
-  hasAnyValue(own) ? own! : standardValues(t);
+  hasAnyValue(shownRows(t, own)) ? own! : { ...(own ?? {}), ...standardValues(t) };
+
+const filledIn = (t: SizeChartTemplate, own: ChartValues | undefined) => hasAnyValue(shownRows(t, own));
 
 export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
   const [templates, setTemplates] = useState<(SizeChartTemplate & { categoryName: string })[] | null>(null);
@@ -39,9 +49,16 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
         supabase.from("vendor_size_charts").select("category_id, values").eq("vendor_id", vendorId),
       ]);
       const names = new Map((cats ?? []).map((c) => [c.id, c.name]));
-      const list = (guides ?? [])
-        .map((g) => ({ ...parseTemplate(g), categoryName: names.get(g.category_id!) ?? g.name }))
-        .sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+      // Every category has a chart (the standard one, see lib/sizeCharts) -
+      // not only the few with a template.
+      const list = SIZE_CHART_STANDARD_ONLY
+        ? (cats ?? []).map((c) => {
+            const g = (guides ?? []).find((x) => x.category_id === c.id);
+            return { ...chartFor(g ? parseTemplate(g) : null, c.id, c.name)!, categoryName: c.name };
+          })
+        : (guides ?? [])
+            .map((g) => ({ ...parseTemplate(g), categoryName: names.get(g.category_id!) ?? g.name }))
+            .sort((a, b) => a.categoryName.localeCompare(b.categoryName));
       const own = Object.fromEntries((charts ?? []).map((c) => [c.category_id, (c.values as ChartValues) ?? {}]));
       setTemplates(list);
       setSaved(own);
@@ -56,7 +73,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved[active ?? ""] ?? {});
 
   const pick = (categoryId: string) => {
-    if (dirty && hasAnyValue(saved[active ?? ""]) && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
+    if (dirty && template && filledIn(template, saved[active ?? ""]) && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
     setActive(categoryId);
     const t = templates?.find((x) => x.category_id === categoryId);
     setDraft(t ? startingDraft(t, saved[categoryId]) : saved[categoryId] ?? {});
@@ -64,7 +81,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
 
   // Not saved yet: the chart opens with AllBoutiqs' starting values
   // (Developer Corrections Part 8, 40), for the boutique to change.
-  const notSavedYet = !!template && !hasAnyValue(saved[template.category_id!]);
+  const notSavedYet = !!template && !filledIn(template, saved[template.category_id!]);
 
   const setCell = (key: string, size: string, value: string) =>
     setDraft((d) => ({ ...d, [key]: { ...(d[key] ?? {}), [size]: cleanNumber(value) } }));
@@ -109,6 +126,26 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
           <p className="text-sm text-muted-foreground">No size chart templates yet - AllBoutiqs will add them.</p>
         ) : (
           <>
+            {templates.length > 8 ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <Select value={active ?? undefined} onValueChange={pick}>
+                  <SelectTrigger className="w-72" aria-label="Category">
+                    <SelectValue placeholder="Choose a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((t) => (
+                      <SelectItem key={t.id} value={t.category_id!}>
+                        {t.categoryName}
+                        {filledIn(t, saved[t.category_id!]) ? " ✓" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">
+                  {templates.filter((t) => filledIn(t, saved[t.category_id!])).length} of {templates.length} categories saved
+                </span>
+              </div>
+            ) : (
             <div className="flex flex-wrap gap-2" role="tablist" aria-label="Category">
               {templates.map((t) => (
                 <Button
@@ -120,11 +157,12 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                   className="gap-1.5"
                   onClick={() => pick(t.category_id!)}
                 >
-                  {t.name || t.categoryName}
-                  {hasAnyValue(saved[t.category_id!]) && <CheckCircle2 className="h-3.5 w-3.5" aria-label="filled in" />}
+                  {t.categoryName}
+                  {filledIn(t, saved[t.category_id!]) && <CheckCircle2 className="h-3.5 w-3.5" aria-label="filled in" />}
                 </Button>
               ))}
             </div>
+            )}
 
             {template && (
               <div className="space-y-3">
@@ -132,7 +170,7 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                   <p className="text-sm text-muted-foreground">
                     {template.name} · garment measurements in {unitLabel(template.unit)}
                   </p>
-                  {hasAnyValue(saved[template.category_id!]) ? (
+                  {filledIn(template, saved[template.category_id!]) ? (
                     <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-200">
                       Showing on your products
                     </Badge>
@@ -184,10 +222,10 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={save} disabled={saving || !dirty}>
                     {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Save {template.name || template.categoryName} chart
+                    Save {template.categoryName} chart
                   </Button>
                   {hasAnyValue(standardValues(template)) && (
-                    <Button variant="outline" onClick={() => setDraft(standardValues(template))}>
+                    <Button variant="outline" onClick={() => setDraft((d) => ({ ...d, ...standardValues(template) }))}>
                       Start from AllBoutiqs' standard numbers
                     </Button>
                   )}
