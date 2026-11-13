@@ -7,13 +7,15 @@
 
 export type BusinessConstitution = "proprietorship" | "partnership" | "llp" | "private_limited" | "huf";
 
+// Names as the client words them (13 Nov 2026) - only what's shown; the
+// saved value (proprietorship, private_limited, ...) is the same.
 export const CONSTITUTIONS: { value: BusinessConstitution; label: string; description: string }[] = [
-  { value: "proprietorship", label: "Proprietorship", description: "Business owned and operated by one proprietor." },
+  { value: "proprietorship", label: "Proprietorship / Individual", description: "Business owned and operated by one proprietor." },
   { value: "partnership", label: "Partnership Firm", description: "Business owned by two or more partners." },
   { value: "llp", label: "Limited Liability Partnership (LLP)", description: "Partnership structure with limited liability." },
   {
     value: "private_limited",
-    label: "Private Limited Company",
+    label: "Private Limited Company / OPC",
     description: "Company incorporated as a private limited company.",
   },
   { value: "huf", label: "HUF (Hindu Undivided Family)", description: "Family business run by the Karta." },
