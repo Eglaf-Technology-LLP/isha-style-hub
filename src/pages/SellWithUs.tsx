@@ -259,8 +259,6 @@ export default function SellWithUs() {
     city: "",
     state: "",
     pincode: "",
-    shipping_flat_rate: "99",
-    free_shipping_threshold: "999",
     return_window_days: "7",
     return_policy:
       "7-day easy returns. Items must be unused with original tags and packaging intact.",
@@ -445,8 +443,6 @@ export default function SellWithUs() {
           pincode: form.pincode.trim(),
           country: "India",
         },
-        shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
-        free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
         return_window_days: Number(form.return_window_days) || 7,
         return_policy: form.return_policy.trim(),
         business_constitution: constitution!,
@@ -1153,32 +1149,10 @@ export default function SellWithUs() {
                 </div>
               </FormSection>
 
-              <FormSection icon={Wallet} title="Shipping & returns">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className={accountLabelClass} htmlFor="shipping_flat_rate">Flat shipping (₹)</Label>
-                    <Input
-                      id="shipping_flat_rate"
-                      className={accountFieldClass}
-                      type="number"
-                      min={0}
-                      value={form.shipping_flat_rate}
-                      onChange={(e) => set("shipping_flat_rate", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className={accountLabelClass} htmlFor="free_shipping_threshold">Free over (₹)</Label>
-                    <Input
-                      id="free_shipping_threshold"
-                      className={accountFieldClass}
-                      type="number"
-                      min={0}
-                      value={form.free_shipping_threshold}
-                      onChange={(e) => set("free_shipping_threshold", e.target.value)}
-                    />
-                  </div>
-                  {/* No return window to choose: AllBoutiqs sets one for every boutique. */}
-                </div>
+              <FormSection icon={Wallet} title="Returns">
+                {/* No shipping rates or return window to choose: delivery is free
+                    for customers (the boutique pays the fixed courier charge per
+                    piece), and AllBoutiqs sets one return window for everyone. */}
                 <div className="space-y-2">
                   <Label className={accountLabelClass} htmlFor="return_policy">Return policy</Label>
                   <Textarea

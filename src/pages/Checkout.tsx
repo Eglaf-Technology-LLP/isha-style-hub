@@ -1796,7 +1796,15 @@ export default function Checkout() {
                       <dd>-{formatINR(discountAmount)}</dd>
                     </div>
                   )}
-                  {vendorGroups.map((group) => (
+                  {/* Free delivery is one line, not one per boutique. */}
+                  {vendorGroups.every((g) => g.shippingCost === 0) ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Delivery</dt>
+                      <dd className="shrink-0">
+                        <FreeDeliveryBadge />
+                      </dd>
+                    </div>
+                  ) : vendorGroups.map((group) => (
                     <div className="flex justify-between gap-4" key={group.vendorId ?? "platform"}>
                       <dt className="text-muted-foreground">
                         Shipping{group.vendorName ? ` — ${group.vendorName}` : ""}

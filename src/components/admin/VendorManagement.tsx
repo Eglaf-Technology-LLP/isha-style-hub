@@ -174,7 +174,6 @@ export function VendorManagement() {
                   </TableHead>
                   <TableHead>Trusted</TableHead>
                   <TableHead>Commission</TableHead>
-                  <TableHead>Shipping</TableHead>
                   <TableHead>Shiprocket</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -233,13 +232,6 @@ export function VendorManagement() {
                           0% until {v.founding_until}
                         </div>
                       )}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {formatINR(v.shipping_flat_rate)} flat
-                      <br />
-                      <span className="text-muted-foreground">
-                        free over {v.free_shipping_threshold ? formatINR(v.free_shipping_threshold) : "—"}
-                      </span>
                     </TableCell>
                     <TableCell>
                       {v.shiprocket_pickup_location ? (

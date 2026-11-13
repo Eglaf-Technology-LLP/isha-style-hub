@@ -80,8 +80,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     state: "",
     pincode: "",
     commission_rate: "",
-    shipping_flat_rate: "0",
-    free_shipping_threshold: "",
     return_window_days: "7",
     return_policy: "",
   });
@@ -109,9 +107,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       state: vendor.address?.state || "",
       pincode: vendor.address?.pincode || "",
       commission_rate: vendor.commission_rate != null ? String(vendor.commission_rate) : "",
-      shipping_flat_rate: String(vendor.shipping_flat_rate ?? 0),
-      free_shipping_threshold:
-        vendor.free_shipping_threshold != null ? String(vendor.free_shipping_threshold) : "",
       return_window_days: String(vendor.return_window_days ?? 7),
       return_policy: vendor.return_policy || "",
     });
@@ -189,8 +184,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
             : {}),
           // Blank = use the platform's marketplace commission.
           commission_rate: form.commission_rate.trim() === "" ? null : Number(form.commission_rate),
-          shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
-          free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
           return_window_days: Number(form.return_window_days) || 7,
           return_policy: form.return_policy.trim() || null,
           cod_enabled: codEnabled,
@@ -406,26 +399,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   />
                 </div>
                 {/* The return window is one for every boutique: Returns > Return settings. */}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vd-shipping">Flat shipping (₹)</Label>
-                  <Input
-                    id="vd-shipping"
-                    type="number"
-                    value={form.shipping_flat_rate}
-                    onChange={(e) => set("shipping_flat_rate", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vd-free-over">Free shipping over (₹)</Label>
-                  <Input
-                    id="vd-free-over"
-                    type="number"
-                    value={form.free_shipping_threshold}
-                    onChange={(e) => set("free_shipping_threshold", e.target.value)}
-                  />
-                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="vd-return-policy">Return policy</Label>

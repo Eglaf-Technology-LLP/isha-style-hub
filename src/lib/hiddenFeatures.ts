@@ -20,8 +20,11 @@ export const RETURN_SETTINGS_ENABLED = true;
 export const EWAY_BILL_SETTINGS_ENABLED = true;
 
 // Admin > Promotions: the "Shipping charge to customers" card and the Flash
-// Sales and Gift Cards tabs.
-export const SHIPPING_CHARGE_CARD_ENABLED = true;
+// Sales and Gift Cards tabs. The shipping card is off (client, 13 Nov 2026):
+// delivery is free for customers and the boutique pays a fixed courier charge
+// per piece, so the boutiques' flat shipping / free-over rates are gone from
+// every form - turning the charge back on would bill rates nobody can edit.
+export const SHIPPING_CHARGE_CARD_ENABLED = false;
 export const FLASH_SALES_TAB_ENABLED = true;
 export const GIFT_CARDS_TAB_ENABLED = true;
 

@@ -47,8 +47,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     city: "",
     state: "",
     pincode: "",
-    shipping_flat_rate: "0",
-    free_shipping_threshold: "",
     return_window_days: "7",
     return_policy: "",
     default_prep_days: "",
@@ -73,9 +71,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       city: vendor.address?.city || "",
       state: vendor.address?.state || "",
       pincode: vendor.address?.pincode || "",
-      shipping_flat_rate: String(vendor.shipping_flat_rate ?? 0),
-      free_shipping_threshold:
-        vendor.free_shipping_threshold != null ? String(vendor.free_shipping_threshold) : "",
       return_window_days: String(vendor.return_window_days ?? 7),
       return_policy: vendor.return_policy || "",
       default_prep_days: vendor.default_prep_days != null ? String(vendor.default_prep_days) : "",
@@ -137,8 +132,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           // so whatever the boutique has stays exactly as it is.
           ...(STORE_SHIPPING_RETURNS_ENABLED
             ? {
-                shipping_flat_rate: Number(form.shipping_flat_rate) || 0,
-                free_shipping_threshold: form.free_shipping_threshold ? Number(form.free_shipping_threshold) : null,
                 return_window_days: Number(form.return_window_days) || 7,
                 return_policy: form.return_policy.trim() || null,
                 default_prep_days:
@@ -297,30 +290,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           {STORE_SHIPPING_RETURNS_ENABLED && (
             <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
               <h4 className="font-semibold">Shipping &amp; returns</h4>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vs-ship">Flat shipping (₹)</Label>
-                  <Input
-                    id="vs-ship"
-                    type="number"
-                    min={0}
-                    value={form.shipping_flat_rate}
-                    onChange={(e) => set("shipping_flat_rate", e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="vs-free">Free over (₹)</Label>
-                  <Input
-                    id="vs-free"
-                    type="number"
-                    min={0}
-                    value={form.free_shipping_threshold}
-                    onChange={(e) => set("free_shipping_threshold", e.target.value)}
-                  />
-                </div>
-                {/* No return window here: AllBoutiqs sets one for every boutique
-                    (Admin > Returns > Return settings, 24 hours). */}
-              </div>
+              {/* No flat shipping / free-over here: delivery is free for
+                  customers and the boutique pays the fixed courier charge per
+                  piece (client, 13 Nov 2026). No return window either:
+                  AllBoutiqs sets one for every boutique (Admin > Returns >
+                  Return settings, 24 hours). */}
               <div className="space-y-2">
                 <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
                 <Input

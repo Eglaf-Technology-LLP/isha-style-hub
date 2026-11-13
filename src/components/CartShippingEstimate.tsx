@@ -117,7 +117,7 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
     await Promise.all(
       groups.map(async (group) => {
         // Already free regardless of courier rate - no need to call out.
-        if (group.freeThreshold != null && group.subtotal >= group.freeThreshold) {
+        if (!shippingCharged || (group.freeThreshold != null && group.subtotal >= group.freeThreshold)) {
           setGroups((prev) =>
             prev.map((g) => (g.vendorId === group.vendorId ? { ...g, checked: true } : g)),
           );
@@ -151,15 +151,13 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultAddress, groups.length]);
 
+  // Delivery is free for every customer (client, 13 Nov 2026), so the cart
+  // doesn't spend room saying so - per boutique or in total. It only offers
+  // the delivery date.
   if (groups.length === 0) {
-    return !shippingCharged ? (
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">Delivery</span>
-        <FreeDeliveryBadge />
-      </div>
-    ) : (
+    return shippingCharged ? (
       <p className="text-sm text-muted-foreground">Shipping &amp; taxes calculated at checkout</p>
-    );
+    ) : null;
   }
 
   const anyChecked = groups.some((g) => g.checked);
@@ -170,12 +168,6 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
 
   return (
     <div className="space-y-2">
-      {!shippingCharged && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Delivery</span>
-          <FreeDeliveryBadge />
-        </div>
-      )}
       <div className="flex items-center gap-2">
         <Input
           placeholder={shippingCharged ? "Enter pincode for shipping estimate" : "Enter pincode for delivery date"}
@@ -193,7 +185,14 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
         </Button>
       </div>
 
-      {anyChecked && (
+      {!shippingCharged && cartEta && (
+        <div className="flex justify-between text-sm font-medium text-green-700">
+          <span>Estimated delivery</span>
+          <span>by {deliveryDateLabel(cartEta)}</span>
+        </div>
+      )}
+
+      {shippingCharged && anyChecked && (
         <div className="space-y-1 text-sm">
           {groups.map((g) => {
             const isFree = !shippingCharged || (g.freeThreshold != null && g.subtotal >= g.freeThreshold);

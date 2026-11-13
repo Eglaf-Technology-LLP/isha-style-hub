@@ -22,8 +22,6 @@ interface VendorLike {
   status: string;
   is_trusted: boolean;
   commission_rate: number;
-  shipping_flat_rate: number;
-  free_shipping_threshold: number | null;
   return_window_days: number;
   description: string | null;
 }
@@ -63,8 +61,6 @@ export function VendorImportExportDialog({ vendors, onImported }: Props) {
         if (row.status !== null) patch.status = row.status;
         if (row.is_trusted !== null) patch.is_trusted = row.is_trusted;
         if (row.commission_rate !== null) patch.commission_rate = row.commission_rate;
-        if (row.shipping_flat_rate !== null) patch.shipping_flat_rate = row.shipping_flat_rate;
-        if (row.free_shipping_threshold !== null) patch.free_shipping_threshold = row.free_shipping_threshold;
         if (row.return_window_days !== null) patch.return_window_days = row.return_window_days;
         if (row.description !== null) patch.description = row.description;
 

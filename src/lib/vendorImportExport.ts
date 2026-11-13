@@ -18,8 +18,6 @@ export const VENDOR_COLUMNS = {
   status: "Status (pending/approved/rejected/suspended)",
   isTrusted: "Trusted (TRUE/FALSE)",
   commissionRate: "Commission Rate (%)",
-  shippingFlatRate: "Flat Shipping Rate",
-  freeShippingThreshold: "Free Shipping Threshold (optional)",
   returnWindowDays: "Return Window (days)",
   description: "Description",
 } as const;
@@ -31,8 +29,6 @@ export interface VendorImportRow {
   status: string | null;
   is_trusted: boolean | null;
   commission_rate: number | null;
-  shipping_flat_rate: number | null;
-  free_shipping_threshold: number | null;
   return_window_days: number | null;
   description: string | null;
 }
@@ -74,8 +70,6 @@ export function parseVendorRows(
       status: statusRaw || null,
       is_trusted: isTrustedRaw ? parseBoolean(isTrustedRaw) : null,
       commission_rate: parseNumberOrNull(row[VENDOR_COLUMNS.commissionRate]),
-      shipping_flat_rate: parseNumberOrNull(row[VENDOR_COLUMNS.shippingFlatRate]),
-      free_shipping_threshold: parseNumberOrNull(row[VENDOR_COLUMNS.freeShippingThreshold]),
       return_window_days: parseNumberOrNull(row[VENDOR_COLUMNS.returnWindowDays]),
       description: row[VENDOR_COLUMNS.description]?.trim() || null,
     });
@@ -93,8 +87,6 @@ export function vendorsToRows(
     status: string;
     is_trusted: boolean;
     commission_rate: number | null;
-    shipping_flat_rate: number;
-    free_shipping_threshold: number | null;
     return_window_days: number;
     description: string | null;
   }[],
@@ -107,8 +99,6 @@ export function vendorsToRows(
     [VENDOR_COLUMNS.status]: v.status,
     [VENDOR_COLUMNS.isTrusted]: v.is_trusted ? "TRUE" : "FALSE",
     [VENDOR_COLUMNS.commissionRate]: v.commission_rate != null ? String(v.commission_rate) : "",
-    [VENDOR_COLUMNS.shippingFlatRate]: String(v.shipping_flat_rate),
-    [VENDOR_COLUMNS.freeShippingThreshold]: v.free_shipping_threshold != null ? String(v.free_shipping_threshold) : "",
     [VENDOR_COLUMNS.returnWindowDays]: String(v.return_window_days),
     [VENDOR_COLUMNS.description]: v.description ?? "",
   }));

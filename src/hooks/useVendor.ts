@@ -56,8 +56,8 @@ export interface VendorApplicationInput {
   name: string;
   description: string;
   address: Record<string, string>;
-  shipping_flat_rate: number;
-  free_shipping_threshold: number | null;
+  // No shipping rates: delivery is free for customers (submit_vendor_application
+  // stores 0 / none).
   return_window_days: number;
   return_policy: string;
   business_constitution: BusinessConstitution;
