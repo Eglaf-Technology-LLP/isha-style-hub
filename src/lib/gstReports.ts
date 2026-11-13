@@ -365,7 +365,7 @@ export function checkRows(checks: MoneyCheck[]) {
 
 // ---------- AllBoutiqs only ----------
 
-// AllBoutiqs' invoices to customers (its own GSTR-1, B2C): COD charge, shipping.
+// AllBoutiqs' invoices to customers (its own GSTR-1, B2C): COD fee (3% + GST), shipping.
 export function courierInvoiceRows(invoices: CourierInvoice[]) {
   return invoices.map((i) => ({
     "Invoice no.": i.invoice_number,
@@ -373,7 +373,7 @@ export function courierInvoiceRows(invoices: CourierInvoice[]) {
     "Place of supply": pos(i.place_of_supply_code, i.billing_state),
     SAC: i.sac_code,
     Shipping: n(i.shipping_amount),
-    "COD charge": n(i.cod_amount),
+    "COD fee (incl. GST)": n(i.cod_amount),
     "Taxable value": n(i.taxable_value),
     "GST rate %": n(i.gst_rate),
     CGST: n(i.cgst_amount),
@@ -403,7 +403,7 @@ export interface ReconOrder {
   payment_method: string | null;
 }
 
-// One row per order: customer paid vs boutique goods + shipping + COD charge,
+// One row per order: customer paid vs boutique goods + shipping + COD fee,
 // and each part's goods vs its fees (the courier & logistics charge among
 // them), taxes and payout. "Difference" columns are 0 when everything adds
 // up; an order with a cancelled part says so instead.
@@ -443,7 +443,7 @@ export function reconciliationRows(
       Boutiques: parts.map((l) => l.boutique_code).join(", "),
       "Customer paid": n(o?.total),
       "Boutique goods (incl. GST)": goods,
-      "Shipping + COD charge": allboutiqs,
+      "Shipping + COD fee": allboutiqs,
       "Difference (paid - refunded - goods - shipping - COD)": cancelled
         ? "has cancellations"
         : r2(n(o?.total) - refunded - goods - allboutiqs),

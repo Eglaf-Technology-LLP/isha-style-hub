@@ -2101,6 +2101,7 @@ export type Database = {
       }
       platform_settings: {
         Row: {
+          cod_fee_pct: number
           customer_shipping_enabled: boolean
           default_prep_days: number
           eway_bill_email: string
@@ -2129,6 +2130,7 @@ export type Database = {
           warehouse_routing_enabled: boolean
         }
         Insert: {
+          cod_fee_pct?: number
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
@@ -2157,6 +2159,7 @@ export type Database = {
           warehouse_routing_enabled?: boolean
         }
         Update: {
+          cod_fee_pct?: number
           customer_shipping_enabled?: boolean
           default_prep_days?: number
           eway_bill_email?: string
@@ -3462,6 +3465,8 @@ export type Database = {
           arrived_at_warehouse_at: string | null
           carrier: string | null
           cod_handling_charge: number
+          cod_fee_amount: number
+          cod_fee_gst_amount: number
           cod_received_at: string | null
           cod_received_source: string | null
           cod_received_utr: string | null
@@ -3535,6 +3540,8 @@ export type Database = {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
           cod_handling_charge?: number
+          cod_fee_amount?: number
+          cod_fee_gst_amount?: number
           cod_received_at?: string | null
           cod_received_source?: string | null
           cod_received_utr?: string | null
@@ -3608,6 +3615,8 @@ export type Database = {
           arrived_at_warehouse_at?: string | null
           carrier?: string | null
           cod_handling_charge?: number
+          cod_fee_amount?: number
+          cod_fee_gst_amount?: number
           cod_received_at?: string | null
           cod_received_source?: string | null
           cod_received_utr?: string | null

@@ -399,7 +399,7 @@ const handler = async (req: Request): Promise<Response> => {
           ${
             Number(order.cod_charge) > 0
               ? `<tr>
-            <td colspan="2" style="padding: 12px 16px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">Cash on Delivery charge</td>
+            <td colspan="2" style="padding: 12px 16px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">Cash on Delivery fee (incl. GST)</td>
             <td style="padding: 12px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">${money(order.cod_charge)}</td>
           </tr>`
               : ""

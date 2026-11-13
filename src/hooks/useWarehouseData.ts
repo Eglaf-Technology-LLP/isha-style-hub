@@ -53,7 +53,7 @@ export interface WhOrder {
   total: number;
   subtotal: number;
   discount_amount: number;
-  // COD charge the customer paid at checkout (Extra list M).
+  // COD fee the customer pays (incl. GST) - the order's total.
   cod_charge: number;
   estimated_delivery_date: string | null;
 }
@@ -66,6 +66,9 @@ export interface WhVendorOrder {
   status: string;
   subtotal: number;
   shipping_cost: number;
+  // The customer's COD fee for this part and its GST (13 Nov 2026 on).
+  cod_fee_amount: number;
+  cod_fee_gst_amount: number;
   ready_by: string | null;
   expected_at_warehouse_on: string | null;
   arrived_at_warehouse_at: string | null;
@@ -160,7 +163,7 @@ export interface WhSendBack {
 const SHIPMENT_COLUMNS =
   "id, shipment_type, status, status_raw, awb_code, courier_name, label_url, estimated_delivery_date, created_at, picked_up_at, delivered_at, vendor_order_id, return_request_id, dispatch_id, send_back_id, courier_cost";
 const VO_COLUMNS =
-  "id, order_id, vendor_id, status, subtotal, shipping_cost, ready_by, expected_at_warehouse_on, arrived_at_warehouse_at, received_at_warehouse_at, warehouse_shelf, qc_status, qc_notes, dispatch_id, created_at, updated_at";
+  "id, order_id, vendor_id, status, subtotal, shipping_cost, cod_fee_amount, cod_fee_gst_amount, ready_by, expected_at_warehouse_on, arrived_at_warehouse_at, received_at_warehouse_at, warehouse_shelf, qc_status, qc_notes, dispatch_id, created_at, updated_at";
 const OPEN_VO_STATUSES = [
   "pending",
   "confirmed",

@@ -44,7 +44,7 @@ export interface Order {
   total: number;
   discount_code: string | null;
   discount_amount: number;
-  // Cash on Delivery charge paid by the customer (Extra list M).
+  // Cash on Delivery fee paid by the customer (3% + GST, incl. the GST).
   cod_charge?: number;
   // The part paid from the customer's AllBoutiqs wallet.
   wallet_amount?: number;

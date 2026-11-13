@@ -426,41 +426,79 @@ export default function Checkout() {
   const discountAmount = coupon?.total ?? 0;
   const goodsDue = Math.round((subtotal - discountAmount + shippingCost) * 100) / 100;
 
-  // Cash on Delivery charge (Extra list M): Shiprocket's real COD charge for
-  // this order's parcel to this PIN code, at this order value - paid by the
-  // customer, shown on the COD option and added to the total when chosen.
-  const [codQuote, setCodQuote] = useState<{ status: "idle" | "loading" | "ready" | "unavailable" | "error"; amount: number }>({
-    status: "idle",
-    amount: 0,
-  });
+  // Cash on Delivery fee (client, 13 Nov 2026): 3% of what each boutique
+  // part comes to (its goods less its coupon share plus its shipping) + 18%
+  // GST on that fee - worked out by the server (shiprocket-cod-charge, the
+  // same sum price_order makes), which also checks a courier collects cash
+  // at this PIN code. Paid by the customer, shown on the COD option and
+  // added to the total when chosen.
+  const [codQuote, setCodQuote] = useState<{
+    status: "idle" | "loading" | "ready" | "unavailable" | "error";
+    amount: number;
+    fee: number;
+    gst: number;
+    pct: number | null;
+  }>({ status: "idle", amount: 0, fee: 0, gst: 0, pct: null });
+  // One entry per boutique part, as a stable key for the effect below.
+  const codGroupsKey = useMemo(
+    () =>
+      JSON.stringify(
+        vendorGroups
+          .filter((g) => g.vendorId)
+          .map((g) => ({
+            vendor_id: g.vendorId,
+            goods_due:
+              Math.round(
+                (g.subtotal -
+                  g.items.reduce((sum, i) => sum + (coupon?.perLine.get(cartLineKey(i)) ?? 0), 0) +
+                  g.shippingCost) *
+                  100,
+              ) / 100,
+            items: g.items.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+          })),
+      ),
+    [vendorGroups, coupon],
+  );
   useEffect(() => {
     const pin = shippingAddress.pincode;
-    if (!/^[1-9]\d{5}$/.test(pin) || etaVendorItems.size === 0) {
-      setCodQuote({ status: "idle", amount: 0 });
+    const groups = JSON.parse(codGroupsKey) as unknown[];
+    if (!/^[1-9]\d{5}$/.test(pin) || groups.length === 0) {
+      setCodQuote({ status: "idle", amount: 0, fee: 0, gst: 0, pct: null });
       return;
     }
     let cancelled = false;
     setCodQuote((q) => ({ ...q, status: "loading" }));
     const timer = setTimeout(async () => {
-      const groups = [...etaVendorItems.entries()].map(([vendor_id, its]) => ({
-        vendor_id,
-        items: its.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
-      }));
-      const { data } = await invokeEdgeFunction<{ available: boolean; cod_charge: number | null }>("shiprocket-cod-charge", {
+      const { data } = await invokeEdgeFunction<{
+        available: boolean;
+        cod_charge: number | null;
+        cod_fee?: number;
+        cod_fee_gst?: number;
+        cod_fee_pct?: number;
+      }>("shiprocket-cod-charge", {
         delivery_pincode: pin,
         order_value: goodsDue,
         groups,
       });
       if (cancelled) return;
-      if (!data) setCodQuote({ status: "error", amount: 0 });
-      else if (!data.available || data.cod_charge == null) setCodQuote({ status: "unavailable", amount: 0 });
-      else setCodQuote({ status: "ready", amount: Number(data.cod_charge) });
+      if (!data) setCodQuote({ status: "error", amount: 0, fee: 0, gst: 0, pct: null });
+      else if (!data.available || data.cod_charge == null)
+        setCodQuote({ status: "unavailable", amount: 0, fee: 0, gst: 0, pct: null });
+      else
+        setCodQuote({
+          status: "ready",
+          amount: Number(data.cod_charge),
+          fee: Number(data.cod_fee ?? 0),
+          gst: Number(data.cod_fee_gst ?? 0),
+          pct: data.cod_fee_pct == null ? null : Number(data.cod_fee_pct),
+        });
     }, 500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [shippingAddress.pincode, etaVendorItems, goodsDue]);
+  }, [shippingAddress.pincode, codGroupsKey, goodsDue]);
+  const codFeeLabel = `Cash on Delivery fee${codQuote.pct != null ? ` (${codQuote.pct}% + GST)` : ""}`;
   const codFee = paymentMethod === "cod" && codQuote.status === "ready" ? codQuote.amount : 0;
   const total = goodsDue + codFee;
   // Paid from the wallet, and what's left to pay now. A whole-wallet order
@@ -812,8 +850,8 @@ export default function Checkout() {
     if (paymentMethod === "cod" && codQuote.status !== "ready") {
       toast.error(
         codQuote.status === "loading"
-          ? "Working out the Cash on Delivery charge - try again in a moment"
-          : "Couldn't work out the Cash on Delivery charge for this PIN code. Check it, or pay online.",
+          ? "Working out the Cash on Delivery fee - try again in a moment"
+          : "Couldn't work out the Cash on Delivery fee for this PIN code. Check it, or pay online.",
       );
       return;
     }
@@ -1549,12 +1587,14 @@ export default function Checkout() {
                     title="Cash on Delivery"
                     text={
                       codQuote.status === "ready"
-                        ? `Pay when your order arrives · COD charge ${formatINR(codQuote.amount)}`
+                        ? `Pay when your order arrives · COD fee ${formatINR(codQuote.amount)}${
+                            codQuote.pct != null ? ` (${codQuote.pct}% + GST)` : ""
+                          }`
                         : codQuote.status === "loading"
-                          ? "Pay when your order arrives · working out the COD charge..."
+                          ? "Pay when your order arrives · working out the COD fee..."
                           : codQuote.status === "error"
-                            ? "Pay when your order arrives · couldn't get the COD charge - check the PIN code"
-                            : "Pay when your order arrives · the COD charge shows once you enter your PIN code"
+                            ? "Pay when your order arrives · couldn't work out the COD fee - check the PIN code"
+                            : "Pay when your order arrives · the COD fee shows once you enter your PIN code"
                     }
                   />
                 )}
@@ -1772,7 +1812,14 @@ export default function Checkout() {
                   ))}
                   {codFee > 0 && (
                     <div className="flex justify-between gap-4">
-                      <dt className="text-muted-foreground">Cash on Delivery charge</dt>
+                      <dt className="text-muted-foreground">
+                        {codFeeLabel}
+                        {codQuote.gst > 0 && (
+                          <span className="block text-xs">
+                            {formatINR(codQuote.fee)} + {formatINR(codQuote.gst)} GST
+                          </span>
+                        )}
+                      </dt>
                       <dd className="shrink-0">{formatINR(codFee)}</dd>
                     </div>
                   )}

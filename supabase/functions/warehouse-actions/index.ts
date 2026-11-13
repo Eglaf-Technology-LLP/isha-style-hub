@@ -121,7 +121,7 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
   if (dispatch.purpose === "order") {
     const { data: vendorOrders } = await supabase
       .from("vendor_orders")
-      .select("id, subtotal, shipping_cost")
+      .select("id, subtotal, shipping_cost, cod_fee_amount, cod_fee_gst_amount")
       .eq("dispatch_id", dispatch.id)
       .order("id");
     if (!vendorOrders?.length) throw new ActionError("This parcel is empty");
@@ -146,9 +146,15 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
       : Number(order.discount_amount) > 0 && orderSubtotal > 0
         ? round2((Number(order.discount_amount) * subTotal) / orderSubtotal)
         : 0;
-    // The COD charge the customer paid at checkout (Extra list M) is
-    // collected too - its share for these parts, added to the delivery charge.
-    if (cod && Number(order.cod_charge) > 0 && orderSubtotal > 0) {
+    // The COD fee the customer pays (3% + GST, per part - 13 Nov 2026) is
+    // collected too: exactly these parts' fees, added to the delivery charge.
+    // Orders from before carry it on the order only: its share by value.
+    const partsCodFee = round2(
+      vendorOrders.reduce((sum, v) => sum + Number(v.cod_fee_amount ?? 0) + Number(v.cod_fee_gst_amount ?? 0), 0),
+    );
+    if (cod && partsCodFee > 0) {
+      shippingCharges = round2(shippingCharges + partsCodFee);
+    } else if (cod && Number(order.cod_charge) > 0 && orderSubtotal > 0) {
       shippingCharges = round2(shippingCharges + (Number(order.cod_charge) * subTotal) / orderSubtotal);
     }
   } else {

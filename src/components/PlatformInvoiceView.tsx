@@ -45,8 +45,8 @@ const addressLines = (a: Address) =>
       ) as string[])
     : [];
 
-// AllBoutiqs' own tax invoice to the customer for the Cash on Delivery
-// charge (and any shipping charge that isn't the boutique's) - issued with
+// AllBoutiqs' own tax invoice to the customer for the Cash on Delivery fee
+// (3% + GST) and any shipping charge that isn't the boutique's - issued with
 // the boutique's goods invoice (platform_invoices, migration
 // 20261110150000). Amounts include GST.
 export function PlatformInvoiceView({ invoice }: { invoice: PlatformInvoice }) {
@@ -54,7 +54,7 @@ export function PlatformInvoiceView({ invoice }: { invoice: PlatformInvoice }) {
   const rate = Number(invoice.gst_rate);
   const rows: [string, number][] = [
     ["Shipping charges", Number(invoice.shipping_amount)],
-    ["Cash on Delivery charge", Number(invoice.cod_amount)],
+    ["Cash on Delivery fee", Number(invoice.cod_amount)],
   ];
   const lines = rows.filter(([, amount]) => amount > 0);
   const elementId = `platform-invoice-${invoice.invoice_number.replace(/\W+/g, "-")}`;

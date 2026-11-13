@@ -115,7 +115,7 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
           </div>
           {Number(order.cod_charge) > 0 && (
             <div className="flex justify-between">
-              <dt className="text-muted-foreground">Cash on Delivery charge</dt>
+              <dt className="text-muted-foreground">Cash on Delivery fee (incl. GST)</dt>
               <dd className="tabular-nums">{formatINR(order.cod_charge)}</dd>
             </div>
           )}

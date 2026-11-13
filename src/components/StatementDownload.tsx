@@ -383,12 +383,12 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       "Every figure that has to agree with another - payout, fees, GST, invoices less credit notes, TCS, fee invoices, transfers, return refunds - with the difference. All 0.00 = everything matches to the paisa.",
       false,
     ],
-    ["courier", "AllBoutiqs invoices to customers", "AllBoutiqs' own invoices to customers for the COD charge (its GSTR-1, B2C).", true],
+    ["courier", "AllBoutiqs invoices to customers", "AllBoutiqs' own invoices to customers for the COD fee - 3% + GST (its GSTR-1, B2C).", true],
     ["courierB2cs", "AllBoutiqs invoices to customers · B2CS", "Those invoices by place of supply - AllBoutiqs' GSTR-1 B2CS.", true],
     [
       "recon",
       "Order check",
-      "Customer paid - refunds = boutique goods (after returns) + shipping and COD charge - a refund charge kept shows as a difference; and boutique goods - fees (incl. the courier & logistics charge) - taxes - payout = 0.",
+      "Customer paid - refunds = boutique goods (after returns) + shipping and COD fee - a refund charge kept shows as a difference; and boutique goods - fees (incl. the courier & logistics charge) - taxes - payout = 0.",
       true,
     ],
   ];

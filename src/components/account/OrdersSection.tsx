@@ -61,7 +61,7 @@ interface Order {
   total: number;
   discount_code: string | null;
   discount_amount: number;
-  // Cash on Delivery charge paid by the customer (Extra list M).
+  // Cash on Delivery fee paid by the customer (3% + GST, incl. the GST).
   cod_charge?: number;
   // The part paid from the customer's AllBoutiqs wallet.
   wallet_amount?: number;
@@ -351,7 +351,7 @@ export function OrdersSection() {
                     )}
                     {Number(order.cod_charge) > 0 && (
                       <div className="mt-3 flex justify-between border-t border-border pt-3 text-xs">
-                        <span className="text-muted-foreground">Cash on Delivery charge</span>
+                        <span className="text-muted-foreground">Cash on Delivery fee (incl. GST)</span>
                         <span>{formatMoney(order.cod_charge)}</span>
                       </div>
                     )}
