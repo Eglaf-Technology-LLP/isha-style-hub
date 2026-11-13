@@ -18,6 +18,7 @@ import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { FoundingBoutiqueDialog } from "./FoundingBoutiqueDialog";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
+import { RAZORPAY_ROUTE_ENABLED } from "@/lib/payoutRail";
 import { VendorImportExportDialog } from "./VendorImportExportDialog";
 import { VendorDetailsDialog } from "./VendorDetailsDialog";
 import type { Vendor as AdminVendor } from "@/hooks/useVendor";
@@ -75,8 +76,9 @@ export function VendorManagement() {
       if (error) throw error;
       toast.success(msg);
       // Bank details come with the application now, so set up the
-      // boutique's Razorpay payout account as soon as it's approved.
-      if (patch.status === "approved") {
+      // boutique's Razorpay payout account as soon as it's approved - only
+      // while Route is on (src/lib/payoutRail.ts); payouts are manual now.
+      if (patch.status === "approved" && RAZORPAY_ROUTE_ENABLED) {
         const { data: account } = await supabase
           .from("vendor_payout_accounts")
           .select("razorpay_account_id")
