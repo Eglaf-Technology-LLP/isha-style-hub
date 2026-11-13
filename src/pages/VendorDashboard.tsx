@@ -71,7 +71,10 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
-import { Banknote, ExternalLink, FileBarChart, History, Receipt, Ruler, Wallet, XCircle } from "lucide-react";
+import { Banknote, ExternalLink, FileBarChart, History, ImageOff, Receipt, Ruler, Wallet, XCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useProductSelection, type ProductBulkPatch } from "@/lib/productBulk";
+import { ProductBulkBar } from "@/components/product-editor/ProductBulkBar";
 import { VendorReports } from "@/components/vendor/VendorReports";
 import { VendorSizeCharts } from "@/components/vendor/VendorSizeCharts";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
@@ -103,6 +106,8 @@ interface VendorProduct {
   stock_quantity: number;
   is_active: boolean;
   approval_status: string;
+  // Why the marketplace team rejected it, shown in the list.
+  rejection_reason?: string | null;
   images: string[];
   description: string | null;
   category_id: string | null;
@@ -190,6 +195,25 @@ interface VendorOrderItem {
   customisation: CustomisationChoice | null;
 }
 
+// The product list's quick filters, each with its count. "Live on site":
+// listed and approved - what customers can see.
+type ProductStatusFilter = "all" | "live" | "hidden" | "pending" | "rejected" | "low_stock" | "out_of_stock";
+const LOW_STOCK_AT = 5;
+const PRODUCT_STATUS_FILTERS: { key: ProductStatusFilter; label: string; test: (p: VendorProduct) => boolean }[] = [
+  { key: "all", label: "All", test: () => true },
+  { key: "live", label: "Live on site", test: (p) => p.is_active && p.approval_status === "approved" },
+  { key: "hidden", label: "Hidden", test: (p) => !p.is_active },
+  { key: "pending", label: "Waiting for review", test: (p) => p.approval_status === "pending_review" },
+  { key: "rejected", label: "Rejected", test: (p) => p.approval_status === "rejected" },
+  { key: "low_stock", label: "Low stock", test: (p) => p.stock_quantity > 0 && p.stock_quantity <= LOW_STOCK_AT },
+  { key: "out_of_stock", label: "Out of stock", test: (p) => p.stock_quantity <= 0 },
+];
+const APPROVAL_LABELS: Record<string, string> = {
+  approved: "Approved",
+  pending_review: "Waiting for review",
+  rejected: "Rejected",
+};
+
 // Payouts tab's sub-tabs (?sub=).
 const PAYOUT_SUB_TABS = ["overview", "history", "cod", "invoices", "account"];
 
@@ -217,9 +241,7 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>("all");
-  const [productStockFilter, setProductStockFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">(
-    "all",
-  );
+  const [productStatusFilter, setProductStatusFilter] = useState<ProductStatusFilter>("all");
   const [orderStatusTab, setOrderStatusTab] = useState<
     "all" | "pending" | "confirmed" | "processing" | "warehouse" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
   >("all");
@@ -509,9 +531,7 @@ export default function VendorDashboard() {
   // vendor approval) flipped between renders.
   const visibleProducts = products.filter((p) => {
     if (productCategoryFilter !== "all" && p.category_id !== productCategoryFilter) return false;
-    if (productStockFilter === "out_of_stock" && p.stock_quantity > 0) return false;
-    if (productStockFilter === "low_stock" && (p.stock_quantity <= 0 || p.stock_quantity > 5)) return false;
-    if (productStockFilter === "in_stock" && p.stock_quantity <= 5) return false;
+    if (!PRODUCT_STATUS_FILTERS.find((f) => f.key === productStatusFilter)!.test(p)) return false;
     if (productSearch.trim() && !productMatchesQuery(p, productSearch)) return false;
     return true;
   });
@@ -522,7 +542,18 @@ export default function VendorDashboard() {
     paginatedItems: paginatedProducts,
     totalItems: totalVisibleProducts,
     pageSize: productPageSize,
-  } = usePagination(visibleProducts, 10);
+  } = usePagination(visibleProducts, 25);
+  // Ticked rows for the bulk actions - everything the filters show, on any page.
+  const productSelection = useProductSelection(visibleProducts.map((p) => p.id));
+  const applyBulkUpdate = (ids: string[], patch: ProductBulkPatch) => {
+    const changed = new Set(ids);
+    setProducts((prev) => prev.map((p) => (changed.has(p.id) ? { ...p, ...patch } : p)));
+  };
+  const applyBulkDelete = (ids: string[]) => {
+    const gone = new Set(ids);
+    setProducts((prev) => prev.filter((p) => !gone.has(p.id)));
+  };
+  const categoryName = (id: string | null) => (id ? categories.find((c) => c.id === id)?.name ?? null : null);
   const visibleOrders = orders.filter((o) => {
     const tabDef = ORDER_STATUS_TABS.find((t) => t.key === orderStatusTab);
     if (tabDef?.statuses && !tabDef.statuses.includes(o.status)) return false;
@@ -788,54 +819,68 @@ export default function VendorDashboard() {
               </CardHeader>
               <CardContent>
                 {!dataLoading && products.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <Input
-                      placeholder="Search by name, SKU or variant..."
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      className="max-w-xs"
-                    />
-                    <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All categories</SelectItem>
-                        {categories.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={productStockFilter}
-                      onValueChange={(v) => setProductStockFilter(v as typeof productStockFilter)}
-                    >
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder="Stock" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Any stock level</SelectItem>
-                        <SelectItem value="in_stock">In stock</SelectItem>
-                        <SelectItem value="low_stock">Low stock</SelectItem>
-                        <SelectItem value="out_of_stock">Out of stock</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {(productSearch || productCategoryFilter !== "all" || productStockFilter !== "all") && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setProductSearch("");
-                          setProductCategoryFilter("all");
-                          setProductStockFilter("all");
-                        }}
-                      >
-                        Clear filters
-                      </Button>
-                    )}
-                  </div>
+                  <>
+                    {/* Every product's state at a glance - and one click to see just those. */}
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {PRODUCT_STATUS_FILTERS.map((f) => {
+                        const count = products.filter(f.test).length;
+                        const active = productStatusFilter === f.key;
+                        return (
+                          <button
+                            key={f.key}
+                            type="button"
+                            onClick={() => setProductStatusFilter(active && f.key !== "all" ? "all" : f.key)}
+                            aria-pressed={active}
+                            className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                              active
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : count === 0
+                                  ? "border-border text-muted-foreground/60"
+                                  : f.key === "rejected" || f.key === "out_of_stock"
+                                    ? "border-destructive/40 text-destructive hover:bg-destructive/5"
+                                    : "border-border hover:border-foreground/40"
+                            }`}
+                          >
+                            {f.label} <span className="font-semibold">{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
+                      <Input
+                        placeholder="Search by name, SKU or variant..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="max-w-xs"
+                      />
+                      <Select value={productCategoryFilter} onValueChange={setProductCategoryFilter}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All categories</SelectItem>
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {(productSearch || productCategoryFilter !== "all" || productStatusFilter !== "all") && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setProductSearch("");
+                            setProductCategoryFilter("all");
+                            setProductStatusFilter("all");
+                          }}
+                        >
+                          Clear filters
+                        </Button>
+                      )}
+                    </div>
+                  </>
                 )}
                 {dataLoading ? (
                   <div className="flex justify-center py-8">
@@ -850,101 +895,160 @@ export default function VendorDashboard() {
                     No products match these filters.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12">#</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Product Value (excl. GST)</TableHead>
-                          <TableHead>Stock</TableHead>
-                          <TableHead>Approval</TableHead>
-                          <TableHead>Visible</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {paginatedProducts.map((p, idx) => (
-                          <TableRow key={p.id}>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {(productPage - 1) * productPageSize + idx + 1}
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {p.name}
-                              {!p.cod_available && (
-                                <Badge variant="outline" className="ml-2 text-[10px] font-normal" title="Cash on Delivery is off for this product">
-                                  No COD
-                                </Badge>
-                              )}
-                              {/* The product's type at a glance (Part 8, 48). */}
-                              <Badge variant="outline" className="ml-2 text-[10px] font-normal">
-                                {p.made_to_order ? "Made after order" : "Ready to Ship"}
-                              </Badge>
-                              {CUSTOMISATION_ENABLED && p.customisable && (
-                                <Badge variant="outline" className="ml-2 text-[10px] font-normal">
-                                  Custom Fit
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {formatMoney(Number(p.product_value ?? p.price))}
-                              <div className="text-xs text-muted-foreground">MRP {formatMoney(Number(p.price))}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {p.stock_quantity}
-                                <VariantStockDialog productName={p.name} variants={p.variants} />
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  p.approval_status === "approved"
-                                    ? "secondary"
-                                    : p.approval_status === "rejected"
-                                    ? "destructive"
-                                    : "outline"
-                                }
-                                className="capitalize"
-                              >
-                                {p.approval_status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={p.is_active ? "listed" : "unlisted"}
-                                onValueChange={(v) => toggleActive(p, v === "listed")}
-                              >
-                                <SelectTrigger className="w-28 h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="listed">Listed</SelectItem>
-                                  <SelectItem value="unlisted">Hidden</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-right whitespace-nowrap">
-                              <Button variant="ghost" size="icon" aria-label={`Edit ${p.name}`} asChild>
-                                <Link to={`/vendor/products/${p.id}`}>
-                                  <Pencil className="h-4 w-4" />
-                                </Link>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Delete ${p.name}`}
-                                onClick={() => deleteProduct(p)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </TableCell>
+                  <>
+                    <ProductBulkBar
+                      totalCount={visibleProducts.length}
+                      selection={productSelection}
+                      wording="listing"
+                      onUpdated={applyBulkUpdate}
+                      onDeleted={applyBulkDelete}
+                    />
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-10" />
+                            <TableHead className="w-12">#</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Product Value (excl. GST)</TableHead>
+                            <TableHead>Stock</TableHead>
+                            <TableHead>Approval</TableHead>
+                            <TableHead>Visible</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
-                        ))}
-
-                      </TableBody>
-                    </Table>
-                  </div>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedProducts.map((p, idx) => {
+                            const category = categoryName(p.category_id);
+                            const live = p.is_active && p.approval_status === "approved";
+                            return (
+                              <TableRow key={p.id} data-state={productSelection.isSelected(p.id) ? "selected" : undefined}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={productSelection.isSelected(p.id)}
+                                    onCheckedChange={(v) => productSelection.toggle(p.id, v === true)}
+                                    aria-label={`Select ${p.name}`}
+                                  />
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {(productPage - 1) * productPageSize + idx + 1}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex min-w-[260px] items-center gap-3">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                                      {p.images?.[0] ? (
+                                        <img src={p.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                      ) : (
+                                        <ImageOff className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-medium">{p.name}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {[
+                                          p.sku ? `SKU ${p.sku}` : null,
+                                          category,
+                                          p.variants.length > 0 ? `${p.variants.length} variant${p.variants.length === 1 ? "" : "s"}` : null,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" · ")}
+                                      </div>
+                                      <div className="mt-1 flex flex-wrap gap-1">
+                                        {/* The product's type at a glance (Part 8, 48). */}
+                                        <Badge variant="outline" className="text-[10px] font-normal">
+                                          {p.made_to_order ? "Made after order" : "Ready to Ship"}
+                                        </Badge>
+                                        {!p.cod_available && (
+                                          <Badge variant="outline" className="text-[10px] font-normal" title="Cash on Delivery is off for this product">
+                                            No COD
+                                          </Badge>
+                                        )}
+                                        {CUSTOMISATION_ENABLED && p.customisable && (
+                                          <Badge variant="outline" className="text-[10px] font-normal">
+                                            Custom Fit
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  {formatMoney(Number(p.product_value ?? p.price))}
+                                  <div className="text-xs text-muted-foreground">MRP {formatMoney(Number(p.price))}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <span className={p.stock_quantity <= 0 ? "font-medium text-destructive" : undefined}>{p.stock_quantity}</span>
+                                    <VariantStockDialog productName={p.name} variants={p.variants} />
+                                  </div>
+                                  {p.stock_quantity <= 0 ? (
+                                    <div className="text-xs text-destructive">Out of stock</div>
+                                  ) : p.stock_quantity <= LOW_STOCK_AT ? (
+                                    <div className="text-xs text-amber-700">Low stock</div>
+                                  ) : null}
+                                </TableCell>
+                                <TableCell className="max-w-[220px]">
+                                  <Badge
+                                    variant={
+                                      p.approval_status === "approved"
+                                        ? "secondary"
+                                        : p.approval_status === "rejected"
+                                        ? "destructive"
+                                        : "outline"
+                                    }
+                                  >
+                                    {APPROVAL_LABELS[p.approval_status] ?? p.approval_status.replace(/_/g, " ")}
+                                  </Badge>
+                                  {p.approval_status === "rejected" && p.rejection_reason && (
+                                    <div className="mt-1 text-xs text-destructive">{p.rejection_reason}</div>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={p.is_active ? "listed" : "unlisted"}
+                                    onValueChange={(v) => toggleActive(p, v === "listed")}
+                                  >
+                                    <SelectTrigger className="w-28 h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="listed">Listed</SelectItem>
+                                      <SelectItem value="unlisted">Hidden</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <div className={`mt-1 text-xs ${live ? "text-emerald-700" : "text-muted-foreground"}`}>
+                                    {live ? "Live on site" : p.is_active ? "Not live until approved" : "Not on site"}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap">
+                                  {live && (
+                                    <Button variant="ghost" size="icon" aria-label={`See ${p.name} on the site`} asChild>
+                                      <Link to={`/product/${p.id}`} target="_blank" rel="noopener noreferrer">
+                                        <Eye className="h-4 w-4" />
+                                      </Link>
+                                    </Button>
+                                  )}
+                                  <Button variant="ghost" size="icon" aria-label={`Edit ${p.name}`} asChild>
+                                    <Link to={`/vendor/products/${p.id}`}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Link>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Delete ${p.name}`}
+                                    onClick={() => deleteProduct(p)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </>
                 )}
                 <PaginationBar
                   page={productPage}

@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plus, Pencil, Trash2, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Link, useSearchParams } from "react-router-dom";
@@ -29,6 +30,8 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 import { formatINR } from "@/lib/format";
+import { useProductSelection, type ProductBulkPatch } from "@/lib/productBulk";
+import { ProductBulkBar } from "@/components/product-editor/ProductBulkBar";
 
 interface VendorOption {
   id: string;
@@ -78,7 +81,7 @@ export function VendorCatalogManagement() {
       const { data, error } = await supabase
         .from("products")
         .select(
-          "id, name, price, product_value, compare_at_value, stock_quantity, is_active, approval_status, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
+          "id, name, price, product_value, compare_at_value, stock_quantity, is_active, approval_status, cod_available, images, description, category_id, compare_at_price, sku, weight_grams, length_cm, breadth_cm, height_cm, specifications, country_of_origin, net_quantity, product_variants(*)"
         )
         .eq("vendor_id", vendorId)
         .order("created_at", { ascending: false });
@@ -114,6 +117,16 @@ export function VendorCatalogManagement() {
     ? products.filter((p) => productMatchesQuery(p, searchQuery))
     : products;
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
+  // Ticked rows for the bulk actions - everything the search shows, on any page.
+  const selection = useProductSelection(visibleProducts.map((p) => p.id));
+  const applyBulkUpdate = (ids: string[], patch: ProductBulkPatch) => {
+    const changed = new Set(ids);
+    setProducts((prev) => prev.map((p) => (changed.has(p.id) ? { ...p, ...patch } : p)));
+  };
+  const applyBulkDelete = (ids: string[]) => {
+    const gone = new Set(ids);
+    setProducts((prev) => prev.filter((p) => !gone.has(p.id)));
+  };
 
   return (
     <Card>
@@ -175,9 +188,17 @@ export function VendorCatalogManagement() {
           <p className="text-center text-muted-foreground py-8">No products match "{searchQuery}".</p>
         ) : (
           <div className="overflow-x-auto">
+            <ProductBulkBar
+              totalCount={visibleProducts.length}
+              selection={selection}
+              wording="listing"
+              onUpdated={applyBulkUpdate}
+              onDeleted={applyBulkDelete}
+            />
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10" />
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>Product</TableHead>
                   <TableHead>Product Value (excl. GST)</TableHead>
@@ -189,9 +210,23 @@ export function VendorCatalogManagement() {
               </TableHeader>
               <TableBody>
                 {paginatedItems.map((p, idx) => (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} data-state={selection.isSelected(p.id) ? "selected" : undefined}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selection.isSelected(p.id)}
+                        onCheckedChange={(v) => selection.toggle(p.id, v === true)}
+                        aria-label={`Select ${p.name}`}
+                      />
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
-                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {p.name}
+                      {p.cod_available === false && (
+                        <Badge variant="outline" className="ml-2 text-[10px] font-normal" title="Cash on Delivery is off for this product">
+                          No COD
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {formatINR(Number(p.product_value ?? p.price))}
                       <div className="text-xs text-muted-foreground">MRP {formatINR(Number(p.price))}</div>

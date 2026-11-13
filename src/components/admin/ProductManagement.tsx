@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,8 @@ import { VendorFilterSelect } from "./VendorFilterSelect";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/PaginationBar";
 import { formatINR } from "@/lib/format";
+import { useProductSelection } from "@/lib/productBulk";
+import { ProductBulkBar } from "@/components/product-editor/ProductBulkBar";
 
 interface ProductManagementProps {
   categories: Category[];
@@ -41,7 +44,8 @@ interface ProductManagementProps {
 // The admin's product list. Adding and editing a product happen on their own
 // page (pages/AdminProductEditor.tsx), the same form boutiques use.
 export function ProductManagement({ categories }: ProductManagementProps) {
-  const { products, loading, deleteProduct, toggleProductStatus, toggleProductCod, refetch } = useProducts();
+  const { products, loading, deleteProduct, toggleProductStatus, toggleProductCod, applyBulkUpdate, applyBulkDelete, refetch } =
+    useProducts();
 
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,6 +78,8 @@ export function ProductManagement({ categories }: ProductManagementProps) {
     return true;
   });
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleProducts, 10);
+  // Ticked rows for the bulk actions - everything the filters show, on any page.
+  const selection = useProductSelection(visibleProducts.map((p) => p.id));
 
   if (loading) {
     return (
@@ -184,12 +190,24 @@ export function ProductManagement({ categories }: ProductManagementProps) {
           </div>
         ) : (
           <div className="space-y-4">
+            <ProductBulkBar
+              totalCount={visibleProducts.length}
+              selection={selection}
+              wording="status"
+              onUpdated={applyBulkUpdate}
+              onDeleted={applyBulkDelete}
+            />
             {paginatedItems.map((product) => (
               <div
                 key={product.id}
-                className="flex items-center justify-between p-4 border border-border rounded-lg"
+                className={`flex items-center justify-between p-4 border rounded-lg ${selection.isSelected(product.id) ? "border-primary/50 bg-primary/5" : "border-border"}`}
               >
                 <div className="flex items-center gap-4">
+                  <Checkbox
+                    checked={selection.isSelected(product.id)}
+                    onCheckedChange={(v) => selection.toggle(product.id, v === true)}
+                    aria-label={`Select ${product.name}`}
+                  />
                   {product.images[0] ? (
                     <img
                       src={product.images[0]}

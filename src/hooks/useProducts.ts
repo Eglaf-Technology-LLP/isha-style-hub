@@ -668,6 +668,16 @@ export function useProducts() {
     }
   };
 
+  // After a bulk action (ProductBulkBar) has already saved the change.
+  const applyBulkUpdate = (ids: string[], patch: Partial<Pick<Product, "is_active" | "cod_available">>) => {
+    const changed = new Set(ids);
+    setProducts((prev) => prev.map((p) => (changed.has(p.id) ? { ...p, ...patch } : p)));
+  };
+  const applyBulkDelete = (ids: string[]) => {
+    const gone = new Set(ids);
+    setProducts((prev) => prev.filter((p) => !gone.has(p.id)));
+  };
+
   return {
     products,
     loading,
@@ -677,6 +687,8 @@ export function useProducts() {
     toggleProductStatus,
     toggleProductCod,
     removeProductImage,
+    applyBulkUpdate,
+    applyBulkDelete,
     refetch: fetchProducts,
   };
 }
