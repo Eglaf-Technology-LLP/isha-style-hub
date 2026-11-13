@@ -38,6 +38,7 @@ import { HeroSlideInput, HeroSlideRow, isLiveNow, toHeroSlide, useAdminHeroSlide
 import { useStoreCategories } from "@/hooks/useStorefront";
 import { cn } from "@/lib/utils";
 import { BANNER_SCHEDULE_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 
 // Admin > Home Banner: the full-width carousel at the top of the home page.
 // Any number of slides; each with its own text, buttons, photos (desktop and
@@ -126,16 +127,18 @@ const toInput = (f: FormState): HeroSlideInput => ({
   align: f.align,
   show_overlay: f.show_overlay,
   is_active: f.is_active,
-  // With the schedule hidden, saving clears any dates: the on/off switch
-  // alone decides.
-  starts_at: BANNER_SCHEDULE_ENABLED ? fromLocalInput(f.starts_at) : null,
-  ends_at: BANNER_SCHEDULE_ENABLED ? fromLocalInput(f.ends_at) : null,
+  starts_at: fromLocalInput(f.starts_at),
+  ends_at: fromLocalInput(f.ends_at),
 });
+
+// With "When it shows" hidden, saving leaves a slide's dates as they are
+// (a new slide gets none).
+const withoutDates = ({ starts_at: _from, ends_at: _until, ...rest }: HeroSlideInput): HeroSlideInput => rest;
 
 const validLink = (href: string) => /^\/(?!\/)/.test(href) || /^https?:\/\/\S+$/i.test(href);
 
 // Same rules as the table's checks, said in plain words before saving.
-function validate(f: FormState): string | null {
+function validate(f: FormState, schedule: boolean): string | null {
   if (!nn(f.title) && !nn(f.image_url) && !nn(f.video_url)) return "Add a title, a desktop photo or a video";
   if (nn(f.cta_label) && !nn(f.cta_href)) return "Add a link for the main button";
   if (!!nn(f.secondary_cta_label) !== !!nn(f.secondary_cta_href)) return "The second button needs both its text and its link";
@@ -143,7 +146,7 @@ function validate(f: FormState): string | null {
     if (nn(href) && !validLink(href.trim())) return `"${href}" isn't a link - start with / for a shop page or https:// for another site`;
   }
   if (nn(f.video_url) && !/^https:\/\/\S+$/i.test(f.video_url.trim())) return "The video must be an https:// link to an .mp4 file";
-  if (BANNER_SCHEDULE_ENABLED && f.starts_at && f.ends_at && new Date(f.ends_at) <= new Date(f.starts_at)) return "\"Show until\" must be after \"Show from\"";
+  if (schedule && f.starts_at && f.ends_at && new Date(f.ends_at) <= new Date(f.starts_at)) return "\"Show until\" must be after \"Show from\"";
   return null;
 }
 
@@ -163,6 +166,8 @@ export function HeroSlidesManagement() {
   const [editing, setEditing] = useState<{ id?: string; form: FormState } | null>(null);
   const [deleting, setDeleting] = useState<HeroSlideRow | null>(null);
   const [busy, setBusy] = useState(false);
+  // "When it shows" may be hidden (src/lib/hiddenFeatures.ts); a super admin sees it.
+  const showSchedule = useShown(BANNER_SCHEDULE_ENABLED);
 
   const liveCount = slides.filter((s) => isLiveNow(s)).length;
 
@@ -303,7 +308,7 @@ export function HeroSlidesManagement() {
           isNew={!editing.id}
           onClose={() => setEditing(null)}
           onSave={async (form) => {
-            await save(toInput(form), editing.id);
+            await save(showSchedule ? toInput(form) : withoutDates(toInput(form)), editing.id);
             toast.success(editing.id ? "Slide saved" : "Slide added");
             setEditing(null);
           }}
@@ -350,6 +355,7 @@ function SlideEditor({
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((p) => ({ ...p, [k]: v }));
   const { data: categories = [] } = useStoreCategories();
+  const showSchedule = useShown(BANNER_SCHEDULE_ENABLED);
 
   const linkSuggestions = useMemo(
     () => [
@@ -379,7 +385,7 @@ function SlideEditor({
   }, [f]);
 
   const submit = async () => {
-    const problem = validate(f);
+    const problem = validate(f, showSchedule);
     if (problem) {
       toast.error(problem);
       return;
@@ -478,7 +484,7 @@ function SlideEditor({
             </Section>
 
             {/* Hidden for now: slides are switched on and off from the list. */}
-            {BANNER_SCHEDULE_ENABLED && (
+            {showSchedule && (
               <Section title="When it shows" hint="Leave the dates empty to show it until you switch it off.">
                 <ToggleRow label="Show on the site" checked={f.is_active} onChange={(v) => set("is_active", v)} />
                 <div className="grid gap-3 sm:grid-cols-2">

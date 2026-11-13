@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DIRECT_ROUTE_ENABLED, formatShortDate } from "@/lib/warehouse";
 import { WarehouseInfo } from "./shared";
 import { WAREHOUSE_EXTRA_SETTINGS_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 
 export interface WarehouseSettingsRow {
   warehouse_routing_enabled: boolean;
@@ -47,6 +48,8 @@ const ADDRESS_FIELDS: [string, string][] = [
 
 // Admin only: where the warehouse is, its rules, holidays and staff.
 export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }: Props) {
+  // Hidden screens (src/lib/hiddenFeatures.ts): a super admin sees them all.
+  const showExtras = useShown(WAREHOUSE_EXTRA_SETTINGS_ENABLED);
   const [details, setDetails] = useState<Record<string, string>>({});
   const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
   const [rules, setRules] = useState<Record<string, string>>({});
@@ -177,7 +180,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
 
   return (
     // Rules, Holidays and Warehouse staff may be hidden (src/lib/hiddenFeatures.ts).
-    <div className={WAREHOUSE_EXTRA_SETTINGS_ENABLED ? "grid lg:grid-cols-2 gap-6" : "max-w-2xl"}>
+    <div className={showExtras ? "grid lg:grid-cols-2 gap-6" : "max-w-2xl"}>
       <Card>
         <CardHeader>
           <CardTitle>Warehouse</CardTitle>
@@ -220,7 +223,7 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
         </CardContent>
       </Card>
 
-      {WAREHOUSE_EXTRA_SETTINGS_ENABLED && (
+      {showExtras && (
         <div className="space-y-6">
           <Card>
             <CardHeader>

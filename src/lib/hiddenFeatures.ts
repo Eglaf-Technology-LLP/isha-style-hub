@@ -4,6 +4,12 @@
 // settings, flash sales, gift cards, disputes, the payouts note and fees &
 // rates, the warehouse Settings tab, the boutique's detailed GST reports) -
 // set those back to true to show them again.
+//
+// Hiding only changes what's on screen: saved values stay as they are and
+// keep working. A super admin (user_roles 'super_admin', next to 'admin')
+// sees every hidden admin, warehouse and report screen anyway - see
+// useShown in src/hooks/useSuperAdmin.ts. The shop's own switches (header
+// links, product customisation) are the same for everyone.
 
 // Header: only Boutiques opens a menu on hover; the category links just go
 // to their page.

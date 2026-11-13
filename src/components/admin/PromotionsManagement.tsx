@@ -5,11 +5,15 @@ import { FlashSaleManagement } from "./FlashSaleManagement";
 import { GiftCardManagement } from "./GiftCardManagement";
 import { PromotionAnalytics } from "./PromotionAnalytics";
 import { FLASH_SALES_TAB_ENABLED, GIFT_CARDS_TAB_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 import { cn } from "@/lib/utils";
 
 export function PromotionsManagement() {
-  const tabCount = 2 + Number(FLASH_SALES_TAB_ENABLED) + Number(GIFT_CARDS_TAB_ENABLED);
-  const what = ["discounts", FLASH_SALES_TAB_ENABLED && "flash sales", GIFT_CARDS_TAB_ENABLED && "gift cards"].filter(Boolean);
+  // Hidden screens (src/lib/hiddenFeatures.ts): a super admin sees them all.
+  const showFlashSales = useShown(FLASH_SALES_TAB_ENABLED);
+  const showGiftCards = useShown(GIFT_CARDS_TAB_ENABLED);
+  const tabCount = 2 + Number(showFlashSales) + Number(showGiftCards);
+  const what = ["discounts", showFlashSales && "flash sales", showGiftCards && "gift cards"].filter(Boolean);
   return (
     <div className="space-y-6">
       <div>
@@ -31,13 +35,13 @@ export function PromotionsManagement() {
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Discounts</span>
           </TabsTrigger>
-          {FLASH_SALES_TAB_ENABLED && (
+          {showFlashSales && (
             <TabsTrigger value="flash-sales" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               <span className="hidden sm:inline">Flash Sales</span>
             </TabsTrigger>
           )}
-          {GIFT_CARDS_TAB_ENABLED && (
+          {showGiftCards && (
             <TabsTrigger value="gift-cards" className="flex items-center gap-2">
               <Gift className="h-4 w-4" />
               <span className="hidden sm:inline">Gift Cards</span>
@@ -53,13 +57,13 @@ export function PromotionsManagement() {
           <DiscountManagement />
         </TabsContent>
 
-        {FLASH_SALES_TAB_ENABLED && (
+        {showFlashSales && (
           <TabsContent value="flash-sales">
             <FlashSaleManagement />
           </TabsContent>
         )}
 
-        {GIFT_CARDS_TAB_ENABLED && (
+        {showGiftCards && (
           <TabsContent value="gift-cards">
             <GiftCardManagement />
           </TabsContent>

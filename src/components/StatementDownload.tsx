@@ -29,6 +29,7 @@ import {
 } from "@/lib/statement";
 import { formatDate } from "@/lib/dates";
 import { VENDOR_GST_DETAIL_REPORTS, VENDOR_GST_DETAIL_REPORTS_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 import { formatINR } from "@/lib/format";
 import {
   b2clRows,
@@ -129,6 +130,8 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const today = format(new Date(), "yyyy-MM-dd");
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<PeriodKind>("monthly");
+  // Hidden screens (src/lib/hiddenFeatures.ts): a super admin sees them all.
+  const showGstDetail = useShown(VENDOR_GST_DETAIL_REPORTS_ENABLED);
   const [date, setDate] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [fy, setFy] = useState(fiscalYearOf(new Date()));
@@ -396,7 +399,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   // Some reports are hidden from boutiques for now (src/lib/hiddenFeatures.ts).
   const shownTaxSections = TAX_SECTIONS.filter(
     ([key, , , adminOnly]) =>
-      admin || (!adminOnly && (VENDOR_GST_DETAIL_REPORTS_ENABLED || !VENDOR_GST_DETAIL_REPORTS.includes(key))),
+      admin || (!adminOnly && (showGstDetail || !VENDOR_GST_DETAIL_REPORTS.includes(key))),
   );
   const taxKeys = shownTaxSections.map(([k]) => k);
   const excel = (keys: SheetKey[], suffix = "") =>

@@ -29,6 +29,7 @@ import { EwayBillBulkEntryDialog, EwayBillPdfUploadDialog } from "./EwayBillBulk
 import { EwayBillCreateDialog, EwayBillExtendDialog } from "./EwayBillActionDialogs";
 import { EwaySettingsTab } from "./EwayBillSetupTabs";
 import { EWAY_BILL_SETTINGS_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 
 const EXPIRING_SOON_MS = 8 * 3_600_000;
 
@@ -114,8 +115,9 @@ function PdfCell({ bill, onDone }: { bill: AdminEwayBill; onDone: () => void }) 
 //      emailed and can print its copy, the warehouse is told to book.
 export function EwayBillsManagement() {
   const [urlSub, setSub] = useUrlTab("requests", "sub");
-  // Settings may be hidden (src/lib/hiddenFeatures.ts): then only Requests.
-  const sub = EWAY_BILL_SETTINGS_ENABLED ? urlSub : "requests";
+  const showSettings = useShown(EWAY_BILL_SETTINGS_ENABLED);
+  // Settings may be hidden (src/lib/hiddenFeatures.ts; a super admin sees it): then only Requests.
+  const sub = showSettings ? urlSub : "requests";
   const { bills, settings, loading, refetch } = useEwayBillsAdmin();
   useFlashFocus(!loading && sub === "requests");
 
@@ -179,7 +181,7 @@ export function EwayBillsManagement() {
 
   return (
     <Tabs value={sub} onValueChange={setSub} className="space-y-6">
-      {EWAY_BILL_SETTINGS_ENABLED && (
+      {showSettings && (
         <TabsList className="flex flex-wrap h-auto w-full max-w-3xl justify-start">
           <TabsTrigger value="requests" className="gap-1.5">
             Requests
@@ -204,7 +206,7 @@ export function EwayBillsManagement() {
               <Card className="border-amber-300 bg-amber-50">
                 <CardContent className="py-3 text-sm text-amber-950 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 shrink-0" />
-                  {EWAY_BILL_SETTINGS_ENABLED ? (
+                  {showSettings ? (
                     <>
                       Enter AllBoutiqs' transporter ID in Settings - the JSON for the portal needs it.
                       <Button size="sm" variant="outline" className="h-7 text-xs ml-auto" onClick={() => setSub("settings")}>
@@ -435,7 +437,7 @@ export function EwayBillsManagement() {
         )}
       </TabsContent>
 
-      {EWAY_BILL_SETTINGS_ENABLED && (
+      {showSettings && (
         <TabsContent value="settings">
           <EwaySettingsTab onSaved={refetch} />
         </TabsContent>

@@ -10,6 +10,7 @@ import {
   RETURN_SETTINGS_ENABLED,
   SHIPPING_CHARGE_CARD_ENABLED,
 } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -97,12 +98,17 @@ export default function Admin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [urlTab, setTab] = useUrlTab("dashboard");
+  // Hidden screens (src/lib/hiddenFeatures.ts): a super admin sees them all.
+  const showDisputes = useShown(DISPUTES_TAB_ENABLED);
+  const showPayoutRates = useShown(PAYOUT_RATES_CARD_ENABLED);
+  const showReturnSettings = useShown(RETURN_SETTINGS_ENABLED);
+  const showShippingCharge = useShown(SHIPPING_CHARGE_CARD_ENABLED);
   // A link to a hidden tab (src/lib/hiddenFeatures.ts) opens the dashboard.
-  const tab = urlTab === "disputes" && !DISPUTES_TAB_ENABLED ? "dashboard" : urlTab;
+  const tab = urlTab === "disputes" && !showDisputes ? "dashboard" : urlTab;
   const [vendorsTab, setVendorsTab] = useUrlTab("applications", "sub");
   // Payouts > sub-tab; a link to a hidden or unknown one opens Boutique payouts.
   const [urlPayoutsTab, setPayoutsTab] = useUrlTab("payouts", "sub");
-  const payoutsTabs = ["payouts", "cod", "invoices", ...(PAYOUT_RATES_CARD_ENABLED ? ["rates"] : [])];
+  const payoutsTabs = ["payouts", "cod", "invoices", ...(showPayoutRates ? ["rates"] : [])];
   const payoutsTab = payoutsTabs.includes(urlPayoutsTab) ? urlPayoutsTab : "payouts";
   const { user, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
@@ -345,7 +351,7 @@ export default function Admin() {
               <Wallet className="h-4 w-4" />
               <span className="hidden sm:inline">Payments</span>
             </TabsTrigger>
-            {DISPUTES_TAB_ENABLED && (
+            {showDisputes && (
               <TabsTrigger value="disputes" className="flex items-center gap-1">
                 <ShieldAlert className="h-4 w-4" />
                 <span className="hidden sm:inline">Disputes</span>
@@ -482,7 +488,7 @@ export default function Admin() {
 
           {/* Returns Tab */}
           <TabsContent value="returns" className="space-y-6">
-            {RETURN_SETTINGS_ENABLED && <ReturnSettingsCard />}
+            {showReturnSettings && <ReturnSettingsCard />}
             <ReturnManagement />
           </TabsContent>
 
@@ -498,7 +504,7 @@ export default function Admin() {
 
           {/* Promotions Tab */}
           <TabsContent value="promotions" className="space-y-6">
-            {SHIPPING_CHARGE_CARD_ENABLED && <CustomerShippingCard />}
+            {showShippingCharge && <CustomerShippingCard />}
             <PromotionsManagement />
           </TabsContent>
 
@@ -507,7 +513,7 @@ export default function Admin() {
             <PaymentManagement isAdmin={isAdmin} />
           </TabsContent>
 
-          {DISPUTES_TAB_ENABLED && (
+          {showDisputes && (
             <TabsContent value="disputes">
               <DisputeManagement isAdmin={isAdmin} />
             </TabsContent>
@@ -536,7 +542,7 @@ export default function Admin() {
                     <Receipt className="h-4 w-4" />
                     Fee invoices
                   </TabsTrigger>
-                  {PAYOUT_RATES_CARD_ENABLED && (
+                  {showPayoutRates && (
                     <TabsTrigger value="rates" className="flex items-center gap-1">
                       <Percent className="h-4 w-4" />
                       Fees &amp; rates
@@ -557,7 +563,7 @@ export default function Admin() {
               <TabsContent value="invoices">
                 <FeeInvoicesCard admin />
               </TabsContent>
-              {PAYOUT_RATES_CARD_ENABLED && (
+              {showPayoutRates && (
                 <TabsContent value="rates">
                   <PlatformRatesCard />
                 </TabsContent>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { PAYOUT_SCHEDULE_NOTE_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -69,6 +70,8 @@ interface VendorPayoutManagementProps {
 // amount from the bank, uploads the proof and marks it paid with the UTR,
 // and the boutique is emailed and sees it on its dashboard.
 export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps) {
+  // Hidden screens (src/lib/hiddenFeatures.ts): a super admin sees them all.
+  const showScheduleNote = useShown(PAYOUT_SCHEDULE_NOTE_ENABLED);
   const { payouts, loading, generating, generatePayouts, markPaid, markFailed, sending, sendViaRazorpayX } =
     useAdminVendorPayouts(isAdmin);
   const [markingPayout, setMarkingPayout] = useState<AdminVendorPayout | null>(null);
@@ -169,7 +172,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
         <div className="max-w-3xl">
           <h3 className="text-lg font-semibold">Boutique payouts</h3>
           {/* Hidden for now (src/lib/hiddenFeatures.ts). */}
-          {PAYOUT_SCHEDULE_NOTE_ENABLED && (
+          {showScheduleNote && (
             <>
               <p className="text-sm text-muted-foreground">
                 Every Wednesday at 9:30 AM the orders that are ready - delivered, return window closed, money received - are

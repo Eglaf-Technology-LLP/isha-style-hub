@@ -5208,6 +5208,7 @@ export type Database = {
         | "vendor_admin"
         | "vendor_staff"
         | "warehouse_staff"
+        | "super_admin"
       membership_plan: "monthly" | "annual"
       membership_status: "active" | "cancelled" | "expired"
     }
@@ -5346,6 +5347,7 @@ export const Constants = {
         "vendor_admin",
         "vendor_staff",
         "warehouse_staff",
+        "super_admin",
       ],
       membership_plan: ["monthly", "annual"],
       membership_status: ["active", "cancelled", "expired"],
