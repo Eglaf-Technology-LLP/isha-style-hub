@@ -28,7 +28,7 @@ import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel, isValidGstin } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
-import { changedIdentity, findTakenIdentity, firstOnPage, takenMessage } from "@/lib/vendorIdentity";
+import { changedIdentity, findTakenIdentity, firstOnPage, takenByAnotherMessage } from "@/lib/vendorIdentity";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -163,9 +163,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       errors.gst_number = "This GST number isn't valid - check it against the boutique's GST certificate";
     }
 
-    // Another boutique's email / phone / GST / PAN? A new GSTIN also sets the
-    // PAN to the one inside it (characters 3-12), so that PAN is checked.
-    const gstinPan = gstin && gstinChanged && !errors.gst_number ? gstin.slice(2, 12) : null;
+    // Another boutique's email / phone / GST? (A PAN may be shared.)
     setSaving(true);
     const { taken, error: checkError } = await findTakenIdentity(
       changedIdentity(
@@ -173,20 +171,15 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
           business_email: form.contact_email,
           primary_mobile: form.contact_phone,
           ...(errors.gst_number ? {} : { gstin: form.gst_number }),
-          pan: gstinPan ?? form.pan_number,
         },
-        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number, pan: vendor.pan_number },
+        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number },
       ),
       vendor.id,
     );
     setSaving(false);
-    if (taken.includes("business_email")) errors.contact_email = takenMessage("business_email");
-    if (taken.includes("primary_mobile")) errors.contact_phone = takenMessage("primary_mobile");
-    if (taken.includes("gstin")) errors.gst_number = takenMessage("gstin");
-    if (taken.includes("pan")) {
-      if (gstinPan) errors.gst_number ??= "The PAN in this GST number (characters 3 to 12) is already used by another boutique";
-      else errors.pan_number = takenMessage("pan");
-    }
+    if (taken.includes("business_email")) errors.contact_email = takenByAnotherMessage("business_email");
+    if (taken.includes("primary_mobile")) errors.contact_phone = takenByAnotherMessage("primary_mobile");
+    if (taken.includes("gstin")) errors.gst_number = takenByAnotherMessage("gstin");
     setFieldErrors(errors);
     setAddressErrors(problems);
     if (checkError) return toast.error(`Couldn't check the details: ${checkError}`);

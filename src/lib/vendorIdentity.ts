@@ -1,15 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
+import { COMPANY } from "@/lib/company";
 
-// PAN, GST number, primary mobile, official business email, bank account
-// number, Instagram profile and website (when one is given) belong to one
-// boutique only (client, 13 Nov 2026). Before saving, a form asks the server
-// (vendor_identity_taken, migration 20261113130000) which of them another
-// boutique already has - compared however they were typed - and shows
-// "already used" under each of those fields at once. Triggers refuse a
-// duplicate that comes in any other way.
+// GST number, primary mobile, official business email, bank account number,
+// Instagram profile and website (when one is given) belong to one boutique
+// only (client, 13 Nov 2026). PAN may be shared: one PAN can have several
+// GST numbers, each its own boutique (migration 20261113150000). Before
+// saving, a form asks the server (vendor_identity_taken) which of them
+// another boutique already has - compared however they were typed - and
+// shows "already registered" under each of those fields at once. Triggers
+// refuse a duplicate that comes in any other way.
 
 export type IdentityField =
-  | "pan"
   | "gstin"
   | "primary_mobile"
   | "business_email"
@@ -18,7 +19,6 @@ export type IdentityField =
   | "website_url";
 
 const LABEL: Record<IdentityField, string> = {
-  pan: "PAN",
   gstin: "GST number",
   primary_mobile: "mobile number",
   business_email: "email address",
@@ -27,7 +27,15 @@ const LABEL: Record<IdentityField, string> = {
   website_url: "website",
 };
 
+// The boutique's own forms (client wording, 13 Nov 2026).
 export const takenMessage = (field: IdentityField) =>
+  `This ${LABEL[field]} is already registered with AllBoutiqs. Please contact ${COMPANY.supportEmail}.`;
+
+// Registration: a GST number that's already here means the same seller again.
+export const ALREADY_REGISTERED_MESSAGE = `You are already registered with AllBoutiqs. Please contact ${COMPANY.supportEmail}.`;
+
+// Admin > Vendors > Details: the admin is the one to sort it out.
+export const takenByAnotherMessage = (field: IdentityField) =>
   `This ${LABEL[field]} is already used by another boutique - enter a different one`;
 
 export type IdentityValues = Partial<Record<IdentityField, string | null | undefined>>;

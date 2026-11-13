@@ -90,13 +90,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     contact_email: "business_email",
     contact_phone: "primary_mobile",
     gst_number: "gstin",
-    pan_number: "pan",
   };
   const IDENTITY_IDS: Partial<Record<keyof typeof form, string>> = {
     contact_email: "vs-email",
     contact_phone: "vs-phone",
     gst_number: "vs-gst",
-    pan_number: "vs-pan",
   };
   const takenError = (k: keyof typeof form) =>
     taken[k] ? <p className="text-xs text-destructive">{taken[k]}</p> : null;
@@ -115,12 +113,12 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     // A pickup address Shiprocket will accept (Extra list F).
     const problems = pickupAddressErrors(form, { allowBlank: true });
 
-    // A changed email / phone / GST / PAN another boutique already has.
+    // A changed email / phone / GST another boutique already has (a PAN may be shared).
     setSaving(true);
     const { taken: takenFields, error: checkError } = await findTakenIdentity(
       changedIdentity(
-        { business_email: form.contact_email, primary_mobile: form.contact_phone, gstin: form.gst_number, pan: form.pan_number },
-        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number, pan: vendor.pan_number },
+        { business_email: form.contact_email, primary_mobile: form.contact_phone, gstin: form.gst_number },
+        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number },
       ),
       vendor.id,
     );
@@ -292,9 +290,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-pan"
                 value={form.pan_number}
                 onChange={(e) => set("pan_number", e.target.value)}
-                aria-invalid={!!taken.pan_number}
               />
-              {takenError("pan_number")}
             </div>
           </div>
 

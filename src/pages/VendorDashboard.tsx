@@ -285,21 +285,20 @@ export default function VendorDashboard() {
       problems.pan = "Enter a valid PAN (e.g. ABCDE1234F) - Razorpay needs it to pay you";
     }
 
-    // A changed account number / PAN another boutique already has - checked
-    // together with the rest, so every problem shows at once.
+    // A changed account number another boutique already has - checked
+    // together with the rest, so every problem shows at once. (A PAN may be
+    // shared between boutiques.)
     setPayoutSaving(true);
     const { taken, error: checkError } = await findTakenIdentity(
       changedIdentity(
         {
           ...(problems.bank_account_number ? {} : { bank_account: payoutAccount.bank_account_number }),
-          ...(problems.pan ? {} : { pan: payoutAccount.pan }),
         },
-        { bank_account: savedPayoutIdentity.bank_account_number, pan: savedPayoutIdentity.pan },
+        { bank_account: savedPayoutIdentity.bank_account_number },
       ),
       vendor.id,
     );
     if (taken.includes("bank_account")) problems.bank_account_number = takenMessage("bank_account");
-    if (taken.includes("pan")) problems.pan = takenMessage("pan");
     setPayoutErrors(problems);
     const ids: Partial<Record<keyof PayoutAccountForm, string>> = {
       account_holder_name: "po-name",

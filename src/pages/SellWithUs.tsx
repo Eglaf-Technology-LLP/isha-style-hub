@@ -63,7 +63,7 @@ import {
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
 import { pickupAddressErrors } from "@/lib/pickupAddress";
-import { findTakenIdentity, firstOnPage, takenMessage, type IdentityValues } from "@/lib/vendorIdentity";
+import { ALREADY_REGISTERED_MESSAGE, findTakenIdentity, firstOnPage, takenMessage, type IdentityValues } from "@/lib/vendorIdentity";
 
 const benefits = [
   {
@@ -428,7 +428,6 @@ export default function SellWithUs() {
     setSubmitting(true);
     setProgress("Checking your details...");
     const identity: IdentityValues = {
-      pan: form.pan,
       gstin: form.gstin,
       primary_mobile: form.primary_mobile,
       business_email: form.business_email,
@@ -441,7 +440,7 @@ export default function SellWithUs() {
     );
     setSubmitting(false);
     setProgress(null);
-    for (const field of taken) found[field] = takenMessage(field);
+    for (const field of taken) found[field] = field === "gstin" ? ALREADY_REGISTERED_MESSAGE : takenMessage(field);
     setErrors(found);
     if (checkError) {
       toast.error(`Couldn't check your details: ${checkError}`);
