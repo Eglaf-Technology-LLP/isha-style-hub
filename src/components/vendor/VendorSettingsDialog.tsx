@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ReturnNoteHint } from "@/components/vendor/ReturnNoteHint";
 import {
   Dialog,
   DialogContent,
@@ -313,13 +314,14 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="vs-policy">Return policy</Label>
+                <Label htmlFor="vs-policy">Return note for customers (optional)</Label>
                 <Textarea
                   id="vs-policy"
                   rows={2}
                   value={form.return_policy}
                   onChange={(e) => set("return_policy", e.target.value)}
                 />
+                <ReturnNoteHint />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
                 <div>

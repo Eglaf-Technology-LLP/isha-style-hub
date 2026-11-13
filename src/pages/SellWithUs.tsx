@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ReturnNoteHint } from "@/components/vendor/ReturnNoteHint";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useVendor, type PersonDetails, type ApplicationDocument } from "@/hooks/useVendor";
@@ -260,8 +261,9 @@ export default function SellWithUs() {
     state: "",
     pincode: "",
     return_window_days: "7",
-    return_policy:
-      "7-day easy returns. Items must be unused with original tags and packaging intact.",
+    // Nothing written for them: returns follow AllBoutiqs' one window, and
+    // the note is only for customers to read (client, 13 Nov 2026).
+    return_policy: "",
   });
   const [constitution, setConstitution] = useState<BusinessConstitution | null>(null);
   // Boutique / Brand Name vs Legal Business Name (Part 7, 3.1-3.2).
@@ -1154,7 +1156,7 @@ export default function SellWithUs() {
                     for customers (the boutique pays the fixed courier charge per
                     piece), and AllBoutiqs sets one return window for everyone. */}
                 <div className="space-y-2">
-                  <Label className={accountLabelClass} htmlFor="return_policy">Return policy</Label>
+                  <Label className={accountLabelClass} htmlFor="return_policy">Return note for customers (optional)</Label>
                   <Textarea
                     id="return_policy"
                     rows={2}
@@ -1162,6 +1164,7 @@ export default function SellWithUs() {
                     value={form.return_policy}
                     onChange={(e) => set("return_policy", e.target.value)}
                   />
+                  <ReturnNoteHint />
                 </div>
               </FormSection>
 
