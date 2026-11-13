@@ -28,6 +28,7 @@ import { PanCardButton, VendorKycSection } from "./VendorKycSection";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel, isValidGstin } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
+import { changedIdentity, findTakenIdentity, firstOnPage, takenMessage } from "@/lib/vendorIdentity";
 
 interface PayoutAccount {
   account_holder_name: string;
@@ -115,6 +116,7 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     setReturnsEnabled(vendor.returns_enabled);
     setLogoUrl(vendor.logo_url);
     setBannerUrl(vendor.banner_url);
+    setFieldErrors({});
 
     setLoadingExtra(true);
     Promise.all([
@@ -133,7 +135,16 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     });
   }, [open, vendor]);
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // Contact email / phone, GST and PAN problems, under the field - including
+  // "already used by another boutique" (src/lib/vendorIdentity.ts).
+  type IdentityKey = "contact_email" | "contact_phone" | "gst_number" | "pan_number";
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<IdentityKey, string>>>({});
+  const fieldError = (k: IdentityKey) =>
+    fieldErrors[k] ? <p className="text-xs text-destructive">{fieldErrors[k]}</p> : null;
+  const set = (k: keyof typeof form, v: string) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setFieldErrors((e) => (e[k as IdentityKey] ? { ...e, [k]: undefined } : e));
+  };
   const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
   const ADDRESS_IDS: Record<PickupAddressField, string> = { address_line1: "vd-addr1", address_line2: "vd-addr2", city: "vd-city", state: "vd-state", pincode: "vd-pincode" };
   const addressError = (field: PickupAddressField) =>
@@ -143,16 +154,51 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
     // A pickup address Shiprocket will accept (Extra list F).
     const problems = pickupAddressErrors(form, { allowBlank: true });
-    setAddressErrors(problems);
-    if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
     // The GSTIN goes on invoices and e-way bills - a typo there is rejected by
     // the e-way bill portal, so it's checked before saving.
     const gstin = form.gst_number.trim().toUpperCase();
     const gstinChanged = gstin !== (vendor.gst_number || "").trim().toUpperCase();
+    const errors: Partial<Record<IdentityKey, string>> = {};
     if (gstin && gstinChanged && !isValidGstin(gstin)) {
-      toast.error("This GST number isn't valid - check it against the boutique's GST certificate");
+      errors.gst_number = "This GST number isn't valid - check it against the boutique's GST certificate";
+    }
+
+    // Another boutique's email / phone / GST / PAN? A new GSTIN also sets the
+    // PAN to the one inside it (characters 3-12), so that PAN is checked.
+    const gstinPan = gstin && gstinChanged && !errors.gst_number ? gstin.slice(2, 12) : null;
+    setSaving(true);
+    const { taken, error: checkError } = await findTakenIdentity(
+      changedIdentity(
+        {
+          business_email: form.contact_email,
+          primary_mobile: form.contact_phone,
+          ...(errors.gst_number ? {} : { gstin: form.gst_number }),
+          pan: gstinPan ?? form.pan_number,
+        },
+        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number, pan: vendor.pan_number },
+      ),
+      vendor.id,
+    );
+    setSaving(false);
+    if (taken.includes("business_email")) errors.contact_email = takenMessage("business_email");
+    if (taken.includes("primary_mobile")) errors.contact_phone = takenMessage("primary_mobile");
+    if (taken.includes("gstin")) errors.gst_number = takenMessage("gstin");
+    if (taken.includes("pan")) {
+      if (gstinPan) errors.gst_number ??= "The PAN in this GST number (characters 3 to 12) is already used by another boutique";
+      else errors.pan_number = takenMessage("pan");
+    }
+    setFieldErrors(errors);
+    setAddressErrors(problems);
+    if (checkError) return toast.error(`Couldn't check the details: ${checkError}`);
+    const keys = Object.keys(errors) as IdentityKey[];
+    if (keys.length) {
+      toast.error(keys.length === 1 ? "Please fix the highlighted field" : `Please fix ${keys.length} highlighted fields`);
+      const ids: Record<IdentityKey, string> = { contact_email: "vd-email", contact_phone: "vd-phone", gst_number: "vd-gst", pan_number: "vd-pan" };
+      firstOnPage(keys.map((k) => ids[k]))?.focus();
+      if (Object.keys(problems).length) toast.error("Also check the pickup address");
       return;
     }
+    if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
     setSaving(true);
     try {
       const newAddress = {
@@ -326,22 +372,27 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                     id="vd-email"
                     type="email"
                     value={form.contact_email}
+                    aria-invalid={!!fieldErrors.contact_email}
                     onChange={(e) => set("contact_email", e.target.value)}
                   />
+                  {fieldError("contact_email")}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-phone">Contact phone</Label>
-                  <Input id="vd-phone" value={form.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} />
+                  <Input id="vd-phone" value={form.contact_phone} aria-invalid={!!fieldErrors.contact_phone} onChange={(e) => set("contact_phone", e.target.value)} />
+                  {fieldError("contact_phone")}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="vd-gst">GST number</Label>
-                  <Input id="vd-gst" value={form.gst_number} onChange={(e) => set("gst_number", e.target.value)} />
+                  <Input id="vd-gst" value={form.gst_number} aria-invalid={!!fieldErrors.gst_number} onChange={(e) => set("gst_number", e.target.value)} />
+                  {fieldError("gst_number")}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vd-pan">PAN number</Label>
-                  <Input id="vd-pan" value={form.pan_number} onChange={(e) => set("pan_number", e.target.value)} />
+                  <Input id="vd-pan" value={form.pan_number} aria-invalid={!!fieldErrors.pan_number} onChange={(e) => set("pan_number", e.target.value)} />
+                  {fieldError("pan_number")}
                   <PanCardButton vendorId={vendor.id} />
                 </div>
               </div>

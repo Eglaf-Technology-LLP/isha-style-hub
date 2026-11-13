@@ -4756,6 +4756,10 @@ export type Database = {
       }
       vendor_bank_last4: { Args: { _vendor_id: string }; Returns: string }
       vendor_document_label: { Args: { _doc_type: string }; Returns: string }
+      vendor_identity_taken: {
+        Args: { _values: Json; _vendor_id?: string | null }
+        Returns: string[]
+      }
       vendor_optional_documents: {
         Args: { _constitution: string }
         Returns: string[]

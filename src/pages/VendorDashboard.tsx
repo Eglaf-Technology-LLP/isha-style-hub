@@ -86,6 +86,7 @@ import { formatPayoutDate } from "@/lib/payoutDates";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { BankVerificationStatus, type BankCheck } from "@/components/vendor/BankVerificationStatus";
 import { useFlashFocus, useFocusParam, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
+import { changedIdentity, findTakenIdentity, firstOnPage, takenMessage } from "@/lib/vendorIdentity";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 import { CodTrackingCard } from "@/components/CodTrackingCard";
@@ -262,23 +263,60 @@ export default function VendorDashboard() {
   });
   const [bankCheck, setBankCheck] = useState<BankCheck | null>(null);
   const [payoutSaving, setPayoutSaving] = useState(false);
+  // Account number / PAN as saved, and each field's problem under it -
+  // including "already used by another boutique" (src/lib/vendorIdentity.ts).
+  const [savedPayoutIdentity, setSavedPayoutIdentity] = useState({ bank_account_number: "", pan: "" });
+  const [payoutErrors, setPayoutErrors] = useState<Partial<Record<keyof PayoutAccountForm, string>>>({});
+  const setPayoutField = (k: keyof PayoutAccountForm, v: string) => {
+    setPayoutAccount((f) => ({ ...f, [k]: v }));
+    setPayoutErrors((e) => (e[k] ? { ...e, [k]: undefined } : e));
+  };
+  const payoutError = (k: keyof PayoutAccountForm) =>
+    payoutErrors[k] ? <p className="text-xs text-destructive">{payoutErrors[k]}</p> : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const savePayoutAccount = async () => {
     if (!vendor) return;
-    if (
-      !payoutAccount.account_holder_name.trim() ||
-      !payoutAccount.bank_account_number.trim() ||
-      !payoutAccount.bank_ifsc.trim()
-    ) {
-      toast.error("Please fill in account holder name, account number and IFSC");
-      return;
-    }
+    const problems: Partial<Record<keyof PayoutAccountForm, string>> = {};
+    if (!payoutAccount.account_holder_name.trim()) problems.account_holder_name = "Enter the account holder name";
+    if (!payoutAccount.bank_account_number.trim()) problems.bank_account_number = "Enter the account number";
+    if (!payoutAccount.bank_ifsc.trim()) problems.bank_ifsc = "Enter the IFSC code";
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(payoutAccount.pan.trim().toUpperCase())) {
-      toast.error("Enter a valid PAN (e.g. ABCDE1234F) - Razorpay needs it to pay you");
+      problems.pan = "Enter a valid PAN (e.g. ABCDE1234F) - Razorpay needs it to pay you";
+    }
+
+    // A changed account number / PAN another boutique already has - checked
+    // together with the rest, so every problem shows at once.
+    setPayoutSaving(true);
+    const { taken, error: checkError } = await findTakenIdentity(
+      changedIdentity(
+        {
+          ...(problems.bank_account_number ? {} : { bank_account: payoutAccount.bank_account_number }),
+          ...(problems.pan ? {} : { pan: payoutAccount.pan }),
+        },
+        { bank_account: savedPayoutIdentity.bank_account_number, pan: savedPayoutIdentity.pan },
+      ),
+      vendor.id,
+    );
+    if (taken.includes("bank_account")) problems.bank_account_number = takenMessage("bank_account");
+    if (taken.includes("pan")) problems.pan = takenMessage("pan");
+    setPayoutErrors(problems);
+    const ids: Partial<Record<keyof PayoutAccountForm, string>> = {
+      account_holder_name: "po-name",
+      bank_account_number: "po-acc",
+      bank_ifsc: "po-ifsc",
+      pan: "po-pan",
+    };
+    const keys = Object.keys(problems) as (keyof PayoutAccountForm)[];
+    if (checkError || keys.length) {
+      setPayoutSaving(false);
+      if (checkError) toast.error(`Couldn't check your details: ${checkError}`);
+      else {
+        toast.error(keys.length === 1 ? "Please fix the highlighted field" : `Please fix ${keys.length} highlighted fields`);
+        firstOnPage(keys.map((k) => ids[k]!))?.focus();
+      }
       return;
     }
-    setPayoutSaving(true);
     try {
       const { error } = await supabase.from("vendor_payout_accounts").upsert(
         {
@@ -295,6 +333,7 @@ export default function VendorDashboard() {
       );
       if (error) throw error;
       setHasPayoutAccount(true);
+      setSavedPayoutIdentity({ bank_account_number: payoutAccount.bank_account_number.trim(), pan: payoutAccount.pan.trim().toUpperCase() });
 
       // Register the bank account for payouts (RazorpayX) and start the ₹1
       // check - paused while RazorpayX payouts are off.
@@ -391,6 +430,7 @@ export default function VendorDashboard() {
           pan: pa.pan ?? "",
           legal_business_name: pa.legal_business_name ?? "",
         });
+        setSavedPayoutIdentity({ bank_account_number: pa.bank_account_number ?? "", pan: pa.pan ?? "" });
         setBankCheck({ status: pa.rzpx_status, error: pa.rzpx_error });
       }
       setHasPayoutAccount(!!payoutRes.data);
@@ -1504,10 +1544,10 @@ export default function VendorDashboard() {
                       <Input
                         id="po-name"
                         value={payoutAccount.account_holder_name}
-                        onChange={(e) =>
-                          setPayoutAccount((f) => ({ ...f, account_holder_name: e.target.value }))
-                        }
+                        aria-invalid={!!payoutErrors.account_holder_name}
+                        onChange={(e) => setPayoutField("account_holder_name", e.target.value)}
                       />
+                      {payoutError("account_holder_name")}
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -1515,20 +1555,20 @@ export default function VendorDashboard() {
                         <Input
                           id="po-acc"
                           value={payoutAccount.bank_account_number}
-                          onChange={(e) =>
-                            setPayoutAccount((f) => ({ ...f, bank_account_number: e.target.value }))
-                          }
+                          aria-invalid={!!payoutErrors.bank_account_number}
+                          onChange={(e) => setPayoutField("bank_account_number", e.target.value)}
                         />
+                        {payoutError("bank_account_number")}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="po-ifsc">IFSC code</Label>
                         <Input
                           id="po-ifsc"
                           value={payoutAccount.bank_ifsc}
-                          onChange={(e) =>
-                            setPayoutAccount((f) => ({ ...f, bank_ifsc: e.target.value.toUpperCase() }))
-                          }
+                          aria-invalid={!!payoutErrors.bank_ifsc}
+                          onChange={(e) => setPayoutField("bank_ifsc", e.target.value.toUpperCase())}
                         />
+                        {payoutError("bank_ifsc")}
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -1547,8 +1587,10 @@ export default function VendorDashboard() {
                           value={payoutAccount.pan}
                           maxLength={10}
                           placeholder="ABCDE1234F"
-                          onChange={(e) => setPayoutAccount((f) => ({ ...f, pan: e.target.value.toUpperCase() }))}
+                          aria-invalid={!!payoutErrors.pan}
+                          onChange={(e) => setPayoutField("pan", e.target.value.toUpperCase())}
                         />
+                        {payoutError("pan")}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="po-legal">Legal business name (if different)</Label>

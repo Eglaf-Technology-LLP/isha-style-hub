@@ -63,6 +63,7 @@ import {
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
 import { pickupAddressErrors } from "@/lib/pickupAddress";
+import { findTakenIdentity, firstOnPage, takenMessage, type IdentityValues } from "@/lib/vendorIdentity";
 
 const benefits = [
   {
@@ -419,12 +420,38 @@ export default function SellWithUs() {
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (submitting) return;
     const found = validate();
+
+    // Already used by another boutique? Asked before any upload, for every
+    // field that is filled in correctly, so all the problems show at once.
+    setSubmitting(true);
+    setProgress("Checking your details...");
+    const identity: IdentityValues = {
+      pan: form.pan,
+      gstin: form.gstin,
+      primary_mobile: form.primary_mobile,
+      business_email: form.business_email,
+      bank_account: bank.account_number,
+      instagram_url: form.instagram_url,
+      website_url: form.website_url,
+    };
+    const { taken, error: checkError } = await findTakenIdentity(
+      Object.fromEntries(Object.entries(identity).filter(([k]) => !found[k])),
+    );
+    setSubmitting(false);
+    setProgress(null);
+    for (const field of taken) found[field] = takenMessage(field);
     setErrors(found);
-    const firstKey = Object.keys(found)[0];
-    if (firstKey) {
-      toast.error(`Please fix ${Object.keys(found).length === 1 ? "the highlighted field" : `${Object.keys(found).length} highlighted fields`}`);
-      document.getElementById(firstKey)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (checkError) {
+      toast.error(`Couldn't check your details: ${checkError}`);
+      return;
+    }
+
+    const keys = Object.keys(found);
+    if (keys.length) {
+      toast.error(`Please fix ${keys.length === 1 ? "the highlighted field" : `${keys.length} highlighted fields`}`);
+      firstOnPage(keys)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 

@@ -22,6 +22,7 @@ import type { Vendor } from "@/hooks/useVendor";
 import { SingleImageDropzone } from "@/components/ImageDropzone";
 import { titleCase } from "@/lib/text";
 import { STORE_SHIPPING_RETURNS_ENABLED } from "@/lib/hiddenFeatures";
+import { changedIdentity, findTakenIdentity, firstOnPage, takenMessage, type IdentityField } from "@/lib/vendorIdentity";
 
 interface Props {
   open: boolean;
@@ -80,9 +81,30 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     setReturnsEnabled(vendor.returns_enabled);
     setLogoUrl(vendor.logo_url);
     setBannerUrl(vendor.banner_url);
+    setTaken({});
   }, [open, vendor]);
 
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // "Already used by another boutique", under the field (src/lib/vendorIdentity.ts).
+  const [taken, setTaken] = useState<Partial<Record<keyof typeof form, string>>>({});
+  const IDENTITY: Partial<Record<keyof typeof form, IdentityField>> = {
+    contact_email: "business_email",
+    contact_phone: "primary_mobile",
+    gst_number: "gstin",
+    pan_number: "pan",
+  };
+  const IDENTITY_IDS: Partial<Record<keyof typeof form, string>> = {
+    contact_email: "vs-email",
+    contact_phone: "vs-phone",
+    gst_number: "vs-gst",
+    pan_number: "vs-pan",
+  };
+  const takenError = (k: keyof typeof form) =>
+    taken[k] ? <p className="text-xs text-destructive">{taken[k]}</p> : null;
+
+  const set = (k: keyof typeof form, v: string) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setTaken((t) => (t[k] ? { ...t, [k]: undefined } : t));
+  };
   const [addressErrors, setAddressErrors] = useState<Partial<Record<PickupAddressField, string>>>({});
   const ADDRESS_IDS: Record<PickupAddressField, string> = { address_line1: "vs-addr1", address_line2: "vs-addr2", city: "vs-city", state: "vs-state", pincode: "vs-pincode" };
   const addressError = (field: PickupAddressField) =>
@@ -92,7 +114,35 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
     // A pickup address Shiprocket will accept (Extra list F).
     const problems = pickupAddressErrors(form, { allowBlank: true });
+
+    // A changed email / phone / GST / PAN another boutique already has.
+    setSaving(true);
+    const { taken: takenFields, error: checkError } = await findTakenIdentity(
+      changedIdentity(
+        { business_email: form.contact_email, primary_mobile: form.contact_phone, gstin: form.gst_number, pan: form.pan_number },
+        { business_email: vendor.contact_email, primary_mobile: vendor.contact_phone, gstin: vendor.gst_number, pan: vendor.pan_number },
+      ),
+      vendor.id,
+    );
+    setSaving(false);
+    const takenErrors = Object.fromEntries(
+      (Object.keys(IDENTITY) as (keyof typeof form)[])
+        .filter((k) => takenFields.includes(IDENTITY[k]!))
+        .map((k) => [k, takenMessage(IDENTITY[k]!)]),
+    );
+    setTaken(takenErrors);
     setAddressErrors(problems);
+    if (checkError) return toast.error(`Couldn't check your details: ${checkError}`);
+    if (Object.keys(takenErrors).length) {
+      toast.error(
+        Object.keys(takenErrors).length === 1
+          ? "Please fix the highlighted field"
+          : `Please fix ${Object.keys(takenErrors).length} highlighted fields`,
+      );
+      firstOnPage(Object.keys(takenErrors).map((k) => IDENTITY_IDS[k as keyof typeof form]!))?.focus();
+      if (Object.keys(problems).length) toast.error("Also check the pickup address");
+      return;
+    }
     if (reportPickupAddressErrors(problems, ADDRESS_IDS, toast.error)) return;
 
     setSaving(true);
@@ -209,7 +259,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 type="email"
                 value={form.contact_email}
                 onChange={(e) => set("contact_email", e.target.value)}
+                aria-invalid={!!taken.contact_email}
               />
+              {takenError("contact_email")}
             </div>
             <div className="space-y-2">
               <Label htmlFor="vs-phone">Contact phone</Label>
@@ -217,7 +269,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-phone"
                 value={form.contact_phone}
                 onChange={(e) => set("contact_phone", e.target.value)}
+                aria-invalid={!!taken.contact_phone}
               />
+              {takenError("contact_phone")}
             </div>
           </div>
 
@@ -228,7 +282,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-gst"
                 value={form.gst_number}
                 onChange={(e) => set("gst_number", e.target.value)}
+                aria-invalid={!!taken.gst_number}
               />
+              {takenError("gst_number")}
             </div>
             <div className="space-y-2">
               <Label htmlFor="vs-pan">PAN number</Label>
@@ -236,7 +292,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                 id="vs-pan"
                 value={form.pan_number}
                 onChange={(e) => set("pan_number", e.target.value)}
+                aria-invalid={!!taken.pan_number}
               />
+              {takenError("pan_number")}
             </div>
           </div>
 
