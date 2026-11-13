@@ -610,7 +610,7 @@ export default function SellWithUs() {
                 <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
                   {[
                     "PAN and GST number of the business",
-                    "Authorized person's details and Aadhaar card",
+                    "Authorized person's details and Aadhaar card (optional)",
                     "Business documents as PDFs, up to 10 MB each",
                     "Bank account details and a bank proof PDF",
                   ].map((t) => (

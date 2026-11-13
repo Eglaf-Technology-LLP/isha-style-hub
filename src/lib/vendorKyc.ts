@@ -41,36 +41,38 @@ const MSME: DocumentRequirement = { type: "msme_certificate", label: "MSME / Udy
 
 // Business documents per business type, as listed in Developer Corrections
 // Part 7 (bank proof is asked for in the bank section, for every type).
+// The Aadhaar card is optional for every type (client, 13 Nov 2026; the
+// server's lists: migration 20261113160000).
 export const DOCUMENTS_BY_CONSTITUTION: Record<BusinessConstitution, DocumentRequirement[]> = {
   proprietorship: [
     GST,
     { type: "pan_card", label: "Proprietor PAN Card" },
-    { type: "aadhaar_card", label: "Proprietor Aadhaar Card" },
+    { type: "aadhaar_card", label: "Proprietor Aadhaar Card", optional: true },
     MSME,
   ],
   partnership: [
     GST,
     { type: "pan_card", label: "Firm PAN Card" },
-    { type: "aadhaar_card", label: "Authorised Partner Aadhaar Card" },
+    { type: "aadhaar_card", label: "Authorised Partner Aadhaar Card", optional: true },
     { type: "partnership_deed", label: "Partnership Deed" },
     { type: "rof_certificate", label: "Registration of Firm (ROF) Certificate", optional: true },
   ],
   llp: [
     GST,
     { type: "pan_card", label: "LLP PAN Card" },
-    { type: "aadhaar_card", label: "Designated Partner Aadhaar Card" },
+    { type: "aadhaar_card", label: "Designated Partner Aadhaar Card", optional: true },
     { type: "llp_incorporation", label: "Certificate of Incorporation" },
   ],
   private_limited: [
     GST,
     { type: "pan_card", label: "Company PAN Card" },
-    { type: "aadhaar_card", label: "Authorised Director Aadhaar Card" },
+    { type: "aadhaar_card", label: "Authorised Director Aadhaar Card", optional: true },
     { type: "company_incorporation", label: "Certificate of Incorporation" },
   ],
   huf: [
     { type: "pan_card", label: "HUF PAN Card" },
     GST,
-    { type: "aadhaar_card", label: "Authorised Person (Karta) Aadhaar Card" },
+    { type: "aadhaar_card", label: "Authorised Person (Karta) Aadhaar Card", optional: true },
     MSME,
   ],
 };
