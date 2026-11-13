@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 // PAN, GST number, primary mobile, official business email, bank account
 // number, Instagram profile and website (when one is given) belong to one
 // boutique only (client, 13 Nov 2026). Before saving, a form asks the server
-// (vendor_identity_taken, migration 20261113120000) which of them another
+// (vendor_identity_taken, migration 20261113130000) which of them another
 // boutique already has - compared however they were typed - and shows
 // "already used" under each of those fields at once. Triggers refuse a
 // duplicate that comes in any other way.
