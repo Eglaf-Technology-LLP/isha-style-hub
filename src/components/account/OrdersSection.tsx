@@ -11,13 +11,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
-import { formatDate } from "@/lib/dates";
+import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
@@ -244,6 +245,8 @@ export function OrdersSection() {
             const hasCancellableItems = order.vendor_orders.some(
               (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
             );
+            // The customer's own cancel closes 24 hours after ordering.
+            const canCancel = hasCancellableItems && isWithinCustomerCancelWindow(order.created_at);
 
             return (
             <article key={order.id} className="border border-border">
@@ -265,11 +268,12 @@ export function OrdersSection() {
                         shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
                     </StatusPill>
                   )}
-                  {hasCancellableItems && (
+                  {canCancel && (
                     <button
                       type="button"
                       className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                       onClick={() => setCancellingOrder(order)}
+                      title={`You can cancel until ${formatDateTime(customerCancelDeadline(order.created_at))}`}
                     >
                       <Ban className="h-3 w-3" />
                       Cancel order

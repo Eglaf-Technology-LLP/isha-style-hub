@@ -8,6 +8,16 @@ import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 // nothing left for a cancellation to do or undo.
 export const BLOCKED_VENDOR_ORDER_STATUSES = ["delivered", "cancelled", "returned"];
 
+// A customer can cancel only within 24 hours of placing the order (client,
+// 13 Nov 2026); after that it can only come back as a return once it's
+// delivered. Admins and the warehouse aren't held to this. Same number as
+// src/lib/orderCancel.ts, which only decides whether to show the button.
+export const CUSTOMER_CANCEL_WINDOW_HOURS = 24;
+
+export function customerCancelDeadline(orderPlacedAt: string): Date {
+  return new Date(new Date(orderPlacedAt).getTime() + CUSTOMER_CANCEL_WINDOW_HOURS * 3_600_000);
+}
+
 // order_items.variant_id is an unconstrained TEXT column - a no-variant line
 // item carries a synthetic id like `${productId}-default`, not a uuid.
 // Same check Checkout.tsx applies before its own adjust_stock call.

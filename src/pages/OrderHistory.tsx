@@ -18,6 +18,7 @@ import { REFUND_METHOD_LABEL } from "@/lib/wallet";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
+import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
@@ -484,6 +485,8 @@ export default function OrderHistory() {
                   // parcel can only come back as a return.
                   (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status) && !vo.parcel,
                 );
+                // The customer's own cancel closes 24 hours after ordering.
+                const canCancel = hasCancellableItems && isWithinCustomerCancelWindow(order.created_at);
                 const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
                 const paymentDisplay = paymentStatusDisplay(order);
                 const returnWindow = returnWindowFor(order);
@@ -520,11 +523,12 @@ export default function OrderHistory() {
                         </StatusPill>
                       )}
                       <StatusPill className={paymentDisplay.className}>{paymentDisplay.label}</StatusPill>
-                      {hasCancellableItems && (
+                      {canCancel && (
                         <button
                           type="button"
                           className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                           onClick={() => setCancellingOrder(order)}
+                          title={`You can cancel until ${formatDateTime(customerCancelDeadline(order.created_at))}`}
                         >
                           <Ban className="h-3 w-3" />
                           Cancel order

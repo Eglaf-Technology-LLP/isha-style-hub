@@ -1,5 +1,5 @@
 import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, errorMessage } from "../_shared/auth.ts";
-import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
+import { cancelOneVendorOrder, customerCancelDeadline, CUSTOMER_CANCEL_WINDOW_HOURS } from "../_shared/cancellation.ts";
 
 // Covers "cancel one item", "cancel several items" (possibly spanning a
 // couple of shipments), and "cancel the whole order" with one code path -
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_method, payment_status")
+      .select("id, user_id, payment_method, payment_status, created_at")
       .eq("id", orderId)
       .maybeSingle();
     if (orderErr) throw orderErr;
@@ -59,8 +59,18 @@ Deno.serve(async (req) => {
 
     // Order-owner-or-admin only, same as before - a vendor cancelling
     // their own sale already has shiprocket-cancel-shipment.
-    const authorized = order.user_id === userId || (await isAdmin(supabase, userId));
-    if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
+    const admin = await isAdmin(supabase, userId);
+    if (order.user_id !== userId && !admin) return jsonResponse({ error: "Forbidden" }, 403);
+
+    // The customer's own cancel closes 24 hours after the order was placed.
+    if (!admin && Date.now() > customerCancelDeadline(order.created_at).getTime()) {
+      return jsonResponse(
+        {
+          error: `Orders can only be cancelled within ${CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing them. You can ask for a return once it's delivered.`,
+        },
+        403,
+      );
+    }
 
     const results = [];
     for (const vendorOrder of requestedVendorOrders) {
