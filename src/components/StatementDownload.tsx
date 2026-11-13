@@ -28,6 +28,7 @@ import {
   type StatementLine,
 } from "@/lib/statement";
 import { formatDate } from "@/lib/dates";
+import { VENDOR_GST_DETAIL_REPORTS, VENDOR_GST_DETAIL_REPORTS_ENABLED } from "@/lib/hiddenFeatures";
 import { formatINR } from "@/lib/format";
 import {
   b2clRows,
@@ -392,7 +393,12 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       true,
     ],
   ];
-  const taxKeys = TAX_SECTIONS.filter(([, , , adminOnly]) => admin || !adminOnly).map(([k]) => k);
+  // Some reports are hidden from boutiques for now (src/lib/hiddenFeatures.ts).
+  const shownTaxSections = TAX_SECTIONS.filter(
+    ([key, , , adminOnly]) =>
+      admin || (!adminOnly && (VENDOR_GST_DETAIL_REPORTS_ENABLED || !VENDOR_GST_DETAIL_REPORTS.includes(key))),
+  );
+  const taxKeys = shownTaxSections.map(([k]) => k);
   const excel = (keys: SheetKey[], suffix = "") =>
     buildWorkbookSheets(keys.map((k) => SHEETS[k]), `${fileBase}${suffix}.xlsx`);
   const pdf = (elementId: string, label: string) =>
@@ -583,7 +589,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
               </div>
               <ReportTable rows={reports.tds} countColumns={["Orders"]} />
             </section>
-            {!docsLoading && (
+            {!docsLoading && taxKeys.includes("checks") && (
               <p
                 className={`rounded-md border p-2 text-sm ${
                   mismatches ? "border-destructive text-destructive" : "border-green-600/40 text-green-700"
@@ -599,7 +605,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
                 <Loader2 className="h-4 w-4 animate-spin inline" /> Loading invoices…
               </p>
             ) : (
-              TAX_SECTIONS.filter(([, , , adminOnly]) => admin || !adminOnly).map(([key, title, note]) => (
+              shownTaxSections.map(([key, title, note]) => (
                 <section key={key} id={`statement-${key}`} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold">{title}</h3>

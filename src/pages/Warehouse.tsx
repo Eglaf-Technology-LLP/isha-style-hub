@@ -34,6 +34,7 @@ import { ReturnsTab, SendBacksTab } from "@/components/warehouse/WarehouseReturn
 import { WarehouseSettingsRow, WarehouseSettingsTab } from "@/components/warehouse/WarehouseSettings";
 import { WarehouseInfo } from "@/components/warehouse/shared";
 import { WarehouseTiming } from "@/lib/warehouse";
+import { WAREHOUSE_SETTINGS_TAB_ENABLED } from "@/lib/hiddenFeatures";
 import logo from "@/assets/logo.png";
 
 // The AllBoutiqs warehouse: receive boutique parcels, inspect, pack what
@@ -43,7 +44,9 @@ export default function Warehouse() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { canOperate, isAdmin, loading: accessLoading } = useWarehouseAccess();
-  const [tab, setTab] = useUrlTab("incoming");
+  const [urlTab, setTab] = useUrlTab("incoming");
+  // Settings may be hidden (src/lib/hiddenFeatures.ts): a link to it opens Incoming.
+  const tab = urlTab === "settings" && !WAREHOUSE_SETTINGS_TAB_ENABLED ? "incoming" : urlTab;
   const data = useWarehouseData(canOperate);
   const [warehouse, setWarehouse] = useState<WarehouseInfo | null>(null);
   const [securityOpen, setSecurityOpen] = useState(false);
@@ -229,7 +232,7 @@ export default function Warehouse() {
             <TabsTrigger value="sendbacks" className="gap-1.5">
               <Store className="h-4 w-4" /> Back to boutiques {count(counts.sendbacks)}
             </TabsTrigger>
-            {isAdmin && (
+            {isAdmin && WAREHOUSE_SETTINGS_TAB_ENABLED && (
               <TabsTrigger value="settings" className="gap-1.5">
                 <Settings className="h-4 w-4" /> Settings
               </TabsTrigger>
@@ -260,7 +263,7 @@ export default function Warehouse() {
               <TabsContent value="sendbacks">
                 <SendBacksTab {...props} />
               </TabsContent>
-              {isAdmin && (
+              {isAdmin && WAREHOUSE_SETTINGS_TAB_ENABLED && (
                 <TabsContent value="settings">
                   <WarehouseSettingsTab warehouse={warehouse} settings={settings} holidays={holidays} onSaved={loadSetup} />
                 </TabsContent>

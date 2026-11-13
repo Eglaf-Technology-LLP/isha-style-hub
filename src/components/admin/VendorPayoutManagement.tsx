@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
+import { PAYOUT_SCHEDULE_NOTE_ENABLED } from "@/lib/hiddenFeatures";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -167,37 +168,42 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
       <div className="flex flex-row items-start justify-between p-6 border-b border-border flex-wrap gap-3">
         <div className="max-w-3xl">
           <h3 className="text-lg font-semibold">Boutique payouts</h3>
-          <p className="text-sm text-muted-foreground">
-            Every Wednesday at 9:30 AM the orders that are ready - delivered, return window closed, money received - are
-            put into one payout per boutique, with commission, fees and taxes already taken off. Transfer each amount from
-            the bank, then press <span className="font-medium">Mark paid</span>, enter the UTR and upload the proof. The
-            boutique is emailed and sees it on its dashboard.
-          </p>
-          <div className="flex items-center gap-2 mt-2 text-sm">
-            <Label htmlFor="settle-days" className="text-xs text-muted-foreground font-normal">
-              Online payments reach AllBoutiqs after
-            </Label>
-            <Input
-              id="settle-days"
-              type="number"
-              min={0}
-              max={30}
-              value={settleDays}
-              onChange={(e) => setSettleDays(e.target.value)}
-              className="h-8 w-16"
-              disabled={savedSettleDays === null}
-            />
-            <span className="text-xs text-muted-foreground">working days</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8"
-              onClick={saveSettleDays}
-              disabled={savedSettleDays === null || Number(settleDays) === savedSettleDays}
-            >
-              Save
-            </Button>
-          </div>
+          {/* Hidden for now (src/lib/hiddenFeatures.ts). */}
+          {PAYOUT_SCHEDULE_NOTE_ENABLED && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Every Wednesday at 9:30 AM the orders that are ready - delivered, return window closed, money received - are
+                put into one payout per boutique, with commission, fees and taxes already taken off. Transfer each amount from
+                the bank, then press <span className="font-medium">Mark paid</span>, enter the UTR and upload the proof. The
+                boutique is emailed and sees it on its dashboard.
+              </p>
+              <div className="flex items-center gap-2 mt-2 text-sm">
+                <Label htmlFor="settle-days" className="text-xs text-muted-foreground font-normal">
+                  Online payments reach AllBoutiqs after
+                </Label>
+                <Input
+                  id="settle-days"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={settleDays}
+                  onChange={(e) => setSettleDays(e.target.value)}
+                  className="h-8 w-16"
+                  disabled={savedSettleDays === null}
+                />
+                <span className="text-xs text-muted-foreground">working days</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  onClick={saveSettleDays}
+                  disabled={savedSettleDays === null || Number(settleDays) === savedSettleDays}
+                >
+                  Save
+                </Button>
+              </div>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {toTransfer.length > 0 && (
