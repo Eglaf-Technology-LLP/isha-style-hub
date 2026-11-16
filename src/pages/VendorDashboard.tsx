@@ -228,6 +228,8 @@ interface PayoutAccountForm {
   legal_business_name: string;
 }
 
+type PayoutErrorKey = keyof PayoutAccountForm | "bank_account_confirm";
+
 const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp", "huf"];
 
 export default function VendorDashboard() {
@@ -266,20 +268,34 @@ export default function VendorDashboard() {
   // Account number / PAN as saved, and each field's problem under it -
   // including "already used by another boutique" (src/lib/vendorIdentity.ts).
   const [savedPayoutIdentity, setSavedPayoutIdentity] = useState({ bank_account_number: "", pan: "" });
-  const [payoutErrors, setPayoutErrors] = useState<Partial<Record<keyof PayoutAccountForm, string>>>({});
+  const [payoutErrors, setPayoutErrors] = useState<Partial<Record<PayoutErrorKey, string>>>({});
+  // A new or changed account number is typed twice (client corrections,
+  // 15 Nov 2026, 1.2.3); the saved one isn't asked for again.
+  const [payoutAccountConfirm, setPayoutAccountConfirm] = useState("");
+  const payoutAccountChanged =
+    !!payoutAccount.bank_account_number.trim() &&
+    payoutAccount.bank_account_number.trim() !== savedPayoutIdentity.bank_account_number.trim();
   const setPayoutField = (k: keyof PayoutAccountForm, v: string) => {
     setPayoutAccount((f) => ({ ...f, [k]: v }));
-    setPayoutErrors((e) => (e[k] ? { ...e, [k]: undefined } : e));
+    setPayoutErrors((e) => {
+      const clear: PayoutErrorKey[] = k === "bank_account_number" ? [k, "bank_account_confirm"] : [k];
+      return clear.some((c) => e[c]) ? { ...e, ...Object.fromEntries(clear.map((c) => [c, undefined])) } : e;
+    });
   };
-  const payoutError = (k: keyof PayoutAccountForm) =>
+  const payoutError = (k: PayoutErrorKey) =>
     payoutErrors[k] ? <p className="text-xs text-destructive">{payoutErrors[k]}</p> : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const savePayoutAccount = async () => {
     if (!vendor) return;
-    const problems: Partial<Record<keyof PayoutAccountForm, string>> = {};
+    const problems: Partial<Record<PayoutErrorKey, string>> = {};
     if (!payoutAccount.account_holder_name.trim()) problems.account_holder_name = "Enter the account holder name";
     if (!payoutAccount.bank_account_number.trim()) problems.bank_account_number = "Enter the account number";
+    else if (payoutAccountChanged) {
+      const confirm = payoutAccountConfirm.trim();
+      if (!confirm) problems.bank_account_confirm = "Enter the account number again";
+      else if (confirm !== payoutAccount.bank_account_number.trim()) problems.bank_account_confirm = "Account numbers don't match";
+    }
     if (!payoutAccount.bank_ifsc.trim()) problems.bank_ifsc = "Enter the IFSC code";
     if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(payoutAccount.pan.trim().toUpperCase())) {
       problems.pan = "Enter a valid PAN (e.g. ABCDE1234F) - Razorpay needs it to pay you";
@@ -300,13 +316,14 @@ export default function VendorDashboard() {
     );
     if (taken.includes("bank_account")) problems.bank_account_number = takenMessage("bank_account");
     setPayoutErrors(problems);
-    const ids: Partial<Record<keyof PayoutAccountForm, string>> = {
+    const ids: Partial<Record<PayoutErrorKey, string>> = {
       account_holder_name: "po-name",
       bank_account_number: "po-acc",
+      bank_account_confirm: "po-acc-confirm",
       bank_ifsc: "po-ifsc",
       pan: "po-pan",
     };
-    const keys = Object.keys(problems) as (keyof PayoutAccountForm)[];
+    const keys = Object.keys(problems) as PayoutErrorKey[];
     if (checkError || keys.length) {
       setPayoutSaving(false);
       if (checkError) toast.error(`Couldn't check your details: ${checkError}`);
@@ -333,6 +350,7 @@ export default function VendorDashboard() {
       if (error) throw error;
       setHasPayoutAccount(true);
       setSavedPayoutIdentity({ bank_account_number: payoutAccount.bank_account_number.trim(), pan: payoutAccount.pan.trim().toUpperCase() });
+      setPayoutAccountConfirm("");
 
       // Register the bank account for payouts (RazorpayX) and start the ₹1
       // check - paused while RazorpayX payouts are off.
@@ -1570,6 +1588,29 @@ export default function VendorDashboard() {
                         {payoutError("bank_ifsc")}
                       </div>
                     </div>
+                    {payoutAccountChanged && (
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="po-acc-confirm">Confirm account number</Label>
+                          {/* Paste is blocked so the number really is typed twice. */}
+                          <Input
+                            id="po-acc-confirm"
+                            inputMode="numeric"
+                            autoComplete="off"
+                            placeholder="Type the account number again"
+                            value={payoutAccountConfirm}
+                            aria-invalid={!!payoutErrors.bank_account_confirm}
+                            onChange={(e) => {
+                              setPayoutAccountConfirm(e.target.value);
+                              setPayoutErrors((er) => (er.bank_account_confirm ? { ...er, bank_account_confirm: undefined } : er));
+                            }}
+                            onPaste={(e) => e.preventDefault()}
+                            onDrop={(e) => e.preventDefault()}
+                          />
+                          {payoutError("bank_account_confirm")}
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="po-bank">Bank name</Label>
                       <Input

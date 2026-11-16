@@ -279,6 +279,8 @@ export default function SellWithUs() {
     bank_name: "",
     proof_type: "" as BankProofType | "",
   });
+  // Typed a second time, never sent (client corrections, 15 Nov 2026, 1.2.3).
+  const [accountConfirm, setAccountConfirm] = useState("");
   const [files, setFiles] = useState<Partial<Record<DocumentType, File>>>({});
   const [bankBranch, setBankBranch] = useState<string | null>(null);
   const autoFilledBankName = useRef<string | null>(null);
@@ -406,7 +408,11 @@ export default function SellWithUs() {
     }
 
     if (!bank.account_holder_name.trim()) e.bank_holder = "Enter the account holder name";
-    if (!ACCOUNT_RE.test(bank.account_number.replace(/\s/g, ""))) e.bank_account = "Enter a valid account number (9 to 18 digits)";
+    const accountDigits = bank.account_number.replace(/\s/g, "");
+    const confirmDigits = accountConfirm.replace(/\s/g, "");
+    if (!ACCOUNT_RE.test(accountDigits)) e.bank_account = "Enter a valid account number (9 to 18 digits)";
+    if (!confirmDigits) e.bank_account_confirm = "Enter the account number again";
+    else if (confirmDigits !== accountDigits) e.bank_account_confirm = "Account numbers don't match";
     if (!IFSC_RE.test(bank.ifsc.trim())) e.bank_ifsc = "Enter a valid 11-character IFSC code";
     if (!bank.bank_name.trim()) e.bank_name = "Enter the bank name";
     if (!bank.proof_type) e.bank_proof_type = "Choose the type of bank proof";
@@ -1031,16 +1037,18 @@ export default function SellWithUs() {
                   account) and must match the legal business details above.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <TextField
-                    id="bank_holder"
-                    label="Account holder name *"
-                    value={bank.account_holder_name}
-                    onChange={(v) => {
-                      setBank((b) => ({ ...b, account_holder_name: v }));
-                      clearError("bank_holder");
-                    }}
-                    error={errors.bank_holder}
-                  />
+                  <div className="md:col-span-2">
+                    <TextField
+                      id="bank_holder"
+                      label="Account holder name *"
+                      value={bank.account_holder_name}
+                      onChange={(v) => {
+                        setBank((b) => ({ ...b, account_holder_name: v }));
+                        clearError("bank_holder");
+                      }}
+                      error={errors.bank_holder}
+                    />
+                  </div>
                   <TextField
                     id="bank_account"
                     label="Account number *"
@@ -1050,8 +1058,25 @@ export default function SellWithUs() {
                     onChange={(v) => {
                       setBank((b) => ({ ...b, account_number: v }));
                       clearError("bank_account");
+                      clearError("bank_account_confirm");
                     }}
                     error={errors.bank_account}
+                  />
+                  {/* Paste is blocked so the number really is typed twice. */}
+                  <TextField
+                    id="bank_account_confirm"
+                    label="Confirm account number *"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Type the account number again"
+                    value={accountConfirm}
+                    onChange={(v) => {
+                      setAccountConfirm(v);
+                      clearError("bank_account_confirm");
+                    }}
+                    onPaste={(ev) => ev.preventDefault()}
+                    onDrop={(ev) => ev.preventDefault()}
+                    error={errors.bank_account_confirm}
                   />
                   <div className="space-y-2">
                     <TextField
