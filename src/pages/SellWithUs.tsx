@@ -1270,11 +1270,13 @@ export default function SellWithUs() {
                     className="mt-0.5"
                   />
                   <span>
-                    I confirm these details and documents are genuine, and I agree to the{" "}
+                    {/* Client wording (15 Nov 2026). The Seller Terms page holds
+                        the terms and the working process. */}
+                    I confirm these details and documents are genuine, I agree to the{" "}
                     <Link to={LEGAL_PATHS.sellerTerms} target="_blank" className="text-primary underline underline-offset-4">
-                      Seller Terms &amp; Conditions
+                      Terms &amp; Working Process
                     </Link>{" "}
-                    and the{" "}
+                    and have read the{" "}
                     <Link to={LEGAL_PATHS.privacy} target="_blank" className="text-primary underline underline-offset-4">
                       Privacy Policy
                     </Link>
@@ -1282,10 +1284,6 @@ export default function SellWithUs() {
                   </span>
                 </label>
                 <FieldError message={errors.terms_agree} />
-                <p className="pl-7 text-xs text-muted-foreground">
-                  New stores start un-trusted (products need admin approval); AllBoutiqs can grant trusted-partner
-                  status to publish instantly.
-                </p>
               </div>
 
               {/* Locked until the business address line 1 is long enough. */}

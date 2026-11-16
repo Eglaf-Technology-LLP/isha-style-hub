@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ReturnNoteHint } from "@/components/vendor/ReturnNoteHint";
 import {
   Dialog,
   DialogContent,
@@ -83,7 +82,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
     pincode: "",
     commission_rate: "",
     return_window_days: "7",
-    return_policy: "",
   });
   const [codEnabled, setCodEnabled] = useState(true);
   const [returnsEnabled, setReturnsEnabled] = useState(true);
@@ -110,7 +108,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
       pincode: vendor.address?.pincode || "",
       commission_rate: vendor.commission_rate != null ? String(vendor.commission_rate) : "",
       return_window_days: String(vendor.return_window_days ?? 7),
-      return_policy: vendor.return_policy || "",
     });
     setCodEnabled(vendor.cod_enabled);
     setReturnsEnabled(vendor.returns_enabled);
@@ -225,7 +222,8 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
           // Blank = use the platform's marketplace commission.
           commission_rate: form.commission_rate.trim() === "" ? null : Number(form.commission_rate),
           return_window_days: Number(form.return_window_days) || 7,
-          return_policy: form.return_policy.trim() || null,
+          // No return note (client, 15 Nov 2026): returns are set per
+          // product. return_policy isn't sent, so an old note stays as it is.
           cod_enabled: codEnabled,
           returns_enabled: returnsEnabled,
           logo_url: logoUrl,
@@ -444,16 +442,6 @@ export function VendorDetailsDialog({ vendor, open, onOpenChange, onSaved }: Pro
                   />
                 </div>
                 {/* The return window is one for every boutique: Returns > Return settings. */}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vd-return-policy">Return note for customers (optional)</Label>
-                <Textarea
-                  id="vd-return-policy"
-                  rows={2}
-                  value={form.return_policy}
-                  onChange={(e) => set("return_policy", e.target.value)}
-                />
-                <ReturnNoteHint forAdmin />
               </div>
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>

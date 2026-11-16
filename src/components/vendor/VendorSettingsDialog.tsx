@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { ReturnNoteHint } from "@/components/vendor/ReturnNoteHint";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +51,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     state: "",
     pincode: "",
     return_window_days: "7",
-    return_policy: "",
     default_prep_days: "",
   });
   const [codEnabled, setCodEnabled] = useState(true);
@@ -76,7 +74,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       state: vendor.address?.state || "",
       pincode: vendor.address?.pincode || "",
       return_window_days: String(vendor.return_window_days ?? 7),
-      return_policy: vendor.return_policy || "",
       default_prep_days: vendor.default_prep_days != null ? String(vendor.default_prep_days) : "",
     });
     setCodEnabled(vendor.cod_enabled);
@@ -189,7 +186,9 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           ...(STORE_SHIPPING_RETURNS_ENABLED
             ? {
                 return_window_days: Number(form.return_window_days) || 7,
-                return_policy: form.return_policy.trim() || null,
+                // No return note any more (client, 15 Nov 2026): returns are
+                // set per product. return_policy isn't sent, so an old note
+                // stays in the database untouched.
                 default_prep_days:
                   form.default_prep_days.trim() === ""
                     ? null
@@ -374,16 +373,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   How many working days you need to pack an order before handing it to the courier. Used in the
                   delivery date customers see. Leave empty for 2 days; set a longer time on made-to-order products.
                 </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="vs-policy">Return note for customers (optional)</Label>
-                <Textarea
-                  id="vs-policy"
-                  rows={2}
-                  value={form.return_policy}
-                  onChange={(e) => set("return_policy", e.target.value)}
-                />
-                <ReturnNoteHint />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
                 <div>

@@ -28,7 +28,6 @@ interface StoreVendor {
   shipping_flat_rate: number;
   free_shipping_threshold: number | null;
   return_window_days: number;
-  return_policy: string | null;
 }
 
 export default function StorePage() {
@@ -50,7 +49,7 @@ export default function StorePage() {
         const { data: v, error } = await supabase
           .from("vendors")
           .select(
-            "id, name, slug, boutique_code, description, logo_url, banner_url, is_trusted, is_verified, is_founding, rating, shipping_flat_rate, free_shipping_threshold, return_window_days, return_policy"
+            "id, name, slug, boutique_code, description, logo_url, banner_url, is_trusted, is_verified, is_founding, rating, shipping_flat_rate, free_shipping_threshold, return_window_days"
           )
           .eq("slug", slug)
           .eq("status", "approved")
@@ -159,8 +158,9 @@ export default function StorePage() {
                 <div className="flex items-start gap-3">
                   <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
                   <span className="text-muted-foreground">
+                    {/* No boutique return note (client, 15 Nov 2026): returns
+                        are set per product with the Returnable switch. */}
                     {returnWindowAdjective(windowHours)} returns on returnable pieces
-                    {vendor.return_policy && <span className="mt-0.5 block text-xs">{vendor.return_policy}</span>}
                   </span>
                 </div>
                 <div className="flex items-start gap-3">
