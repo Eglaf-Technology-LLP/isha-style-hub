@@ -28,6 +28,7 @@ import NotFound from "./pages/NotFound";
 import { CompareDrawer } from "./components/ProductComparison";
 import { StaffOnlyGate } from "./components/StaffOnlyGate";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { SignOutToHome } from "./components/auth/SignOutToHome";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ const App = () => (
         {/* Outside the staff gate, which swaps its children for a spinner
             while the role loads. */}
         <ScrollToTop />
+        <SignOutToHome />
         <StaffOnlyGate>
           <ConsentGate />
           <Routes>
