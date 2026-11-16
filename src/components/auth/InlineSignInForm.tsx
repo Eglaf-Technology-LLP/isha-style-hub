@@ -44,6 +44,11 @@ function rememberMethod(method: Method) {
 
 const shown = (id: Identifier) => (id.kind === "phone" ? formatPhone(id.value) : id.value);
 
+// "Create account" with an email / number that already has an account
+// (client corrections, 15 Nov 2026, 1.2.2).
+const alreadyRegistered = (id: Identifier) =>
+  `This ${id.kind === "phone" ? "mobile number" : "email"} is already registered with AllBoutiqs. Please sign in.`;
+
 // One form for signing in and signing up, for customers, boutiques and
 // admins alike. Email or mobile number, then either a 6-digit code (email:
 // our SMTP via auth-email-otp; mobile: SMS via Supabase + Twilio Verify) or
@@ -67,7 +72,8 @@ export function InlineSignInForm({
   audience?: ConsentKind;
 }) {
   const navigate = useNavigate();
-  const { sendEmailCode, verifyEmailCode, sendPhoneCode, verifyPhoneCode, signInWithPassword, setPassword } = useAuth();
+  const { sendEmailCode, verifyEmailCode, sendPhoneCode, verifyPhoneCode, accountExists, signInWithPassword, setPassword } =
+    useAuth();
   const store = variant === "store";
   const [tab, setTab] = useState<Tab>("signin");
   const [view, setView] = useState<"form" | "reset" | "code">("form");
@@ -80,6 +86,8 @@ export function InlineSignInForm({
   const [pendingPassword, setPendingPassword] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // "Already registered - please sign in", shown on the Sign in tab.
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -103,6 +111,7 @@ export function InlineSignInForm({
     if (next.tab) setTab(next.tab);
     setView(next.view ?? "form");
     setError(null);
+    setNotice(null);
   };
 
   const sendCode = async (id: Identifier, savePassword: string | null) => {
@@ -116,6 +125,7 @@ export function InlineSignInForm({
       return;
     }
     if (id.kind === "phone" && !result.retryAfter) setResendIn(PHONE_RESEND_SECONDS);
+    setNotice(null);
     setTarget(id);
     setPendingPassword(savePassword);
     setCode("");
@@ -151,8 +161,27 @@ export function InlineSignInForm({
       toast.success("You're signed in");
       return;
     }
-    // Saved once the code makes the account (ConsentGate).
-    if (creating) savePendingConsent(audience, marketing);
+    if (creating) {
+      // Already has an account: say so and move to Sign in with the same
+      // email / number filled in. A one-time code works for every account,
+      // so that's the method shown; the password typed here was a new one,
+      // so it's cleared. If the check itself fails, sign-up carries on as
+      // before (the code then simply signs them in).
+      setBusy(true);
+      setError(null);
+      const exists = await accountExists(parsed);
+      setBusy(false);
+      if (exists) {
+        setTab("signin");
+        setView("form");
+        setMethod("code");
+        setPasswordText("");
+        setNotice(alreadyRegistered(parsed));
+        return;
+      }
+      // Saved once the code makes the account (ConsentGate).
+      savePendingConsent(audience, marketing);
+    }
     await sendCode(parsed, usesPassword && password ? password : null);
   };
 
@@ -356,6 +385,12 @@ export function InlineSignInForm({
         )
       )}
 
+      {notice && tab === "signin" && !resetting && (
+        <p role="status" className={cn("border border-gold/40 bg-ivory px-4 py-3 text-sm", !store && "rounded-md")}>
+          {notice}
+        </p>
+      )}
+
       <div className="space-y-2">
         <Label htmlFor="signin-id">Email or mobile number</Label>
         <div className="relative">
@@ -372,6 +407,7 @@ export function InlineSignInForm({
             onChange={(e) => {
               setIdentifier(e.target.value);
               setError(null);
+              setNotice(null);
             }}
             className={cn(fieldClass, "pl-10")}
           />

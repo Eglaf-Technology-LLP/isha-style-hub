@@ -4411,6 +4411,10 @@ export type Database = {
         Returns: number
       }
       assert_warehouse_operator: { Args: never; Returns: undefined }
+      auth_account_exists: {
+        Args: { _email?: string; _phone?: string }
+        Returns: boolean
+      }
       auth_user_id_by_email: { Args: { _email: string }; Returns: string }
       can_access_product_original: {
         Args: { _object_name: string; _user_id: string }

@@ -104,6 +104,17 @@ export function useAuth() {
     return { error: authError(error).error, isNewUser: !error && isFresh(data.user) };
   };
 
+  // "Create account" checks first: does this email / mobile number already
+  // have an account? (yes/no only, from auth_account_exists). null when the
+  // check itself failed - the caller then carries on as before.
+  const accountExists = async (id: Identifier): Promise<boolean | null> => {
+    const { data, error } = await supabase.rpc(
+      "auth_account_exists",
+      id.kind === "email" ? { _email: id.value } : { _phone: id.value },
+    );
+    return error ? null : !!data;
+  };
+
   // Email or mobile + the password the person chose themselves.
   const signInWithPassword = async (id: Identifier, password: string) => {
     const { error } = await supabase.auth.signInWithPassword(
@@ -156,6 +167,7 @@ export function useAuth() {
     verifyEmailCode,
     sendPhoneCode,
     verifyPhoneCode,
+    accountExists,
     signInWithPassword,
     setPassword,
     sendPhoneChangeCode,
