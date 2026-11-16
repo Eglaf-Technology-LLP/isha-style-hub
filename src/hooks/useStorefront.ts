@@ -21,6 +21,7 @@ export interface StoreBoutique {
   id: string;
   name: string;
   slug: string;
+  boutique_code: string | null;
   description: string | null;
   logo_url: string | null;
   banner_url: string | null;
@@ -97,7 +98,7 @@ export function useStoreBoutiques() {
     queryFn: async (): Promise<StoreBoutique[]> => {
       const { data, error } = await supabase
         .from("vendors")
-        .select("id, name, slug, description, logo_url, banner_url, is_verified, is_founding, is_trusted")
+        .select("id, name, slug, boutique_code, description, logo_url, banner_url, is_verified, is_founding, is_trusted")
         .eq("status", "approved")
         .order("name");
       if (error) throw error;

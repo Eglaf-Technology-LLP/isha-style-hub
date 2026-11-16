@@ -680,6 +680,20 @@ export default function ProductDetail() {
                     </div>
                   }
                 />
+                {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47):
+                    WhatsApp with the piece's name and link already written. */}
+                {!viewOnly && (
+                  <a
+                    href={`${COMPANY.whatsappUrl}?text=${encodeURIComponent(
+                      `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${window.location.origin}/product/${product.id}`,
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex h-11 w-full items-center justify-center gap-2 border border-foreground/20 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground/80 transition-colors hover:border-foreground hover:text-primary"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Speak to a stylist
+                  </a>
+                )}
               </div>
 
               <div className={cn(CUSTOMISATION_ENABLED && "mt-7")}>
@@ -744,17 +758,6 @@ export default function ProductDetail() {
                   )}
                   {/* Stock Notification for Out of Stock */}
                   {soldOut && <StockNotificationButton productId={product.id} productName={product.name} />}
-                  {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47). */}
-                  <a
-                    href={`${COMPANY.whatsappUrl}?text=${encodeURIComponent(
-                      `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${window.location.origin}/product/${product.id}`,
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex h-12 w-full items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-foreground/80 underline-offset-4 transition-colors hover:text-primary hover:underline"
-                  >
-                    <MessageCircle className="h-4 w-4" /> Speak to our stylist
-                  </a>
                 </div>
               )}
 

@@ -1,16 +1,16 @@
-import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
 interface BrandPlaceholderProps {
-  // Large serif label (e.g. a category name) instead of the logo mark.
+  // Large serif label (e.g. a category name).
   label?: string;
   caption?: string;
   className?: string;
   tone?: "light" | "dark";
 }
 
-// Shown wherever a photo hasn't been uploaded yet: the ivory lattice pattern
-// with the AllBoutiqs mark, so a missing picture still looks designed.
+// Shown wherever a photo hasn't been uploaded yet: the ivory lattice pattern,
+// with a label or caption when given - never a logo image (client
+// corrections, 15 Nov 2026, 2.7).
 export function BrandPlaceholder({ label, caption, className, tone = "light" }: BrandPlaceholderProps) {
   return (
     <div
@@ -20,12 +20,10 @@ export function BrandPlaceholder({ label, caption, className, tone = "light" }: 
         className,
       )}
     >
-      {label ? (
+      {label && (
         <span className={cn("font-serif text-2xl md:text-3xl px-4 leading-tight", tone === "light" ? "text-primary" : "text-ivory")}>
           {label}
         </span>
-      ) : (
-        <img src={logo} alt="" aria-hidden className="h-10 w-auto opacity-60" />
       )}
       {caption && (
         <span className={cn("eyebrow", tone === "light" ? "text-muted-foreground" : "text-ivory/70")}>{caption}</span>

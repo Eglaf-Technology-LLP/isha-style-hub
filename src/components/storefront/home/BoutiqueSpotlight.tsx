@@ -26,10 +26,12 @@ export function BoutiqueCard({ boutique, pieces, cover }: { boutique: StoreBouti
               <span className="font-serif text-2xl text-primary">{boutique.name.charAt(0).toUpperCase()}</span>
             )}
           </div>
-          <p className="flex items-center gap-2 font-serif text-2xl leading-tight">
+          {/* Name in big text, the boutique code small just below it. */}
+          <p className="flex items-center gap-2 font-serif text-3xl leading-tight md:text-[2rem]">
             {boutique.name}
             {boutique.is_verified && <BadgeCheck className="h-5 w-5 shrink-0 text-gold" aria-label="Verified boutique" />}
           </p>
+          {boutique.boutique_code && <p className="mt-1 text-xs tracking-[0.18em] text-ivory/80">{boutique.boutique_code}</p>}
           <div className="mt-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-ivory/75">
             <span>
               {pieces} {pieces === 1 ? "piece" : "pieces"}

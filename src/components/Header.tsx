@@ -247,11 +247,6 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
               <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Search" onClick={() => setSearchOpen(true)}>
                 <Search className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Home" asChild>
-                <Link to="/">
-                  <Home className="h-5 w-5" />
-                </Link>
-              </Button>
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
@@ -276,6 +271,12 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
             </Link>
 
             <div className="flex items-center justify-end gap-0.5">
+              {/* Home, next to account / wishlist / bag - on phones too. */}
+              <Button variant="ghost" size="icon" aria-label="Home" asChild>
+                <Link to="/">
+                  <Home className="h-5 w-5" />
+                </Link>
+              </Button>
               {user && <NotificationBell />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

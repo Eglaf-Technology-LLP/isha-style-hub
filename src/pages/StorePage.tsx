@@ -116,15 +116,18 @@ export default function StorePage() {
 
         <section className="border-b border-border bg-ivory">
           <div className="store-container">
-            <div className="relative -mt-14 flex flex-col gap-6 pb-10 md:-mt-16 md:flex-row md:items-end md:gap-8">
-              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-ivory bg-background shadow-md md:h-32 md:w-32">
+            {/* Only the round logo overlaps the banner; the code line, name,
+                badges and description sit fully below it, so nothing is cut
+                (client corrections, 15 Nov 2026, 2.12 point 1). */}
+            <div className="relative flex flex-col gap-6 pb-10 md:flex-row md:items-start md:gap-8">
+              <div className="-mt-14 flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-ivory bg-background shadow-md md:-mt-16 md:h-32 md:w-32">
                 {vendor.logo_url ? (
                   <img src={vendor.logo_url} alt={`${vendor.name} logo`} className="h-full w-full object-cover" />
                 ) : (
                   <span className="font-serif text-5xl text-primary">{vendor.name.charAt(0).toUpperCase()}</span>
                 )}
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1 md:pt-6">
                 <p className="eyebrow text-gold">Boutique · {vendor.boutique_code}</p>
                 <h1 className="mt-2 font-serif text-4xl leading-tight md:text-5xl">{vendor.name}</h1>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -143,7 +146,7 @@ export default function StorePage() {
                 </div>
                 {vendor.description && <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">{vendor.description}</p>}
               </div>
-              <div className="grid gap-3 text-sm md:w-80">
+              <div className="grid gap-3 text-sm md:w-80 md:pt-6">
                 {/* No "Free shipping on every order" line (2.12 point 2). */}
                 {shippingCharged && (
                   <div className="flex items-start gap-3">

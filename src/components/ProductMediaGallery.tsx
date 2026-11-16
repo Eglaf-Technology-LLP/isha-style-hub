@@ -193,7 +193,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                       loop
                       playsInline
                       controls
-                      className="h-full w-full bg-ink object-contain"
+                      className="h-full w-full bg-ivory object-contain"
                       aria-label={`${productName} video`}
                     />
                   )}

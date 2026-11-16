@@ -94,8 +94,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
               alt={product.name}
               width={640}
               priority={priority}
+              // The whole photo, never cropped: one that isn't 3:4 sits on the
+              // cream background.
               className={cn(
-                "absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]",
+                "absolute inset-0 h-full w-full object-contain transition-transform duration-[1200ms] ease-out group-hover:scale-[1.03]",
                 second && "group-hover:opacity-0",
               )}
               fallback={<BrandPlaceholder caption="Photo coming soon" />}
@@ -106,7 +108,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
               src={second}
               alt=""
               width={640}
-              className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-700 group-hover:!opacity-100"
+              className="absolute inset-0 h-full w-full object-contain opacity-0 transition-opacity duration-700 group-hover:!opacity-100"
               fallback={null}
             />
           )}
