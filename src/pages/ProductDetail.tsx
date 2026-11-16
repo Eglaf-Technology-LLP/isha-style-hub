@@ -91,7 +91,7 @@ export default function ProductDetail() {
   const [customiser, setCustomiser] = useState<CustomiserState>(emptyCustomiser);
   const { user } = useAuth();
   // Admins and boutiques see the product on its own, to look at only.
-  const { role } = useStaffRole();
+  const { role, loading: roleLoading } = useStaffRole();
   const viewOnly = isStaffProductView(role);
   // One return window for every boutique, set by AllBoutiqs (24 hours by default).
   const windowHours = useReturnWindowHours();
@@ -138,8 +138,12 @@ export default function ProductDetail() {
   }, [loading, product?.id]);
 
   // Track product view - with the name/photo/price, which a guest's
-  // on-device "recently viewed" list has no other way to show.
+  // on-device "recently viewed" list has no other way to show. Not when an
+  // admin or boutique opens the product to look at it (view only), and not
+  // before we know who's looking - the role reads as a shopper while it
+  // loads (client corrections, 15 Nov 2026, 2.7 b).
   useEffect(() => {
+    if (roleLoading || viewOnly) return;
     if (product && product.id === handle) {
       trackProductView(product.id, {
         id: product.id,
@@ -149,7 +153,7 @@ export default function ProductDetail() {
         images: product.images,
       });
     }
-  }, [product, handle, trackProductView]);
+  }, [product, handle, trackProductView, roleLoading, viewOnly]);
 
   useEffect(() => {
     async function loadProduct() {
