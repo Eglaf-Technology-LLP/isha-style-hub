@@ -61,6 +61,7 @@ import {
   type DocumentType,
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
+import { gstCodeOfState, stateOfGstCode } from "@/lib/indianStates";
 import { pickupAddressErrors } from "@/lib/pickupAddress";
 import { ALREADY_REGISTERED_MESSAGE, findTakenIdentity, firstOnPage, takenMessage, type IdentityValues } from "@/lib/vendorIdentity";
 
@@ -367,6 +368,23 @@ export default function SellWithUs() {
     });
   };
 
+  // The first 2 digits of a GST number are its state code: they must match
+  // the state of the business address (client corrections, 15 Nov 2026,
+  // 1.2 point 1). Shown as soon as both are filled in, and blocks Submit.
+  const gstStateProblem = (() => {
+    const gstin = form.gstin.trim().toUpperCase();
+    const stateCode = gstCodeOfState(form.state);
+    if (!stateCode || !GSTIN_RE.test(gstin) || !gstinChecksumOk(gstin)) return null;
+    const gstCode = gstin.slice(0, 2);
+    if (gstCode === stateCode) return null;
+    const gstState = stateOfGstCode(gstCode);
+    const gstLabel = gstState ? `${gstCode} (${gstState})` : gstCode;
+    return {
+      gstin: `This GST number starts with ${gstLabel}, but your business address is in ${form.state} (${stateCode}). The first 2 digits of the GST number must match the state of your business address.`,
+      state: `Doesn't match your GST number, which starts with ${gstLabel}.`,
+    };
+  })();
+
   const validate = (): Record<string, string> => {
     const e: Record<string, string> = {};
     const pan = form.pan.trim().toUpperCase();
@@ -387,6 +405,8 @@ export default function SellWithUs() {
     else if (!gstinChecksumOk(gstin)) e.gstin = "This GST number isn't valid - check it against your GST certificate";
     else if (PAN_RE.test(pan) && gstin.slice(2, 12) !== pan)
       e.gstin = "This GST number doesn't match the PAN (characters 3 to 12 of a GST number are the PAN)";
+    // Shown on both fields from gstStateProblem; this key only blocks Submit.
+    if (gstStateProblem) e.gstin_state = gstStateProblem.gstin;
     const primary = normalizeMobile(form.primary_mobile);
     const alternate = normalizeMobile(form.alternate_mobile);
     if (!primary) e.primary_mobile = "Enter a valid 10-digit mobile number";
@@ -455,7 +475,7 @@ export default function SellWithUs() {
     const keys = Object.keys(found);
     if (keys.length) {
       toast.error(`Please fix ${keys.length === 1 ? "the highlighted field" : `${keys.length} highlighted fields`}`);
-      firstOnPage(keys)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      firstOnPage(keys.map((k) => (k === "gstin_state" ? "gstin" : k)))?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
@@ -872,7 +892,7 @@ export default function SellWithUs() {
                       set("gstin", v.toUpperCase());
                       clearError("gstin");
                     }}
-                    error={errors.gstin}
+                    error={errors.gstin ?? gstStateProblem?.gstin}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1184,13 +1204,13 @@ export default function SellWithUs() {
                       id="state"
                       className={accountFieldClass}
                       value={form.state}
-                      invalid={!!errors.state}
+                      invalid={!!errors.state || !!gstStateProblem}
                       onChange={(v) => {
                         set("state", v);
                         clearError("state");
                       }}
                     />
-                    <FieldError message={errors.state} />
+                    <FieldError message={errors.state ?? gstStateProblem?.state} />
                   </div>
                   <TextField
                     id="pincode"

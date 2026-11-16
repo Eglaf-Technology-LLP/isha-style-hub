@@ -64,3 +64,10 @@ export function normalizeState(raw: string | null | undefined): string {
   const exact = INDIAN_STATES.find((s) => key(s.name) === k);
   return exact?.name ?? ALIASES[k] ?? "";
 }
+
+// GST state code of a state ("Gujarat" -> "24"), or "" if not recognised.
+export const gstCodeOfState = (state: string | null | undefined): string =>
+  INDIAN_STATES.find((s) => s.name === normalizeState(state))?.gstCode ?? "";
+
+// The state a GST state code belongs to ("24" -> "Gujarat"), or "".
+export const stateOfGstCode = (code: string): string => INDIAN_STATES.find((s) => s.gstCode === code)?.name ?? "";
