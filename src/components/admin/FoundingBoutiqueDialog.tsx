@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { addMonths, format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,6 +6,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useFoundingPeriod } from "@/hooks/useFoundingPeriod";
+import { formatDate } from "@/lib/dates";
 
 interface FoundingVendor {
   id: string;
@@ -16,10 +17,9 @@ interface FoundingVendor {
   founding_until: string | null;
 }
 
-const ymd = (d: Date) => format(d, "yyyy-MM-dd");
-
-// Admin: mark a boutique as a Founding Boutique and set the period in which
-// its marketplace commission is 0% (other charges still apply).
+// Admin: the Founding Boutique badge for one boutique, and optionally an
+// extra 0% commission period just for it. The founding period itself (0%
+// for every boutique) is set under Fees, taxes & payout timing.
 export function FoundingBoutiqueDialog({
   vendor,
   open,
@@ -33,40 +33,25 @@ export function FoundingBoutiqueDialog({
 }) {
   const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
-  const [launchDate, setLaunchDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const { period, refetch } = useFoundingPeriod();
 
   useEffect(() => {
     if (!open) return;
     setFrom(vendor.founding_from ?? "");
     setUntil(vendor.founding_until ?? "");
-    supabase
-      .from("platform_settings")
-      .select("launch_date")
-      .maybeSingle()
-      .then(({ data }) => setLaunchDate(data?.launch_date ?? ""));
-  }, [open, vendor]);
-
-  const useLaunchPeriod = async () => {
-    const start = launchDate || ymd(new Date());
-    if (!launchDate) {
-      const { error } = await supabase.from("platform_settings").update({ launch_date: start }).eq("id", true);
-      if (error) return toast.error(error.message);
-      setLaunchDate(start);
-    }
-    setFrom(start);
-    setUntil(ymd(addMonths(new Date(start), 2)));
-  };
+    refetch();
+  }, [open, vendor, refetch]);
 
   const save = async (makeFounding: boolean) => {
-    if (makeFounding && (!from || !until)) return toast.error("Choose the start and end date of the founding period");
-    if (makeFounding && until < from) return toast.error("The end date must be on or after the start date");
+    if (makeFounding && !!from !== !!until) return toast.error("Choose both dates of the extra period, or leave both empty");
+    if (makeFounding && from && until < from) return toast.error("The end date must be on or after the start date");
     setSaving(true);
     const { error } = await supabase
       .from("vendors")
       .update(
         makeFounding
-          ? { is_founding: true, founding_from: from, founding_until: until }
+          ? { is_founding: true, founding_from: from || null, founding_until: until || null }
           : { is_founding: false, founding_from: null, founding_until: null },
       )
       .eq("id", vendor.id);
@@ -84,39 +69,33 @@ export function FoundingBoutiqueDialog({
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-500" /> Founding Boutique · {vendor.name}
           </DialogTitle>
-          <DialogDescription>
-            Shows a Founding Boutique badge. Between these dates the marketplace commission is 0% on its orders and fee
-            invoices; the technology fee, GST and all other charges still apply.
-          </DialogDescription>
+          <DialogDescription>Shows a Founding Boutique badge on the boutique's store and cards.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3 rounded-md bg-muted/40 p-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="launch-date">Marketplace launch date</Label>
-              <Input
-                id="launch-date"
-                type="date"
-                value={launchDate}
-                onChange={async (e) => {
-                  const v = e.target.value;
-                  setLaunchDate(v);
-                  if (v) await supabase.from("platform_settings").update({ launch_date: v }).eq("id", true);
-                }}
-              />
+          <p className="rounded-md bg-muted/40 p-3 text-sm">
+            {period ? (
+              <>
+                Every boutique already pays <strong>0% marketplace commission</strong> on orders placed from{" "}
+                <strong>{formatDate(period.from)}</strong> to <strong>{formatDate(period.until)}</strong> (founding
+                period, set under Fees, taxes &amp; payout timing). The technology fee, GST and other charges still apply.
+              </>
+            ) : (
+              <>No founding period is set for all boutiques (Fees, taxes &amp; payout timing).</>
+            )}
+          </p>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Extra 0% period for this boutique only (optional)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="founding-from">0% commission from</Label>
+                <Input id="founding-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="founding-until">until (inclusive)</Label>
+                <Input id="founding-until" type="date" min={from || undefined} value={until} onChange={(e) => setUntil(e.target.value)} />
+              </div>
             </div>
-            <Button type="button" variant="outline" onClick={useLaunchPeriod}>
-              2 months from launch
-            </Button>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="founding-from">0% commission from</Label>
-              <Input id="founding-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="founding-until">until (inclusive)</Label>
-              <Input id="founding-until" type="date" min={from || undefined} value={until} onChange={(e) => setUntil(e.target.value)} />
-            </div>
+            <p className="text-xs text-muted-foreground">Leave both empty for the badge only.</p>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
@@ -129,7 +108,7 @@ export function FoundingBoutiqueDialog({
           )}
           <Button onClick={() => save(true)} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {vendor.is_founding ? "Save period" : "Make Founding Boutique"}
+            {vendor.is_founding ? "Save" : "Make Founding Boutique"}
           </Button>
         </DialogFooter>
       </DialogContent>

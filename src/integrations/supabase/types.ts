@@ -2110,6 +2110,8 @@ export type Database = {
           eway_bill_threshold: number
           eway_bill_transporter_id: string | null
           eway_bill_transporter_name: string
+          founding_from: string | null
+          founding_until: string | null
           id: boolean
           launch_date: string | null
           payout_auto_send: boolean
@@ -2139,6 +2141,8 @@ export type Database = {
           eway_bill_threshold?: number
           eway_bill_transporter_id?: string | null
           eway_bill_transporter_name?: string
+          founding_from?: string | null
+          founding_until?: string | null
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean
@@ -2168,6 +2172,8 @@ export type Database = {
           eway_bill_threshold?: number
           eway_bill_transporter_id?: string | null
           eway_bill_transporter_name?: string
+          founding_from?: string | null
+          founding_until?: string | null
           id?: boolean
           launch_date?: string | null
           payout_auto_send?: boolean

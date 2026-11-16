@@ -73,7 +73,7 @@ export function VendorEarningsBreakdown({ vendorId }: VendorEarningsBreakdownPro
             <p className="text-2xl font-bold text-destructive tabular-nums">-{formatMoney(summary?.commissionDeducted)}</p>
             <p className="text-xs text-muted-foreground">
               {rates.length === 1 ? `${rates[0]}% of sales (before GST)` : "Commission % of each sale (before GST)"}
-              {rates.length === 1 && rates[0] === 0 && " - Founding Boutique, no commission"}
+              {rates.length === 1 && rates[0] === 0 && " - founding period, no commission"}
             </p>
           </CardContent>
         </Card>

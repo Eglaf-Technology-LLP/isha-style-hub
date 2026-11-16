@@ -27,7 +27,7 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
     {
       label: "Marketplace commission",
       detail: invoice.founding_waiver && Number(invoice.commission_amount) === 0
-        ? "Founding Boutique - waived"
+        ? "Founding period - waived"
         : `${pctOf(Number(invoice.commission_amount), Number(invoice.product_value))} of product value ₹${money(invoice.product_value)}`,
       amount: Number(invoice.commission_amount),
     },
@@ -170,7 +170,7 @@ export function FeeInvoiceView({ invoice }: { invoice: FeeInvoice }) {
             </div>
 
             <div className="border-t border-border pt-3 space-y-1 text-[11px]">
-              {invoice.founding_waiver && <p>Founding Boutique: marketplace commission waived for the founding period.</p>}
+              {invoice.founding_waiver && <p>Founding period: marketplace commission waived.</p>}
               <p>Customer care: {COMPANY.supportEmail} · {COMPANY.supportPhone}</p>
               <p>Subject to {COMPANY.jurisdiction} jurisdiction.</p>
               <p className="text-muted-foreground">This is a computer-generated invoice and does not need a signature.</p>

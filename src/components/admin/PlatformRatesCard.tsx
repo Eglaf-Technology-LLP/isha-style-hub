@@ -11,6 +11,7 @@ import { CalendarPlus, Loader2, Percent, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlatformRates, WEEKDAYS, type PlatformRates } from "@/hooks/usePlatformRates";
+import { FoundingPeriodSettings } from "./FoundingPeriodSettings";
 import { formatDate } from "@/lib/dates";
 import { formatINR } from "@/lib/format";
 
@@ -127,6 +128,7 @@ export function PlatformRatesCard() {
         </Button>
       </div>
       <CardContent className="p-6 space-y-6">
+        <FoundingPeriodSettings today={today} />
         {loading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />

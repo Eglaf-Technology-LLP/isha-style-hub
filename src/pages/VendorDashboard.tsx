@@ -88,6 +88,8 @@ import { BankVerificationStatus, type BankCheck } from "@/components/vendor/Bank
 import { useFlashFocus, useFocusParam, useFocusTarget, useUrlTab } from "@/hooks/useDeepLink";
 import { changedIdentity, findTakenIdentity, firstOnPage, takenMessage } from "@/lib/vendorIdentity";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
+import { useFoundingPeriod } from "@/hooks/useFoundingPeriod";
+import { nextDay, zeroCommissionPeriods, zeroCommissionUntil } from "@/lib/founding";
 import { FeeInvoicesCard } from "@/components/FeeInvoicesCard";
 import { CodTrackingCard } from "@/components/CodTrackingCard";
 import { StatementDownload } from "@/components/StatementDownload";
@@ -239,6 +241,7 @@ export default function VendorDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useUrlTab("dashboard");
   const platformRates = usePlatformRates();
+  const { period: foundingPeriod } = useFoundingPeriod();
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
@@ -377,6 +380,27 @@ export default function VendorDashboard() {
     } finally {
       setPayoutSaving(false);
     }
+  };
+
+  // The commission line on the "Net payable" card: 0% in the founding
+  // period (every boutique) or the boutique's own one, else its override or
+  // the platform rate - the rule effective_commission_pct() applies.
+  const commissionLine = () => {
+    if (!vendor) return "";
+    const today = platformRates.today;
+    const rateOn = (day: string) =>
+      vendor.commission_rate ?? platformRates.versions.find((v) => v.effective_from <= day)?.marketplace_commission_pct;
+    const pct = (n: number | null | undefined) => (n == null ? "—" : `${Number(n)}%`);
+    const periods = zeroCommissionPeriods(foundingPeriod, vendor);
+    const zeroUntil = zeroCommissionUntil(periods, today);
+    if (zeroUntil) {
+      return `Commission 0% until ${formatDate(zeroUntil)} (founding period), then ${pct(rateOn(nextDay(zeroUntil)))}`;
+    }
+    const now = `Commission ${pct(rateOn(today))}`;
+    const next = periods.filter((p) => p.from > today).sort((a, b) => a.from.localeCompare(b.from))[0];
+    return next
+      ? `${now} · 0% on orders from ${formatDate(next.from)} to ${formatDate(zeroCommissionUntil(periods, next.from) ?? next.until)}`
+      : now;
   };
 
   const deleteProduct = async (p: VendorProduct) => {
@@ -832,9 +856,7 @@ export default function VendorDashboard() {
                   <p className="text-3xl font-bold">
                     {dataLoading ? "..." : formatMoney(revenue)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Commission {vendor.commission_rate ?? platformRates.current?.marketplace_commission_pct ?? "—"}%
-                  </p>
+                  <p className="text-xs text-muted-foreground">{commissionLine()}</p>
                 </CardContent>
               </Card>
             </div>
