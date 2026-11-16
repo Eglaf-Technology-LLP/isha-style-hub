@@ -400,7 +400,7 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                   onChange={(e) => setProof(e.target.files?.[0] ?? null)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Bank screenshot, transfer receipt or deposit slip - photo or PDF, up to 10 MB.
+                  Bank screenshot, transfer receipt or deposit slip - photo or PDF. Large files are compressed automatically.
                 </p>
               </div>
               <Button

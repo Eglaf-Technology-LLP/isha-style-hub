@@ -55,12 +55,12 @@ import {
   gstinChecksumOk,
   IFSC_RE,
   PAN_RE,
-  documentFileProblem,
   normalizeMobile,
   type BankProofType,
   type BusinessConstitution,
   type DocumentType,
 } from "@/lib/vendorKyc";
+import { DOCUMENT_ACCEPT, DOCUMENT_FORMATS, prepareDocument, uploadProblemMessage } from "@/lib/uploadPrep";
 import { titleCase } from "@/lib/text";
 import { LEGAL_PATHS } from "@/lib/legal";
 import { acceptTerms } from "@/lib/consent";
@@ -159,7 +159,9 @@ function formatSize(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-// One checklist row: PDF picker with the chosen file, or why it was refused.
+// One checklist row: file picker with the chosen file, or why it was refused.
+// PDF, JPG or PNG; a photo becomes a one-page PDF and anything over 10 MB
+// is compressed (lib/uploadPrep), so what's held here is always a PDF.
 function DocumentUpload({
   id,
   label,
@@ -176,6 +178,7 @@ function DocumentUpload({
   onChange: (file: File | null, problem: string | null) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const [preparing, setPreparing] = useState(false);
   return (
     <div
       id={id}
@@ -196,32 +199,40 @@ function DocumentUpload({
             {file.name} · {formatSize(file.size)}
           </p>
         ) : (
-          <p className="text-xs text-muted-foreground mt-1">PDF, up to 10 MB</p>
+          <p className="text-xs text-muted-foreground mt-1">{DOCUMENT_FORMATS} · large files are compressed automatically</p>
         )}
         <FieldError message={error} />
       </div>
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept={DOCUMENT_ACCEPT}
         className="hidden"
         aria-label={label}
         data-doc-input={id}
-        onChange={(e) => {
+        onChange={async (e) => {
           const picked = e.target.files?.[0];
           e.target.value = "";
           if (!picked) return;
-          const problem = documentFileProblem(picked);
-          onChange(problem ? null : picked, problem);
+          setPreparing(true);
+          try {
+            onChange(await prepareDocument(picked), null);
+          } catch (err) {
+            onChange(null, uploadProblemMessage(err, picked.name));
+          } finally {
+            setPreparing(false);
+          }
         }}
       />
       <div className="flex gap-2 shrink-0">
         <button
           type="button"
           onClick={() => input.current?.click()}
-          className="inline-flex h-10 items-center gap-1.5 border border-foreground px-4 text-[10px] font-medium uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background"
+          disabled={preparing}
+          className="inline-flex h-10 items-center gap-1.5 border border-foreground px-4 text-[10px] font-medium uppercase tracking-[0.18em] transition-colors hover:bg-foreground hover:text-background disabled:opacity-60"
         >
-          <Upload className="h-3.5 w-3.5" /> {file ? "Replace" : "Upload PDF"}
+          {preparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}{" "}
+          {preparing ? "Preparing" : file ? "Replace" : "Upload file"}
         </button>
         {file && (
           <button
@@ -429,7 +440,7 @@ export default function SellWithUs() {
     if (!contactSame) person(contact, "contact");
 
     for (const doc of businessDocs) {
-      if (!doc.optional && !files[doc.type] && !e[`doc_${doc.type}`]) e[`doc_${doc.type}`] = "Upload this document as a PDF";
+      if (!doc.optional && !files[doc.type] && !e[`doc_${doc.type}`]) e[`doc_${doc.type}`] = "Upload this document";
     }
 
     if (!bank.account_holder_name.trim()) e.bank_holder = "Enter the account holder name";
@@ -441,7 +452,7 @@ export default function SellWithUs() {
     if (!IFSC_RE.test(bank.ifsc.trim())) e.bank_ifsc = "Enter a valid 11-character IFSC code";
     if (!bank.bank_name.trim()) e.bank_name = "Enter the bank name";
     if (!bank.proof_type) e.bank_proof_type = "Choose the type of bank proof";
-    if (!files.bank_proof) e.doc_bank_proof = "Upload your bank proof as a PDF";
+    if (!files.bank_proof) e.doc_bank_proof = "Upload your bank proof";
 
     // Courier pickup address - what Shiprocket accepts (Extra list F).
     Object.assign(e, pickupAddressErrors(form));
@@ -661,8 +672,8 @@ export default function SellWithUs() {
                   {[
                     "PAN and GST number of the business",
                     "Authorized person's details and Aadhaar card (optional)",
-                    "Business documents as PDFs, up to 10 MB each",
-                    "Bank account details and a bank proof PDF",
+                    "Business documents as PDF, JPG or PNG",
+                    "Bank account details and a bank proof",
                   ].map((t) => (
                     <li key={t} className="flex gap-2.5">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
@@ -1042,7 +1053,7 @@ export default function SellWithUs() {
               <FormSection
                 icon={FileText}
                 title="Documents *"
-                description="Upload each document as a PDF (up to 10 MB). The list matches your business type."
+                description="Upload each document as a PDF, JPG or PNG (large files are compressed automatically). The list matches your business type."
               >
                 {constitution ? (
                   <div className="space-y-2">

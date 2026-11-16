@@ -86,8 +86,6 @@ export const BANK_PROOF_TYPES = [
 ] as const;
 export type BankProofType = (typeof BANK_PROOF_TYPES)[number]["value"];
 
-export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
-
 // Payout account business types, written the way people read them
 // ("Private Limited", not "private limited").
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
@@ -206,11 +204,3 @@ export function normalizeWebsite(raw: string): string | null {
 // Business Name (Developer Corrections Part 7, 3.2).
 export const BRAND_LEGAL_DECLARATION =
   "I confirm that the Boutique / Brand Name stated above operates under, is owned by, or is associated with the Legal Business Name stated above (Proprietorship, Partnership Firm, LLP, Private Limited Company or HUF), and I am authorised to make this declaration.";
-
-// A PDF small enough to upload, or the reason it isn't.
-export function documentFileProblem(file: File): string | null {
-  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-  if (!isPdf) return "Upload a PDF file";
-  if (file.size > DOCUMENT_MAX_BYTES) return "PDF must be 10 MB or smaller";
-  return null;
-}

@@ -17,6 +17,7 @@ import {
   type ProductCustomisationSetup,
 } from "@/lib/customisation";
 import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED, CUSTOMISATION_REFERENCE_PHOTO_ENABLED } from "@/lib/hiddenFeatures";
+import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 
 // Product page: the customer asks for this piece to be customised - made to
 // their measurements and/or with the boutique's priced options, plus a note
@@ -115,17 +116,26 @@ export function ProductCustomiser({
       })
     : 0;
 
-  const uploadPhoto = async (file: File) => {
+  // JPG, PNG, WEBP or HEIC; HEIC becomes JPG and over 5 MB is compressed
+  // (the bucket takes JPG, PNG and WEBP up to 5 MB).
+  const uploadPhoto = async (picked: File) => {
     if (!userId) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) return toast.error("Please choose a JPG, PNG or WebP photo");
-    if (file.size > 5 * 1024 * 1024) return toast.error("The photo must be 5 MB or smaller");
     setUploading(true);
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, file, { contentType: file.type });
-    setUploading(false);
-    if (error) return toast.error(error.message || "Couldn't upload the photo");
-    set("photoPath", path);
+    try {
+      let file: File;
+      try {
+        file = await preparePhoto(picked);
+      } catch (e) {
+        return toast.error(uploadProblemMessage(e, picked.name));
+      }
+      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const path = `${userId}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from(PHOTO_BUCKET).upload(path, file, { contentType: file.type });
+      if (error) return toast.error(error.message || "Couldn't upload the photo");
+      set("photoPath", path);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -228,7 +238,7 @@ export function ProductCustomiser({
                   Add a photo
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept={PHOTO_ACCEPT}
                     className="sr-only"
                     aria-label="Reference photo"
                     onChange={(e) => {

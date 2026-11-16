@@ -6,6 +6,15 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { uploadImageFile, type UploadFolder } from "@/hooks/useProducts";
 import { cn } from "@/lib/utils";
+import {
+  PHOTO_ACCEPT,
+  PHOTO_FORMATS,
+  VIDEO_ACCEPT,
+  looksLikeVideo,
+  preparePhoto,
+  prepareVideo,
+  uploadProblemMessage,
+} from "@/lib/uploadPrep";
 
 // Product photos (and the product video) in the order shoppers see them.
 // Drag a tile to move it, or use its arrows (phones, keyboards). The first
@@ -15,9 +24,10 @@ import { cn } from "@/lib/utils";
 
 export const MAX_PHOTO_MB = 5;
 export const MAX_VIDEO_MB = 50;
-// What the shop's 3:4 frames look best with.
+// What the shop's 3:4 frames look best with. Bigger files are compressed
+// to these limits before upload (lib/uploadPrep).
 export const PHOTO_SIZE_TIP = "1200 × 1600 px or larger, portrait 3:4";
-export const VIDEO_SIZE_TIP = "portrait 3:4 or 9:16, 1080 px wide or more, MP4, up to 50 MB";
+export const VIDEO_SIZE_TIP = `portrait 3:4 or 9:16, 1080 px wide or more, MP4 or MOV (over ${MAX_VIDEO_MB} MB is compressed automatically)`;
 
 export interface MediaValue {
   images: string[];
@@ -64,7 +74,7 @@ async function photoSizeWarning(file: File): Promise<string | null> {
       return `${file.name} is ${width} × ${height} px - not portrait 3:4, so its edges are cut off in product cards.`;
     }
   } catch {
-    // Can't read it here (e.g. HEIC) - the upload still goes ahead.
+    // Can't read it here - the upload still goes ahead.
   }
   return null;
 }
@@ -98,6 +108,8 @@ export function MediaArranger({
   const videoInput = useRef<HTMLInputElement>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(0);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  // 0-1 while a video over 50 MB is being compressed.
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [fileOver, setFileOver] = useState(false);
@@ -116,40 +128,55 @@ export function MediaArranger({
 
   const removeAt = (index: number) => commit(items.filter((_, i) => i !== index));
 
+  // HEIC becomes JPG and photos over 5 MB are compressed first; only an
+  // unsupported format or a photo that still won't fit is refused.
   const uploadPhotos = async (list: FileList | File[] | null) => {
-    const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/"));
-    if (files.length === 0) return toast.error("Please choose image files");
-    const big = files.find((f) => f.size > MAX_PHOTO_MB * 1024 * 1024);
-    if (big) return toast.error(`${big.name} is over ${MAX_PHOTO_MB}MB - please use a smaller photo`);
-    for (const f of files) {
-      const warning = await photoSizeWarning(f);
-      if (warning) toast.warning(warning, { duration: 8000 });
-    }
-    setUploadingPhotos(files.length);
+    const picked = Array.from(list ?? []);
+    if (picked.length === 0) return;
+    setUploadingPhotos(picked.length);
     const urls: string[] = [];
-    for (const f of files) {
-      const url = await uploadImageFile(f, folder);
-      if (url) urls.push(url);
+    let failed = 0;
+    for (const p of picked) {
+      try {
+        const f = await preparePhoto(p);
+        const warning = await photoSizeWarning(f);
+        if (warning) toast.warning(warning, { duration: 8000 });
+        const url = await uploadImageFile(f, folder);
+        if (url) urls.push(url);
+        else failed++;
+      } catch (e) {
+        toast.error(uploadProblemMessage(e, p.name));
+      }
       setUploadingPhotos((n) => Math.max(0, n - 1));
     }
     setUploadingPhotos(0);
-    if (urls.length < files.length) toast.error(`${files.length - urls.length} photo(s) failed to upload - please try again`);
+    if (failed) toast.error(`${failed} photo(s) failed to upload - please try again`);
     if (urls.length) onChange({ ...value, images: [...value.images, ...urls] });
   };
 
-  const uploadVideo = async (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("video/")) return toast.error("Please choose a video file");
-    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      return toast.error(`Video is over ${MAX_VIDEO_MB}MB - please use a shorter or compressed clip`);
-    }
+  // MP4 or MOV; over 50 MB it is compressed to an MP4 first.
+  const uploadVideo = async (picked: File | undefined) => {
+    if (!picked) return;
     setUploadingVideo(true);
-    const url = await uploadImageFile(file, folder);
-    setUploadingVideo(false);
-    if (!url) return toast.error("Video upload failed - please try again");
-    // A new video keeps the old one's place; the first video goes last.
-    onChange({ ...value, videoUrl: url, videoPosition: value.videoUrl ? value.videoPosition ?? null : null });
+    try {
+      let file: File;
+      try {
+        file = await prepareVideo(picked, setVideoProgress);
+      } catch (e) {
+        return toast.error(uploadProblemMessage(e, picked.name), { duration: 10000 });
+      } finally {
+        setVideoProgress(null);
+      }
+      const url = await uploadImageFile(file, folder);
+      if (!url) return toast.error("Video upload failed - please try again");
+      // A new video keeps the old one's place; the first video goes last.
+      onChange({ ...value, videoUrl: url, videoPosition: value.videoUrl ? value.videoPosition ?? null : null });
+    } finally {
+      setUploadingVideo(false);
+    }
   };
+
+  const videoStatus = videoProgress != null ? `Compressing ${Math.round(videoProgress * 100)}%` : "Uploading…";
 
   const tile = size === "md" ? "w-[92px] sm:w-[104px]" : "w-[68px]";
 
@@ -170,9 +197,9 @@ export function MediaArranger({
           e.preventDefault();
           setFileOver(false);
           const files = Array.from(e.dataTransfer.files);
-          const video = files.find((f) => f.type.startsWith("video/"));
+          const video = files.find(looksLikeVideo);
           if (video && withVideo) uploadVideo(video);
-          const photos = files.filter((f) => f.type.startsWith("image/"));
+          const photos = files.filter((f) => !looksLikeVideo(f));
           if (photos.length) uploadPhotos(photos);
         }}
       >
@@ -304,13 +331,13 @@ export function MediaArranger({
             )}
           >
             {uploadingVideo ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
-            <span className="text-[11px] leading-tight">{uploadingVideo ? "Uploading…" : "Add video"}</span>
+            <span className="text-[11px] leading-tight">{uploadingVideo ? videoStatus : "Add video"}</span>
           </button>
         )}
         <input
           ref={photoInput}
           type="file"
-          accept="image/png,image/jpeg,image/webp"
+          accept={PHOTO_ACCEPT}
           multiple
           className="hidden"
           onChange={(e) => {
@@ -322,7 +349,7 @@ export function MediaArranger({
           <input
             ref={videoInput}
             type="file"
-            accept="video/*"
+            accept={VIDEO_ACCEPT}
             className="hidden"
             onChange={(e) => {
               uploadVideo(e.target.files?.[0]);
@@ -354,7 +381,7 @@ export function MediaArranger({
             disabled={uploadingVideo}
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
-            {uploadingVideo && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Replace video
+            {uploadingVideo && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {uploadingVideo ? videoStatus : "Replace video"}
           </button>
         </div>
       )}
@@ -366,7 +393,7 @@ export function MediaArranger({
             <>
               <p>
                 <span className="font-medium text-foreground">Recommended photo size:</span> {PHOTO_SIZE_TIP} (the shop shows
-                every photo in a 3:4 frame), JPG / PNG / WebP up to {MAX_PHOTO_MB} MB. Keep the whole piece in the frame
+                every photo in a 3:4 frame), {PHOTO_FORMATS} (over {MAX_PHOTO_MB} MB is compressed automatically). Keep the whole piece in the frame
                 with a little space around it.
               </p>
               {withVideo && (

@@ -19,6 +19,7 @@ import { fetchExchangeableVariants, ExchangeVariantOption } from "@/lib/exchange
 import { supabase } from "@/integrations/supabase/client";
 import { ImageDropzone } from "@/components/ImageDropzone";
 import { uploadUserFile } from "@/lib/userPhotoUpload";
+import { VIDEO_ACCEPT, VIDEO_FORMATS, prepareVideo, uploadProblemMessage } from "@/lib/uploadPrep";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatMoney } from "@/lib/format";
 import { RefundMethodPicker } from "@/components/RefundMethodPicker";
@@ -110,6 +111,8 @@ export function ReturnRequestForm({
   const [itemPhotoUrls, setItemPhotoUrls] = useState<Record<string, string[]>>({});
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [uploadingVideo, setUploadingVideo] = useState(false);
+  // 0-1 while a video over 50 MB is being compressed.
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
   // Admin setting; assume required until loaded (the DB enforces it anyway).
   const [evidenceRequired, setEvidenceRequired] = useState(true);
 
@@ -176,24 +179,29 @@ export function ReturnRequestForm({
     }
   };
 
-  const handleVideoSelect = async (file: File | undefined) => {
-    if (!file) return;
-    if (!file.type.startsWith("video/")) {
-      toast.error("Please choose a video file");
-      return;
-    }
-    if (file.size > MAX_VIDEO_MB * 1024 * 1024) {
-      toast.error(`Video is over ${MAX_VIDEO_MB}MB - please trim it or record a shorter clip`);
-      return;
-    }
+  // MP4 or MOV; over 50 MB it is compressed to an MP4 first.
+  const handleVideoSelect = async (picked: File | undefined) => {
+    if (!picked) return;
     setUploadingVideo(true);
-    const url = await uploadUserFile(file, "returns");
-    setUploadingVideo(false);
-    if (!url) {
-      toast.error("Video upload failed - please try again");
-      return;
+    try {
+      let file: File;
+      try {
+        file = await prepareVideo(picked, setVideoProgress);
+      } catch (e) {
+        toast.error(uploadProblemMessage(e, picked.name), { duration: 10000 });
+        return;
+      } finally {
+        setVideoProgress(null);
+      }
+      const url = await uploadUserFile(file, "returns");
+      if (!url) {
+        toast.error("Video upload failed - please try again");
+        return;
+      }
+      setVideoUrl(url);
+    } finally {
+      setUploadingVideo(false);
     }
-    setVideoUrl(url);
   };
 
   const setExchangeTarget = (itemId: string, patch: Partial<ExchangeTarget>) => {
@@ -457,7 +465,8 @@ export function ReturnRequestForm({
           <div>
             <Label className="text-sm font-medium mb-1 block">Video (optional)</Label>
             <p className="text-xs text-muted-foreground mb-2">
-              A short clip showing the issue helps us resolve it faster. One video, up to {MAX_VIDEO_MB}MB.
+              A short clip showing the issue helps us resolve it faster. One video, {VIDEO_FORMATS}; over {MAX_VIDEO_MB} MB is
+              compressed automatically.
             </p>
             {videoUrl ? (
               <div className="relative">
@@ -476,11 +485,15 @@ export function ReturnRequestForm({
               <label className="cursor-pointer inline-flex">
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium border border-border rounded-md px-3 py-1.5 hover:bg-muted">
                   {uploadingVideo ? <Loader2 className="h-3 w-3 animate-spin" /> : <Video className="h-3 w-3" />}
-                  {uploadingVideo ? "Uploading video..." : "Add a video"}
+                  {uploadingVideo
+                    ? videoProgress != null
+                      ? `Compressing video ${Math.round(videoProgress * 100)}%...`
+                      : "Uploading video..."
+                    : "Add a video"}
                 </span>
                 <input
                   type="file"
-                  accept="video/*"
+                  accept={VIDEO_ACCEPT}
                   className="hidden"
                   disabled={uploadingVideo}
                   onChange={(e) => {

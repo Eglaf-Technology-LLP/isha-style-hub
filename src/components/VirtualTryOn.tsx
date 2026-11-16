@@ -11,6 +11,7 @@ import {
 import { Sparkles, Upload, Loader2, RefreshCw, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 
 interface VirtualTryOnProps {
   productName: string;
@@ -52,14 +53,15 @@ export function VirtualTryOn({ productName, productImageUrl }: VirtualTryOnProps
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image must be under 10MB");
+    const picked = e.target.files?.[0];
+    e.target.value = "";
+    if (!picked) return;
+    // JPG, PNG, WEBP or HEIC (made JPG so it can be read here).
+    let file: File;
+    try {
+      file = await preparePhoto(picked);
+    } catch (err) {
+      toast.error(uploadProblemMessage(err, picked.name));
       return;
     }
     try {
@@ -152,7 +154,7 @@ export function VirtualTryOn({ productName, productImageUrl }: VirtualTryOnProps
             <input
               ref={inputRef}
               type="file"
-              accept="image/*"
+              accept={PHOTO_ACCEPT}
               className="hidden"
               onChange={handleFile}
             />

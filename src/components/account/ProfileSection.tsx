@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { contactTaken } from "@/hooks/useProfile";
 import { toast } from "sonner";
+import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
 import { formatPhone, nationalPhone, parseIdentifier, signedUpWith, toE164, userContact } from "@/lib/authIdentifier";
 
@@ -106,8 +107,18 @@ export function ProfileSection() {
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
+    const picked = event.target.files?.[0];
+    event.target.value = "";
+    if (!picked || !user) return;
+
+    // JPG, PNG, WEBP or HEIC; HEIC becomes JPG and over 5 MB is compressed.
+    let file: File;
+    try {
+      file = await preparePhoto(picked);
+    } catch (e) {
+      toast.error(uploadProblemMessage(e, picked.name));
+      return;
+    }
 
     try {
       const fileExt = file.name.split(".").pop();
@@ -168,7 +179,7 @@ export function ProfileSection() {
             <input
               id="avatar-upload"
               type="file"
-              accept="image/*"
+              accept={PHOTO_ACCEPT}
               className="hidden"
               onChange={handleAvatarUpload}
             />

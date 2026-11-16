@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Loader2, Upload, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageFile, type UploadFolder } from "@/hooks/useProducts";
+import { PHOTO_ACCEPT, PHOTO_FORMATS, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 
 interface ImageDropzoneProps {
   // "products" for admin uploads, "vendor-uploads" for anything a vendor
@@ -20,8 +21,6 @@ interface ImageDropzoneProps {
   uploadFile?: (file: File) => Promise<string | null>;
   previewUrl?: (value: string) => string | undefined;
 }
-
-const MAX_FILE_SIZE_MB = 5;
 
 // The single upload control for every image field in the app - real
 // drag-and-drop (not just a styled click target, which is all every prior
@@ -44,34 +43,34 @@ export function ImageDropzone({
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
-    let files = Array.from(fileList).filter((f) => f.type.startsWith("image/"));
-    if (files.length === 0) {
-      toast.error("Please choose an image file");
-      return;
-    }
+    let files = Array.from(fileList);
     if (!multiple) files = files.slice(0, 1);
     if (maxFiles) files = files.slice(0, Math.max(0, maxFiles - value.length));
-    const oversized = files.find((f) => f.size > MAX_FILE_SIZE_MB * 1024 * 1024);
-    if (oversized) {
-      toast.error(`${oversized.name} is over ${MAX_FILE_SIZE_MB}MB - please use a smaller image`);
-      return;
-    }
     if (files.length === 0) return;
 
     setUploading(true);
     try {
       const uploaded: string[] = [];
-      for (const file of files) {
+      let refused = 0;
+      for (const picked of files) {
+        // HEIC becomes JPG and anything over 5 MB is compressed; only an
+        // unsupported format or a photo that still won't fit is refused.
+        let file: File;
+        try {
+          file = await preparePhoto(picked);
+        } catch (e) {
+          toast.error(uploadProblemMessage(e, picked.name));
+          refused++;
+          continue;
+        }
         const url = uploadFile ? await uploadFile(file) : await uploadImageFile(file, folder);
         if (url) uploaded.push(url);
       }
-      if (uploaded.length === 0) {
-        toast.error("Upload failed - please try again");
-        return;
+      const failed = files.length - refused - uploaded.length;
+      if (failed > 0) {
+        toast.error(uploaded.length ? `${failed} image(s) failed to upload` : "Upload failed - please try again");
       }
-      if (uploaded.length < files.length) {
-        toast.warning(`${files.length - uploaded.length} image(s) failed to upload`);
-      }
+      if (uploaded.length === 0) return;
       onChange(multiple ? [...value, ...uploaded] : uploaded);
     } finally {
       setUploading(false);
@@ -104,7 +103,7 @@ export function ImageDropzone({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={PHOTO_ACCEPT}
           multiple={multiple}
           className="hidden"
           onChange={(e) => {
@@ -120,7 +119,7 @@ export function ImageDropzone({
             <p className="text-sm text-muted-foreground mt-2">
               Drag and drop {multiple ? "images" : "an image"} here, or click to browse
             </p>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">Up to {MAX_FILE_SIZE_MB}MB each</p>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">{PHOTO_FORMATS} · large photos are compressed automatically</p>
           </>
         )}
       </div>

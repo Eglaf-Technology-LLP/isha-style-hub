@@ -42,6 +42,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CategoryImportExportDialog } from "./CategoryImportExportDialog";
 import { HEADER_CATEGORY_LIMIT } from "@/hooks/useStorefront";
 import { SIZE_CHART_STANDARD_ONLY } from "@/lib/sizeCharts";
+import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
+import { toast } from "sonner";
 
 export function CategoryManagement() {
   const {
@@ -75,8 +77,16 @@ export function CategoryManagement() {
     setEditingCategory(null);
   };
 
-  const applyImageFile = (file: File | undefined) => {
-    if (!file || !file.type.startsWith("image/")) return;
+  // HEIC becomes JPG and photos over 5 MB are compressed (lib/uploadPrep).
+  const applyImageFile = async (picked: File | undefined) => {
+    if (!picked) return;
+    let file: File;
+    try {
+      file = await preparePhoto(picked);
+    } catch (e) {
+      toast.error(uploadProblemMessage(e, picked.name));
+      return;
+    }
     setCategoryImage(file);
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -243,7 +253,7 @@ export function CategoryManagement() {
         <input
           type="file"
           ref={imageInputRef}
-          accept="image/*"
+          accept={PHOTO_ACCEPT}
           onChange={handleImageChange}
           className="hidden"
         />
