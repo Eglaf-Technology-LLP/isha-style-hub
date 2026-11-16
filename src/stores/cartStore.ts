@@ -32,6 +32,9 @@ export interface CartItem {
 // The id cart actions use for a line.
 export const cartLineKey = (item: Pick<CartItem, 'lineId' | 'variantId'>) => item.lineId ?? item.variantId;
 
+// What changes when a line moves to another size of the same piece.
+export type VariantChange = Pick<CartItem, 'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage' | 'basePrice'>;
+
 interface CartStore {
   items: CartItem[];
 
@@ -39,6 +42,7 @@ interface CartStore {
   addItem: (item: CartItem) => void;
   addItems: (items: CartItem[]) => void;
   updateQuantity: (lineKey: string, quantity: number) => void;
+  changeVariant: (lineKey: string, next: VariantChange, maxQuantity?: number) => void;
   removeItem: (lineKey: string) => void;
   clearCart: () => void;
   // Today's prices for some lines (line key -> price, and base price for a
@@ -96,6 +100,30 @@ export const useCartStore = create<CartStore>()(
             cartLineKey(item) === lineKey ? { ...item, quantity } : item
           )
         });
+      },
+
+      // Another size of the same piece, from the cart (client corrections,
+      // 15 Nov 2026, 2.8.2 b). The line takes the new variant's id, size,
+      // price and photo, keeping its place in the cart. A plain line joins
+      // one already there for that size; a customised line stays its own.
+      // maxQuantity: what the new size has in stock.
+      changeVariant: (lineKey, next, maxQuantity) => {
+        const items = get().items;
+        const line = items.find((i) => cartLineKey(i) === lineKey);
+        if (!line) return;
+        const cap = (q: number) => (maxQuantity != null ? Math.max(1, Math.min(q, maxQuantity)) : q);
+        if (!line.lineId) {
+          const twin = items.find((i) => i !== line && !i.lineId && i.variantId === next.variantId);
+          if (twin) {
+            set({
+              items: items
+                .filter((i) => i !== line)
+                .map((i) => (i === twin ? { ...i, quantity: cap(i.quantity + line.quantity) } : i)),
+            });
+            return;
+          }
+        }
+        set({ items: items.map((i) => (i === line ? { ...line, ...next, quantity: cap(line.quantity) } : i)) });
       },
 
       removeItem: (lineKey) => {

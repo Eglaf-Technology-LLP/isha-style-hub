@@ -11,13 +11,39 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
+import { lineAsSize, lineSize, sizeChoices, useCartVariants, type SizeChoice } from "@/hooks/useCartVariants";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import type { CartItem } from "@/stores/cartStore";
 
 export function CartDrawer() {
   const { bagOpen: isOpen, setBagOpen: setIsOpen } = useUiStore();
   const navigate = useNavigate();
-  const { items, updateQuantity, removeItem, getTotalItems, getTotalPrice } = useCartStore();
+  const { items, updateQuantity, changeVariant, removeItem, getTotalItems, getTotalPrice } = useCartStore();
   const { data: categories = [] } = useStoreCategories();
   useSyncCartPrices(isOpen);
+  // Each piece's sizes, so the customer can change the size here.
+  const { data: variantsByProduct } = useCartVariants(
+    items.map((i) => i.productId),
+    isOpen,
+  );
+
+  const changeSize = (item: CartItem, size: string, choices: SizeChoice[]) => {
+    const choice = choices.find((c) => c.size === size);
+    if (!choice || choice.soldOut || size === lineSize(item)) return;
+    const stock = choice.variant.stock ?? 0;
+    // A plain line joins one already in the cart in that size.
+    const twin = item.lineId ? undefined : items.find((i) => i !== item && !i.lineId && i.variantId === choice.variant.id);
+    const wanted = item.quantity + (twin?.quantity ?? 0);
+    changeVariant(cartLineKey(item), lineAsSize(item, choice), stock);
+    toast.success(
+      wanted > stock
+        ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
+        : twin
+          ? `Size changed to ${size} and added to the ${size} already in your cart`
+          : `Size changed to ${size}`,
+    );
+  };
 
   const totalItems = getTotalItems();
   const totalPrice = getTotalPrice();
@@ -77,7 +103,9 @@ export function CartDrawer() {
           <>
             <div className="min-h-0 flex-1 overflow-y-auto px-6">
               <ul className="divide-y divide-border">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const choices = sizeChoices(item, variantsByProduct?.get(item.productId));
+                  return (
                   <li key={cartLineKey(item)} className="flex gap-4 py-5">
                     <Link
                       to={`/product/${item.productId}`}
@@ -110,9 +138,35 @@ export function CartDrawer() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
+                      {/* Size (changeable when the piece comes in other sizes
+                          in this colour), colour if any, customisation Yes /
+                          No and the boutique's SKU. */}
+                      {choices && (
+                        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Size</span>
+                          <Select value={lineSize(item) ?? undefined} onValueChange={(size) => changeSize(item, size, choices)}>
+                            <SelectTrigger
+                              className="h-8 w-auto min-w-[5.5rem] gap-2 rounded-none border-foreground/20 bg-background px-2.5 text-xs text-foreground"
+                              aria-label={`Size of ${item.productName}`}
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-none">
+                              {choices.map((c) => (
+                                <SelectItem key={c.size} value={c.size} disabled={c.soldOut && c.size !== lineSize(item)} className="text-xs">
+                                  {c.size}
+                                  {c.soldOut ? " (sold out)" : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                       <p className="mt-1 text-xs text-muted-foreground">
                         {[
-                          ...item.selectedOptions.map((o) => `${o.name}: ${o.value}`),
+                          ...item.selectedOptions
+                            .filter((o) => !(choices && o.name.toLowerCase() === "size"))
+                            .map((o) => `${o.name}: ${o.value}`),
                           `Customisation: ${item.customisation ? "Yes" : "No"}`,
                           ...(item.sku ? [`SKU: ${item.sku}`] : []),
                         ].join(" · ")}
@@ -147,7 +201,8 @@ export function CartDrawer() {
                       </div>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
 
