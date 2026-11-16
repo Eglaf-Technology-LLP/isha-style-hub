@@ -61,6 +61,8 @@ import {
   type DocumentType,
 } from "@/lib/vendorKyc";
 import { titleCase } from "@/lib/text";
+import { LEGAL_PATHS } from "@/lib/legal";
+import { acceptTerms } from "@/lib/consent";
 import { gstCodeOfState, stateOfGstCode } from "@/lib/indianStates";
 import { pickupAddressErrors } from "@/lib/pickupAddress";
 import { ALREADY_REGISTERED_MESSAGE, findTakenIdentity, firstOnPage, takenMessage, type IdentityValues } from "@/lib/vendorIdentity";
@@ -282,6 +284,8 @@ export default function SellWithUs() {
   });
   // Typed a second time, never sent (client corrections, 15 Nov 2026, 1.2.3).
   const [accountConfirm, setAccountConfirm] = useState("");
+  // Never ticked to start with (client corrections, 15 Nov 2026, 1.3.3).
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [files, setFiles] = useState<Partial<Record<DocumentType, File>>>({});
   const [bankBranch, setBankBranch] = useState<string | null>(null);
   const autoFilledBankName = useRef<string | null>(null);
@@ -440,6 +444,8 @@ export default function SellWithUs() {
 
     // Courier pickup address - what Shiprocket accepts (Extra list F).
     Object.assign(e, pickupAddressErrors(form));
+
+    if (!termsAgreed) e.terms_agree = "Tick this box to submit your application";
     return e;
   };
 
@@ -484,6 +490,17 @@ export default function SellWithUs() {
       { type: "bank_proof", file: files.bank_proof! },
     ];
     setSubmitting(true);
+    // The tick box re-accepts the Seller Terms: the server stamps the time
+    // and version on the profile (accept_terms), so the record matches this
+    // submission.
+    setProgress("Saving your agreement...");
+    const { error: termsError } = await acceptTerms("seller", null);
+    if (termsError) {
+      setSubmitting(false);
+      setProgress(null);
+      toast.error(`Couldn't save your agreement: ${termsError.message}`);
+      return;
+    }
     const { error } = await submitApplication(
       {
         name: titleCase(form.name),
@@ -1231,11 +1248,33 @@ export default function SellWithUs() {
               {/* No "Returns" section: returns are set per product with the
                   Returnable switch in the product form. */}
 
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <CheckCircle2 className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-                <p>
-                  By submitting, you confirm these details and documents are genuine. New stores start un-trusted
-                  (products need admin approval); AllBoutiqs can grant trusted-partner status to publish instantly.
+              <div className="space-y-2">
+                <label id="terms_agree" className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed">
+                  <Checkbox
+                    checked={termsAgreed}
+                    onCheckedChange={(v) => {
+                      setTermsAgreed(v === true);
+                      clearError("terms_agree");
+                    }}
+                    aria-invalid={!!errors.terms_agree}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    I confirm these details and documents are genuine, and I agree to the{" "}
+                    <Link to={LEGAL_PATHS.sellerTerms} target="_blank" className="text-primary underline underline-offset-4">
+                      Seller Terms &amp; Conditions
+                    </Link>{" "}
+                    and the{" "}
+                    <Link to={LEGAL_PATHS.privacy} target="_blank" className="text-primary underline underline-offset-4">
+                      Privacy Policy
+                    </Link>
+                    . *
+                  </span>
+                </label>
+                <FieldError message={errors.terms_agree} />
+                <p className="pl-7 text-xs text-muted-foreground">
+                  New stores start un-trusted (products need admin approval); AllBoutiqs can grant trusted-partner
+                  status to publish instantly.
                 </p>
               </div>
 
