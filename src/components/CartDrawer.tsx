@@ -110,11 +110,13 @@ export function CartDrawer() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                      {item.selectedOptions.length > 0 && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {item.selectedOptions.map((o) => `${o.name}: ${o.value}`).join(" · ")}
-                        </p>
-                      )}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {[
+                          ...item.selectedOptions.map((o) => `${o.name}: ${o.value}`),
+                          `Customisation: ${item.customisation ? "Yes" : "No"}`,
+                          ...(item.sku ? [`SKU: ${item.sku}`] : []),
+                        ].join(" · ")}
+                      </p>
                       {item.customisation && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           <span className="mr-1 bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground">Customised</span>

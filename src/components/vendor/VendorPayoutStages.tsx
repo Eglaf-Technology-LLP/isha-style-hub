@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PayoutBreakdownDialog } from "@/components/PayoutBreakdownDialog";
 import { openPayoutProof } from "@/lib/payoutProof";
-import { returnWindowAdjective, useReturnWindowHours } from "@/hooks/useReturnWindowHours";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -124,7 +123,6 @@ export function VendorPayoutStages({
 }: VendorPayoutStagesProps) {
   const { payouts, loading } = useVendorPayoutHistory(vendorId);
   const today = todayIst();
-  const windowHours = useReturnWindowHours();
   const showProof = async (path: string) => {
     const problem = await openPayoutProof(path);
     if (problem) toast.error(problem);
@@ -174,12 +172,17 @@ export function VendorPayoutStages({
           <CardTitle className="flex items-center gap-2">
             <Landmark className="h-5 w-5" /> Your money
           </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Payouts are weekly. Customers can return or exchange for {windowHours} hours after delivery; once that{" "}
-            {returnWindowAdjective(windowHours)} window has closed (and the payment has reached AllBoutiqs), the order is
-            ready. Everything ready by Tuesday 11:59 PM is transferred to your bank on Wednesday, with commission, fees and
-            taxes already taken off - it reaches your account within 1 working day. You get an email at every step.
-          </p>
+          <div className="space-y-1.5 text-sm text-muted-foreground">
+            <p>Payouts are made every Wednesday.</p>
+            <p>An order is ready for payout after delivery, once its 24-hour window has closed:</p>
+            <ul className="list-disc space-y-0.5 pl-5">
+              <li>Returnable product – 24-hour return and complaint window.</li>
+              <li>Non-returnable product – 24-hour complaint window.</li>
+              <li>Cash on Delivery order – also after the courier has sent the cash to AllBoutiqs.</li>
+            </ul>
+            <p>Orders ready by Tuesday 11:59 PM are paid on Wednesday, after commission, fees and taxes.</p>
+            <p>You get an email at every step.</p>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

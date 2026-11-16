@@ -1630,7 +1630,7 @@ export default function VendorDashboard() {
                     ) : (
                       <p className="text-xs text-muted-foreground">
                         AllBoutiqs pays you by bank transfer to this account on every payout day, for orders whose
-                        return/exchange window has closed.
+                        return window has closed.
                       </p>
                     )}
                     <Button onClick={savePayoutAccount} disabled={payoutSaving}>

@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Banknote,
   ChevronRight,
+  Globe2,
   Minus,
   Plus,
   RotateCcw,
@@ -75,6 +76,7 @@ export default function ProductDetail() {
     cod_enabled: boolean;
     address: Record<string, string> | null;
     contact_email: string | null;
+    gst_number: string | null;
     shipping_flat_rate: number;
     free_shipping_threshold: number | null;
     default_prep_days?: number | null;
@@ -190,7 +192,7 @@ export default function ProductDetail() {
           const { data: vData } = await supabase
             .from("vendors")
             .select(
-              "name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, shipping_flat_rate, free_shipping_threshold, default_prep_days"
+              "name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, gst_number, shipping_flat_rate, free_shipping_threshold, default_prep_days"
             )
             .eq("id", (data as any).vendor_id)
             .maybeSingle();
@@ -367,6 +369,7 @@ export default function ProductDetail() {
       },
       quantity,
       selectedOptions,
+      sku: product.sku || null,
       // A customised piece is its own cart line, priced with its customisation.
       ...(customisation
         ? { lineId: crypto.randomUUID(), customisation, basePrice: currentPrice.toString() }
@@ -516,22 +519,20 @@ export default function ProductDetail() {
         ? `${formatINR(vendorInfo.shipping_flat_rate)} flat rate`
         : "Calculated at checkout";
 
-  // Only what applies to this piece: Cash on Delivery only when it's
-  // available, and either its return window or that it can't be returned.
+  // The return line follows the product's Returnable switch; Cash on
+  // Delivery says whether it's available; the country of origin is the
+  // product's own field (client corrections, 15 Nov 2026, 2.4 points 3-4).
+  const returnsTitle = isRefundable ? `${returnWindowAdjective(windowHours)} returns` : "Not returnable";
+  const returnsText = isRefundable
+    ? `Return within ${returnWindowSpan(windowHours)} of delivery`
+    : `Damaged, defective or wrong item: report within ${returnWindowSpan(windowHours)} of delivery`;
   const services = [
     { icon: Truck, title: shippingTitle, text: shippingText },
-    isRefundable
-      ? {
-          icon: RotateCcw,
-          title: `${returnWindowAdjective(windowHours)} returns`,
-          text: `Return or exchange within ${returnWindowSpan(windowHours)} of delivery`,
-        }
-      : {
-          icon: RotateCcw,
-          title: "Non-returnable",
-          text: `Can't be returned for a refund - exchange within ${returnWindowSpan(windowHours)} of delivery`,
-        },
-    ...(codAvailable ? [{ icon: Banknote, title: "Cash on Delivery available", text: "Pay in cash when it arrives, or pay online" }] : []),
+    { icon: RotateCcw, title: returnsTitle, text: returnsText },
+    codAvailable
+      ? { icon: Banknote, title: "Cash on Delivery available", text: "+ COD fee 3% + GST" }
+      : { icon: Banknote, title: "Cash on Delivery", text: "Not available" },
+    { icon: Globe2, title: "Country of origin", text: product.country_of_origin || "India" },
     { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
   ];
 
@@ -684,6 +685,7 @@ export default function ProductDetail() {
               <div className={cn(CUSTOMISATION_ENABLED && "mt-7")}>
                 <ProductCustomiser
                   setup={customisationSetup}
+                  baseDays={prepDays}
                   basePrice={currentPrice}
                   value={customiser}
                   onChange={setCustomiser}
@@ -845,9 +847,7 @@ export default function ProductDetail() {
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Returns</dt>
                           <dd className="mt-0.5 text-sm">
-                            {isRefundable
-                              ? `Returnable within ${returnWindowSpan(windowHours)} of delivery`
-                              : `Non-returnable (exchange within ${returnWindowSpan(windowHours)})`}
+                            {returnsTitle} – {returnsText.charAt(0).toLowerCase() + returnsText.slice(1)}
                           </dd>
                         </div>
                       )}
@@ -924,6 +924,10 @@ export default function ProductDetail() {
                       <span className="mt-1 block font-serif text-xl leading-tight group-hover:text-primary">{vendorInfo.name}</span>
                       {boutique?.description && (
                         <span className="mt-1 line-clamp-2 block text-xs leading-relaxed text-muted-foreground">{boutique.description}</span>
+                      )}
+                      {vendorAddress && <span className="mt-1.5 block text-xs leading-relaxed text-muted-foreground">{vendorAddress}</span>}
+                      {vendorInfo.gst_number && (
+                        <span className="mt-0.5 block text-xs text-muted-foreground">GSTIN {vendorInfo.gst_number}</span>
                       )}
                     </span>
                     {!viewOnly && <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-1" />}

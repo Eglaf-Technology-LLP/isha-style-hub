@@ -126,12 +126,9 @@ export const PROMISES = [
   },
 ] as const;
 
-export function announcementMessages(shippingCharged: boolean): string[] {
-  return [
-    shippingCharged ? "Free shipping on orders above ₹999" : "Free shipping on every order",
-    "Every piece quality-checked before it ships",
-    "Use code ALLBOUTIQS10 for 10% off your first order",
-  ];
+// Only the quality line (client corrections, 15 Nov 2026, 2.1 point 1).
+export function announcementMessages(): string[] {
+  return ["Every piece quality-checked before it ships"];
 }
 
 export const POPULAR_SEARCHES = ["Lehenga", "Silk saree", "Kurti set", "Co-ord", "Banarasi", "Anarkali"];

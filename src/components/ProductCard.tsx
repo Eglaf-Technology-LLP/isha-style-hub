@@ -67,6 +67,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
       price: { amount: String(variant?.price || product.price), currencyCode: "INR" },
       quantity: 1,
       selectedOptions,
+      sku: product.sku || null,
     });
     toast.success("Added to cart", {
       description: [product.name, size && `Size ${size}`].filter(Boolean).join(" · "),

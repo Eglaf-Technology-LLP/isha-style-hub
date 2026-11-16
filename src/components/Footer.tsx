@@ -84,6 +84,19 @@ export function Footer() {
           <p className="max-w-xs text-sm leading-relaxed text-ivory/65">
             India's Premium Boutique Marketplace – women's designer fashion from boutiques and designer brands.
           </p>
+          <div className="mt-5 max-w-xs space-y-1.5 text-xs leading-relaxed text-ivory/60">
+            <p>
+              Grievance Officer: {COMPANY.grievanceOfficer.name} ·{" "}
+              <a href={`mailto:${COMPANY.grievanceOfficer.email}`} className="hover:text-gold">
+                {COMPANY.grievanceOfficer.email}
+              </a>{" "}
+              ·{" "}
+              <a href={telHref(COMPANY.grievanceOfficer.phone)} className="hover:text-gold">
+                {COMPANY.grievanceOfficer.phone}
+              </a>
+            </p>
+            <p>{COMPANY.isoCertificate}</p>
+          </div>
         </div>
 
         <FooterColumn title="Shop">
@@ -105,7 +118,7 @@ export function Footer() {
 
         <FooterColumn title="Help">
           <FooterLink to="/orders">Track your order</FooterLink>
-          <FooterLink to="/orders">Returns &amp; exchanges</FooterLink>
+          <FooterLink to="/orders">Returns &amp; refunds</FooterLink>
           <FooterLink to="/account">My account</FooterLink>
           <FooterLink to="/wishlist">Wishlist</FooterLink>
           <FooterLink to={LEGAL_PATHS.privacy}>Privacy policy</FooterLink>
@@ -116,13 +129,13 @@ export function Footer() {
           <li className="flex items-center gap-2.5">
             <Phone className="h-4 w-4 text-gold" />
             <a href={telHref(COMPANY.supportPhone)} className="hover:text-gold">
-              {COMPANY.supportPhone}
+              Call {COMPANY.supportPhone}
             </a>
           </li>
           <li className="flex items-center gap-2.5">
             <MessageCircle className="h-4 w-4 text-gold" />
             <a href={COMPANY.whatsappUrl} target="_blank" rel="noopener noreferrer" className="hover:text-gold">
-              WhatsApp {COMPANY.whatsapp}
+              WhatsApp {COMPANY.whatsapp} (WhatsApp only)
             </a>
           </li>
           <li className="flex items-center gap-2.5">
@@ -132,8 +145,8 @@ export function Footer() {
             </a>
           </li>
           <li className="flex items-start gap-2.5">
-            <MapPin className="mt-0.5 h-4 w-4 text-gold" />
-            <span>{COMPANY.location}</span>
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+            <span>{COMPANY.officeAddress}</span>
           </li>
         </FooterColumn>
       </div>

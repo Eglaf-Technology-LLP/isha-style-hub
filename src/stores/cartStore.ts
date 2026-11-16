@@ -24,6 +24,9 @@ export interface CartItem {
   lineId?: string;
   customisation?: CustomisationChoice | null;
   basePrice?: string;
+  // The boutique's own product code, shown on the cart line (lines added
+  // before it was kept don't show one).
+  sku?: string | null;
 }
 
 // The id cart actions use for a line.

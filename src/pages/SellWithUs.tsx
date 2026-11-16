@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { ReturnNoteHint } from "@/components/vendor/ReturnNoteHint";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useVendor, type PersonDetails, type ApplicationDocument } from "@/hooks/useVendor";
@@ -68,18 +67,18 @@ import { ALREADY_REGISTERED_MESSAGE, findTakenIdentity, firstOnPage, takenMessag
 const benefits = [
   {
     icon: TrendingUp,
-    title: "Reach lakhs of shoppers",
-    desc: "List on a fast-growing Indian fashion marketplace with built-in discovery.",
+    title: "Reach premium shoppers across India",
+    desc: "List on India's first marketplace only for premium boutiques and designer brands.",
   },
   {
     icon: Wallet,
-    title: "Split payouts, your rates",
-    desc: "Set your own shipping & return policy. Funds reach you per order minus a flat commission.",
+    title: "Weekly payouts",
+    desc: "Paid every Wednesday, straight to your bank account.",
   },
   {
     icon: ShieldCheck,
-    title: "Trusted-partner fast-track",
-    desc: "Once approved as a trusted partner, your products publish instantly — no waiting.",
+    title: "Dedicated onboarding team",
+    desc: "Our team helps you set up your store and your listings.",
   },
   {
     icon: Users,
@@ -522,7 +521,7 @@ export default function SellWithUs() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-maroon-deep pattern-jaal-dark text-ivory">
         <div className="store-container relative py-20 text-center md:py-28">
-          <p className="eyebrow text-gold">Marketplace vendor program</p>
+          <p className="eyebrow text-gold">India's first marketplace only for premium boutiques and designer brands</p>
           <h1 className="mx-auto mt-5 max-w-3xl font-serif text-4xl leading-[1.08] md:text-6xl">
             Sell your brand <em className="font-normal text-gold">across India</em>
           </h1>
@@ -567,6 +566,13 @@ export default function SellWithUs() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Trust line: text only - no ISO logo, no link. */}
+      <section className="border-b border-border">
+        <p className="store-container py-5 text-center text-xs leading-relaxed text-muted-foreground">
+          {COMPANY.legalName} · CIN {COMPANY.cin} · GSTIN {COMPANY.gstin} · {COMPANY.isoCertificate}
+        </p>
       </section>
 
       {/* How it works */}
@@ -1177,22 +1183,8 @@ export default function SellWithUs() {
                 </div>
               </FormSection>
 
-              <FormSection icon={Wallet} title="Returns">
-                {/* No shipping rates or return window to choose: delivery is free
-                    for customers (the boutique pays the fixed courier charge per
-                    piece), and AllBoutiqs sets one return window for everyone. */}
-                <div className="space-y-2">
-                  <Label className={accountLabelClass} htmlFor="return_policy">Return note for customers (optional)</Label>
-                  <Textarea
-                    id="return_policy"
-                    rows={2}
-                    className="rounded-none border-foreground/20 bg-background focus-visible:border-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
-                    value={form.return_policy}
-                    onChange={(e) => set("return_policy", e.target.value)}
-                  />
-                  <ReturnNoteHint />
-                </div>
-              </FormSection>
+              {/* No "Returns" section: returns are set per product with the
+                  Returnable switch in the product form. */}
 
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 text-primary shrink-0" />

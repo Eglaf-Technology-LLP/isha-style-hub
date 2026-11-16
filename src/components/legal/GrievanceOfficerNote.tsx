@@ -8,12 +8,10 @@ export function GrievanceOfficerNote({ className = "" }: { className?: string })
   const g = COMPANY.grievanceOfficer;
   return (
     <section aria-label="Grievance Officer" className={`border-t border-border pt-5 text-xs leading-relaxed text-muted-foreground ${className}`}>
-      <p className="eyebrow mb-1.5 text-foreground/70">Grievance Officer</p>
+      {/* Worded as the client asked (corrections 15 Nov 2026, 2.6 point 2). */}
       <p>
-        {g.name ? `${g.name}, ` : ""}
-        {COMPANY.legalName}, {COMPANY.officeAddress}
-      </p>
-      <p className="mt-1">
+        <span className="text-foreground/80">Grievance Officer:</span> {g.name}
+        {" · "}
         <a href={`mailto:${g.email}`} className="underline-offset-4 hover:text-primary hover:underline">
           {g.email}
         </a>
@@ -22,6 +20,9 @@ export function GrievanceOfficerNote({ className = "" }: { className?: string })
           {g.phone}
         </a>
         {" · "}
+        {COMPANY.legalName}, {COMPANY.officeAddress}
+      </p>
+      <p className="mt-1">
         <Link to={`${LEGAL_PATHS.privacy}#grievance-officer`} className="underline-offset-4 hover:text-primary hover:underline">
           How complaints are handled
         </Link>

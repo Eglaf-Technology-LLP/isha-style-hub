@@ -11,16 +11,18 @@ export const COMPANY = {
   whatsapp: "+91 78019 40567",
   whatsappUrl: "https://wa.me/917801940567",
   location: "Deesa, Gujarat, India",
-  // The Deesa office - also where the Grievance Officer can be written to.
-  officeAddress: "19, Puniynagari, Near Smrudhipark, Deesa, Banaskantha, Gujarat 385535",
+  // The registered office in Deesa - also where the Grievance Officer can be
+  // written to (client corrections, 15 Nov 2026).
+  officeAddress: "PL-19, Puniynagari, Near Smrudhipark, Disa Bazar, Deesa, Banaskantha-385535, Gujarat",
   // Grievance Officer (Consumer Protection (E-Commerce) Rules, 2020): shown
-  // on the policy pages and every product page. Name still to come from
-  // AllBoutiqs - until then the role is shown on its own.
+  // on the policy pages, every product page and the footer.
   grievanceOfficer: {
-    name: "",
-    email: "support@allboutiqs.com",
+    name: "Dhvani Soni",
+    email: "grievance@allboutiqs.com",
     phone: "+91 76004 84789",
   },
+  // Shown as text only - no ISO logo, no link.
+  isoCertificate: "ISO 9001:2015 certified · Certificate No. E20261156495",
 } as const;
 
 export const telHref = (phone: string) => `tel:${phone.replace(/\s/g, "")}`;

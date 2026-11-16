@@ -89,12 +89,15 @@ function OwnPhoto({ path, onRemove }: { path: string; onRemove: () => void }) {
 
 export function ProductCustomiser({
   setup,
+  baseDays,
   basePrice,
   value,
   onChange,
   userId,
 }: {
   setup: ProductCustomisationSetup;
+  // The making / dispatch days the product page shows, for "Total T days".
+  baseDays?: number | null;
   basePrice: number;
   value: CustomiserState;
   onChange: (next: CustomiserState) => void;
@@ -258,9 +261,15 @@ export function ProductCustomiser({
           </div>
           <ul className="text-xs text-muted-foreground space-y-0.5">
             {(setup.customisation_days ?? 0) > 0 && (
-              <li>Takes {setup.customisation_days} extra day{setup.customisation_days === 1 ? "" : "s"} to make.</li>
+              <li>
+                Adds {setup.customisation_days} extra day{setup.customisation_days === 1 ? "" : "s"}
+                {baseDays != null && baseDays > 0 && ` · Total ${baseDays + (setup.customisation_days ?? 0)} days`}
+              </li>
             )}
-            <li>Customised pieces are made for you, so they can't be returned or exchanged.</li>
+            <li>
+              Customised pieces are not returnable (a damaged, defective or wrong item can be reported within 24 hours of
+              delivery).
+            </li>
             {"error" in preview && (value.customSize || value.optionIds.length > 0) && <li className="text-destructive">{preview.error}</li>}
           </ul>
         </div>

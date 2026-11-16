@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
-import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { announcementMessages } from "@/content/storefront";
 import { COMPANY } from "@/lib/company";
 
 // Thin deep-maroon strip above the header: customer care on the left,
 // rotating offers/promises in the middle, quick links on the right.
 export function AnnouncementBar() {
-  const { shippingCharged } = useCustomerShipping();
-  const messages = announcementMessages(shippingCharged);
+  const messages = announcementMessages();
   const [i, setI] = useState(0);
 
   useEffect(() => {

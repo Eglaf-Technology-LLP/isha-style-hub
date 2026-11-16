@@ -144,18 +144,19 @@ export default function StorePage() {
                 {vendor.description && <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">{vendor.description}</p>}
               </div>
               <div className="grid gap-3 text-sm md:w-80">
-                <div className="flex items-start gap-3">
-                  <Truck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
-                  <span className="text-muted-foreground">
-                    {!shippingCharged
-                      ? "Free shipping on every order"
-                      : `Shipping ${formatINR(vendor.shipping_flat_rate)}${vendor.free_shipping_threshold ? ` · free above ${formatINR(vendor.free_shipping_threshold)}` : ""}`}
-                  </span>
-                </div>
+                {/* No "Free shipping on every order" line (2.12 point 2). */}
+                {shippingCharged && (
+                  <div className="flex items-start gap-3">
+                    <Truck className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
+                    <span className="text-muted-foreground">
+                      {`Shipping ${formatINR(vendor.shipping_flat_rate)}${vendor.free_shipping_threshold ? ` · free above ${formatINR(vendor.free_shipping_threshold)}` : ""}`}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-start gap-3">
                   <RotateCcw className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
                   <span className="text-muted-foreground">
-                    {returnWindowAdjective(windowHours)} returns &amp; exchanges
+                    {returnWindowAdjective(windowHours)} returns on returnable pieces
                     {vendor.return_policy && <span className="mt-0.5 block text-xs">{vendor.return_policy}</span>}
                   </span>
                 </div>
