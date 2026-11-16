@@ -24,9 +24,9 @@ const takenMessage = (what: "email" | "mobile number") =>
 // Email and mobile number (client, 16 Nov 2026): the one the account was
 // registered with is shown locked, for good - also after the other one is
 // added and used to sign in. The other one can be added or changed, but
-// never to one another account already has. An email added here is
-// confirmed with a code and becomes a second way to sign in; a mobile
-// number added here is the contact number for orders.
+// never to one another account already has. Either one added here is
+// confirmed with a code sent to it (email, or SMS) and becomes a second way
+// to sign in to this same account.
 export function ProfileSection() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -38,7 +38,6 @@ export function ProfileSection() {
   });
   // Sign-up only asks for an email, so a new account's name is taken here.
   const [nameMissing, setNameMissing] = useState(false);
-  const [phoneError, setPhoneError] = useState<string | null>(null);
   const phoneLocked = signedUpWith(user) === "phone";
 
   // Once per account: adding an email refreshes the session (a new user
@@ -80,39 +79,22 @@ export function ProfileSection() {
   const handleSave = async () => {
     if (!user) return;
 
-    setPhoneError(null);
     setSaving(true);
     try {
-      // Registered with a mobile number: the profile keeps that number.
-      // Otherwise the typed one, if it's a real number no other account has.
-      let phone: string | null = null;
-      if (phoneLocked) {
-        phone = user.phone ? `+${user.phone.replace(/\D/g, "")}` : null;
-      } else if (profile.phone?.trim()) {
-        phone = toE164(profile.phone);
-        if (!phone) {
-          setPhoneError("Enter a 10-digit mobile number (or +country code for numbers outside India).");
-          return;
-        }
-        if (await contactTaken({ phone })) {
-          setPhoneError(takenMessage("mobile number"));
-          return;
-        }
-      }
-
+      // The mobile number isn't typed in here: it's the account's verified
+      // one (MobileField / registration), kept in the profile too.
       const { error } = await supabase
         .from("profiles")
         .upsert({
           user_id: user.id,
           full_name: profile.full_name,
-          phone,
+          ...(user.phone ? { phone: `+${user.phone.replace(/\D/g, "")}` } : {}),
           avatar_url: profile.avatar_url,
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id" });
 
       if (error) throw error;
 
-      setProfile((p) => ({ ...p, phone: nationalPhone(phone) }));
       setNameMissing(!profile.full_name?.trim());
       toast.success("Profile updated successfully!");
     } catch (error: any) {
@@ -223,7 +205,7 @@ export function ProfileSection() {
           </div>
 
           {phoneLocked ? (
-            <EmailField current={user?.email ?? ""} />
+            <VerifiedField kind="email" current={user?.email ?? ""} />
           ) : (
             <div className="space-y-2">
               <Label htmlFor="email" className={accountLabelClass}>Email</Label>
@@ -232,38 +214,17 @@ export function ProfileSection() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label htmlFor="phone" className={accountLabelClass}>Mobile number</Label>
-            {phoneLocked ? (
-              <>
-                <Input id="phone" value={formatPhone(user?.phone)} disabled className={accountFieldClass} />
-                <p className="text-xs text-muted-foreground">You registered with this number, so it can't be changed.</p>
-              </>
-            ) : (
-              <>
-                <Input
-                  id="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  value={profile.phone || ""}
-                  onChange={(e) => {
-                    setProfile({ ...profile, phone: e.target.value });
-                    setPhoneError(null);
-                  }}
-                  placeholder="10-digit mobile number"
-                  aria-invalid={!!phoneError}
-                  className={accountFieldClass}
-                />
-                {phoneError ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {phoneError}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">For your orders and deliveries.</p>
-                )}
-              </>
-            )}
-          </div>
+          {phoneLocked ? (
+            <div className="space-y-2">
+              <Label htmlFor="phone" className={accountLabelClass}>Mobile number</Label>
+              <Input id="phone" value={formatPhone(user?.phone)} disabled className={accountFieldClass} />
+              <p className="text-xs text-muted-foreground">You registered with this number, so it can't be changed.</p>
+            </div>
+          ) : (
+            // An unverified number saved here before (old accounts) is
+            // offered for verifying.
+            <VerifiedField kind="phone" current={user?.phone ?? ""} suggested={profile.phone ?? ""} />
+          )}
         </div>
 
         <button
@@ -289,20 +250,24 @@ export function ProfileSection() {
   );
 }
 
-// The email of an account registered with a mobile number: add one, or
-// change it, by confirming a code sent to it. It then signs in to this same
-// account (auth-email-otp, purpose "link").
-function EmailField({ current }: { current: string }) {
-  const { sendEmailLinkCode, verifyEmailLink } = useAuth();
-  const [text, setText] = useState(current);
+// The email or mobile number the account was NOT registered with: add it,
+// or change it, by confirming a code sent to it (email: auth-email-otp,
+// purpose "link"; mobile: an SMS from Supabase Auth). It then signs in to
+// this same account. current: the verified one, as auth.users has it
+// (email, or 919876543210). suggested: an unverified number to start with.
+function VerifiedField({ kind, current, suggested = "" }: { kind: "email" | "phone"; current: string; suggested?: string }) {
+  const { sendEmailLinkCode, verifyEmailLink, sendPhoneChangeCode, verifyPhoneChange } = useAuth();
+  const phone = kind === "phone";
+  const shownCurrent = phone ? nationalPhone(current) : current;
+  const [text, setText] = useState(shownCurrent || suggested);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
-  // Shows the saved email once it's confirmed.
-  useEffect(() => setText(current), [current]);
+  // Shows the saved one once it's confirmed.
+  useEffect(() => setText(shownCurrent || suggested), [shownCurrent, suggested]);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -310,39 +275,42 @@ function EmailField({ current }: { current: string }) {
     return () => window.clearTimeout(t);
   }, [resendIn]);
 
+  // What a code would go to: an email, or +919876543210.
   const parsed = parseIdentifier(text);
-  const email = parsed?.kind === "email" ? parsed.value : null;
-  const changed = text.trim().toLowerCase() !== current.toLowerCase();
+  const value = phone ? toE164(text) : parsed?.kind === "email" ? parsed.value : null;
+  const currentValue = phone ? (current ? `+${current.replace(/\D/g, "")}` : "") : current.toLowerCase();
+  const changed = (value ?? text.trim().toLowerCase()) !== currentValue;
+  const shown = (v: string) => (phone ? formatPhone(v) : v);
 
-  const sendCode = async (value: string) => {
+  const sendCode = async (target: string) => {
     setBusy(true);
     setError(null);
-    if (await contactTaken({ email: value })) {
+    if (await contactTaken(phone ? { phone: target } : { email: target })) {
       setBusy(false);
-      setError(takenMessage("email"));
+      setError(takenMessage(phone ? "mobile number" : "email"));
       return;
     }
-    const { error, retryAfter } = await sendEmailLinkCode(value);
+    const { error, retryAfter } = phone ? await sendPhoneChangeCode(target) : await sendEmailLinkCode(target);
     setBusy(false);
     if (retryAfter) setResendIn(retryAfter);
     if (error) return setError(error);
     if (!retryAfter) setResendIn(60);
-    setSentTo(value);
+    setSentTo(target);
     setCode("");
   };
 
-  const check = async (value: string) => {
-    if (!sentTo || value.length !== 6 || busy) return;
+  const check = async (typed: string) => {
+    if (!sentTo || typed.length !== 6 || busy) return;
     setBusy(true);
     setError(null);
-    const { error } = await verifyEmailLink(sentTo, value);
+    const { error } = phone ? await verifyPhoneChange(sentTo, typed) : await verifyEmailLink(sentTo, typed);
     setBusy(false);
     if (error) {
       setError(error);
       setCode("");
       return;
     }
-    toast.success(`${sentTo} saved. You can sign in with it too.`);
+    toast.success(`${shown(sentTo)} saved. You can sign in with it too.`);
     setSentTo(null);
   };
 
@@ -351,12 +319,12 @@ function EmailField({ current }: { current: string }) {
 
   return (
     <div className="space-y-2">
-      <Label htmlFor="email" className={accountLabelClass}>Email</Label>
+      <Label htmlFor={kind} className={accountLabelClass}>{phone ? "Mobile number" : "Email"}</Label>
       <Input
-        id="email"
-        type="email"
-        autoComplete="email"
-        placeholder="you@example.com"
+        id={kind}
+        type={phone ? "tel" : "email"}
+        autoComplete={phone ? "tel" : "email"}
+        placeholder={phone ? "10-digit mobile number" : "you@example.com"}
         value={text}
         disabled={!!sentTo}
         onChange={(e) => {
@@ -370,7 +338,7 @@ function EmailField({ current }: { current: string }) {
       {sentTo ? (
         <div className="space-y-3 pt-1">
           <p className="text-sm text-muted-foreground">
-            Enter the 6-digit code sent to <span className="break-all font-medium text-foreground">{sentTo}</span>.{" "}
+            Enter the 6-digit code sent to <span className="break-all font-medium text-foreground">{shown(sentTo)}</span>.{" "}
             {resendIn > 0 ? (
               <span>Resend in {resendIn}s</span>
             ) : (
@@ -415,9 +383,9 @@ function EmailField({ current }: { current: string }) {
       ) : (
         changed &&
         text.trim() && (
-          <button type="button" className={button} disabled={busy || !email} onClick={() => email && sendCode(email)}>
+          <button type="button" className={button} disabled={busy || !value} onClick={() => value && sendCode(value)}>
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {current ? "Verify new email" : "Verify email"}
+            {phone ? (current ? "Verify new number" : "Verify number") : current ? "Verify new email" : "Verify email"}
           </button>
         )
       )}
@@ -429,9 +397,13 @@ function EmailField({ current }: { current: string }) {
       ) : (
         !sentTo && (
           <p className="text-xs text-muted-foreground">
-            {changed && text.trim() && !email
-              ? "Enter a valid email address."
-              : "We'll email a code to confirm it. You can then sign in with it too."}
+            {changed && text.trim() && !value
+              ? phone
+                ? "Enter a 10-digit mobile number (or +country code for numbers outside India)."
+                : "Enter a valid email address."
+              : phone
+                ? "We'll text a code to confirm it. You can then sign in with it too."
+                : "We'll email a code to confirm it. You can then sign in with it too."}
           </p>
         )
       )}

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { fillProfileFromAddress } from "@/hooks/useProfile";
+import { fillProfileNameFromAddress } from "@/hooks/useProfile";
 
 export interface SavedAddress {
   id: string;
@@ -97,8 +97,9 @@ export function useSavedAddresses() {
 
       if (error) throw error;
 
-      // A profile with no name / mobile number yet takes them from here.
-      void fillProfileFromAddress(user, addressData.full_name, addressData.phone);
+      // A profile with no name yet takes it from here (never the mobile
+      // number - that's verified in My Account).
+      void fillProfileNameFromAddress(user, addressData.full_name);
       await fetchAddresses();
       toast.success("Address saved successfully");
       return data as SavedAddress;

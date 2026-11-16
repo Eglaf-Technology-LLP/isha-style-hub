@@ -137,7 +137,13 @@ export function useAuth() {
   };
 
   const verifyPhoneChange = async (phone: string, code: string) => {
-    const { error } = await supabase.auth.verifyOtp({ phone, token: code, type: "phone_change" });
+    const { data, error } = await supabase.auth.verifyOtp({ phone, token: code, type: "phone_change" });
+    // The verified number is the profile's mobile number too (orders,
+    // address forms). Best effort - the sign-in number is already saved.
+    if (!error && data.user) {
+      const { error: profileError } = await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
+      if (profileError) console.error("Couldn't copy the mobile number to the profile:", profileError.message);
+    }
     return { error: authError(error).error };
   };
 
