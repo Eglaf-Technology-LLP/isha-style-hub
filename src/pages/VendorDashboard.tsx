@@ -394,15 +394,21 @@ export default function VendorDashboard() {
     const rateOn = (day: string) =>
       vendor.commission_rate ?? platformRates.versions.find((v) => v.effective_from <= day)?.marketplace_commission_pct;
     const pct = (n: number | null | undefined) => (n == null ? "—" : `${Number(n)}%`);
+    // The 0% is commission only: the technology & service fee is still
+    // charged in the founding period (client corrections, 15 Nov 2026).
+    const techFeeNote = (day: string) => {
+      const fee = platformRates.versions.find((v) => v.effective_from <= day)?.technology_fee_pct;
+      return fee == null ? "" : ` (${pct(fee)} technology & service fee still applies)`;
+    };
     const periods = zeroCommissionPeriods(foundingPeriod, vendor);
     const zeroUntil = zeroCommissionUntil(periods, today);
     if (zeroUntil) {
-      return `Commission 0% until ${formatDate(zeroUntil)} (founding period), then ${pct(rateOn(nextDay(zeroUntil)))}`;
+      return `Commission 0% until ${formatDate(zeroUntil)} (founding period)${techFeeNote(today)}, then ${pct(rateOn(nextDay(zeroUntil)))}`;
     }
     const now = `Commission ${pct(rateOn(today))}`;
     const next = periods.filter((p) => p.from > today).sort((a, b) => a.from.localeCompare(b.from))[0];
     return next
-      ? `${now} · 0% on orders from ${formatDate(next.from)} to ${formatDate(zeroCommissionUntil(periods, next.from) ?? next.until)}`
+      ? `${now} · 0% on orders from ${formatDate(next.from)} to ${formatDate(zeroCommissionUntil(periods, next.from) ?? next.until)}${techFeeNote(next.from)}, then ${pct(rateOn(nextDay(zeroCommissionUntil(periods, next.from) ?? next.until)))}`
       : now;
   };
 
