@@ -78,6 +78,11 @@ const MIN_ONLINE_PAYMENT_AMOUNT = 1;
 // VITE_RAZORPAY_MAX_AMOUNT to the new figure when they do.
 const MAX_ONLINE_PAYMENT_AMOUNT = Number(import.meta.env.VITE_RAZORPAY_MAX_AMOUNT) || 500000;
 
+// A payment that came through after its checkout had been released as
+// unpaid: the server refunds it automatically (lateCapture.ts).
+const LATE_PAYMENT_MESSAGE =
+  "Your payment came through after the checkout had timed out, so no order was placed. It is being refunded to your original payment method (usually 5-7 working days). Your cart is saved - you can place the order again.";
+
 interface Discount {
   id: string;
   code: string;
@@ -811,11 +816,17 @@ export default function Checkout() {
         .select("payment_status, order_status")
         .eq("id", pending.orderId)
         .maybeSingle();
-      const status =
-        o && ["paid", "refunded"].includes(o.payment_status)
-          ? "paid"
-          : !o || o.order_status === "cancelled"
-            ? "released"
+      // Cancelled first: a checkout released as unpaid and paid after that
+      // is refunded automatically, never placed.
+      const paid = !!o && ["paid", "refunded"].includes(o.payment_status);
+      const status = !o
+        ? "released"
+        : o.order_status === "cancelled"
+          ? paid
+            ? "refunded"
+            : "released"
+          : paid
+            ? "paid"
             : await releaseUnpaidCheckout(pending.orderId);
       if (cancelled) return;
       if (status === "paid") {
@@ -838,6 +849,8 @@ export default function Checkout() {
       setPaymentCheck(null);
       if (unsure) {
         toast.info("Your bank is still confirming the payment. If it goes through, we'll place the order and email you.");
+      } else if (status === "refunded") {
+        toast.error(LATE_PAYMENT_MESSAGE, { duration: 12000 });
       } else {
         toast.error("Your last payment didn't go through, so no order was placed. Your cart is saved - you can try again.");
       }
@@ -1218,6 +1231,15 @@ export default function Checkout() {
             }
           );
 
+          if (verifyData?.released) {
+            // The checkout had already timed out and been released when the
+            // payment came through: no order, the payment is refunded
+            // automatically, and the cart stays as it was.
+            clearPendingPayment();
+            toast.error(LATE_PAYMENT_MESSAGE, { duration: 12000 });
+            setIsPlacingOrder(false);
+            return;
+          }
           if (verifyError || !verifyData?.verified) {
             toast.error(
               "Payment could not be verified. If you were charged, contact support with your order reference."
@@ -1248,6 +1270,8 @@ export default function Checkout() {
               showPlaced(newOrderId);
             } else if (status === "processing") {
               toast.info("Your payment is still being confirmed by your bank. We'll place the order as soon as it goes through.");
+            } else if (status === "refunded") {
+              toast.error(LATE_PAYMENT_MESSAGE, { duration: 12000 });
             } else {
               toast.error("Payment not completed, so no order was placed. Your cart is saved - you can try again.");
             }

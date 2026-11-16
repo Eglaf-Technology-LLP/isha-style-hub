@@ -93,7 +93,11 @@ Deno.serve(async (req) => {
       if (!order || (order.user_id !== userId && !(await isAdmin(supabase, userId)))) {
         return jsonResponse({ error: "Order not found" }, 404);
       }
-      if (order.order_status === "cancelled") return jsonResponse({ status: "released" });
+      // Already released. "refunded": a payment came through after that and
+      // was refunded automatically (lateCapture.ts) - still no order.
+      if (order.order_status === "cancelled") {
+        return jsonResponse({ status: ["paid", "refunded"].includes(order.payment_status) ? "refunded" : "released" });
+      }
       return jsonResponse({ status: await settle(supabase, order) });
     }
 

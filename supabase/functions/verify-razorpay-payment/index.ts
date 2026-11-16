@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { createHeldTransfers } from "../_shared/razorpayRoute.ts";
+import { refundLateCapture } from "../_shared/lateCapture.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,9 +75,57 @@ Deno.serve(async (req) => {
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Only flip the order that actually matches the razorpay_order_id we
-    // created it with - stops a verified payment for one order being
-    // replayed against a different order id.
+    // Only the order that actually matches the razorpay_order_id we created
+    // it with - stops a verified payment for one order being replayed
+    // against a different order id.
+    const { data: current, error: currentErr } = await supabase
+      .from("orders")
+      .select("id, order_status")
+      .eq("id", orderId)
+      .eq("razorpay_order_id", razorpay_order_id)
+      .maybeSingle();
+    if (currentErr) throw currentErr;
+    if (!current) {
+      return new Response(
+        JSON.stringify({ verified: false, error: "Order/razorpay order id mismatch" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // What Razorpay actually holds for this payment: its status, and the
+    // fee it charged (so the platform's real net take is visible).
+    // Best-effort: a failure here shouldn't undo a payment that's genuinely
+    // verified - fee reporting can be backfilled later.
+    let details: any = null;
+    const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID");
+    if (RAZORPAY_KEY_ID) {
+      try {
+        const auth = "Basic " + btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
+        const feeRes = await fetch(
+          `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
+          { headers: { Authorization: auth } },
+        );
+        if (feeRes.ok) details = await feeRes.json();
+        else console.error("Razorpay payment fetch failed", feeRes.status, await feeRes.text());
+      } catch (feeErr) {
+        console.error("Razorpay payment fetch error", feeErr);
+      }
+    }
+
+    // Released as unpaid before this payment came through (stock put back):
+    // there is no order. A captured payment is refunded in full now; one
+    // Razorpay hasn't captured yet is refunded by the payment.captured
+    // webhook when it is. `verified: false` so the checkout never shows it
+    // as placed or empties the cart.
+    if (current.order_status === "cancelled") {
+      if (details?.status === "captured" && details?.id === razorpay_payment_id) {
+        await refundLateCapture(supabase, current.id, details);
+      }
+      return new Response(JSON.stringify({ verified: false, released: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: order, error: orderErr } = await supabase
       .from("orders")
       .update({ payment_status: "paid", razorpay_payment_id })
@@ -93,34 +142,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch what Razorpay actually charged for this transaction, so the
-    // platform's real net take (commission earned minus gateway fees) is
-    // visible instead of only gross amounts. Best-effort: a failure here
-    // shouldn't undo a payment that's genuinely verified - fee reporting
-    // can be backfilled later, but the order being marked paid can't wait.
-    let gatewayFee: number | null = null;
-    let gatewayTax: number | null = null;
-    const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID");
-    if (RAZORPAY_KEY_ID) {
-      try {
-        const auth = "Basic " + btoa(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`);
-        const feeRes = await fetch(
-          `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
-          { headers: { Authorization: auth } },
-        );
-        if (feeRes.ok) {
-          const details = await feeRes.json();
-          // fee is in paise and already includes tax (GST); tax is the
-          // GST portion within that same fee, not additional to it.
-          if (typeof details.fee === "number") gatewayFee = details.fee / 100;
-          if (typeof details.tax === "number") gatewayTax = details.tax / 100;
-        } else {
-          console.error("Razorpay fee fetch failed", feeRes.status, await feeRes.text());
-        }
-      } catch (feeErr) {
-        console.error("Razorpay fee fetch error", feeErr);
-      }
-    }
+    // fee is in paise and already includes tax (GST); tax is the GST
+    // portion within that same fee, not additional to it.
+    const gatewayFee: number | null = typeof details?.fee === "number" ? details.fee / 100 : null;
+    const gatewayTax: number | null = typeof details?.tax === "number" ? details.tax / 100 : null;
 
     const { error: paymentErr } = await supabase
       .from("payments")

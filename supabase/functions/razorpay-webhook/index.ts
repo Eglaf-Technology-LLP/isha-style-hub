@@ -3,7 +3,7 @@ import { applyPayoutEntity, applyValidation } from "../_shared/razorpayx.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 import { links } from "../_shared/notify.ts";
-import { money } from "../_shared/money.ts";
+import { refundLateCapture } from "../_shared/lateCapture.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
@@ -129,7 +129,12 @@ Deno.serve(async (req) => {
             .eq("razorpay_order_id", paymentEntity.order_id)
             .maybeSingle();
           const lateCapture = newStatus === "paid" && order?.order_status === "cancelled";
-          if (order && fromStatuses.includes(order.payment_status)) {
+          if (order && lateCapture && fromStatuses.includes(order.payment_status)) {
+            // The checkout was already released as unpaid (stock put back)
+            // when this payment came through: refunded in full, automatically.
+            resolvedOrderId = order.id;
+            await refundLateCapture(supabase, order.id, paymentEntity);
+          } else if (order && fromStatuses.includes(order.payment_status)) {
             await supabase
               .from("orders")
               .update({ payment_status: newStatus, razorpay_payment_id: paymentEntity.id })
@@ -146,17 +151,7 @@ Deno.serve(async (req) => {
               .eq("order_id", order.id)
               .in("payment_status", fromStatuses);
             resolvedOrderId = order.id;
-            if (lateCapture) {
-              // The checkout was already released as unpaid (stock put back)
-              // when this payment came through - the money has to go back.
-              await notifyAdmins(
-                supabase,
-                "late_payment_refund",
-                "Payment received for a released checkout - refund it",
-                `Order #${order.id.slice(0, 8)} was released as unpaid, then Razorpay captured ${money((Number(paymentEntity.amount) / 100))} for it. Refund it from Payments.`,
-                "/admin?tab=payments",
-              );
-            } else if (newStatus === "paid") {
+            if (newStatus === "paid") {
               await createHeldTransfers(supabase, order.id, paymentEntity.id).catch((e) =>
                 console.error("createHeldTransfers (webhook) error", e),
               );
