@@ -78,8 +78,8 @@ export function Footer() {
       </div>
 
       {/* Links */}
-      <div className="store-container grid grid-cols-2 gap-10 py-14 md:grid-cols-4 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1.3fr]">
-        <div className="col-span-2 md:col-span-4 lg:col-span-1">
+      <div className="store-container grid grid-cols-2 gap-10 py-14 md:grid-cols-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_1.3fr]">
+        <div className="col-span-2 md:col-span-3 lg:col-span-1">
           <img src={logo} alt="AllBoutiqs" className="mb-5 h-14 w-auto object-contain" />
           <p className="max-w-xs text-sm leading-relaxed text-ivory/65">
             India's Premium Boutique Marketplace – women's designer fashion from boutiques and designer brands.
@@ -116,11 +116,21 @@ export function Footer() {
           <FooterLink to={LEGAL_PATHS.sellerTerms}>Seller terms</FooterLink>
         </FooterColumn>
 
+        {/* About us, Contact us, FAQ and the two store policies: client
+            corrections, 15 Nov 2026. */}
+        <FooterColumn title="Company">
+          <FooterLink to={LEGAL_PATHS.about}>About us</FooterLink>
+          <FooterLink to={LEGAL_PATHS.contact}>Contact us</FooterLink>
+          <FooterLink to={LEGAL_PATHS.faq}>FAQ</FooterLink>
+        </FooterColumn>
+
         <FooterColumn title="Help">
           <FooterLink to="/orders">Track your order</FooterLink>
           <FooterLink to="/orders">Returns &amp; refunds</FooterLink>
           <FooterLink to="/account">My account</FooterLink>
           <FooterLink to="/wishlist">Wishlist</FooterLink>
+          <FooterLink to={LEGAL_PATHS.shipping}>Shipping policy</FooterLink>
+          <FooterLink to={LEGAL_PATHS.returns}>Return &amp; Refund policy</FooterLink>
           <FooterLink to={LEGAL_PATHS.privacy}>Privacy policy</FooterLink>
           <FooterLink to={LEGAL_PATHS.terms}>Terms &amp; conditions</FooterLink>
         </FooterColumn>

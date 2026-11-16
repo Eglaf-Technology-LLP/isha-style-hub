@@ -21,11 +21,14 @@ export function LegalPage({
   title,
   intro,
   sections,
+  updated = LEGAL_UPDATED,
 }: {
   eyebrow: string;
   title: string;
   intro: ReactNode;
   sections: LegalSection[];
+  // "Last updated" date; null hides it (About us, Contact us, FAQ).
+  updated?: string | null;
 }) {
   // Links like /privacy-policy#grievance-officer open at that section.
   const { hash } = useLocation();
@@ -42,7 +45,7 @@ export function LegalPage({
             <p className="eyebrow text-gold">{eyebrow}</p>
             <h1 className="mt-3 font-serif text-4xl text-balance md:text-5xl">{title}</h1>
             <Ornament className="mt-6" />
-            <p className="mt-5 text-sm text-muted-foreground">Last updated {formatDate(LEGAL_UPDATED)}</p>
+            {updated && <p className="mt-5 text-sm text-muted-foreground">Last updated {formatDate(updated)}</p>}
           </div>
         </section>
 

@@ -22,6 +22,11 @@ import Warehouse from "./pages/Warehouse";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
 import SellerTerms from "./pages/legal/SellerTerms";
 import CustomerTerms from "./pages/legal/CustomerTerms";
+import ShippingPolicy from "./pages/legal/ShippingPolicy";
+import ReturnRefundPolicy from "./pages/legal/ReturnRefundPolicy";
+import AboutUs from "./pages/info/AboutUs";
+import ContactUs from "./pages/info/ContactUs";
+import Faq from "./pages/info/Faq";
 import { ConsentGate } from "./components/auth/ConsentGate";
 import { LEGAL_PATHS } from "./lib/legal";
 import NotFound from "./pages/NotFound";
@@ -71,6 +76,11 @@ const App = () => (
             <Route path={LEGAL_PATHS.privacy} element={<PrivacyPolicy />} />
             <Route path={LEGAL_PATHS.terms} element={<CustomerTerms />} />
             <Route path={LEGAL_PATHS.sellerTerms} element={<SellerTerms />} />
+            <Route path={LEGAL_PATHS.shipping} element={<ShippingPolicy />} />
+            <Route path={LEGAL_PATHS.returns} element={<ReturnRefundPolicy />} />
+            <Route path={LEGAL_PATHS.about} element={<AboutUs />} />
+            <Route path={LEGAL_PATHS.contact} element={<ContactUs />} />
+            <Route path={LEGAL_PATHS.faq} element={<Faq />} />
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
