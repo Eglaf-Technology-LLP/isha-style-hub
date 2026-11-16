@@ -127,7 +127,9 @@ export function ProfileSection() {
     ?.split(" ")
     .map((n) => n[0])
     .join("")
-    .toUpperCase() || user?.email?.[0].toUpperCase() || "U";
+    // A mobile-only account's email is "" (not null), so "?." alone isn't
+    // enough: ""[0] is undefined and .toUpperCase() on it blanked the page.
+    .toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
   const contact = userContact(user);
 
   return (
