@@ -19,9 +19,11 @@ interface ProductCardProps {
   product: Product & { vendor?: { name: string; slug?: string | null } | null };
   // Load the first image eagerly (above-the-fold cards).
   priority?: boolean;
+  // Staff looking at a store page: no quick add, wishlist or compare.
+  viewOnly?: boolean;
 }
 
-export function ProductCard({ product, priority = false }: ProductCardProps) {
+export function ProductCard({ product, priority = false, viewOnly = false }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
   const setBagOpen = useUiStore((s) => s.setBagOpen);
 
@@ -145,7 +147,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           )}
 
           {/* Quick add (desktop hover) */}
-          {available && (quickAddSizes || quickAddPlain) && (
+          {!viewOnly && available && (quickAddSizes || quickAddPlain) && (
             <div className="absolute inset-x-0 bottom-0 hidden translate-y-full bg-ivory/95 px-3 py-3 backdrop-blur-sm transition-transform duration-300 ease-out group-hover:translate-y-0 md:block">
               {quickAddSizes ? (
                 <>
@@ -188,23 +190,25 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
       </Link>
 
       {/* Wishlist / compare */}
-      <div className="absolute right-2.5 top-2.5 flex flex-col gap-2">
-        <WishlistButton productId={product.id} className="h-9 w-9 bg-ivory/85" />
-        <div className="hidden opacity-0 transition-opacity group-hover:opacity-100 md:block">
-          <CompareButton
-            product={{
-              id: product.id,
-              name: product.name,
-              price: product.price,
-              compare_at_price: product.compare_at_price || null,
-              images: product.images,
-              description: product.description || null,
-              variants: product.variants,
-              category_id: product.category_id || null,
-            }}
-          />
+      {!viewOnly && (
+        <div className="absolute right-2.5 top-2.5 flex flex-col gap-2">
+          <WishlistButton productId={product.id} className="h-9 w-9 bg-ivory/85" />
+          <div className="hidden opacity-0 transition-opacity group-hover:opacity-100 md:block">
+            <CompareButton
+              product={{
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                compare_at_price: product.compare_at_price || null,
+                images: product.images,
+                description: product.description || null,
+                variants: product.variants,
+                category_id: product.category_id || null,
+              }}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <Link to={`/product/${product.id}`} className="mt-3.5 block space-y-1">
         <p className="eyebrow truncate text-[10px] text-muted-foreground">{product.vendor?.name || "AllBoutiqs"}</p>

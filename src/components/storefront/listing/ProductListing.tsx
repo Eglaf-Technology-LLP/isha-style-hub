@@ -20,6 +20,8 @@ interface ProductListingProps {
   scopeCategoryId: string | null;
   hideBoutiques?: boolean;
   emptyText?: string;
+  // Staff looking at a store page: cards without shopping buttons.
+  viewOnly?: boolean;
 }
 
 // Filterable, sortable product grid with a sticky filter sidebar (desktop)
@@ -32,6 +34,7 @@ export function ProductListing({
   scopeCategoryId,
   hideBoutiques,
   emptyText = "No pieces match these filters yet.",
+  viewOnly = false,
 }: ProductListingProps) {
   const listing = useListing(products, scopeCategoryId);
   const { filters, setFilters, toggle, clearAll, results, activeCount } = listing;
@@ -169,7 +172,7 @@ export function ProductListing({
             <>
               <div className={cn("grid grid-cols-2 gap-x-4 gap-y-10 md:gap-x-6 md:gap-y-12", dense ? "md:grid-cols-3 xl:grid-cols-4" : "md:grid-cols-2 xl:grid-cols-3")}>
                 {visible.map((p, i) => (
-                  <ProductCard key={p.id} product={p} priority={i < 4} />
+                  <ProductCard key={p.id} product={p} priority={i < 4} viewOnly={viewOnly} />
                 ))}
               </div>
               {results.length > shown && (

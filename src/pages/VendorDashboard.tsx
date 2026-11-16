@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
-import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import type { CustomisationChoice } from "@/lib/customisation";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { liveProductCountKey } from "@/hooks/useLiveProductCount";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { Header } from "@/components/Header";
@@ -248,6 +249,8 @@ export default function VendorDashboard() {
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>("all");
   const [productStatusFilter, setProductStatusFilter] = useState<ProductStatusFilter>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const [orderStatusTab, setOrderStatusTab] = useState<
     "all" | "pending" | "confirmed" | "processing" | "warehouse" | "shipped" | "delivered" | "cancelled" | "returned_ndr"
   >("all");
@@ -427,6 +430,33 @@ export default function VendorDashboard() {
     }
     fetchAll();
   }, [loading, vendor, navigate]);
+
+  // "Live products (N)" in the header links here with ?status=live: switch
+  // the product list to that filter, then drop the param so the button works
+  // again the next time it is tapped.
+  const statusParam = searchParams.get("status");
+  useEffect(() => {
+    if (!statusParam) return;
+    if (PRODUCT_STATUS_FILTERS.some((f) => f.key === statusParam)) {
+      setProductStatusFilter(statusParam as ProductStatusFilter);
+      setProductSearch("");
+      setProductCategoryFilter("all");
+    }
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.delete("status");
+        return params;
+      },
+      { replace: true },
+    );
+  }, [statusParam, setSearchParams]);
+
+  // Any change to the product list (added, edited, hidden, shown, deleted)
+  // refreshes the header's live count straight away.
+  useEffect(() => {
+    if (vendor?.id) queryClient.invalidateQueries({ queryKey: liveProductCountKey(vendor.id) });
+  }, [products, vendor?.id, queryClient]);
 
   const fetchAll = async () => {
     if (!vendor) return;
@@ -745,14 +775,7 @@ export default function VendorDashboard() {
             </div>
           </div>
           <div className="flex gap-2">
-            {/* Hidden while boutiques only see their own area. */}
-            {!STAFF_ONLY_MODE && (
-              <Link to={`/store/${vendor.slug}`}>
-                <Button variant="outline" size="sm">
-                  <Eye className="h-4 w-4 mr-2" /> View storefront
-                </Button>
-              </Link>
-            )}
+            {/* "View my store" is in the header, on every Seller Dashboard page. */}
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
               Store settings
             </Button>

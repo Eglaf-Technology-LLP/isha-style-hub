@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { STAFF_ONLY_MODE } from "@/lib/staffMode";
 import { CATEGORY_HOVER_MENUS_ENABLED, NEW_IN_AND_SALE_LINKS_ENABLED } from "@/lib/hiddenFeatures";
 import logo from "@/assets/logo.png";
-import { ArrowRight, BadgeCheck, ChevronRight, Heart, Home, Menu, MessageCircle, Package, Search, Store, User } from "lucide-react";
+import { ArrowRight, BadgeCheck, ChevronRight, Eye, Heart, Home, Menu, MessageCircle, Package, Search, Store, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -35,6 +35,7 @@ import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { COMPANY } from "@/lib/company";
 import { userContact } from "@/lib/authIdentifier";
 import { useHomePath } from "@/hooks/useHomePath";
+import { useLiveProductCount } from "@/hooks/useLiveProductCount";
 import { SignInSecurityDialog } from "@/components/auth/SignInSecurity";
 import { cn } from "@/lib/utils";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -56,6 +57,10 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
   const { isAdmin } = useAdmin();
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const homePath = useHomePath();
+  // Seller Dashboard header: an approved boutique (not an admin) gets
+  // "Live products (N)" and "View my store" next to Home.
+  const sellerShortcuts = STAFF_ONLY_MODE && !!user && !isAdmin && vendor?.status === "approved";
+  const { data: liveCount } = useLiveProductCount(sellerShortcuts ? vendor?.id : undefined);
 
   const { data: categories } = useMenuCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
@@ -150,15 +155,37 @@ export function Header({ variant = "store" }: { variant?: "store" | "seller" }) 
       <header className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2">
-              <Link to={home} aria-label="AllBoutiqs - home">
-                <img src={logo} alt="AllBoutiqs" className="h-12 w-auto object-contain" />
+            <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+              <Link to={home} aria-label="AllBoutiqs - home" className="shrink-0">
+                <img src={logo} alt="AllBoutiqs" className={cn("w-auto object-contain", sellerShortcuts ? "h-10 sm:h-12" : "h-12")} />
               </Link>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to={home} className="gap-1.5">
-                  <Home className="h-4 w-4" /> Home
+              <Button variant="ghost" size="sm" className={cn(sellerShortcuts && "px-2 sm:px-3")} asChild>
+                <Link to={home} className="gap-1.5" aria-label="Home">
+                  {/* Phones: just the icon when the seller buttons sit next to it. */}
+                  <Home className="h-4 w-4" /> <span className={cn(sellerShortcuts && "hidden sm:inline")}>Home</span>
                 </Link>
               </Button>
+              {sellerShortcuts && vendor && (
+                <>
+                  {/* Opens the product list filtered to Live on site. */}
+                  <Button size="sm" className="gap-1.5 bg-emerald-600 px-2.5 text-white hover:bg-emerald-700 sm:px-3" asChild>
+                    <Link to="/vendor?tab=products&status=live">
+                      <span className="sm:hidden">Live</span>
+                      <span className="hidden sm:inline">Live products</span>
+                      <span className="tabular-nums">({liveCount ?? "…"})</span>
+                    </Link>
+                  </Button>
+                  {/* A new tab, so the dashboard stays open; the store page is
+                      shown to look at only (see staffMode.ts). */}
+                  <Button variant="outline" size="sm" className="gap-1.5 px-2.5 sm:px-3" asChild>
+                    <Link to={`/store/${vendor.slug}`} target="_blank" rel="noopener noreferrer">
+                      <Eye className="h-4 w-4" />
+                      <span className="sm:hidden">My store</span>
+                      <span className="hidden sm:inline">View my store</span>
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <NotificationBell />

@@ -540,8 +540,8 @@ export default function ProductDetail() {
     { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
   ];
 
-  // The boutique's name links to its store - not for staff, who can't open
-  // store pages.
+  // The boutique's name links to its store - not for staff, who see this page
+  // to look at only (no links into the store).
   const boutiqueLink = (className: string, children: React.ReactNode) =>
     viewOnly || !vendorInfo ? (
       <span className={className}>{children}</span>

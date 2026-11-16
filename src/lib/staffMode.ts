@@ -21,18 +21,20 @@ export const STAFF_AREAS: Record<"admin" | "vendor", { home: string; paths: stri
 // to read what they agreed to).
 const OPEN_PATHS: string[] = Object.values(LEGAL_PATHS);
 
-// Staff can open any product page ("view" from their dashboard) to see it.
-const PRODUCT_PREFIX = "/product/";
+// Staff can open any product page ("view" from their dashboard) and store
+// page ("View my store" in the Seller Dashboard header, client corrections
+// 15 Nov 2026) to see it.
+const VIEW_ONLY_PREFIXES = ["/product/", "/store/"];
 
-// True when admins and boutiques see a product page on its own, to look at
-// only: no header, footer, shopping buttons or links into the store.
+// True when admins and boutiques see a product or store page on its own, to
+// look at only: no header, footer, shopping buttons or links into the store.
 export function isStaffProductView(role: StaffRole): boolean {
   return STAFF_ONLY_MODE && (role === "admin" || role === "vendor");
 }
 
 export function staffRedirect(role: StaffRole, pathname: string): string | null {
   if (!STAFF_ONLY_MODE || (role !== "admin" && role !== "vendor")) return null;
-  if (OPEN_PATHS.includes(pathname) || pathname.startsWith(PRODUCT_PREFIX)) return null;
+  if (OPEN_PATHS.includes(pathname) || VIEW_ONLY_PREFIXES.some((p) => pathname.startsWith(p))) return null;
   const area = STAFF_AREAS[role];
   return area.paths.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ? null : area.home;
 }

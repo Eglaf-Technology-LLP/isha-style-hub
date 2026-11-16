@@ -12,6 +12,8 @@ import { useStoreBoutiques, useStoreCategories, useStoreProducts } from "@/hooks
 import { ProductListing } from "@/components/storefront/listing/ProductListing";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
+import { useStaffRole } from "@/hooks/useStaffRole";
+import { isStaffProductView } from "@/lib/staffMode";
 
 interface StoreVendor {
   id: string;
@@ -40,6 +42,10 @@ export default function StorePage() {
   const { data: allProducts = [], isLoading: productsLoading } = useStoreProducts();
   const { data: categories = [] } = useStoreCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
+  // A boutique ("View my store") or an admin sees the page to look at only:
+  // no shop header, footer or shopping buttons (see staffMode.ts).
+  const { role } = useStaffRole();
+  const viewOnly = isStaffProductView(role);
 
   useEffect(() => {
     async function load() {
@@ -70,11 +76,11 @@ export default function StorePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        {!viewOnly && <Header />}
         <div className="flex justify-center py-40">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-        <Footer />
+        {!viewOnly && <Footer />}
       </div>
     );
   }
@@ -82,26 +88,33 @@ export default function StorePage() {
   if (!vendor) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        {!viewOnly && <Header />}
         <div className="store-container py-28 text-center">
           <p className="eyebrow text-gold">Boutique</p>
           <h1 className="mt-3 font-serif text-4xl">Boutique not found</h1>
           <p className="mt-3 text-muted-foreground">This boutique may be inactive or awaiting approval.</p>
-          <Link
-            to="/boutiques"
-            className="mt-8 inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
-          >
-            See all boutiques
-          </Link>
+          {!viewOnly && (
+            <Link
+              to="/boutiques"
+              className="mt-8 inline-flex h-12 items-center border border-foreground px-8 text-[11px] font-medium uppercase tracking-[0.22em] hover:bg-foreground hover:text-background"
+            >
+              See all boutiques
+            </Link>
+          )}
         </div>
-        <Footer />
+        {!viewOnly && <Footer />}
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      {!viewOnly && <Header />}
+      {viewOnly && (
+        <p className="border-b border-border bg-muted/40 px-4 py-2 text-center text-xs text-muted-foreground">
+          View only - this is how customers see this store.
+        </p>
+      )}
       <main>
         {/* Banner */}
         <section className="relative h-56 overflow-hidden bg-maroon-deep md:h-80">
@@ -180,9 +193,10 @@ export default function StorePage() {
           scopeCategoryId={null}
           hideBoutiques
           emptyText={`${vendor.name} hasn't listed any pieces yet.`}
+          viewOnly={viewOnly}
         />
       </main>
-      <Footer />
+      {!viewOnly && <Footer />}
     </div>
   );
 }
