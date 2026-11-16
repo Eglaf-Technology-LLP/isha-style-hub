@@ -11,9 +11,19 @@ async function loadXlsx() {
 // (a SKU that looks numeric, a "TRUE" typed as text vs boolean) to not be
 // worth relying on.
 export async function parseWorkbook(file: File): Promise<Record<string, string>[]> {
+  return workbookRows(await readWorkbook(file));
+}
+
+// The whole workbook, for importers that read more than a plain table (the
+// product listing sheet: its header isn't on row 1, and it has helper tabs).
+export async function readWorkbook(file: File): Promise<import("xlsx").WorkBook> {
   const XLSX = await loadXlsx();
-  const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
+  return XLSX.read(await file.arrayBuffer(), { type: "array" });
+}
+
+// First sheet as rows keyed by the row-1 headers - see parseWorkbook.
+export async function workbookRows(workbook: import("xlsx").WorkBook): Promise<Record<string, string>[]> {
+  const XLSX = await loadXlsx();
   const firstSheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheetName];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
