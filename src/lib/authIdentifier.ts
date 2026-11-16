@@ -40,6 +40,28 @@ export function formatPhone(phone: string | null | undefined): string {
 // How to show who is signed in: their email, else their mobile number.
 export const userContact = (user: User | null | undefined) => user?.email || formatPhone(user?.phone) || "";
 
+// What the account was registered with. That one stays locked in My Account
+// for good; the other can be added or changed (client, 16 Nov 2026). Read
+// from the account's first sign-in identity, which an email or number added
+// later never replaces. supabase/functions/auth-email-otp has the same rule.
+export function signedUpWith(user: User | null | undefined): "email" | "phone" {
+  const first = (user?.identities ?? [])
+    .filter((i) => i.provider === "email" || i.provider === "phone")
+    .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))[0];
+  if (first) return first.provider as "email" | "phone";
+  return user?.phone && !user?.email ? "phone" : "email";
+}
+
+// "9876543210" for an Indian number (what address and checkout forms
+// expect), anything else as given. Accepts "+919876543210" or "919876543210".
+export function nationalPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  // user.phone has no "+" (919876543210, or 14155550100 abroad).
+  const e164 = toE164(phone) ?? toE164(`+${phone.replace(/\D/g, "")}`);
+  if (!e164) return phone;
+  return e164.startsWith("+91") && e164.length === 13 ? e164.slice(3) : e164;
+}
+
 // Set when the person chooses their own password (accounts start with only
 // one-time codes). A display hint only - it lives in user_metadata.
 export const hasOwnPassword = (user: User | null | undefined) => !!user?.user_metadata?.password_set;

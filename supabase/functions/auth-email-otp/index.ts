@@ -1,4 +1,4 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { SupabaseClient, type User } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, jsonResponse, serviceClient, errorMessage, getCallerUserId } from "../_shared/auth.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 
@@ -8,8 +8,9 @@ import { emailTemplate, sendEmail } from "../_shared/email.ts";
 // the browser exchanges for a normal Supabase session
 // (supabase.auth.verifyOtp({token_hash, type:"magiclink"})). New emails get
 // an account with a random password nobody knows (people can set their own
-// later). Signed-in people who only have a mobile number add an email with
-// {action:"send", purpose:"link", email} then {action:"link", email, code}.
+// later). Signed-in people registered with a mobile number add (or change)
+// their email with {action:"send", purpose:"link", email} then
+// {action:"link", email, code}.
 // Public endpoint (verify_jwt = false) - the caller isn't signed in yet.
 
 const CODE_TTL_MINUTES = 10;
@@ -64,6 +65,17 @@ function randomPassword(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes));
+}
+
+// What the account was registered with: its first email/phone sign-in
+// identity (one added later never replaces it). Same rule as signedUpWith
+// in src/lib/authIdentifier.ts.
+function signedUpWith(user: User): "email" | "phone" {
+  const first = (user.identities ?? [])
+    .filter((i) => i.provider === "email" || i.provider === "phone")
+    .sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""))[0];
+  if (first) return first.provider as "email" | "phone";
+  return user.phone && !user.email ? "phone" : "email";
 }
 
 async function existingUserId(supabase: SupabaseClient, email: string): Promise<string | null> {
@@ -287,10 +299,12 @@ Deno.serve(async (req) => {
     if (body.purpose === "link" || body.action === "link") {
       const userId = await getCallerUserId(req);
       if (!userId) return jsonResponse({ error: "Please sign in again, then add your email." }, 401);
-      // Adding only - an account's existing email is never swapped here.
+      // The email an account was registered with is never swapped here; an
+      // account registered with a mobile number may add an email and change
+      // it later (client, 16 Nov 2026).
       const { data: caller } = await supabase.auth.admin.getUserById(userId);
-      if (caller?.user?.email) {
-        return jsonResponse({ error: "Your account already has an email. To change it, contact AllBoutiqs support." }, 400);
+      if (caller?.user?.email && signedUpWith(caller.user) === "email") {
+        return jsonResponse({ error: "You registered with this email, so it can't be changed." }, 400);
       }
       if (body.action === "send") return await sendCode(supabase, email, clientIp(req), userId);
       if (body.action === "link") return await linkEmail(supabase, userId, email, code);

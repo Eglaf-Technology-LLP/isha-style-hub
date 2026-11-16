@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { PasswordInput } from "@/components/auth/InlineSignInForm";
 import { useAuth } from "@/hooks/useAuth";
-import { PASSWORD_MIN_LENGTH, formatPhone, hasOwnPassword, parseIdentifier, toE164 } from "@/lib/authIdentifier";
+import { PASSWORD_MIN_LENGTH, formatPhone, hasOwnPassword, parseIdentifier, signedUpWith, toE164 } from "@/lib/authIdentifier";
 import { cn } from "@/lib/utils";
 
 type Editing = "password" | "phone" | "email" | null;
@@ -26,6 +26,11 @@ export function SignInSecurity({ variant = "store" }: { variant?: "store" | "sta
 
   const passwordSet = hasOwnPassword(user);
   const field = store ? "h-12 rounded-none border-foreground/20" : "";
+  // What the account was registered with can't be changed (client, 16 Nov
+  // 2026); the other one can be added and changed.
+  const registeredWith = signedUpWith(user);
+  const emailAction = !user.email ? "Add email" : registeredWith === "phone" ? "Change" : null;
+  const phoneAction = !user.phone ? "Add mobile" : registeredWith === "email" ? "Change" : null;
 
   return (
     <div className={cn("divide-y divide-border border-border", store ? "border-b" : "rounded-md border")}>
@@ -34,7 +39,7 @@ export function SignInSecurity({ variant = "store" }: { variant?: "store" | "sta
         title="Email"
         value={user.email || "Not added"}
         verified={!!user.email}
-        action={!user.email && editing !== "email" ? "Add email" : null}
+        action={editing === "email" ? null : emailAction}
         onAction={() => setEditing("email")}
         store={store}
       >
@@ -48,7 +53,7 @@ export function SignInSecurity({ variant = "store" }: { variant?: "store" | "sta
             verify={(value, code) => verifyEmailLink(value, code)}
             onDone={(value) => {
               setEditing(null);
-              toast.success(`${value} added. You can sign in with it now.`);
+              toast.success(`${value} saved. You can sign in with it now.`);
             }}
           />
         )}
@@ -59,7 +64,7 @@ export function SignInSecurity({ variant = "store" }: { variant?: "store" | "sta
         title="Mobile number"
         value={user.phone ? formatPhone(user.phone) : "Not added"}
         verified={!!user.phone}
-        action={editing === "phone" ? null : user.phone ? "Change" : "Add mobile"}
+        action={editing === "phone" ? null : phoneAction}
         onAction={() => setEditing("phone")}
         store={store}
       >

@@ -4420,6 +4420,10 @@ export type Database = {
         Args: { _object_name: string; _user_id: string }
         Returns: boolean
       }
+      contact_taken: {
+        Args: { _email?: string; _phone?: string }
+        Returns: boolean
+      }
       can_operate_warehouse: { Args: { _user_id: string }; Returns: boolean }
       can_view_customisation_photo: {
         Args: { _path: string }
