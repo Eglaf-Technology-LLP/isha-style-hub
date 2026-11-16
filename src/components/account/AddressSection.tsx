@@ -19,6 +19,8 @@ import { normalizeState } from "@/lib/indianStates";
 import { AccountSectionTitle, accountFieldClass, accountLabelClass } from "@/components/storefront/account/AccountKit";
 import { cn } from "@/lib/utils";
 import { usePincodeAutofill } from "@/lib/pincode";
+import { AddressLine1Input } from "@/components/AddressLine1Input";
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 
 export function AddressSection() {
   const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useSavedAddresses();
@@ -73,6 +75,10 @@ export function AddressSection() {
   const handleSubmit = async () => {
     if (!formData.full_name || !formData.phone || !formData.address_line_1 || !formData.city || !normalizeState(formData.state) || !formData.pincode) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+    if (!addressLine1Ok(formData.address_line_1)) {
+      toast.error(ADDRESS_LINE1_LOCKED);
       return;
     }
 
@@ -170,10 +176,10 @@ export function AddressSection() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="address_line_1" className={accountLabelClass}>Address line 1 *</Label>
-                  <Input
+                  <AddressLine1Input
                     id="address_line_1"
                     value={formData.address_line_1}
-                    onChange={(e) => setFormData({ ...formData, address_line_1: e.target.value })}
+                    onChange={(v) => setFormData((f) => ({ ...f, address_line_1: v }))}
                     placeholder="House/Flat No., Building Name"
                     className={accountFieldClass}
                   />
@@ -230,10 +236,14 @@ export function AddressSection() {
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="h-12 w-full bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep"
+                  disabled={!addressLine1Ok(formData.address_line_1)}
+                  className="h-12 w-full bg-primary text-[11px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {editingAddress ? "Update address" : "Save address"}
                 </button>
+                {!addressLine1Ok(formData.address_line_1) && (
+                  <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED}</p>
+                )}
               </div>
             </DialogContent>
           </Dialog>

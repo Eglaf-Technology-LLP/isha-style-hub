@@ -7,6 +7,8 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
+import { AddressLine1Input } from "@/components/AddressLine1Input";
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,7 +42,6 @@ import { toast } from "sonner";
 import { COMPANY, telHref } from "@/lib/company";
 import {
   ACCOUNT_RE,
-  ADDRESS_LINE1_MIN,
   BRAND_LEGAL_DECLARATION,
   cleanMobileInput,
   instagramProblem,
@@ -1179,10 +1180,11 @@ export default function SellWithUs() {
 
               <FormSection icon={MapPin} title="Business address *" description="Also used as your courier pickup address.">
                 <div className="space-y-2">
-                  <TextField
+                  <Label htmlFor="address_line1" className={accountLabelClass}>Address line 1 *</Label>
+                  <AddressLine1Input
                     id="address_line1"
-                    label="Address line 1 *"
                     placeholder="Shop / building number, street, area"
+                    className={accountFieldClass}
                     value={form.address_line1}
                     onChange={(v) => {
                       set("address_line1", v);
@@ -1190,9 +1192,6 @@ export default function SellWithUs() {
                     }}
                     error={errors.address_line1}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    At least {ADDRESS_LINE1_MIN} characters - the courier needs the shop / building number and street
-                  </p>
                 </div>
                 <TextField
                   id="address_line2"
@@ -1278,14 +1277,20 @@ export default function SellWithUs() {
                 </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
-              >
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                {progress ?? "Submit application"}
-              </button>
+              {/* Locked until the business address line 1 is long enough. */}
+              <div className="space-y-2">
+                <button
+                  type="submit"
+                  disabled={submitting || !addressLine1Ok(form.address_line1)}
+                  className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {progress ?? "Submit application"}
+                </button>
+                {!submitting && !addressLine1Ok(form.address_line1) && (
+                  <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Business address)</p>
+                )}
+              </div>
 
               <aside aria-label="Need help?" className="border border-gold/40 bg-ivory p-5 text-sm">
                 <p className="font-serif text-lg">Need help?</p>

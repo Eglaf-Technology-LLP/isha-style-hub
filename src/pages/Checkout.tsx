@@ -39,6 +39,8 @@ import { normalizeState } from "@/lib/indianStates";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { CheckoutShell } from "@/components/storefront/checkout/CheckoutShell";
+import { AddressLine1Input } from "@/components/AddressLine1Input";
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { cn } from "@/lib/utils";
@@ -712,8 +714,9 @@ export default function Checkout() {
       toast.error("Please enter a valid phone number");
       return false;
     }
-    if (!shippingAddress.address_line1.trim()) {
-      toast.error("Please enter your address");
+    if (!addressLine1Ok(shippingAddress.address_line1)) {
+      toast.error(ADDRESS_LINE1_LOCKED);
+      document.getElementById("address1")?.focus();
       return false;
     }
     if (!shippingAddress.city.trim()) {
@@ -1343,13 +1346,17 @@ export default function Checkout() {
       : paymentMethod === "razorpay"
         ? `Pay ${formatINR(payNow)}`
         : `Place order · ${formatINR(payNow)}`;
+  // Locked until the delivery address line 1 is long enough for the courier
+  // (client, 16 Nov 2026).
+  const addressLine1Locked = !addressLine1Ok(shippingAddress.address_line1);
 
   return (
     <CheckoutShell
       step={1}
       bottomBar={
         // Phones: total + place order, always in reach
-        <div className="store-container flex items-center gap-4 py-3">
+        <div className="store-container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+          {addressLine1Locked && <p className="w-full text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
             <p className="font-serif text-xl leading-tight">{formatINR(payNow)}</p>
@@ -1357,8 +1364,8 @@ export default function Checkout() {
           <button
             type="button"
             onClick={placeOrder}
-            disabled={isPlacingOrder || paymentCheck !== null}
-            className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:opacity-70"
+            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+            className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
             {isPlacingOrder ? "Please wait…" : paymentMethod === "razorpay" && !paidByWallet ? "Pay now" : "Place order"}
@@ -1473,16 +1480,16 @@ export default function Checkout() {
 
               <div className="space-y-5">
                 <Field label="Address line 1" htmlFor="address1" required>
-                  <Input
+                  <AddressLine1Input
                     id="address1"
                     placeholder="House/Flat number, Street name"
                     autoComplete="address-line1"
                     className={fieldClass}
                     value={shippingAddress.address_line1}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       setShippingAddress((prev) => ({
                         ...prev,
-                        address_line1: e.target.value,
+                        address_line1: v,
                       }))
                     }
                   />
@@ -1872,12 +1879,13 @@ export default function Checkout() {
                 <button
                   type="button"
                   onClick={placeOrder}
-                  disabled={isPlacingOrder || paymentCheck !== null}
-                  className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:opacity-70"
+                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+                  className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
                   {placeOrderLabel}
                 </button>
+                {addressLine1Locked && <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
 
                 {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
                   const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;

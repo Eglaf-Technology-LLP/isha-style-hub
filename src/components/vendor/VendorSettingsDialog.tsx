@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StateSelect } from "@/components/StateSelect";
+import { AddressLine1Input } from "@/components/AddressLine1Input";
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -107,6 +109,11 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
   const ADDRESS_IDS: Record<PickupAddressField, string> = { address_line1: "vs-addr1", address_line2: "vs-addr2", city: "vs-city", state: "vs-state", pincode: "vs-pincode" };
   const addressError = (field: PickupAddressField) =>
     addressErrors[field] ? <p className="text-xs text-destructive">{addressErrors[field]}</p> : null;
+  // A pickup address left wholly blank may still be saved (pickupAddressErrors
+  // allowBlank); once any of it is filled in, Save waits for a long enough
+  // address line 1 (client, 16 Nov 2026).
+  const addressBlank = [form.address_line1, form.address_line2, form.city, form.state, form.pincode].every((v) => !v.trim());
+  const addressLine1Locked = !addressBlank && !addressLine1Ok(form.address_line1);
 
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error("Boutique / Brand Name is required");
@@ -302,15 +309,16 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
             </p>
             <div className="space-y-2">
               <Label htmlFor="vs-addr1">Address line 1</Label>
-              <Input
+              <AddressLine1Input
                 id="vs-addr1"
                 value={form.address_line1}
-                onChange={(e) => set("address_line1", e.target.value)}
-                aria-invalid={!!addressErrors.address_line1}
+                onChange={(v) => {
+                  set("address_line1", v);
+                  setAddressErrors((a) => (a.address_line1 ? { ...a, address_line1: undefined } : a));
+                }}
+                error={addressErrors.address_line1}
+                required={!addressBlank}
               />
-              {addressError("address_line1") ?? (
-                <p className="text-xs text-muted-foreground">At least 10 characters - shop / building number, street and area.</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="vs-addr2">Address line 2 (optional)</Label>
@@ -397,11 +405,12 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           )}
         </div>
 
+        {addressLine1Locked && <p className="text-right text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Pickup address)</p>}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || addressLine1Locked}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Save changes
           </Button>
