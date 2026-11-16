@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Edit, Trash2, MapPin, Star } from "lucide-react";
 import { useSavedAddresses, AddressFormData, SavedAddress } from "@/hooks/useSavedAddresses";
+import { addressDefaults, useProfile } from "@/hooks/useProfile";
 import { toast } from "sonner";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
@@ -21,6 +22,7 @@ import { usePincodeAutofill } from "@/lib/pincode";
 
 export function AddressSection() {
   const { addresses, loading, addAddress, updateAddress, deleteAddress, setDefaultAddress } = useSavedAddresses();
+  const { user, profile } = useProfile();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<SavedAddress | null>(null);
   const [formData, setFormData] = useState<AddressFormData>({
@@ -112,6 +114,12 @@ export function AddressSection() {
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
             if (!open) resetForm();
+            // First address: name and mobile number from the profile (the
+            // customer can still change them).
+            else if (!editingAddress && addresses.length === 0) {
+              const { name, phone } = addressDefaults(user, profile);
+              setFormData((prev) => ({ ...prev, full_name: prev.full_name || name, phone: prev.phone || phone }));
+            }
           }}>
             <DialogTrigger asChild>
               <button

@@ -32,6 +32,7 @@ import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSavedAddresses, SavedAddress } from "@/hooks/useSavedAddresses";
+import { addressDefaults, useProfile } from "@/hooks/useProfile";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { StateSelect } from "@/components/StateSelect";
 import { normalizeState } from "@/lib/indianStates";
@@ -136,9 +137,11 @@ export default function Checkout() {
   const walletOn = payFromWallet && (wallet.balance ?? 0) > 0;
   const {
     addresses: savedAddresses,
+    loading: addressesLoading,
     defaultAddress,
     addAddress,
   } = useSavedAddresses();
+  const { profile } = useProfile();
 
   const [customerInfo, setCustomerInfo] = useState({
     name: "",
@@ -218,8 +221,16 @@ export default function Checkout() {
     if (defaultAddress) {
       applySavedAddress(defaultAddress);
       setAddressPrefilled(true);
+      return;
     }
-  }, [defaultAddress, addressPrefilled]);
+    // No saved address yet (the first one): name and mobile number from the
+    // profile, still editable (client, 16 Nov 2026).
+    if (user && !addressesLoading && savedAddresses.length === 0 && profile) {
+      const { name, phone } = addressDefaults(user, profile);
+      setCustomerInfo((prev) => ({ ...prev, name: prev.name || name, phone: prev.phone || phone }));
+      setAddressPrefilled(true);
+    }
+  }, [defaultAddress, addressPrefilled, user, addressesLoading, savedAddresses.length, profile]);
 
   const handleAddressPick = (value: string) => {
     if (value === "new") {

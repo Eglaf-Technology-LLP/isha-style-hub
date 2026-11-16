@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { fillProfileFromAddress } from "@/hooks/useProfile";
 
 export interface SavedAddress {
   id: string;
@@ -35,14 +36,19 @@ export function useSavedAddresses() {
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Per account, not per session refresh (each refresh is a new user
+  // object): loading again until this account's list arrives, so nobody
+  // reads "no saved addresses" from the signed-out empty list.
   useEffect(() => {
     if (user) {
+      setLoading(true);
       fetchAddresses();
     } else {
       setAddresses([]);
       setLoading(false);
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const fetchAddresses = async () => {
     if (!user) return;
@@ -91,6 +97,8 @@ export function useSavedAddresses() {
 
       if (error) throw error;
 
+      // A profile with no name / mobile number yet takes them from here.
+      void fillProfileFromAddress(user, addressData.full_name, addressData.phone);
       await fetchAddresses();
       toast.success("Address saved successfully");
       return data as SavedAddress;
