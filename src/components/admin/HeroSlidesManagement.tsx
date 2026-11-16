@@ -450,7 +450,7 @@ function SlideEditor({
               </div>
             </Section>
 
-            <Section title="Pictures" hint="Desktop: landscape, about 2400 x 1200 px. Phone: portrait, about 1080 x 1600 px - if left empty the desktop photo is used. Up to 5MB each.">
+            <Section title="Pictures" hint="Desktop: landscape, about 2400 x 1200 px. Phone: portrait, about 1080 x 1600 px - if left empty the desktop photo is used.">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Desktop photo">
                   <SingleImageDropzone folder="hero" value={f.image_url} onChange={(url) => set("image_url", url)} />
