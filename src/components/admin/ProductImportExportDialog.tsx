@@ -29,7 +29,7 @@ import { isListingWorkbook, listingBoutiqueCode, parseListingWorkbook } from "@/
 interface Props {
   products: ImportExportProduct[];
   categories: Category[];
-  vendorId?: string; // set = vendor-scoped (own catalog only, no Vendor Slug column); unset = admin (full catalog)
+  vendorId?: string; // set = vendor-scoped (own catalog only, no Boutique Code column); unset = admin (full catalog)
   isVendorTrusted?: boolean; // mirrors the product form's own auto-approval rule
   onImported: () => void;
 }
@@ -96,7 +96,10 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
   const categoryIdByName = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]));
   const categoryNameById = new Map(categories.map((c) => [c.id, c.name]));
   const vendorIdBySlug = new Map(vendors.map((v) => [v.slug.toLowerCase(), v.id]));
-  const vendorSlugById = new Map(vendors.map((v) => [v.id, v.slug]));
+  const vendorIdByCode = new Map(
+    vendors.filter((v) => v.boutique_code).map((v) => [v.boutique_code!.trim().toLowerCase(), v.id]),
+  );
+  const boutiqueCodeById = new Map(vendors.map((v) => [v.id, v.boutique_code ?? ""]));
 
   const downloadSample = async () => {
     await buildWorkbook(sampleProductTemplateRows(!vendorId), "product-import-sample.xlsx");
@@ -105,7 +108,7 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
   const downloadCurrent = async () => {
     const scoped = vendorId ? products.filter((p) => p.vendor_id === vendorId) : products;
     await buildWorkbook(
-      productsToRows(scoped, { includeVendorColumn: !vendorId, vendorSlugById, categoryNameById }),
+      productsToRows(scoped, { includeVendorColumn: !vendorId, boutiqueCodeById, categoryNameById }),
       "products-export.xlsx",
     );
   };
@@ -201,6 +204,7 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
       const rawRows = await workbookRows(workbook);
       const { groups, errors } = parseImportRows(rawRows, {
         categoryIdByName,
+        vendorIdByCode,
         vendorIdBySlug,
         forcedVendorId: vendorId,
         forcedVendorTrusted: isVendorTrusted,
@@ -319,19 +323,6 @@ export function ProductImportExportDialog({ products, categories, vendorId, isVe
               </Button>
               {progress && <p className="mt-1.5 text-xs text-muted-foreground">{progress}</p>}
             </div>
-
-            {!vendorId && vendors.length > 0 && (
-              <div className="text-xs text-muted-foreground">
-                <p className="mb-1">Every product needs a Vendor Slug - one of these:</p>
-                <ul className="max-h-24 overflow-y-auto rounded-md border border-border px-2 py-1">
-                  {vendors.map((v) => (
-                    <li key={v.id}>
-                      <span className="font-mono text-foreground">{v.slug}</span> - {v.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             {results && (
               <div className="space-y-2 text-sm border-t border-border pt-3">

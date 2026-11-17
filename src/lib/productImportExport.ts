@@ -45,7 +45,8 @@ export const PRODUCT_COLUMNS = {
   name: "Product Name",
   description: "Description",
   category: "Category",
-  vendorSlug: "Vendor Slug",
+  // 3.1.2: the boutique is named by its code (AB0001), no vendor slug.
+  boutiqueCode: "Boutique Code",
   countryOfOrigin: "Country of Origin",
   netQuantity: "Net Quantity",
   returnable: "Returnable (TRUE/FALSE)",
@@ -66,6 +67,10 @@ export const PRODUCT_COLUMNS = {
   imageUrl: "Image URL",
 } as const;
 
+// Files exported before 17 Nov 2026 name the boutique by its slug in this
+// column; they still import.
+const LEGACY_VENDOR_SLUG_COLUMN = "Vendor Slug";
+
 export interface ProductImportGroup {
   handle: string;
   productId: string | null;
@@ -82,7 +87,8 @@ export interface ImportRowError {
 
 interface ParseContext {
   categoryIdByName: Map<string, string>;
-  vendorIdBySlug: Map<string, string>;
+  vendorIdByCode: Map<string, string>; // boutique code, lower case
+  vendorIdBySlug: Map<string, string>; // old files only
   forcedVendorId?: string; // vendor-triggered import: always this vendor, column ignored
   // Mirrors the product form's own isTrusted ? "approved" : "pending_review"
   // rule exactly - only meaningful alongside forcedVendorId. Admin-triggered
@@ -159,16 +165,23 @@ export function parseImportRows(
 
     let vendorId: string | null | undefined = ctx.forcedVendorId;
     if (vendorId === undefined) {
-      const vendorSlug = first[PRODUCT_COLUMNS.vendorSlug]?.trim();
-      if (vendorSlug) {
-        vendorId = ctx.vendorIdBySlug.get(vendorSlug.toLowerCase()) ?? null;
+      const code = first[PRODUCT_COLUMNS.boutiqueCode]?.trim();
+      const legacySlug = first[LEGACY_VENDOR_SLUG_COLUMN]?.trim();
+      if (code) {
+        vendorId = ctx.vendorIdByCode.get(code.toLowerCase()) ?? null;
         if (!vendorId) {
-          errors.push({ handle, rowNumber: entries[0].rowNumber, message: `Vendor "${vendorSlug}" not found` });
+          errors.push({ handle, rowNumber: entries[0].rowNumber, message: `No boutique has the code "${code}"` });
+          continue;
+        }
+      } else if (legacySlug) {
+        vendorId = ctx.vendorIdBySlug.get(legacySlug.toLowerCase()) ?? null;
+        if (!vendorId) {
+          errors.push({ handle, rowNumber: entries[0].rowNumber, message: `Boutique "${legacySlug}" not found` });
           continue;
         }
       } else {
         // Every product belongs to a boutique.
-        errors.push({ handle, rowNumber: entries[0].rowNumber, message: "Vendor Slug is required" });
+        errors.push({ handle, rowNumber: entries[0].rowNumber, message: "Boutique Code is required (e.g. AB0001)" });
         continue;
       }
     }
@@ -279,14 +292,14 @@ export function parseImportRows(
 // creating duplicates.
 export function productsToRows(
   products: ImportExportProduct[],
-  opts: { includeVendorColumn: boolean; vendorSlugById?: Map<string, string>; categoryNameById: Map<string, string> },
+  opts: { includeVendorColumn: boolean; boutiqueCodeById?: Map<string, string>; categoryNameById: Map<string, string> },
 ): Record<string, string>[] {
   const rows: Record<string, string>[] = [];
 
   for (const product of products) {
     const categoryName = product.category_id ? opts.categoryNameById.get(product.category_id) ?? "" : "";
-    const vendorSlug =
-      opts.includeVendorColumn && product.vendor_id ? opts.vendorSlugById?.get(product.vendor_id) ?? "" : "";
+    const boutiqueCode =
+      opts.includeVendorColumn && product.vendor_id ? opts.boutiqueCodeById?.get(product.vendor_id) ?? "" : "";
     const specifications = stringifyPairs(product.specifications ?? []);
     const handle = product.sku || product.id;
 
@@ -296,7 +309,7 @@ export function productsToRows(
       [PRODUCT_COLUMNS.name]: product.name,
       [PRODUCT_COLUMNS.description]: product.description ?? "",
       [PRODUCT_COLUMNS.category]: categoryName,
-      ...(opts.includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: vendorSlug } : {}),
+      ...(opts.includeVendorColumn ? { [PRODUCT_COLUMNS.boutiqueCode]: boutiqueCode } : {}),
       [PRODUCT_COLUMNS.countryOfOrigin]: product.country_of_origin,
       [PRODUCT_COLUMNS.netQuantity]: product.net_quantity,
       [PRODUCT_COLUMNS.returnable]: product.is_returnable ? "TRUE" : "FALSE",
@@ -354,7 +367,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
     [PRODUCT_COLUMNS.specifications]: "Fabric:Silk;Wash Care:Dry Clean Only;Fit:Regular",
     [PRODUCT_COLUMNS.isActive]: "TRUE",
     [PRODUCT_COLUMNS.imageUrl]: "https://example.com/product-image.jpg",
-    ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "your-boutique-slug" } : {}),
+    ...(includeVendorColumn ? { [PRODUCT_COLUMNS.boutiqueCode]: "AB0001" } : {}),
   };
 
   return [
@@ -397,7 +410,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
       [PRODUCT_COLUMNS.specifications]: "Fabric:Cotton;Pattern:Block Print",
       [PRODUCT_COLUMNS.isActive]: "TRUE",
       [PRODUCT_COLUMNS.imageUrl]: "https://example.com/dupatta.jpg",
-      ...(includeVendorColumn ? { [PRODUCT_COLUMNS.vendorSlug]: "your-boutique-slug" } : {}),
+      ...(includeVendorColumn ? { [PRODUCT_COLUMNS.boutiqueCode]: "AB0001" } : {}),
       [PRODUCT_COLUMNS.variantOptions]: "",
       [PRODUCT_COLUMNS.sku]: "CPD-001",
       [PRODUCT_COLUMNS.price]: "599",
