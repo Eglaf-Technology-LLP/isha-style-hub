@@ -36,7 +36,7 @@ import { MediaArranger, type MediaValue } from "@/components/product-editor/Medi
 import { AI_MADE_NOT_ALLOWED, aiContentAllowed, type AiContentStatus } from "@/lib/aiContent";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 import { titleCase } from "@/lib/text";
-import { NET_QTY_WARN_ABOVE, checkStock, parseNetQuantity } from "@/lib/productRules";
+import { MIN_PRODUCT_PHOTOS, NET_QTY_WARN_ABOVE, checkPhotos, checkStock, parseNetQuantity } from "@/lib/productRules";
 import { cn } from "@/lib/utils";
 
 // The product as the add / edit pages load it (VENDOR_PRODUCT_COLUMNS).
@@ -245,6 +245,8 @@ export function ProductEditorForm({
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
     const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order);
     if ("error" in stockCheck) return toast.error(stockCheck.error);
+    const photoProblem = checkPhotos(media.images, variants);
+    if (photoProblem) return toast.error(photoProblem);
     const netQuantity = parseNetQuantity(form.net_quantity);
     if (!netQuantity) return toast.error('Net Quantity must be a number followed by N, Set or Pair - e.g. "1 N"');
     const parcel = [
@@ -455,10 +457,15 @@ export function ProductEditorForm({
           </Section>
 
           <Section
-            title="Photos & video"
-            description="Drag to arrange - shoppers see them in this order, and the first is the cover on product cards."
+            title="Photos & video *"
+            description={`At least ${MIN_PRODUCT_PHOTOS} real photos: front, back and close-up. Each extra colour needs 1 front photo too (under Sizes & colours). Drag to arrange - shoppers see them in this order, and the first is the cover on product cards.`}
           >
             <MediaArranger folder={folder} value={media} onChange={setMedia} withVideo videoNote={videoNote} />
+            {media.images.length < MIN_PRODUCT_PHOTOS && (
+              <p className="text-xs text-amber-700">
+                {media.images.length} of {MIN_PRODUCT_PHOTOS} photos added - add {MIN_PRODUCT_PHOTOS - media.images.length} more to save.
+              </p>
+            )}
           </Section>
 
           <Section title="Sizes & colours" description="Pick the sizes and colours you make - one variant is made for each pair.">

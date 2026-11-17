@@ -1,4 +1,4 @@
-import type { ProductVariant } from "@/hooks/useProducts";
+import { variantImages, type ProductVariant } from "@/hooks/useProducts";
 
 // Net Quantity on the product page is a legal declaration (Part 8, 27):
 // only a number followed by N, Set or Pair - "1 N", "2 Set", "1 Pair".
@@ -49,4 +49,32 @@ export function checkStock(
     return { error: "Ready to Ship needs at least 1 piece in stock - or switch on Made to order" };
   }
   return { variants, stock };
+}
+
+// Photo rule (client corrections, 15 Nov 2026, Part 4 B): the main product
+// needs at least 3 real photos - front, back and close-up - and each extra
+// colour at least 1 front photo of its own. The product photos show the
+// main colour, so one colour may go without its own photos; every other
+// colour needs one.
+export const MIN_PRODUCT_PHOTOS = 3;
+
+const colourOf = (v: ProductVariant) => v.options?.color || v.options?.Color || null;
+
+// Colours that still need their own front photo (empty = the rule is met).
+export function coloursMissingPhotos(variants: ProductVariant[]): string[] {
+  const colours = Array.from(new Set(variants.map(colourOf).filter(Boolean) as string[]));
+  const missing = colours.filter((c) => !variants.some((v) => colourOf(v) === c && variantImages(v).length > 0));
+  // One of them is the main colour the product photos show.
+  return missing.slice(1);
+}
+
+export function checkPhotos(images: string[], variants: ProductVariant[]): string | null {
+  if (images.length < MIN_PRODUCT_PHOTOS) {
+    return `Add at least ${MIN_PRODUCT_PHOTOS} real photos of the product - front, back and close-up (${images.length} added)`;
+  }
+  const missing = coloursMissingPhotos(variants);
+  if (missing.length) {
+    return `Add a front photo for each extra colour: ${missing.join(", ")} (under Photos for each colour)`;
+  }
+  return null;
 }

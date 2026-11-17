@@ -415,8 +415,8 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
             <div>
               <Label className="text-sm font-medium">Photos for each colour</Label>
               <p className="text-xs text-muted-foreground">
-                Shown when a shopper picks that colour, in this order - drag to arrange. Every size of a colour shares its
-                photos. A colour without photos shows the product photos, and its colour swatch.
+                Each extra colour needs at least 1 front photo (the product photos show the main colour). Shown when a
+                shopper picks that colour, in this order - drag to arrange. Every size of a colour shares its photos.
               </p>
             </div>
           ) : (
