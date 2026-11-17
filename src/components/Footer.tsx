@@ -7,6 +7,7 @@ import { COMPANY, telHref } from "@/lib/company";
 import { LEGAL_PATHS } from "@/lib/legal";
 import { useNewsletter } from "@/hooks/useNewsletter";
 import { useMenuCategories } from "@/hooks/useStorefront";
+import { RaiseComplaintButton } from "@/components/ComplaintForm";
 import logo from "@/assets/logo-white.png";
 
 const PAYMENT_METHODS = ["UPI", "Visa", "Mastercard", "RuPay", "Net banking", "Cash on Delivery"];
@@ -159,6 +160,21 @@ export function Footer() {
             <span>{COMPANY.officeAddress}</span>
           </li>
         </FooterColumn>
+      </div>
+
+      {/* Complaints (client list 2.11.2): the form emails the admins and the
+          customer; nothing is saved on the site. */}
+      <div className="border-t border-ivory/10">
+        <div className="store-container flex flex-col gap-5 py-8 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="eyebrow mb-2 text-gold">Complaints</p>
+            <p className="max-w-xl text-sm leading-relaxed text-ivory/70">
+              Something not right with an order, a boutique or the site? Tell us. You'll get a ticket number by email, and
+              we'll get back to you within 48 hours.
+            </p>
+          </div>
+          <RaiseComplaintButton className="shrink-0 self-start border border-gold px-6 py-3 text-xs font-medium uppercase tracking-[0.2em] text-ivory transition-colors hover:bg-gold hover:text-ink md:self-auto" />
+        </div>
       </div>
 
       {/* Bottom */}

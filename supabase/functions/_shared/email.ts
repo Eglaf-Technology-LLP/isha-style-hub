@@ -16,7 +16,14 @@ import { COMPANY } from "./company.ts";
 // nodemailer (via Deno's npm: specifier), not a Deno-native SMTP client -
 // this matches Supabase's own official example verbatim, the most
 // proven-reliable option on this specific runtime.
-export async function sendEmail(to: string, subject: string, html: string): Promise<{ success: boolean; skipped?: boolean }> {
+// `replyTo` defaults to customer support; the complaint form sets it to the
+// customer so an admin's reply goes straight to them.
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  opts: { replyTo?: string } = {},
+): Promise<{ success: boolean; skipped?: boolean }> {
   const host = Deno.env.get("SMTP_HOST");
   const port = Deno.env.get("SMTP_PORT");
   const username = Deno.env.get("SMTP_USERNAME");
@@ -38,7 +45,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   await transport.sendMail({
     from: `AllBoutiqs <${fromEmail}>`,
     to,
-    replyTo: COMPANY.supportEmail,
+    replyTo: opts.replyTo || COMPANY.supportEmail,
     subject,
     html,
   });

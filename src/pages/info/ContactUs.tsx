@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { RaiseComplaintButton } from "@/components/ComplaintForm";
 import { GrievanceContact, LegalPage, type LegalSection } from "@/components/legal/LegalPage";
 import { COMPANY, telHref } from "@/lib/company";
 import { LEGAL_PATHS } from "@/lib/legal";
@@ -77,6 +78,9 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>We acknowledge every complaint within 48 hours and resolve it within one month.</p>
+        <p>
+          <RaiseComplaintButton className="border border-primary px-5 py-2.5 text-xs font-medium uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground" />
+        </p>
         <GrievanceContact />
       </>
     ),

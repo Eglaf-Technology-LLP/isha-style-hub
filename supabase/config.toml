@@ -80,3 +80,8 @@ verify_jwt = true
 # in the function.
 [functions.eway-bill-actions]
 verify_jwt = true
+
+# Complaint form (footer / Contact us): anyone can send one, signed in or
+# not, so there's no user JWT to check. Abuse limits are in the function.
+[functions.submit-complaint]
+verify_jwt = false
