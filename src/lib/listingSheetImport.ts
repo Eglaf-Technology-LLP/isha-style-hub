@@ -2,6 +2,7 @@ import type { WorkBook, WorkSheet } from "xlsx";
 import type { ProductFormData, ProductSpecification, ProductVariant } from "@/hooks/useProducts";
 import { titleCase } from "@/lib/text";
 import { CUSTOMISATION_PCTS } from "@/lib/customisation";
+import type { AiContentStatus } from "@/lib/aiContent";
 
 // The AllBoutiqs product listing sheet (the client's Excel, "Product Listing
 // - FINAL - v11") -> new products. One row per colour:
@@ -35,6 +36,7 @@ type Field =
   | "cod"
   | "name"
   | "description"
+  | "ai"
   | "confirm";
 
 // Header -> field, after headerKey() (no "*", "▼" or "₹", lower case).
@@ -57,7 +59,14 @@ const FIELD_BY_HEADER: Record<string, Field> = {
   "product name": "name",
   description: "description",
   "i confirm": "confirm",
+  // The AI declaration column ("AI in photos"; any header starting with
+  // "AI" counts, see aiHeader).
+  "ai in photos": "ai",
+  "ai in photo": "ai",
+  ai: "ai",
 };
+
+const aiHeader = (key: string) => /^ai\b/.test(key);
 
 const FIELD_LABEL: Record<Field, string> = {
   sr: "Sr",
@@ -73,6 +82,7 @@ const FIELD_LABEL: Record<Field, string> = {
   cod: "COD",
   name: "Product name",
   description: "Description",
+  ai: "AI in photos",
   confirm: "I confirm",
 };
 
@@ -239,7 +249,7 @@ function findLayout(ws: WorkSheet): SheetLayout | null {
       details: [],
     };
     for (const h of headers) {
-      const field = FIELD_BY_HEADER[h.key];
+      const field = FIELD_BY_HEADER[h.key] ?? (aiHeader(h.key) ? "ai" : undefined);
       if (field) {
         if (layout.fields[field] === undefined) layout.fields[field] = h.col;
       } else if (SIZE_BY_HEADER[h.key]) {
@@ -375,6 +385,23 @@ function parseNumber(cell: CellValue): Parsed<number> {
   const n = Number(cleaned);
   return cleaned && Number.isFinite(n) ? { value: n } : { error: `"${cell.text}" is not a number` };
 }
+
+// The 4 AI options (client corrections 15 Nov 2026, 3.3.5), dash style and
+// case aside.
+function parseAi(cell: CellValue): Parsed<AiContentStatus> {
+  if (!cell.text) return { value: null };
+  const t = cell.text.toLowerCase().replace(/[–—-]/g, " ").replace(/\s+/g, " ").trim();
+  if (/ai ?made|not allowed|fully ai/.test(t)) return { value: "fully_ai" };
+  if (/^no ai|real photos only/.test(t)) return { value: "none" };
+  if (/background|light|crop/.test(t)) return { value: "ai_enhanced" };
+  if (/model/.test(t)) return { value: "ai_model" };
+  return {
+    error: `AI in photos "${oneLine(cell.text)}" is not one of the 4 options - pick it from the list`,
+  };
+}
+
+const AI_MADE_ROW =
+  `AI in photos is "AI-made product – not allowed" - AI-made products can't be listed on AllBoutiqs, so this product is not uploaded`;
 
 function parseYesNo(cell: CellValue, label: string): Parsed<boolean> {
   if (!cell.text) return { value: null };
@@ -520,6 +547,10 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     if ("error" in returnable) problem(main, returnable.error);
     const cod = parseYesNo(main.field("cod"), "COD");
     if ("error" in cod) problem(main, cod.error);
+    // 3.1.3: a row marked "AI-made product" is refused (checked on every
+    // row below).
+    const ai = parseAi(main.field("ai"));
+    const aiStatus = "value" in ai ? ai.value : null;
 
     // One "days" box on the product: making days for Made to Order,
     // dispatch days for Ready to Ship; empty = the category's default.
@@ -622,6 +653,8 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
         for (const f of ["name", "description", "returnable", "cod", daysField] as Field[]) {
           sameAsMain(FIELD_LABEL[f], row.field(f), main.field(f));
         }
+        const colourAi = parseAi(row.field("ai"));
+        if (!("value" in colourAi && colourAi.value === "fully_ai")) sameAsMain(FIELD_LABEL.ai, row.field("ai"), main.field("ai"));
         for (const d of row.details) if (detailApplies(d.key)) sameAsMain(d.label, d.cell, detailCell(main, d.key));
       }
 
@@ -679,6 +712,10 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
           else sizes.push(...expanded.map((size) => ({ size, stock: 0 })));
         }
       }
+
+      const rowAi = parseAi(row.field("ai"));
+      if ("error" in rowAi) problem(row, rowAi.error);
+      else if (rowAi.value === "fully_ai") problem(row, AI_MADE_ROW);
 
       if (layout.fields.confirm !== undefined && !row.field("confirm").text) {
         problem(row, '"I confirm" is not picked - every row must be confirmed by the boutique before it can be uploaded');
@@ -782,6 +819,10 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
       cod_available: ("value" in cod ? cod.value : null) ?? true,
       prep_days: prepDays,
       made_to_order: listingType === "mto",
+      // "No AI" is saved. The two AI options need an original photo, which
+      // a sheet can't carry (products_ai_original_photo_required): left
+      // undeclared, the product form asks for both when it's next saved.
+      ...(aiStatus === "none" ? { ai_content_status: "none" as const } : {}),
       ...(customisable !== null
         ? { customisable, customisation_pct: customisationPct, customisation_days: customisationDays }
         : {}),
