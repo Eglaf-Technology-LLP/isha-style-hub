@@ -1,6 +1,6 @@
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { AI_CONTENT_OPTIONS, AiContentStatus } from "@/lib/aiContent";
+import { AI_CONTENT_OPTIONS, AI_MADE_NOT_ALLOWED, AiContentStatus, aiContentAllowed } from "@/lib/aiContent";
 import { cn } from "@/lib/utils";
 
 interface AiDeclarationFieldProps {
@@ -10,8 +10,14 @@ interface AiDeclarationFieldProps {
 }
 
 export function AiDeclarationField({ idPrefix, value, onChange }: AiDeclarationFieldProps) {
+  const blocked = !!value && !aiContentAllowed(value);
   return (
-    <div className={cn("space-y-2 rounded-lg border p-3", value ? "border-border" : "border-amber-300 bg-amber-50/50")}>
+    <div
+      className={cn(
+        "space-y-2 rounded-lg border p-3",
+        blocked ? "border-destructive bg-destructive/5" : value ? "border-border" : "border-amber-300 bg-amber-50/50",
+      )}
+    >
       <div>
         <Label className="text-sm font-medium">
           AI content declaration <span className="text-destructive">*</span>
@@ -31,17 +37,15 @@ export function AiDeclarationField({ idPrefix, value, onChange }: AiDeclarationF
             htmlFor={`${idPrefix}-ai-${o.value}`}
             className={cn(
               "flex items-start gap-2 rounded-md border p-2.5 cursor-pointer hover:bg-muted/50",
-              value === o.value ? "border-primary bg-primary/5" : "border-border",
+              value === o.value ? (o.allowed ? "border-primary bg-primary/5" : "border-destructive bg-destructive/5") : "border-border",
             )}
           >
             <RadioGroupItem value={o.value} id={`${idPrefix}-ai-${o.value}`} className="mt-0.5" />
-            <span>
-              <span className="block text-sm font-medium">{o.label}</span>
-              <span className="block text-xs text-muted-foreground">{o.description}</span>
-            </span>
+            <span className={cn("block text-sm font-medium", !o.allowed && "text-destructive")}>{o.label}</span>
           </label>
         ))}
       </RadioGroup>
+      {blocked && <p className="text-xs font-medium text-destructive">{AI_MADE_NOT_ALLOWED}</p>}
     </div>
   );
 }

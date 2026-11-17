@@ -33,7 +33,7 @@ import { AiDeclarationField } from "@/components/AiDeclarationField";
 import { AiOriginalPhotosField } from "@/components/AiOriginalPhotosField";
 import { CustomerPriceHint } from "@/components/CustomerPriceHint";
 import { MediaArranger, type MediaValue } from "@/components/product-editor/MediaArranger";
-import type { AiContentStatus } from "@/lib/aiContent";
+import { AI_MADE_NOT_ALLOWED, aiContentAllowed, type AiContentStatus } from "@/lib/aiContent";
 import { gstBreakdown, useCategoryGstRules } from "@/lib/gst";
 import { titleCase } from "@/lib/text";
 import { NET_QTY_WARN_ABOVE, checkStock, parseNetQuantity } from "@/lib/productRules";
@@ -260,6 +260,7 @@ export function ProductEditorForm({
       .map((d) => ({ label: d.label.trim(), value: d.value.trim() }))
       .filter((d) => d.label && d.value);
     if (!aiContentStatus) return toast.error("Please complete the AI content declaration");
+    if (!aiContentAllowed(aiContentStatus)) return toast.error(AI_MADE_NOT_ALLOWED);
     if (needsOriginals && originalPhotos.length === 0)
       return toast.error("AI imagery needs at least one original product photo for verification");
     // While customisation is hidden its fields are left untouched.
