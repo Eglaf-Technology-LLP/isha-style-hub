@@ -21,24 +21,15 @@ interface ProductMediaGalleryProps {
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-// Hover zoom only with a mouse - a tap on a phone opens the full-screen view.
-const canHoverZoom = () =>
-  typeof window !== "undefined" && !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+// Phones and tablets: pinch / double-tap wording in the full-screen view.
+const isTouchScreen = () => typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
 
 const sized = (src: string, width: number) => getOptimizedImageUrl(src, { width }) ?? src;
 
-const ZOOM = 2.5;
-// The outer 10% of the photo already shows its edge, so the corners are easy
-// to reach with the mouse.
-const EDGE = 0.1;
-const zoomPoint = (e: React.MouseEvent<HTMLElement>) => {
-  const r = e.currentTarget.getBoundingClientRect();
-  const fit = (v: number) => Math.min(1, Math.max(0, (v - EDGE) / (1 - 2 * EDGE))) * 100;
-  return { x: fit((e.clientX - r.left) / r.width), y: fit((e.clientY - r.top) / r.height) };
-};
-
-// Product photos and video: swipe on phones, thumbnails + hover zoom on
-// desktop, and a full-screen viewer on click / tap.
+// Product photos and video: swipe on phones, thumbnails on desktop, and a
+// full-screen viewer on click / tap. No zoom on hover (client list 2.4.2) -
+// the zoom-in cursor shows that a click opens the photo full screen, where
+// it zooms, drags around and pinches.
 export function ProductMediaGallery({ images, productName, video }: ProductMediaGalleryProps) {
   const items: MediaItem[] = useMemo(() => {
     const list: MediaItem[] = images.map((src) => ({ kind: "image" as const, src }));
@@ -49,16 +40,14 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
     return list;
   }, [images, video?.url, video?.position]);
 
-  // Mouse users browse with thumbnails/arrows (so hover zoom works); touch
-  // users swipe.
+  // Mouse users browse with thumbnails/arrows (a click opens the photo full
+  // screen); touch users swipe.
   const [emblaRef, api] = useEmblaCarousel({
     loop: false,
     watchDrag: (_api, evt) => evt.type === "touchstart",
   });
   const [selected, setSelected] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [zoom, setZoom] = useState<{ x: number; y: number } | null>(null);
-  const hoverZoom = useMemo(canHoverZoom, []);
   const stageRef = useRef<HTMLDivElement>(null);
   const autoPlay = !prefersReducedMotion();
   const poster = images[0];
@@ -78,7 +67,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
   // from the first one again.
   useEffect(() => {
     setSelected(0);
-    setZoom(null);
     api?.reInit();
     api?.scrollTo(0, true);
   }, [itemsKey, api]);
@@ -97,7 +85,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
     (index: number) => {
       const next = (index + items.length) % items.length;
       setSelected(next);
-      setZoom(null);
       api?.scrollTo(next);
     },
     [api, items.length],
@@ -105,7 +92,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
 
   const openViewer = (index: number) => {
     go(index);
-    setZoom(null);
     setViewerOpen(true);
   };
 
@@ -118,7 +104,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
   }
 
   const current = items[Math.min(selected, items.length - 1)];
-  const zooming = !!zoom && current?.kind === "image";
   // Phones: the video also plays in a small frame over the lead photo.
   const showHighlightFrame = videoIndex > 0 && current?.kind === "image" && selected !== videoIndex;
 
@@ -154,17 +139,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
       )}
 
       <div className="min-w-0 flex-1">
-        <div
-          ref={stageRef}
-          className="group relative -mx-4 bg-ivory sm:mx-0"
-          // Zoom follows the mouse anywhere over the photo - also over the
-          // counter, arrows or buttons on top of it, so no corner is blocked.
-          onMouseMove={(e) => {
-            if (!hoverZoom || current?.kind !== "image") return;
-            setZoom(zoomPoint(e));
-          }}
-          onMouseLeave={() => setZoom(null)}
-        >
+        <div ref={stageRef} className="group relative -mx-4 bg-ivory sm:mx-0">
           <div ref={emblaRef} className="overflow-hidden">
             <div className="flex touch-pan-y">
               {items.map((item, index) => (
@@ -172,7 +147,7 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
                   {item.kind === "image" ? (
                     <button
                       type="button"
-                      className={cn("block h-full w-full", hoverZoom ? "cursor-crosshair" : "cursor-zoom-in")}
+                      className="block h-full w-full cursor-zoom-in"
                       onClick={() => openViewer(index)}
                       aria-label={`View ${productName} in fullscreen`}
                     >
@@ -202,18 +177,6 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
             </div>
           </div>
 
-          {/* Hover zoom: the full-size photo, 2.5x, where the mouse points */}
-          {zooming && (
-            <div className="pointer-events-none absolute inset-0 overflow-hidden bg-ivory" aria-hidden>
-              <img
-                src={current.src}
-                alt=""
-                className="h-full w-full object-contain"
-                style={{ transform: `scale(${ZOOM})`, transformOrigin: `${zoom!.x}% ${zoom!.y}%` }}
-              />
-            </div>
-          )}
-
           {/* Phones: the video in a small frame over the lead photo */}
           {showHighlightFrame && (
             <button
@@ -233,31 +196,24 @@ export function ProductMediaGallery({ images, productName, video }: ProductMedia
 
           {items.length > 1 && (
             <>
-              <span
-                className={cn(
-                  "pointer-events-none absolute right-4 top-4 bg-ivory/90 px-2.5 py-1 text-[11px] tabular-nums tracking-[0.14em] transition-opacity",
-                  zooming && "opacity-0",
-                )}
-              >
+              <span className="pointer-events-none absolute right-4 top-4 bg-ivory/90 px-2.5 py-1 text-[11px] tabular-nums tracking-[0.14em]">
                 {String(selected + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
               </span>
               <GalleryArrow dir="prev" onClick={() => go(selected - 1)} />
               <GalleryArrow dir="next" onClick={() => go(selected + 1)} />
             </>
           )}
-          {!zooming && (
-            <button
-              type="button"
-              onClick={() => openViewer(selected)}
-              className={cn(
-                "absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center bg-ivory/90 transition-opacity",
-                current?.kind === "image" && "lg:opacity-0 lg:group-hover:opacity-100",
-              )}
-              aria-label={current?.kind === "video" ? "Play the video full screen" : "Open fullscreen"}
-            >
-              <Expand className="h-4 w-4" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => openViewer(selected)}
+            className={cn(
+              "absolute bottom-4 right-4 flex h-10 w-10 items-center justify-center bg-ivory/90 transition-opacity",
+              current?.kind === "image" && "lg:opacity-0 lg:group-hover:opacity-100",
+            )}
+            aria-label={current?.kind === "video" ? "Play the video full screen" : "Open fullscreen"}
+          >
+            <Expand className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Progress (phones) */}
@@ -305,6 +261,238 @@ function GalleryArrow({ dir, onClick }: { dir: "prev" | "next"; onClick: () => v
   );
 }
 
+// ---------- full-screen view ----------
+
+// Click / double-tap zooms to CLICK_ZOOM; pinch and the mouse wheel go
+// anywhere from 1x to MAX_ZOOM.
+const CLICK_ZOOM = 2.5;
+const MAX_ZOOM = 4;
+// A press that moves less than this is a click / tap, not a drag.
+const TAP_SLOP = 6;
+const DOUBLE_TAP_MS = 300;
+const SWIPE_MIN = 60;
+
+type Point = { x: number; y: number };
+// Scale, and how far the photo's centre is moved from the frame's centre (px).
+type View = { s: number; x: number; y: number };
+const UNZOOMED: View = { s: 1, x: 0, y: 0 };
+
+// Keeps the zoomed photo covering the frame: it can be dragged up to its own
+// edge, never past it, and stays centred along a side that still fits.
+function fitView(v: View, box: HTMLElement | null, img: HTMLImageElement | null): View {
+  const s = Math.min(MAX_ZOOM, Math.max(1, v.s));
+  if (!box || s === 1) return UNZOOMED;
+  const W = box.clientWidth;
+  const H = box.clientHeight;
+  // The photo is object-contain: work out the size it's actually drawn at.
+  let w = W;
+  let h = H;
+  if (img?.naturalWidth && img.naturalHeight) {
+    const ratio = img.naturalWidth / img.naturalHeight;
+    if (W / H > ratio) w = H * ratio;
+    else h = W / ratio;
+  }
+  const maxX = Math.max(0, (w * s - W) / 2);
+  const maxY = Math.max(0, (h * s - H) / 2);
+  return { s, x: Math.min(maxX, Math.max(-maxX, v.x)), y: Math.min(maxY, Math.max(-maxY, v.y)) };
+}
+
+// Zoom to scale `s`, keeping the bit of the photo that was under `at` (in
+// view `from`) under `to` - the finger / mouse stays on the same spot.
+function zoomAround(from: View, at: Point, to: Point, s: number): View {
+  const px = (at.x - from.x) / from.s;
+  const py = (at.y - from.y) / from.s;
+  return { s, x: to.x - px * s, y: to.y - py * s };
+}
+
+// One photo in the full-screen view. Mouse: click to zoom in where you
+// click, drag to move around, click again to zoom out; the wheel zooms too.
+// Touch: pinch or double-tap to zoom, drag with one finger to move, swipe to
+// the next photo when not zoomed in (client list 2.4.2).
+function ZoomableImage({
+  src,
+  alt,
+  onSwipe,
+  onZoomedChange,
+}: {
+  src: string;
+  alt: string;
+  onSwipe: (step: 1 | -1) => void;
+  onZoomedChange: (zoomed: boolean) => void;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [view, setView] = useState<View>(UNZOOMED);
+  const [animate, setAnimate] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  const pointers = useRef(new Map<number, Point>());
+  const gesture = useRef<
+    { kind: "pan"; start: Point; view: View } | { kind: "pinch"; dist: number; mid: Point; view: View } | null
+  >(null);
+  // The press as a whole: where it started, and whether it moved or used two fingers.
+  const press = useRef({ start: { x: 0, y: 0 }, moved: false, multi: false });
+  const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+
+  const zoomed = view.s > 1;
+  useEffect(() => onZoomedChange(zoomed), [zoomed, onZoomedChange]);
+
+  // Screen point -> offset from the frame's centre.
+  const local = (p: Point): Point => {
+    const r = boxRef.current!.getBoundingClientRect();
+    return { x: p.x - r.left - r.width / 2, y: p.y - r.top - r.height / 2 };
+  };
+  const fit = (v: View) => fitView(v, boxRef.current, imgRef.current);
+
+  const toggleAt = (screen: Point) => {
+    const at = local(screen);
+    setAnimate(true);
+    setView((v) => (v.s > 1 ? UNZOOMED : fit(zoomAround(v, at, at, CLICK_ZOOM))));
+  };
+
+  // (Re)starts the gesture from the fingers down now, so lifting one finger
+  // of a pinch carries on as a drag without a jump.
+  const beginGesture = () => {
+    const pts = [...pointers.current.values()];
+    const v = viewRef.current;
+    if (pts.length >= 2) {
+      const [a, b] = pts;
+      gesture.current = {
+        kind: "pinch",
+        dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        mid: local({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }),
+        view: v,
+      };
+    } else if (pts.length === 1) {
+      gesture.current = { kind: "pan", start: pts[0], view: v };
+    }
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (pointers.current.size === 0) press.current = { start: { x: e.clientX, y: e.clientY }, moved: false, multi: false };
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size > 1) press.current.multi = true;
+    setAnimate(false);
+    beginGesture();
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const g = gesture.current;
+    if (!g) return;
+    if (g.kind === "pinch") {
+      const [a, b] = [...pointers.current.values()];
+      if (!b) return;
+      const s = Math.min(MAX_ZOOM, Math.max(1, (g.view.s * Math.hypot(a.x - b.x, a.y - b.y)) / g.dist));
+      setView(fit(zoomAround(g.view, g.mid, local({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }), s)));
+      return;
+    }
+    const dx = e.clientX - g.start.x;
+    const dy = e.clientY - g.start.y;
+    if (!press.current.moved && Math.hypot(dx, dy) > TAP_SLOP) press.current.moved = true;
+    if (press.current.moved && g.view.s > 1) {
+      setDragging(true);
+      setView(fit({ ...g.view, x: g.view.x + dx, y: g.view.y + dy }));
+    }
+  };
+
+  const onPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.delete(e.pointerId)) return;
+    if (pointers.current.size > 0) {
+      beginGesture();
+      return;
+    }
+    gesture.current = null;
+    setDragging(false);
+    if (e.type === "pointercancel") return;
+
+    const p = press.current;
+    if (p.multi) {
+      // A pinch that ended (almost) at 1x snaps back to the whole photo.
+      if (viewRef.current.s < 1.05) {
+        setAnimate(true);
+        setView(UNZOOMED);
+      }
+      return;
+    }
+    const at = { x: e.clientX, y: e.clientY };
+    if (!p.moved) {
+      if (e.pointerType === "mouse") return toggleAt(at);
+      // Touch: a double-tap zooms (a single tap does nothing).
+      const now = Date.now();
+      const prev = lastTap.current;
+      if (prev && now - prev.t < DOUBLE_TAP_MS && Math.hypot(at.x - prev.x, at.y - prev.y) < 30) {
+        lastTap.current = null;
+        toggleAt(at);
+      } else {
+        lastTap.current = { t: now, ...at };
+      }
+      return;
+    }
+    // A sideways swipe over a photo that isn't zoomed in: next / previous.
+    const dx = at.x - p.start.x;
+    const dy = at.y - p.start.y;
+    if (viewRef.current.s === 1 && Math.abs(dx) > SWIPE_MIN && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe(dx < 0 ? 1 : -1);
+  };
+
+  // The mouse wheel and a laptop trackpad pinch (ctrl+wheel to the browser)
+  // zoom the photo, not the page - needs a non-passive listener.
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const at = { x: e.clientX - r.left - r.width / 2, y: e.clientY - r.top - r.height / 2 };
+      const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.002));
+      setAnimate(false);
+      setView((v) => fitView(zoomAround(v, at, at, Math.min(MAX_ZOOM, Math.max(1, v.s * factor))), el, imgRef.current));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  return (
+    <div
+      ref={boxRef}
+      role="button"
+      tabIndex={0}
+      aria-label={zoomed ? "Zoom out" : "Zoom in"}
+      className={cn(
+        "h-full w-full touch-none select-none overflow-hidden focus-visible:outline-none",
+        zoomed ? (dragging ? "cursor-grabbing" : "cursor-grab") : "cursor-zoom-in",
+      )}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        const r = e.currentTarget.getBoundingClientRect();
+        toggleAt({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      }}
+    >
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        draggable={false}
+        className={cn(
+          "pointer-events-none h-full w-full object-contain will-change-transform",
+          animate && "transition-transform duration-200 ease-out motion-reduce:transition-none",
+        )}
+        style={{ transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.s})` }}
+      />
+    </div>
+  );
+}
+
 function FullscreenViewer({
   open,
   onOpenChange,
@@ -323,8 +511,15 @@ function FullscreenViewer({
   productName: string;
 }) {
   const [zoomed, setZoomed] = useState(false);
-  const [origin, setOrigin] = useState({ x: 50, y: 50 });
+  const touch = useMemo(isTouchScreen, []);
   const current = items[Math.min(index, items.length - 1)];
+  const hint = touch
+    ? zoomed
+      ? "Drag to move · double-tap to zoom out"
+      : "Pinch or double-tap to zoom"
+    : zoomed
+      ? "Drag to move · click to zoom out"
+      : "Click or scroll to zoom";
 
   useEffect(() => setZoomed(false), [index, open]);
 
@@ -343,37 +538,30 @@ function FullscreenViewer({
         <VisuallyHidden>
           <DialogTitle>{productName} - photos</DialogTitle>
         </VisuallyHidden>
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <span className="text-[11px] tabular-nums uppercase tracking-[0.2em] opacity-70">
             {String(index + 1).padStart(2, "0")} / {String(items.length).padStart(2, "0")}
-            {current?.kind === "image" && <span className="ml-3 hidden sm:inline">{zoomed ? "Move to look around · click to zoom out" : "Click to zoom"}</span>}
+            {current?.kind === "image" && <span className="ml-3">{hint}</span>}
           </span>
-          <button type="button" onClick={() => onOpenChange(false)} className="flex h-10 w-10 items-center justify-center hover:text-primary" aria-label="Close">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center hover:text-primary"
+            aria-label="Close"
+          >
             <X className="h-6 w-6" />
           </button>
         </div>
 
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
           {current?.kind === "image" ? (
-            <button
-              type="button"
-              className={cn("h-full w-full", zoomed ? "cursor-zoom-out" : "cursor-zoom-in")}
-              onClick={(e) => {
-                setOrigin(zoomPoint(e));
-                setZoomed((z) => !z);
-              }}
-              onMouseMove={(e) => {
-                if (zoomed) setOrigin(zoomPoint(e));
-              }}
-              aria-label={zoomed ? "Zoom out" : "Zoom in"}
-            >
-              <img
-                src={current.src}
-                alt={`${productName} - fullscreen view`}
-                className="h-full w-full object-contain"
-                style={zoomed ? { transform: `scale(${ZOOM})`, transformOrigin: `${origin.x}% ${origin.y}%` } : undefined}
-              />
-            </button>
+            <ZoomableImage
+              key={current.src}
+              src={current.src}
+              alt={`${productName} - fullscreen view`}
+              onSwipe={(step) => onIndex(index + step)}
+              onZoomedChange={setZoomed}
+            />
           ) : current ? (
             // The whole video, start to end, with sound and its own controls.
             <video key={current.src} src={current.src} poster={poster} controls autoPlay playsInline className="h-full w-full object-contain" />
