@@ -28,6 +28,8 @@ export default function Index() {
       <Header />
       <main>
         <HeroCarousel />
+        {/* 2.1.3: the boutique boards are the first section, right under the banner. */}
+        <BoutiqueSpotlight />
         <div className="store-container">
           <ActiveFlashSales />
         </div>
@@ -49,9 +51,8 @@ export default function Index() {
           action={{ label: "Shop all", href: "/category/all" }}
           products={handpicked}
           loading={isLoading}
-          className="pt-16 md:pt-24"
+          className="py-16 md:py-24"
         />
-        <BoutiqueSpotlight />
         <VideoReels />
         {onSale.length >= 4 && (
           <ProductRail
