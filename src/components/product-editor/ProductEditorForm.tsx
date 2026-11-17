@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   CustomisationEditor,
   customisationFormFrom,
@@ -235,6 +236,10 @@ export function ProductEditorForm({
     const name = titleCase(form.name);
     if (!name) return toast.error("Product name is required");
     if (!form.category_id) return toast.error("Choose a category");
+    // 3.2.1: SKU required, the boutique's own code, unique in the boutique
+    // (the database checks it too - enforce_product_sku).
+    const sku = form.sku.trim();
+    if (!sku) return toast.error("Enter the SKU - your own code for this product");
     if (!form.description.trim()) return toast.error("Add a description");
     const productValue = Number(form.product_value);
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
@@ -275,6 +280,21 @@ export function ProductEditorForm({
 
     setSaving(true);
     try {
+      if (vendorId) {
+        const { data: clash } = await supabase
+          .from("products")
+          .select("id, name")
+          .eq("vendor_id", vendorId)
+          // Same code in any case; % and _ taken literally.
+          .ilike("sku", sku.replace(/[\\%_]/g, (c) => `\\${c}`))
+          .neq("id", product?.id ?? "00000000-0000-0000-0000-000000000000")
+          .limit(1)
+          .maybeSingle();
+        if (clash) {
+          toast.error(`SKU ${sku} is already used by "${clash.name}" - every product needs its own SKU`);
+          return;
+        }
+      }
       const payload = {
         vendor_id: vendorId,
         name,
@@ -282,7 +302,7 @@ export function ProductEditorForm({
         category_id: form.category_id || null,
         product_value: productValue,
         compare_at_value: form.compare_at_value ? Number(form.compare_at_value) : null,
-        sku: form.sku.trim() || null,
+        sku,
         stock_quantity: stockCheck.stock,
         images: media.images,
         is_active: form.is_active,
@@ -382,8 +402,14 @@ export function ProductEditorForm({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="pe-sku">SKU</Label>
-                <Input id="pe-sku" value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="Optional" />
+                <Label htmlFor="pe-sku">SKU *</Label>
+                <Input
+                  id="pe-sku"
+                  value={form.sku}
+                  maxLength={64}
+                  onChange={(e) => set("sku", e.target.value)}
+                  placeholder="Your own code, e.g. EX-0981"
+                />
               </div>
             </div>
           </Section>

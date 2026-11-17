@@ -67,6 +67,8 @@ export const PRODUCT_COLUMNS = {
   imageUrl: "Image URL",
 } as const;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Files exported before 17 Nov 2026 name the boutique by its slug in this
 // column; they still import.
 const LEGACY_VENDOR_SLUG_COLUMN = "Vendor Slug";
@@ -235,6 +237,21 @@ export function parseImportRows(
         });
       }
       if (rowFailed) continue;
+      // A product with variants: its own SKU is the Product Handle (the
+      // export writes the product's SKU there), unless that's its id.
+      productLevelSku = UUID_RE.test(handle) ? "" : handle;
+    }
+    // 3.2.1: every product needs its SKU (the boutique's own code).
+    if (!productLevelSku) {
+      errors.push({
+        handle,
+        rowNumber: entries[0].rowNumber,
+        message:
+          entries.length === 1 && !hasAnyVariantOptions
+            ? "SKU is required (the boutique's own code)"
+            : "SKU is required - write the product's SKU as its Product Handle",
+      });
+      continue;
     }
 
     const specifications: ProductSpecification[] = parsePairs(first[PRODUCT_COLUMNS.specifications] ?? "");
@@ -373,7 +390,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
   return [
     {
       [PRODUCT_COLUMNS.productId]: "",
-      [PRODUCT_COLUMNS.handle]: "silk-embroidered-kurti",
+      [PRODUCT_COLUMNS.handle]: "SEK-MRN",
       [PRODUCT_COLUMNS.name]: "Silk Embroidered Kurti",
       ...commonBase,
       [PRODUCT_COLUMNS.variantOptions]: "Size:S;Color:Maroon",
@@ -384,7 +401,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
     },
     {
       [PRODUCT_COLUMNS.productId]: "",
-      [PRODUCT_COLUMNS.handle]: "silk-embroidered-kurti",
+      [PRODUCT_COLUMNS.handle]: "SEK-MRN",
       [PRODUCT_COLUMNS.name]: "Silk Embroidered Kurti",
       ...commonBase,
       [PRODUCT_COLUMNS.variantOptions]: "Size:M;Color:Maroon",
@@ -395,7 +412,7 @@ export function sampleProductTemplateRows(includeVendorColumn: boolean): Record<
     },
     {
       [PRODUCT_COLUMNS.productId]: "",
-      [PRODUCT_COLUMNS.handle]: "cotton-printed-dupatta",
+      [PRODUCT_COLUMNS.handle]: "CPD-001",
       [PRODUCT_COLUMNS.name]: "Cotton Printed Dupatta",
       [PRODUCT_COLUMNS.description]: "Lightweight block-printed cotton dupatta",
       [PRODUCT_COLUMNS.category]: "Western Wear",
