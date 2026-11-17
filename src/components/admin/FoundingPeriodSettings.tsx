@@ -14,7 +14,7 @@ import { formatDate } from "@/lib/dates";
 // being worked out from their own date, so a period that has started keeps
 // its start date, and its end can't be moved into the past.
 export function FoundingPeriodSettings({ today }: { today: string }) {
-  const { period, loading, refetch } = useFoundingPeriod();
+  const { period, launchDate, loading, refetch } = useFoundingPeriod();
   const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
   const [saving, setSaving] = useState(false);
@@ -79,8 +79,20 @@ export function FoundingPeriodSettings({ today }: { today: string }) {
             onChange={(e) => setUntil(e.target.value)}
           />
         </div>
-        <Button type="button" variant="outline" disabled={!from} onClick={() => setUntil(twoMonthsFrom(from))}>
-          2 months from first day
+        {/* 3.4.3: fills both dates from the launch date (29 Nov -> 28 Jan). Once
+            the period has started its first day stays as it is. */}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!launchDate || started}
+          title={launchDate ? `Launch: ${formatDate(launchDate)}` : "No launch date set"}
+          onClick={() => {
+            if (!launchDate) return;
+            setFrom(launchDate);
+            setUntil(twoMonthsFrom(launchDate));
+          }}
+        >
+          2 months from launch
         </Button>
         <Button type="button" onClick={save} disabled={saving || !changed}>
           {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

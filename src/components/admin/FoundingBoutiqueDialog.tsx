@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useFoundingPeriod } from "@/hooks/useFoundingPeriod";
 import { formatDate } from "@/lib/dates";
+import { twoMonthsFrom } from "@/lib/founding";
 
 interface FoundingVendor {
   id: string;
@@ -34,7 +35,7 @@ export function FoundingBoutiqueDialog({
   const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
   const [saving, setSaving] = useState(false);
-  const { period, refetch } = useFoundingPeriod();
+  const { period, launchDate, refetch } = useFoundingPeriod();
 
   useEffect(() => {
     if (!open) return;
@@ -95,7 +96,24 @@ export function FoundingBoutiqueDialog({
                 <Input id="founding-until" type="date" min={from || undefined} value={until} onChange={(e) => setUntil(e.target.value)} />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">Leave both empty for the badge only.</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">Leave both empty for the badge only.</p>
+              {/* 3.4.3: fills both dates from the launch date. */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!launchDate}
+                title={launchDate ? `Launch: ${formatDate(launchDate)}` : "No launch date set"}
+                onClick={() => {
+                  if (!launchDate) return;
+                  setFrom(launchDate);
+                  setUntil(twoMonthsFrom(launchDate));
+                }}
+              >
+                2 months from launch
+              </Button>
+            </div>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:justify-between">
