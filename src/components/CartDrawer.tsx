@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { ArrowRight, Lock, Minus, Plus, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { cartLineKey, useCartStore } from "@/stores/cartStore";
 import { useUiStore } from "@/stores/uiStore";
-import { customisationPrice, customisationSummary, inr } from "@/lib/customisation";
+import { chargeLabel, customisationPrice, customisationSummary } from "@/lib/customisation";
 import { CartShippingEstimate } from "@/components/CartShippingEstimate";
 import { useStoreCategories } from "@/hooks/useStorefront";
 import { SmartImage } from "@/components/storefront/SmartImage";
@@ -174,7 +174,8 @@ export function CartDrawer() {
                       {item.customisation && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           <span className="mr-1 bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground">Customised</span>
-                          {customisationSummary(item.customisation)} (+{inr(customisationPrice(item.customisation))})
+                          {customisationSummary(item.customisation)} ·{" "}
+                          {chargeLabel(customisationPrice(item.customisation), item.customisation.pct)}
                         </p>
                       )}
                       <div className="mt-auto flex items-center justify-between pt-3">

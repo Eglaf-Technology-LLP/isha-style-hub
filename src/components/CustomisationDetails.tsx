@@ -59,14 +59,17 @@ export function CustomisationDetails({
       <p className="flex items-center gap-1.5 font-medium text-foreground">
         <Scissors className="h-3.5 w-3.5" /> Customised
         {showPrices && customisationPrice(c) > 0 && (
-          <span className="font-normal text-muted-foreground">(+{inr(customisationPrice(c))} each)</span>
+          <span className="font-normal text-muted-foreground">
+            (+{inr(customisationPrice(c))}
+            {c.pct ? ` (${c.pct}%)` : ""} each)
+          </span>
         )}
       </p>
       {(c.custom_size || c.options.length > 0) && (
         <ul className="space-y-0.5">
           {c.custom_size && (
             <li>
-              Custom size{showPrices ? ` · +${inr(c.custom_size.price)}` : ""}
+              Custom size{showPrices && c.custom_size.price != null && !c.pct ? ` · +${inr(c.custom_size.price)}` : ""}
             </li>
           )}
           {c.options.map((o) => (

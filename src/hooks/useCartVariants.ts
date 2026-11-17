@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { mapDbVariant, type ProductVariant } from "@/hooks/useProducts";
 import { sortSizes } from "@/components/storefront/listing/useListing";
 import type { CartItem, VariantChange } from "@/stores/cartStore";
+import { customisationPrice, rechargeAt } from "@/lib/customisation";
 
 // Every variant of the products in the cart, by product id - for changing a
 // line's size in the cart (client corrections, 15 Nov 2026, 2.8.2 b).
@@ -72,13 +73,17 @@ export function lineAsSize(item: CartItem, choice: SizeChoice): VariantChange {
   // A variant without its own price costs what the product does - the
   // line's current base price (useSyncCartPrices corrects it if not).
   const base = choice.variant.price || oldBase;
+  // A % customisation charge is worked out again on the new size's price.
+  const customisation = item.customisation ? rechargeAt(item.customisation, base) : null;
+  const charge = customisation?.pct ? customisationPrice(customisation) : extra;
   const selectedOptions = item.selectedOptions.map((o) => (isSizeOption(o.name) ? { ...o, value: choice.size } : o));
   return {
     variantId: choice.variant.id,
     variantTitle: [choice.size, lineColour(item)].filter(Boolean).join(" / "),
     selectedOptions,
-    price: { ...item.price, amount: String(Math.round((base + extra) * 100) / 100) },
+    price: { ...item.price, amount: String(Math.round((base + charge) * 100) / 100) },
     productImage: choice.variant.images?.[0] ?? item.productImage,
     ...(item.basePrice != null ? { basePrice: String(base) } : {}),
+    ...(customisation ? { customisation } : {}),
   };
 }

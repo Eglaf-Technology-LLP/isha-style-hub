@@ -300,7 +300,7 @@ export default function ProductDetail() {
   const currentPrice = selectedVariant?.price || product?.price || 0;
   // (Off while customisation is hidden - nothing to customise, no panel.)
   const customisationSetup = useMemo(() => readSetup(CUSTOMISATION_ENABLED ? (product as any) : null), [product]);
-  const customised = buildCustomisation(customisationSetup, customiser);
+  const customised = buildCustomisation(customisationSetup, customiser, currentPrice);
   const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
   // Same rule OrderHistory applies after purchase: the product's own flag
@@ -625,7 +625,9 @@ export default function ProductDetail() {
               </div>
               {customisationExtra > 0 && (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  + {inr(customisationExtra)} customisation = <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
+                  + {inr(customisationExtra)} customisation
+                  {customisationSetup.customisation_pct ? ` (${customisationSetup.customisation_pct}%)` : ""} ={" "}
+                  <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
                 </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</p>

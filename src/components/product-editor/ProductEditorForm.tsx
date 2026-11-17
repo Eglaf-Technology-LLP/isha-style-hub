@@ -71,6 +71,7 @@ export interface VendorProductRow {
   customisable?: boolean;
   customisation_options?: unknown;
   custom_size_price?: number | null;
+  customisation_pct?: number | null;
   customisation_days?: number | null;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
@@ -217,7 +218,7 @@ export function ProductEditorForm({
     product
       ? customisationFormFrom({
           customisable: product.customisable,
-          custom_size_price: product.custom_size_price,
+          customisation_pct: product.customisation_pct,
           customisation_options: (Array.isArray(product.customisation_options) ? product.customisation_options : []) as CustomisationOption[],
           customisation_days: product.customisation_days,
         })
@@ -489,6 +490,12 @@ export function ProductEditorForm({
               onChange={setCustomisation}
               note={overrideNote}
               className="rounded-xl bg-card p-4 sm:p-5"
+              price={
+                form.category_id
+                  ? gstBreakdown(gstRules.ruleFor(form.category_id), Number(form.product_value))?.price ?? null
+                  : null
+              }
+              baseDays={form.prep_days.trim() !== "" ? Number(form.prep_days) || null : null}
             />
           )}
         </div>

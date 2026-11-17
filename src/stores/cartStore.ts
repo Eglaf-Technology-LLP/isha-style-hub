@@ -33,7 +33,9 @@ export interface CartItem {
 export const cartLineKey = (item: Pick<CartItem, 'lineId' | 'variantId'>) => item.lineId ?? item.variantId;
 
 // What changes when a line moves to another size of the same piece.
-export type VariantChange = Pick<CartItem, 'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage' | 'basePrice'>;
+export type VariantChange = Pick<CartItem, 'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage' | 'basePrice' | 'customisation'>;
+// A line's new price; a % customisation charge moves with it (see rechargeAt).
+export type LinePrice = { amount: string; basePrice?: string; customisation?: CustomisationChoice | null };
 
 interface CartStore {
   items: CartItem[];
@@ -47,7 +49,7 @@ interface CartStore {
   clearCart: () => void;
   // Today's prices for some lines (line key -> price, and base price for a
   // customised line) - see useSyncCartPrices.
-  setPrices: (prices: Record<string, { amount: string; basePrice?: string }>) => void;
+  setPrices: (prices: Record<string, LinePrice>) => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
 }
@@ -141,7 +143,12 @@ export const useCartStore = create<CartStore>()(
           items: get().items.map((item) => {
             const p = prices[cartLineKey(item)];
             if (!p) return item;
-            return { ...item, price: { ...item.price, amount: p.amount }, ...(p.basePrice ? { basePrice: p.basePrice } : {}) };
+            return {
+              ...item,
+              price: { ...item.price, amount: p.amount },
+              ...(p.basePrice ? { basePrice: p.basePrice } : {}),
+              ...(p.customisation ? { customisation: p.customisation } : {}),
+            };
           }),
         });
       },

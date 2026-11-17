@@ -1,6 +1,7 @@
 import type { WorkBook, WorkSheet } from "xlsx";
 import type { ProductFormData, ProductSpecification, ProductVariant } from "@/hooks/useProducts";
 import { titleCase } from "@/lib/text";
+import { CUSTOMISATION_PCTS } from "@/lib/customisation";
 
 // The AllBoutiqs product listing sheet (the client's Excel, "Product Listing
 // - FINAL - v11") -> new products. One row per colour:
@@ -114,6 +115,8 @@ const MADE_TO_ORDER_ONLY = new Set(["customisation", "customisation charge %", "
 const READY_TO_SHIP_ONLY = new Set(["when sold out", "extra when made to order", "extra days when made to order"]);
 const ONLY_WHEN_CUSTOMISABLE = new Set(["customisation charge %", "customisation extra days"]);
 const NOT_WHEN_SIZE_HIDDEN = new Set(["extra when made to order", "extra days when made to order"]);
+// Saved on the product's customisation fields, not as product details.
+const CUSTOMISATION_COLUMNS = new Set(["customisation", "customisation charge %", "customisation extra days"]);
 
 const NOT_NEEDED_RE = /^[—–-]+\s*not needed$/i;
 // "Other – write in Note": the real value is in the boutique's note, not here.
@@ -547,6 +550,26 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
         }
       }
     }
+    // 3.3.3: the charge is a % of the product price; the extra days as typed
+    // ("Other – write in Note" = left for admin).
+    let customisationPct: number | null = null;
+    let customisationDays: number | null = null;
+    if (customisable) {
+      const pctText = detailCell(main, "customisation charge %").text;
+      if (!hasDetail("customisation charge %")) {
+        problem(main, "Customisation charge % is needed when Customisation is Yes - use the latest listing sheet");
+      } else if (pctText) {
+        const pct = Number(pctText.replace(/[%\s]/g, ""));
+        if ((CUSTOMISATION_PCTS as readonly number[]).includes(pct)) customisationPct = pct;
+        else problem(main, `Customisation charge % must be 1, 2, 3, 4, 5, 7, 10, 15 or 20 (found "${oneLine(pctText)}")`);
+      }
+      const daysText = detailCell(main, "customisation extra days").text;
+      if (daysText && !OTHER_RE.test(daysText)) {
+        const extra = Number(daysText.replace(/\s*days?$/i, ""));
+        if (Number.isInteger(extra) && extra >= 0 && extra <= 60) customisationDays = extra;
+        else problem(main, `Customisation extra days must be a whole number of days (found "${oneLine(daysText)}")`);
+      }
+    }
     const sizeHidden = /hide/i.test(detailCell(main, "when sold out").text);
 
     // A detail column that applies to this product (see MADE_TO_ORDER_ONLY...).
@@ -733,7 +756,7 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     const specifications: ProductSpecification[] = [];
     for (const d of main.details) {
       const text = oneLine(d.cell.text);
-      if (!text || OTHER_RE.test(text) || !detailApplies(d.key)) continue;
+      if (!text || OTHER_RE.test(text) || !detailApplies(d.key) || CUSTOMISATION_COLUMNS.has(d.key)) continue;
       if (!specifications.some((s) => s.label.toLowerCase() === d.label.toLowerCase())) {
         specifications.push({ label: d.label, value: text });
       }
@@ -759,6 +782,9 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
       cod_available: ("value" in cod ? cod.value : null) ?? true,
       prep_days: prepDays,
       made_to_order: listingType === "mto",
+      ...(customisable !== null
+        ? { customisable, customisation_pct: customisationPct, customisation_days: customisationDays }
+        : {}),
       vendor_id: ctx.vendorId,
       ...(ctx.approvalStatus ? { approval_status: ctx.approvalStatus } : {}),
     };

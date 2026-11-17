@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  customisationPrice,
+  chargeLabel,
+  customisationCharge,
   inr,
   MEASUREMENTS,
   PHOTO_BUCKET,
@@ -20,8 +21,10 @@ import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED, CUSTOMISATION_REFERENCE_PHOTO_ENAB
 import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 
 // Product page: the customer asks for this piece to be customised - made to
-// their measurements and/or with the boutique's priced options, plus a note
-// and a reference photo - and sees exactly what it adds to the price.
+// their measurements and/or with a note - and sees exactly what it adds to
+// the price: the boutique's % of the piece's price, in whole rupees
+// ("+₹6,700 (10%) · Adds 3 extra days · Total 38 days", client corrections
+// 15 Nov 2026, 2.5 and 3.3.3).
 
 export interface CustomiserState {
   enabled: boolean;
@@ -41,27 +44,40 @@ export const emptyCustomiser: CustomiserState = {
   photoPath: null,
 };
 
-// The customer's choice for the cart, or what's missing.
+// The customer's choice for the cart (priced on the piece's `price`), or
+// what's missing.
 export function buildCustomisation(
   setup: ProductCustomisationSetup,
   s: CustomiserState,
+  price: number,
 ): { choice: CustomisationChoice | null } | { error: string } {
   if (!setup.customisable || !s.enabled) return { choice: null };
+  // Priced extra options are retired (the charge is one %), see hiddenFeatures.
   const options = CUSTOMISATION_EXTRA_OPTIONS_ENABLED ? setup.customisation_options.filter((o) => s.optionIds.includes(o.id)) : [];
   let custom_size: CustomisationChoice["custom_size"] = null;
-  if (s.customSize && setup.custom_size_price != null) {
+  if (s.customSize) {
     const missing = MEASUREMENTS.filter((m) => m.required && !String(s.measurements[m.key] ?? "").trim());
     if (missing.length) return { error: `Please enter your ${missing.map((m) => m.label.toLowerCase()).join(", ")}` };
     const measurements = Object.fromEntries(
       Object.entries(s.measurements).filter(([, v]) => String(v).trim()).map(([k, v]) => [k, String(v).trim()]),
     );
-    custom_size = { price: setup.custom_size_price, unit: "in", measurements };
+    custom_size = { unit: "in", measurements };
   }
   const note = s.note.trim() || null;
   if (!custom_size && options.length === 0 && !note && !s.photoPath) {
-    return { error: "Choose how you'd like it customised, or switch customisation off" };
+    return { error: "Enter your measurements or tell us what to change, or switch customisation off" };
   }
-  return { choice: { options, custom_size, note, photo_path: s.photoPath, days: setup.customisation_days ?? 0 } };
+  return {
+    choice: {
+      options,
+      custom_size,
+      note,
+      photo_path: s.photoPath,
+      days: setup.customisation_days ?? 0,
+      pct: setup.customisation_pct,
+      charge: customisationCharge(price, setup.customisation_pct),
+    },
+  };
 }
 
 function OwnPhoto({ path, onRemove }: { path: string; onRemove: () => void }) {
@@ -108,13 +124,18 @@ export function ProductCustomiser({
   if (!setup.customisable) return null;
   const set = <K extends keyof CustomiserState>(k: K, v: CustomiserState[K]) => onChange({ ...value, [k]: v });
 
-  const preview = buildCustomisation(setup, value);
-  const extra = value.enabled
-    ? customisationPrice({
-        options: CUSTOMISATION_EXTRA_OPTIONS_ENABLED ? setup.customisation_options.filter((o) => value.optionIds.includes(o.id)) : [],
-        custom_size: value.customSize && setup.custom_size_price != null ? { price: setup.custom_size_price, unit: "in", measurements: {} } : null,
-      })
-    : 0;
+  const preview = buildCustomisation(setup, value, basePrice);
+  // One charge for the piece, whatever is customised.
+  const charge = customisationCharge(basePrice, setup.customisation_pct);
+  const extraDays = setup.customisation_days ?? 0;
+  // "+₹6,700 (10%) · Adds 3 extra days · Total 38 days"
+  const summary = [
+    chargeLabel(charge, setup.customisation_pct),
+    extraDays > 0 ? `Adds ${extraDays} extra day${extraDays === 1 ? "" : "s"}` : null,
+    extraDays > 0 && baseDays != null && baseDays > 0 ? `Total ${baseDays + extraDays} days` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   // JPG, PNG, WEBP or HEIC; HEIC becomes JPG and over 5 MB is compressed
   // (the bucket takes JPG, PNG and WEBP up to 5 MB).
@@ -146,50 +167,46 @@ export function ProductCustomiser({
             <Scissors className="h-4 w-4 text-primary" /> Customise this piece
           </p>
           <p className="text-sm text-muted-foreground">Made to your measurements or with the changes you choose.</p>
+          <p className="mt-1 text-sm font-medium tabular-nums" data-testid="customisation-summary">
+            {summary}
+          </p>
         </div>
         <Switch aria-label="Customise this piece" checked={value.enabled} onCheckedChange={(v) => set("enabled", v)} />
       </div>
 
       {value.enabled && (
         <div className="space-y-4 border-t border-border pt-4">
-          {setup.custom_size_price != null && (
-            <div className="space-y-3">
-              <label className="flex items-center justify-between gap-3 cursor-pointer">
-                <span className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={value.customSize} onCheckedChange={(v) => set("customSize", v === true)} />
-                  Make it to my measurements
-                </span>
-                <span className="text-sm font-medium tabular-nums">
-                  {setup.custom_size_price > 0 ? `+${inr(setup.custom_size_price)}` : "Free"}
-                </span>
-              </label>
-              {value.customSize && (
-                <div className="space-y-2 rounded-md bg-muted/40 p-3">
-                  <p className="text-xs text-muted-foreground">In inches, measured over light clothing. * required</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {MEASUREMENTS.map((m) => (
-                      <div key={m.key} className="space-y-1">
-                        <Label htmlFor={`cz-m-${m.key}`} className="text-xs">
-                          {m.label}
-                          {m.required ? " *" : ""}
-                        </Label>
-                        <Input
-                          id={`cz-m-${m.key}`}
-                          inputMode="decimal"
-                          placeholder="in"
-                          value={value.measurements[m.key] ?? ""}
-                          onChange={(e) =>
-                            set("measurements", { ...value.measurements, [m.key]: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })
-                          }
-                          className="h-9"
-                        />
-                      </div>
-                    ))}
-                  </div>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <Checkbox checked={value.customSize} onCheckedChange={(v) => set("customSize", v === true)} />
+              Make it to my measurements
+            </label>
+            {value.customSize && (
+              <div className="space-y-2 rounded-md bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">In inches, measured over light clothing. * required</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MEASUREMENTS.map((m) => (
+                    <div key={m.key} className="space-y-1">
+                      <Label htmlFor={`cz-m-${m.key}`} className="text-xs">
+                        {m.label}
+                        {m.required ? " *" : ""}
+                      </Label>
+                      <Input
+                        id={`cz-m-${m.key}`}
+                        inputMode="decimal"
+                        placeholder="in"
+                        value={value.measurements[m.key] ?? ""}
+                        onChange={(e) =>
+                          set("measurements", { ...value.measurements, [m.key]: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })
+                        }
+                        className="h-9"
+                      />
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
 
           {CUSTOMISATION_EXTRA_OPTIONS_ENABLED && setup.customisation_options.length > 0 && (
             <div className="space-y-2">
@@ -261,21 +278,15 @@ export function ProductCustomiser({
               <span>{inr(basePrice)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Customisation</span>
-              <span>+{inr(extra)}</span>
+              <span className="text-muted-foreground">Customisation ({setup.customisation_pct}%)</span>
+              <span>+{inr(charge)}</span>
             </div>
             <div className="flex justify-between border-t border-border pt-1 font-semibold">
               <span>You pay (each)</span>
-              <span>{inr(basePrice + extra)}</span>
+              <span>{inr(basePrice + charge)}</span>
             </div>
           </div>
           <ul className="text-xs text-muted-foreground space-y-0.5">
-            {(setup.customisation_days ?? 0) > 0 && (
-              <li>
-                Adds {setup.customisation_days} extra day{setup.customisation_days === 1 ? "" : "s"}
-                {baseDays != null && baseDays > 0 && ` · Total ${baseDays + (setup.customisation_days ?? 0)} days`}
-              </li>
-            )}
             <li>
               Customised pieces are not returnable (a damaged, defective or wrong item can be reported within 24 hours of
               delivery).

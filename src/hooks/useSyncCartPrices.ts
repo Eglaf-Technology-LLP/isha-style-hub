@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { cartLineKey, useCartStore } from "@/stores/cartStore";
+import { cartLineKey, useCartStore, type LinePrice } from "@/stores/cartStore";
+import { customisationPrice, rechargeAt } from "@/lib/customisation";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -9,7 +10,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // since then - e.g. on 24-10-2026 every customer price gained GST (Product
 // Value, Developer Corrections Part 7, 5.1) - so the cart and checkout pull
 // today's price for each line and say so when one moved. A customised line
-// keeps its customisation charge on top of the new base price.
+// keeps its customisation on top of the new base price - a % charge worked
+// out again on it, an old ₹ one as it was.
 export function useSyncCartPrices(enabled = true) {
   const items = useCartStore((s) => s.items);
   const setPrices = useCartStore((s) => s.setPrices);
@@ -31,16 +33,21 @@ export function useSyncCartPrices(enabled = true) {
       const productPrice = new Map((products ?? []).map((p) => [p.id, Number(p.price)]));
       const variantPrice = new Map((variants ?? []).map((v) => [v.id, v.price == null ? null : Number(v.price)]));
 
-      const updates: Record<string, { amount: string; basePrice?: string }> = {};
+      const updates: Record<string, LinePrice> = {};
       for (const item of items) {
         const base = variantPrice.get(item.variantId) ?? productPrice.get(item.productId);
         if (base == null || !Number.isFinite(base)) continue;
         const oldAmount = Number(item.price.amount);
         const oldBase = item.basePrice != null ? Number(item.basePrice) : oldAmount;
-        const extra = oldAmount - oldBase;
+        const customisation = item.customisation?.pct ? rechargeAt(item.customisation, base) : null;
+        const extra = customisation ? customisationPrice(customisation) : oldAmount - oldBase;
         const amount = Math.round((base + extra) * 100) / 100;
         if (Math.abs(amount - oldAmount) >= 0.01) {
-          updates[cartLineKey(item)] = { amount: String(amount), ...(item.basePrice != null ? { basePrice: String(base) } : {}) };
+          updates[cartLineKey(item)] = {
+            amount: String(amount),
+            ...(item.basePrice != null ? { basePrice: String(base) } : {}),
+            ...(customisation ? { customisation } : {}),
+          };
         }
       }
       if (Object.keys(updates).length === 0) return;

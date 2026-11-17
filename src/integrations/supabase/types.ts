@@ -2344,6 +2344,7 @@ export type Database = {
           customisable: boolean
           customisation_days: number | null
           customisation_options: Json
+          customisation_pct: number | null
           description: string | null
           height_cm: number | null
           id: string
@@ -2387,6 +2388,7 @@ export type Database = {
           customisable?: boolean
           customisation_days?: number | null
           customisation_options?: Json
+          customisation_pct?: number | null
           description?: string | null
           height_cm?: number | null
           id?: string
@@ -2430,6 +2432,7 @@ export type Database = {
           customisable?: boolean
           customisation_days?: number | null
           customisation_options?: Json
+          customisation_pct?: number | null
           description?: string | null
           height_cm?: number | null
           id?: string

@@ -1,77 +1,55 @@
-import { Plus, Scissors, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Scissors } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { newOptionId, type ProductCustomisationSetup } from "@/lib/customisation";
-import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED } from "@/lib/hiddenFeatures";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CUSTOMISATION_PCTS, chargeLabel, customisationCharge, type ProductCustomisationSetup } from "@/lib/customisation";
+import { formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // Product form section (boutique and admin): can the customer customise this
-// product, and at what price for each customisation.
+// product, the customisation charge as a % of the product price (client
+// corrections 15 Nov 2026, 3.3.3: 1, 2, 3, 4, 5, 7, 10, 15 or 20% - not a ₹
+// amount) and the extra making days.
 
 export interface CustomisationForm {
   customisable: boolean;
-  offerCustomSize: boolean;
-  customSizePrice: string;
-  options: { id: string; label: string; price: string }[];
+  pct: string;
   days: string;
 }
 
 export const emptyCustomisationForm: CustomisationForm = {
   customisable: false,
-  offerCustomSize: true,
-  customSizePrice: "",
-  options: [],
+  pct: "",
   days: "",
 };
 
 export function customisationFormFrom(p: Partial<ProductCustomisationSetup> | null | undefined): CustomisationForm {
-  const options = Array.isArray(p?.customisation_options) ? p!.customisation_options : [];
   return {
     customisable: p?.customisable === true,
-    offerCustomSize: p?.customisable ? p?.custom_size_price != null : true,
-    customSizePrice: p?.custom_size_price != null ? String(p.custom_size_price) : "",
-    options: options.map((o) => ({ id: String(o.id), label: String(o.label), price: String(o.price ?? "") })),
+    pct: p?.customisation_pct != null ? String(p.customisation_pct) : "",
     days: p?.customisation_days != null ? String(p.customisation_days) : "",
   };
 }
 
-// The product columns to save, or an error message to show.
-export function customisationPayload(f: CustomisationForm): { value: ProductCustomisationSetup } | { error: string } {
-  const toMoney = (s: string) => Math.round((Number(s) || 0) * 100) / 100;
-  const options = f.options
-    .filter((o) => o.label.trim() || o.price.trim())
-    .map((o) => ({ id: o.id, label: o.label.trim(), price: toMoney(o.price) }));
-  if (!f.customisable) {
-    // Keep the set-up so switching it back on doesn't lose it.
-    return {
-      value: {
-        customisable: false,
-        custom_size_price: f.offerCustomSize && f.customSizePrice.trim() !== "" ? toMoney(f.customSizePrice) : null,
-        customisation_options: options.filter((o) => o.label),
-        customisation_days: f.days.trim() === "" ? null : Math.min(60, Math.max(0, Math.round(Number(f.days) || 0))),
-      },
-    };
-  }
-  if (options.some((o) => !o.label)) return { error: "Give every customisation option a name" };
-  if (options.some((o) => o.price < 0 || o.price > 100000)) return { error: "Customisation prices must be between ₹0 and ₹1,00,000" };
-  if (f.offerCustomSize && (f.customSizePrice.trim() === "" || Number(f.customSizePrice) < 0)) {
-    return { error: "Enter the custom size price (0 if it's free)" };
-  }
-  if (!f.offerCustomSize && (options.length === 0 || !CUSTOMISATION_EXTRA_OPTIONS_ENABLED)) {
-    return {
-      error: CUSTOMISATION_EXTRA_OPTIONS_ENABLED
-        ? "To offer customisation, offer custom size or add at least one option"
-        : "To offer customisation, switch on Custom size",
-    };
+// The product columns to save, or an error message to show. Priced extra
+// options and the ₹ custom size price are retired: saving clears them.
+export function customisationPayload(
+  f: CustomisationForm,
+): { value: ProductCustomisationSetup & { custom_size_price: null } } | { error: string } {
+  const pct = f.pct === "" ? null : Number(f.pct);
+  const days = f.days.trim() === "" ? null : Math.min(60, Math.max(0, Math.round(Number(f.days) || 0)));
+  if (f.customisable && (pct == null || !(CUSTOMISATION_PCTS as readonly number[]).includes(pct))) {
+    return { error: "Choose the customisation charge (% of the product price)" };
   }
   return {
     value: {
-      customisable: true,
-      custom_size_price: f.offerCustomSize ? toMoney(f.customSizePrice) : null,
-      customisation_options: options,
-      customisation_days: f.days.trim() === "" ? null : Math.min(60, Math.max(0, Math.round(Number(f.days) || 0))),
+      // Off keeps the % and days, so switching it back on doesn't lose them.
+      customisable: f.customisable,
+      customisation_pct: pct,
+      customisation_options: [],
+      custom_size_price: null,
+      customisation_days: days,
     },
   };
 }
@@ -82,6 +60,8 @@ export function CustomisationEditor({
   idPrefix = "cz",
   note,
   className,
+  price,
+  baseDays,
 }: {
   value: CustomisationForm;
   onChange: (next: CustomisationForm) => void;
@@ -89,10 +69,14 @@ export function CustomisationEditor({
   note?: string;
   // The outer box (e.g. to match the product page's sections).
   className?: string;
+  // The customer price (GST included) and making days, for the preview.
+  price?: number | null;
+  baseDays?: number | null;
 }) {
   const set = <K extends keyof CustomisationForm>(k: K, v: CustomisationForm[K]) => onChange({ ...value, [k]: v });
-  const setOption = (id: string, patch: Partial<CustomisationForm["options"][number]>) =>
-    set("options", value.options.map((o) => (o.id === id ? { ...o, ...patch } : o)));
+  const pct = value.pct === "" ? null : Number(value.pct);
+  const days = Number(value.days) || 0;
+  const charge = price && pct ? customisationCharge(price, pct) : null;
 
   return (
     <div className={cn("rounded-lg border border-border p-3 space-y-3", className)}>
@@ -102,10 +86,8 @@ export function CustomisationEditor({
             <Scissors className="h-4 w-4" /> Customisation available
           </Label>
           <p className="text-xs text-muted-foreground">
-            {CUSTOMISATION_EXTRA_OPTIONS_ENABLED
-              ? "Customers can have this made to their measurements and/or choose extras. Each customisation's price is added to the product price."
-              : "Customers can have this made to their measurements. The custom size price is added to the product price."}{" "}
-            Customised pieces can't be returned or exchanged.
+            Customers can have this made to their measurements or with the changes they write. The customisation
+            charge is a % of the product price and is added to it. Customised pieces can't be returned or exchanged.
             {note ? ` ${note}` : ""}
           </p>
         </div>
@@ -114,102 +96,50 @@ export function CustomisationEditor({
 
       {value.customisable && (
         <div className="space-y-4 border-t border-border pt-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor={`${idPrefix}-size`} className="text-sm">
-                Custom size (made to the customer's measurements)
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-pct`} className="text-sm">
+                Customisation charge *
               </Label>
-              <Switch
-                id={`${idPrefix}-size`}
-                checked={value.offerCustomSize}
-                onCheckedChange={(v) => set("offerCustomSize", v)}
+              <Select value={value.pct} onValueChange={(v) => set("pct", v)}>
+                <SelectTrigger id={`${idPrefix}-pct`}>
+                  <SelectValue placeholder="% of the product price" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CUSTOMISATION_PCTS.map((p) => (
+                    <SelectItem key={p} value={String(p)}>
+                      {p}% of the product price
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-days`} className="text-sm">
+                Extra days to make a customised piece
+              </Label>
+              <Input
+                id={`${idPrefix}-days`}
+                type="number"
+                min={0}
+                max={60}
+                placeholder="0"
+                value={value.days}
+                onChange={(e) => set("days", e.target.value)}
               />
             </div>
-            {value.offerCustomSize && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">+ ₹</span>
-                <Input
-                  id={`${idPrefix}-size-price`}
-                  aria-label="Custom size price"
-                  type="number"
-                  min={0}
-                  placeholder="e.g. 500"
-                  value={value.customSizePrice}
-                  onChange={(e) => set("customSizePrice", e.target.value)}
-                  className="max-w-[160px]"
-                />
-                <span className="text-xs text-muted-foreground">0 if free</span>
-              </div>
-            )}
           </div>
-
-          {CUSTOMISATION_EXTRA_OPTIONS_ENABLED && (
-          <div className="space-y-2">
-            <Label className="text-sm">Other customisations, each with its own price</Label>
-            {value.options.length === 0 && (
-              <p className="text-xs text-muted-foreground">e.g. "Sleeve length change" + ₹200, "Add lining" + ₹300</p>
-            )}
-            {value.options.map((o, i) => (
-              <div key={o.id} className="flex items-center gap-2">
-                <Input
-                  aria-label={`Customisation ${i + 1} name`}
-                  placeholder="Name, e.g. Add lining"
-                  value={o.label}
-                  maxLength={80}
-                  onChange={(e) => setOption(o.id, { label: e.target.value })}
-                  className="flex-1 min-w-0"
-                />
-                <span className="text-sm text-muted-foreground">+ ₹</span>
-                <Input
-                  aria-label={`Customisation ${i + 1} price`}
-                  type="number"
-                  min={0}
-                  placeholder="0"
-                  value={o.price}
-                  onChange={(e) => setOption(o.id, { price: e.target.value })}
-                  className="w-24"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove customisation ${i + 1}`}
-                  onClick={() => set("options", value.options.filter((x) => x.id !== o.id))}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            {value.options.length < 20 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1"
-                onClick={() => set("options", [...value.options, { id: newOptionId(), label: "", price: "" }])}
-              >
-                <Plus className="h-4 w-4" /> Add customisation
-              </Button>
-            )}
-          </div>
+          {pct != null && (
+            <p className="rounded-md bg-muted/40 p-2.5 text-xs text-muted-foreground">
+              Customer sees:{" "}
+              <span className="font-medium text-foreground">
+                {charge != null ? chargeLabel(charge, pct) : `+₹X (${pct}%)`}
+                {days > 0 ? ` · Adds ${days} extra day${days === 1 ? "" : "s"}` : ""}
+                {days > 0 && baseDays ? ` · Total ${baseDays + days} days` : ""}
+              </span>
+              {charge != null && price ? ` (on ${formatINR(price)}; each size at its own price)` : ""}
+            </p>
           )}
-
-          <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-days`} className="text-sm">
-              Extra days to make a customised piece
-            </Label>
-            <Input
-              id={`${idPrefix}-days`}
-              type="number"
-              min={0}
-              max={60}
-              placeholder="0"
-              value={value.days}
-              onChange={(e) => set("days", e.target.value)}
-              className="max-w-[160px]"
-            />
-            <p className="text-xs text-muted-foreground">Added to the delivery date the customer sees.</p>
-          </div>
         </div>
       )}
     </div>

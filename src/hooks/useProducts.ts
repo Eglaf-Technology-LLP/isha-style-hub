@@ -101,6 +101,7 @@ export interface Product {
   customisable?: boolean;
   customisation_options?: unknown;
   custom_size_price?: number | null;
+  customisation_pct?: number | null;
   customisation_days?: number | null;
   ai_content_status: string | null;
   ai_original_photo_paths: string[];
@@ -174,6 +175,7 @@ export interface ProductFormData {
   customisable?: boolean;
   customisation_options?: CustomisationOption[];
   custom_size_price?: number | null;
+  customisation_pct?: number | null;
   customisation_days?: number | null;
   ai_content_status?: AiContentStatus | null;
   ai_original_photo_paths?: string[];
@@ -280,6 +282,7 @@ export async function insertProductRecord(
             customisable: productData.customisable,
             customisation_options: (productData.customisation_options ?? []) as unknown as Json,
             custom_size_price: productData.custom_size_price ?? null,
+            customisation_pct: productData.customisation_pct ?? null,
             customisation_days: productData.customisation_days ?? null,
           }
         : {}),
@@ -388,6 +391,7 @@ export async function applyProductUpdate(
     updateData.customisable = productData.customisable;
     updateData.customisation_options = (productData.customisation_options ?? []) as unknown as Json;
     updateData.custom_size_price = productData.custom_size_price ?? null;
+    updateData.customisation_pct = productData.customisation_pct ?? null;
     updateData.customisation_days = productData.customisation_days ?? null;
   }
   if (productData.ai_content_status !== undefined) updateData.ai_content_status = productData.ai_content_status;
