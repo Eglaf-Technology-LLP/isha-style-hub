@@ -48,6 +48,7 @@ import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
 import { formatINR } from "@/lib/format";
+import { gstInsideLine, useCategoryGstRules } from "@/lib/gst";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
@@ -82,6 +83,10 @@ const MAX_ONLINE_PAYMENT_AMOUNT = Number(import.meta.env.VITE_RAZORPAY_MAX_AMOUN
 // unpaid: the server refunds it automatically (lateCapture.ts).
 const LATE_PAYMENT_MESSAGE =
   "Your payment came through after the checkout had timed out, so no order was placed. It is being refunded to your original payment method (usually 5-7 working days). Your cart is saved - you can place the order again.";
+
+// 2.9.1: the client's exact words when Razorpay is closed or the payment
+// fails. No order is placed and the cart stays as it was.
+const PAYMENT_NOT_COMPLETED = "Payment not completed – please try again";
 
 interface Discount {
   id: string;
@@ -193,7 +198,8 @@ export default function Checkout() {
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<Discount | null>(null);
   const [isValidatingDiscount, setIsValidatingDiscount] = useState(false);
-  // Each cart product's category, for coupons limited to categories.
+  // Each cart product's category: for coupons limited to categories, and for
+  // the GST line in the price break-up.
   const [categoryByProduct, setCategoryByProduct] = useState<Record<string, string | null>>({});
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   // A payment from before a reload being looked up (see pendingPayment.ts).
@@ -444,6 +450,20 @@ export default function Checkout() {
   const discountAmount = coupon?.total ?? 0;
   const goodsDue = Math.round((subtotal - discountAmount + shippingCost) * 100) / 100;
 
+  // 2.9.2: product value and GST on separate lines. Prices include GST; the
+  // GST is what the tax invoice will charge on each line after its coupon
+  // share, in whole rupees. Product value is the rest of the items' price, so
+  // product value + GST - coupon is exactly what the items cost.
+  const gstRules = useCategoryGstRules();
+  const gstReady = !gstRules.loading && items.every((i) => i.productId in categoryByProduct);
+  const gstAmount = Math.round(
+    items.reduce((sum, i) => {
+      const line = parseFloat(i.price.amount) * i.quantity - (coupon?.perLine.get(cartLineKey(i)) ?? 0);
+      return sum + gstInsideLine(gstRules.ruleFor(categoryByProduct[i.productId]), line, i.quantity);
+    }, 0),
+  );
+  const productValue = Math.round((subtotal - gstAmount) * 100) / 100;
+
   // Cash on Delivery fee (client, 13 Nov 2026): 3% of what each boutique
   // part comes to (its goods less its coupon share plus its shipping) + 18%
   // GST on that fee - worked out by the server (shiprocket-cod-charge, the
@@ -593,15 +613,16 @@ export default function Checkout() {
     const ids = productIdsKey ? productIdsKey.split(",") : [];
     if (!ids.length) return {};
     const { data } = await supabase.from("products").select("id, category_id").in("id", ids);
-    const map: Record<string, string | null> = Object.fromEntries((data ?? []).map((p) => [p.id, p.category_id]));
+    // Every id gets an entry (null = not found), so the GST line isn't left waiting.
+    const found = new Map((data ?? []).map((p) => [p.id, p.category_id]));
+    const map: Record<string, string | null> = Object.fromEntries(ids.map((id) => [id, found.get(id) ?? null]));
     setCategoryByProduct(map);
     return map;
   }, [productIdsKey]);
-  // The cart changed under a limited coupon: look up the new lines' categories.
-  const limitedCouponApplied = !!appliedDiscount && isLimitedCoupon(appliedDiscount);
+  // The cart changed: look up the new lines' categories.
   useEffect(() => {
-    if (limitedCouponApplied) loadProductCategories();
-  }, [limitedCouponApplied, loadProductCategories]);
+    loadProductCategories();
+  }, [loadProductCategories]);
 
   const validateDiscountCode = async () => {
     if (!discountCode.trim()) {
@@ -852,7 +873,7 @@ export default function Checkout() {
       } else if (status === "refunded") {
         toast.error(LATE_PAYMENT_MESSAGE, { duration: 12000 });
       } else {
-        toast.error("Your last payment didn't go through, so no order was placed. Your cart is saved - you can try again.");
+        toast.error(PAYMENT_NOT_COMPLETED);
       }
     };
     check();
@@ -1273,7 +1294,7 @@ export default function Checkout() {
             } else if (status === "refunded") {
               toast.error(LATE_PAYMENT_MESSAGE, { duration: 12000 });
             } else {
-              toast.error("Payment not completed, so no order was placed. Your cart is saved - you can try again.");
+              toast.error(PAYMENT_NOT_COMPLETED);
             }
             setIsPlacingOrder(false);
           },
@@ -1829,15 +1850,13 @@ export default function Checkout() {
                 {/* Price Breakdown */}
                 <dl className="space-y-2.5 border-t border-border pt-6 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Subtotal</dt>
-                    <dd>{formatINR(subtotal)}</dd>
+                    <dt className="text-muted-foreground">Product value</dt>
+                    <dd>{gstReady ? formatINR(productValue) : "…"}</dd>
                   </div>
-                  {appliedDiscount && (
-                    <div className="flex justify-between text-primary">
-                      <dt>Discount</dt>
-                      <dd>-{formatINR(discountAmount)}</dd>
-                    </div>
-                  )}
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">GST</dt>
+                    <dd>{gstReady ? formatINR(gstAmount) : "…"}</dd>
+                  </div>
                   {/* Free delivery is one line, not one per boutique. */}
                   {vendorGroups.every((g) => g.shippingCost === 0) ? (
                     <div className="flex justify-between gap-4">
@@ -1871,6 +1890,12 @@ export default function Checkout() {
                         )}
                       </dt>
                       <dd className="shrink-0">{formatINR(codFee)}</dd>
+                    </div>
+                  )}
+                  {appliedDiscount && (
+                    <div className="flex justify-between text-primary">
+                      <dt>Coupon ({appliedDiscount.code})</dt>
+                      <dd>-{formatINR(discountAmount)}</dd>
                     </div>
                   )}
                 </dl>

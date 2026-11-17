@@ -19,6 +19,25 @@ export function gstRateForValue(rule: GstRule | null | undefined, value: number)
   return Number(rule.gst_rate_above_limit ?? rule.gst_rate);
 }
 
+// GST rate for one piece sold at a GST-inclusive price, as the database's
+// gst_rate_for: the band is decided on the value before GST at the lower rate.
+export function gstRateForInclusive(rule: GstRule | null | undefined, unitPrice: number): number {
+  if (!rule) return 0;
+  const rate = Number(rule.gst_rate);
+  if (rule.price_limit == null || unitPrice / (1 + rate / 100) <= Number(rule.price_limit)) return rate;
+  return Number(rule.gst_rate_above_limit ?? rate);
+}
+
+// The GST inside a GST-inclusive line total, split the way the tax invoice
+// splits it (invoice_line_amounts): taxable = round(total / (1 + rate)), GST
+// = the rest.
+export function gstInsideLine(rule: GstRule | null | undefined, lineTotal: number, quantity: number): number {
+  if (!Number.isFinite(lineTotal) || lineTotal <= 0) return 0;
+  const rate = gstRateForInclusive(rule, lineTotal / Math.max(quantity, 1));
+  const taxable = Math.round(Number(((lineTotal * 100) / (1 + rate / 100)).toFixed(4))) / 100;
+  return Math.round((lineTotal - taxable) * 100) / 100;
+}
+
 export interface GstBreakdown {
   rate: number;
   gst: number;
