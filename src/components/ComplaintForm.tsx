@@ -11,10 +11,10 @@ import { COMPANY } from "@/lib/company";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 
 // Complaint form (client list 2.11.2), opened from the footer and Contact us.
-// supabase/functions/submit-complaint gives it a ticket number, emails it to
-// the admins and the Grievance Officer, and emails the customer a
-// confirmation. It isn't saved or shown anywhere on the site (client, 17 Nov
-// 2026).
+// supabase/functions/submit-complaint gives it a ticket number, saves it in
+// public.complaints, emails it to the admins only and emails the customer a
+// confirmation. Saved, but shown nowhere on the site or in the admin panel
+// (client, 18 Nov 2026).
 
 // Same keys and words as CATEGORIES in supabase/functions/submit-complaint.
 const CATEGORIES: { value: string; label: string }[] = [

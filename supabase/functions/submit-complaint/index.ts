@@ -6,16 +6,15 @@ import { emailTemplate, sendEmail } from "../_shared/email.ts";
 
 // Complaint form (client list 2.11.2), from the site footer and Contact us.
 // Anyone can send one, signed in or not. Each complaint gets a ticket
-// number and goes out as two emails: the full complaint to every admin and
-// the Grievance Officer (reply-to = the customer), and a confirmation with
-// the ticket number to the customer.
+// number, is saved in public.complaints, and goes out as two emails: the
+// full complaint to the admins only (reply-to = the customer), and a
+// confirmation with the ticket number to the customer.
 //
-// Nothing is stored and nothing shows in the admin panel (client, 17 Nov
-// 2026) - the admin email IS the record. So the customer only hears
-// "submitted" once at least one admin copy has gone out.
+// Saved but shown nowhere - not on the site, not in the admin panel
+// (client, 18 Nov 2026).
 //
-// Public endpoint (verify_jwt = false). complaint_rate_limits (hashes only)
-// stops the form being used to flood an inbox.
+// Public endpoint (verify_jwt = false). Limits counted on the saved
+// complaints stop the form being used to flood an inbox.
 //
 // POST { name, email, phone, category, order_number?, message, company_fax? }
 //   -> 200 { ticket, ack_sent } | 4xx/5xx { error }
@@ -134,16 +133,45 @@ async function adminEmails(supabase: SupabaseClient): Promise<string[]> {
 }
 
 // Who sent it, when they were signed in - helps the admin find the account.
-async function signedInAs(req: Request, supabase: SupabaseClient): Promise<string | null> {
+async function signedIn(req: Request, supabase: SupabaseClient): Promise<{ id: string; label: string } | null> {
   try {
     const userId = await getCallerUserId(req);
     if (!userId) return null;
     const { data } = await supabase.auth.admin.getUserById(userId);
     const u = data?.user;
     if (!u) return null;
-    return u.email || (u.phone ? `+${u.phone}` : null) || userId;
+    return { id: u.id, label: u.email || (u.phone ? `+${u.phone}` : null) || u.id };
   } catch {
     return null;
+  }
+}
+
+// Saves the complaint under a fresh ticket number (a new one on the rare
+// clash with an existing ticket).
+async function saveComplaint(
+  supabase: SupabaseClient,
+  c: Complaint,
+  userId: string | null,
+  ipHash: string | null,
+): Promise<{ id: string; ticket: string; created_at: string }> {
+  for (let attempt = 0; ; attempt++) {
+    const { data, error } = await supabase
+      .from("complaints")
+      .insert({
+        ticket: ticketNumber(),
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        category: c.category,
+        order_number: c.orderNumber || null,
+        message: c.message,
+        user_id: userId,
+        ip_hash: ipHash,
+      })
+      .select("id, ticket, created_at")
+      .single();
+    if (!error) return data;
+    if (error.code !== "23505" || attempt >= 4) throw error;
   }
 }
 
@@ -160,7 +188,7 @@ function adminEmail(c: Complaint, ticket: string, submittedAt: string, account: 
     preheader: `${c.name} raised a complaint about ${category.toLowerCase()}.`,
     heading: `New complaint ${ticket}`,
     bodyHtml: `
-<p style="margin:0 0 16px;">A customer raised a complaint on the website. It isn't saved anywhere else, so keep this email. Reply to it to answer the customer directly.</p>
+<p style="margin:0 0 16px;">A customer raised a complaint on the website. Reply to this email to answer the customer directly.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px; font-size:14px;">
 ${row("Ticket", `<strong>${ticket}</strong>`)}
 ${row("Received", esc(submittedAt))}
@@ -186,7 +214,7 @@ function customerEmail(c: Complaint, ticket: string, submittedAt: string) {
     heading: "We've received your complaint",
     bodyHtml: `
 <p style="margin:0 0 16px;">Hi ${esc(c.name)},</p>
-<p style="margin:0 0 16px;">Thank you for telling us. Your complaint has been submitted to our team and Grievance Officer.</p>
+<p style="margin:0 0 16px;">Thank you for telling us. Your complaint has been registered with our team.</p>
 <p style="margin:0 0 4px; font-size:13px; color:#6a6a6a;">Your ticket number</p>
 <p style="margin:0 0 20px; font-family:'Courier New',Courier,monospace; font-size:24px; font-weight:700; letter-spacing:2px; color:#7a2e22;">${ticket}</p>
 <p style="margin:0 0 16px;">We'll get back to you within <strong>48 hours</strong> and resolve your complaint within one month. Please quote your ticket number whenever you write to us about it.</p>
@@ -223,16 +251,12 @@ Deno.serve(async (req) => {
     const supabase = serviceClient();
     const now = Date.now();
     const ip = clientIp(req);
-    const emailHash = await sha256(`complaint-email:${c.email}`);
     const ipHash = ip ? await sha256(`complaint-ip:${ip}`) : null;
 
-    // Rows older than a day are no longer needed.
-    await supabase.from("complaint_rate_limits").delete().lt("created_at", new Date(now - 86_400_000).toISOString());
-
     const { count: byEmail, error: emailErr } = await supabase
-      .from("complaint_rate_limits")
+      .from("complaints")
       .select("id", { count: "exact", head: true })
-      .eq("email_hash", emailHash)
+      .eq("email", c.email)
       .gte("created_at", new Date(now - 86_400_000).toISOString());
     if (emailErr) throw emailErr;
     if ((byEmail ?? 0) >= MAX_PER_EMAIL_PER_DAY) {
@@ -243,7 +267,7 @@ Deno.serve(async (req) => {
     }
     if (ipHash) {
       const { count: byIp, error: ipErr } = await supabase
-        .from("complaint_rate_limits")
+        .from("complaints")
         .select("id", { count: "exact", head: true })
         .eq("ip_hash", ipHash)
         .gte("created_at", new Date(now - 3_600_000).toISOString());
@@ -253,22 +277,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: limitRow, error: insertErr } = await supabase
-      .from("complaint_rate_limits")
-      .insert({ email_hash: emailHash, ip_hash: ipHash })
-      .select("id")
-      .single();
-    if (insertErr) throw insertErr;
+    // 1. Saved first - from here on the complaint is on record, even if an
+    // email fails, so the customer is told it went through.
+    const account = await signedIn(req, supabase);
+    const saved = await saveComplaint(supabase, c, account?.id ?? null, ipHash);
+    const ticket = saved.ticket;
+    const submittedAt = formatDateTime(saved.created_at);
 
-    const ticket = ticketNumber();
-    const submittedAt = formatDateTime(new Date(now));
-    const account = await signedInAs(req, supabase);
-
-    // 1. The admins' copy - the only record, so it must get out.
-    const recipients = [
-      ...new Set([...(await adminEmails(supabase)), COMPANY.grievanceOfficer.email].map((e) => e.toLowerCase())),
-    ];
-    const admin = adminEmail(c, ticket, submittedAt, account);
+    // 2. The full complaint to the admins only.
+    const recipients = [...new Set((await adminEmails(supabase)).map((e) => e.toLowerCase()))];
+    const admin = adminEmail(c, ticket, submittedAt, account?.label ?? null);
     let delivered = 0;
     for (const to of recipients) {
       try {
@@ -276,30 +294,29 @@ Deno.serve(async (req) => {
         if (result.skipped) break;
         delivered++;
       } catch (e) {
-        console.error("submit-complaint: admin email failed", to, errorMessage(e));
+        console.error("submit-complaint: admin email failed", ticket, to, errorMessage(e));
       }
     }
-    if (delivered === 0) {
-      await supabase.from("complaint_rate_limits").delete().eq("id", limitRow.id);
-      return jsonResponse(
-        {
-          error: `We couldn't send your complaint right now. Please try again in a few minutes, or write to ${COMPANY.grievanceOfficer.email}.`,
-        },
-        503,
-      );
-    }
+    if (delivered === 0) console.error("submit-complaint: no admin got", ticket, `(${recipients.length} admins)`);
 
-    // 2. The customer's confirmation.
+    // 3. The customer's confirmation.
     let ackSent = false;
     try {
       const ack = customerEmail(c, ticket, submittedAt);
       const result = await sendEmail(c.email, ack.subject, ack.html);
       ackSent = !result.skipped;
     } catch (e) {
-      console.error("submit-complaint: confirmation email failed", errorMessage(e));
+      console.error("submit-complaint: confirmation email failed", ticket, errorMessage(e));
     }
 
-    console.log("submit-complaint: sent", ticket, `admins=${delivered}/${recipients.length}`, `ack=${ackSent}`);
+    const sentAt = new Date().toISOString();
+    const { error: markErr } = await supabase
+      .from("complaints")
+      .update({ admins_emailed_at: delivered > 0 ? sentAt : null, customer_emailed_at: ackSent ? sentAt : null })
+      .eq("id", saved.id);
+    if (markErr) console.error("submit-complaint: marking emails sent failed", ticket, errorMessage(markErr));
+
+    console.log("submit-complaint: saved", ticket, `admins=${delivered}/${recipients.length}`, `ack=${ackSent}`);
     return jsonResponse({ ticket, ack_sent: ackSent });
   } catch (e) {
     console.error("submit-complaint failed", errorMessage(e));

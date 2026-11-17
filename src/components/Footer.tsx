@@ -162,8 +162,8 @@ export function Footer() {
         </FooterColumn>
       </div>
 
-      {/* Complaints (client list 2.11.2): the form emails the admins and the
-          customer; nothing is saved on the site. */}
+      {/* Complaints (client list 2.11.2): the form saves the complaint (shown
+          nowhere), emails it to the admins and confirms to the customer. */}
       <div className="border-t border-ivory/10">
         <div className="store-container flex flex-col gap-5 py-8 md:flex-row md:items-center md:justify-between">
           <div>
