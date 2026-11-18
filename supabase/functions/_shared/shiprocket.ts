@@ -612,7 +612,18 @@ export async function bookForwardShipment(
 
   // HTTP 200 even for a logical failure - status:1 is the real success signal.
   if (result.status !== 1) {
-    throw new Error(result.payload?.error_message || "Shiprocket rejected the shipment request");
+    // The whole answer, to see why (its error_message alone can be as vague
+    // as "Save Eway Bill Detail Error").
+    console.error("Shiprocket forward-shipment refused", params.channelOrderId, JSON.stringify(result));
+    // The wrapper may have made the order before failing (e.g. at the e-way
+    // bill step) - cancel it so a retry doesn't leave a stray NEW order.
+    await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(result.payload?.order_id ?? result.order_id));
+    const reason = result.payload?.error_message || result.message || "Shiprocket rejected the shipment request";
+    throw new Error(
+      params.ewayBill && /eway/i.test(String(reason))
+        ? `${reason}: Shiprocket couldn't take e-way bill ${params.ewayBill.number}. Usually the number isn't on the government e-way bill portal yet, or the e-way bill's transporter isn't the courier - AllBoutiqs needs to check the e-way bill.`
+        : reason,
+    );
   }
   const p = result.payload;
   const shipmentId = toIntOrNull(p.shipment_id);
