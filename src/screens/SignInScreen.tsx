@@ -52,7 +52,7 @@ import { colors, fonts } from '@/theme';
 //   code), filled in, with "already registered".
 // - A code for a new email/number simply creates the account.
 
-const CODE_LENGTH = 6;
+export const CODE_LENGTH = 6;
 const PHONE_RESEND_SECONDS = 60;
 const METHOD_KEY = 'allboutiqs:signin-method';
 
@@ -623,8 +623,8 @@ export default function SignInScreen() {
 // The code as six boxes, one digit each (the website's InputOTP). One hidden
 // field underneath takes the typing, so SMS autofill, paste and the number
 // pad all work as normal; the box to fill next is highlighted with a
-// blinking cursor at its start.
-function CodeBoxes({
+// blinking cursor at its start. Also used in My profile.
+export function CodeBoxes({
   value,
   onChange,
   inputRef,

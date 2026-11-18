@@ -52,9 +52,33 @@ export function formatPhone(phone: string | null | undefined): string {
   return `+${digits}`;
 }
 
+// A mobile-only account's email is "" (not null), and an email-only
+// account's phone too - so "||", never "??" or [0], on these two.
 export const userContact = (user: User | null | undefined) =>
   user?.email || formatPhone(user?.phone) || '';
 export const PASSWORD_MIN_LENGTH = 8;
+
+// What the account was registered with. That one stays locked in My
+// profile for good; the other can be added or changed (website, client
+// 16 Nov 2026). Read from the account's first sign-in identity, which an
+// email or number added later never replaces. supabase/functions/
+// auth-email-otp has the same rule.
+export function signedUpWith(user: User | null | undefined): 'email' | 'phone' {
+  const first = (user?.identities ?? [])
+    .filter(i => i.provider === 'email' || i.provider === 'phone')
+    .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))[0];
+  if (first) return first.provider as 'email' | 'phone';
+  return user?.phone && !user?.email ? 'phone' : 'email';
+}
+
+// "9876543210" for an Indian number, anything else as given. Accepts
+// "+919876543210" or "919876543210" (user.phone has no "+").
+export function nationalPhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const e164 = toE164(phone) ?? toE164(`+${phone.replace(/\D/g, '')}`);
+  if (!e164) return phone;
+  return e164.startsWith('+91') && e164.length === 13 ? e164.slice(3) : e164;
+}
 
 // Set when the customer chooses their own password (accounts start with
 // one-time codes only). A display hint, kept in user_metadata - same as the website.
@@ -323,3 +347,46 @@ export function startSession() {
 }
 
 export const signOut = () => supabase.auth.signOut();
+
+// ---------- the other email / mobile number (My profile) ----------
+
+// Does ANOTHER account sign in with this email / number? (contact_taken,
+// yes/no only.) null when the check itself failed.
+export async function contactTaken(
+  id: { email: string } | { phone: string },
+): Promise<boolean | null> {
+  const { data, error } = await supabase.rpc(
+    'contact_taken',
+    'email' in id ? { _email: id.email } : { _phone: id.phone },
+  );
+  return error ? null : !!data;
+}
+
+// Adds or changes the email of an account registered with a mobile number:
+// a code sent by auth-email-otp (purpose "link"); once it's right the email
+// signs in to this same account.
+export async function sendEmailLinkCode(email: string) {
+  const { data, error } = await callEmailOtp({
+    action: 'send',
+    purpose: 'link',
+    email,
+  });
+  return {
+    error,
+    retryAfter: (data?.retry_after ?? data?.resend_after ?? null) as
+      | number
+      | null,
+  };
+}
+
+export async function verifyEmailLink(email: string, code: string) {
+  const { error } = await callEmailOtp({ action: 'link', email, code });
+  if (!error) {
+    // A fresh session carries the new email (a token refresh, which the
+    // session listener above doesn't follow).
+    const { data } = await supabase.auth.refreshSession();
+    if (data.user && useSession.getState().status === 'signed-in')
+      useSession.setState({ user: data.user });
+  }
+  return { error };
+}
