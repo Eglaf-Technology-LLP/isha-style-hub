@@ -9,8 +9,10 @@ import { useFoundingPeriod } from "@/hooks/useFoundingPeriod";
 import { twoMonthsFrom } from "@/lib/founding";
 import { formatDate } from "@/lib/dates";
 
-// Admin: the founding period - 0% marketplace commission for every boutique
-// on orders placed between these dates (IST, both included). Orders keep
+// Admin: the founding period - 0% marketplace commission for every Founding
+// Boutique on orders placed between these dates (IST, both included; other
+// boutiques pay the commission below - client corrections Part 2, A15.1 /
+// A18.1). Orders keep
 // being worked out from their own date, so a period that has started keeps
 // its start date, and its end can't be moved into the past.
 export function FoundingPeriodSettings({ today }: { today: string }) {
@@ -47,13 +49,13 @@ export function FoundingPeriodSettings({ today }: { today: string }) {
     <div className="space-y-3 rounded-md border border-amber-300/60 bg-amber-50/40 p-4 dark:border-amber-500/30 dark:bg-amber-500/5">
       <div>
         <p className="flex items-center gap-2 text-sm font-medium">
-          <Sparkles className="h-4 w-4 text-amber-500" /> Founding period · every boutique
+          <Sparkles className="h-4 w-4 text-amber-500" /> Founding period · Founding Boutiques
         </p>
         <p className="text-sm text-muted-foreground">
           {loading
             ? "..."
             : period
-              ? `0% marketplace commission on orders placed from ${formatDate(period.from)} to ${formatDate(period.until)} (both days included). After it, the commission below applies. Other charges still apply.`
+              ? `0% marketplace commission for every Founding Boutique on orders placed from ${formatDate(period.from)} to ${formatDate(period.until)} (both days included). After it, and for every other boutique, the commission below applies. Other charges still apply.`
               : "Not set. Orders pay the commission below."}
         </p>
       </div>

@@ -392,19 +392,22 @@ export default function VendorDashboard() {
     }
   };
 
-  // The commission line on the "Net payable" card: 0% in the founding
-  // period (every boutique) or the boutique's own one, else its override or
-  // the platform rate - the rule effective_commission_pct() applies.
+  // The commission line on the "Net payable" card: 0% only for a Founding
+  // Boutique, in the founding period or its own one; else its override or
+  // the platform rate - the rule effective_commission_pct() applies. Other
+  // boutiques see "Commission 10% · technology & service fee 2%" (client
+  // corrections Part 2, A18.1).
   const commissionLine = () => {
     if (!vendor) return "";
     const today = platformRates.today;
     const rateOn = (day: string) =>
       vendor.commission_rate ?? platformRates.versions.find((v) => v.effective_from <= day)?.marketplace_commission_pct;
     const pct = (n: number | null | undefined) => (n == null ? "—" : `${Number(n)}%`);
+    const techFeeOn = (day: string) => platformRates.versions.find((v) => v.effective_from <= day)?.technology_fee_pct;
     // The 0% is commission only: the technology & service fee is still
     // charged in the founding period (client corrections, 15 Nov 2026).
     const techFeeNote = (day: string) => {
-      const fee = platformRates.versions.find((v) => v.effective_from <= day)?.technology_fee_pct;
+      const fee = techFeeOn(day);
       return fee == null ? "" : ` (${pct(fee)} technology & service fee still applies)`;
     };
     const periods = zeroCommissionPeriods(foundingPeriod, vendor);
@@ -414,9 +417,11 @@ export default function VendorDashboard() {
     }
     const now = `Commission ${pct(rateOn(today))}`;
     const next = periods.filter((p) => p.from > today).sort((a, b) => a.from.localeCompare(b.from))[0];
-    return next
-      ? `${now} · 0% on orders from ${formatDate(next.from)} to ${formatDate(zeroCommissionUntil(periods, next.from) ?? next.until)}${techFeeNote(next.from)}, then ${pct(rateOn(nextDay(zeroCommissionUntil(periods, next.from) ?? next.until)))}`
-      : now;
+    if (next) {
+      return `${now} · 0% on orders from ${formatDate(next.from)} to ${formatDate(zeroCommissionUntil(periods, next.from) ?? next.until)}${techFeeNote(next.from)}, then ${pct(rateOn(nextDay(zeroCommissionUntil(periods, next.from) ?? next.until)))}`;
+    }
+    const fee = techFeeOn(today);
+    return fee == null ? now : `${now} · technology & service fee ${pct(fee)}`;
   };
 
   const deleteProduct = async (p: VendorProduct) => {

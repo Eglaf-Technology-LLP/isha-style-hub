@@ -18,9 +18,10 @@ interface FoundingVendor {
   founding_until: string | null;
 }
 
-// Admin: the Founding Boutique badge for one boutique, and optionally an
-// extra 0% commission period just for it. The founding period itself (0%
-// for every boutique) is set under Fees, taxes & payout timing.
+// Admin: makes one boutique a Founding Boutique - the badge and 0%
+// commission in the founding period (set under Fees, taxes & payout timing;
+// only Founding Boutiques get it, client corrections Part 2, A15.1 / A18.1)
+// - and optionally an extra 0% period just for it.
 export function FoundingBoutiqueDialog({
   vendor,
   open,
@@ -70,18 +71,22 @@ export function FoundingBoutiqueDialog({
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-amber-500" /> Founding Boutique · {vendor.name}
           </DialogTitle>
-          <DialogDescription>Shows a Founding Boutique badge on the boutique's store and cards.</DialogDescription>
+          <DialogDescription>
+            Shows a Founding Boutique badge on the boutique's store and cards, and gives it the founding period's 0%
+            commission.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <p className="rounded-md bg-muted/40 p-3 text-sm">
             {period ? (
               <>
-                Every boutique already pays <strong>0% marketplace commission</strong> on orders placed from{" "}
+                Every Founding Boutique pays <strong>0% marketplace commission</strong> on orders placed from{" "}
                 <strong>{formatDate(period.from)}</strong> to <strong>{formatDate(period.until)}</strong> (founding
-                period, set under Fees, taxes &amp; payout timing). The technology fee, GST and other charges still apply.
+                period, set under Fees, taxes &amp; payout timing). Other boutiques pay the normal commission. The
+                technology fee, GST and other charges still apply.
               </>
             ) : (
-              <>No founding period is set for all boutiques (Fees, taxes &amp; payout timing).</>
+              <>No founding period is set (Fees, taxes &amp; payout timing).</>
             )}
           </p>
           <div className="space-y-2">
@@ -97,7 +102,7 @@ export function FoundingBoutiqueDialog({
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">Leave both empty for the badge only.</p>
+              <p className="text-xs text-muted-foreground">Leave both empty for the founding period only.</p>
               {/* 3.4.3: fills both dates from the launch date. */}
               <Button
                 type="button"
