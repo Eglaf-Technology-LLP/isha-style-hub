@@ -25,6 +25,7 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
+import { CompanyFooter } from '@/components/CompanyFooter';
 import { Button, Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
 import { hasOwnPassword, signOut, userContact, useSession } from '@/lib/auth';
@@ -157,6 +158,7 @@ export default function ProfileScreen() {
             </Touch>
           ) : null}
         </View>
+        <CompanyFooter />
         <Sans style={styles.version}>Version {version}</Sans>
       </ScrollView>
     </View>
