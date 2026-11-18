@@ -1,10 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { Zap } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { ArrowRight, BadgeCheck, Zap } from 'lucide-react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { Boutique, Product } from '@/lib/catalog';
 import { supabase } from '@/lib/supabase';
+import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
-import { Eyebrow, Sans } from './ui';
+import { Eyebrow, Placeholder, Sans, SectionHeader, Serif, Touch } from './ui';
 
 // ---------- offers strip (the website's AnnouncementBar) ----------
 
@@ -64,6 +75,158 @@ export function OfferStrip() {
         {list[i]}
       </Animated.Text>
     </View>
+  );
+}
+
+// ---------- boutique boards (the website's BoutiqueSpotlight) ----------
+
+// "Meet the boutiques": every boutique with live pieces, busiest first, as a
+// row of tall boards - banner (or a product photo), logo, the name big and
+// the boutique code small under it. The first section under the banner.
+export function BoutiqueBoards({
+  boutiques,
+  products,
+}: {
+  boutiques: Boutique[];
+  products: Product[];
+}) {
+  const go = useGo();
+  const { width } = useWindowDimensions();
+  const live = useMemo(
+    () =>
+      boutiques
+        .map(b => ({
+          b,
+          pieces: products.filter(p => p.vendor_id === b.id).length,
+          cover:
+            products.find(p => p.vendor_id === b.id && p.images[0])
+              ?.images[0] ?? null,
+        }))
+        .filter(x => x.pieces > 0)
+        .sort((x, y) => y.pieces - x.pieces),
+    [boutiques, products],
+  );
+  if (live.length === 0) return null;
+  const cardWidth = Math.round(width * 0.78);
+
+  return (
+    <View style={styles.boards}>
+      <SectionHeader
+        eyebrowText="Meet the boutiques"
+        title="Independent labels,"
+        accent="one address"
+        action="All boutiques"
+        onAction={() => go('/boutiques')}
+      />
+      <Sans style={styles.boardsIntro}>
+        Every boutique on AllBoutiqs is verified - shop their full collections
+        in one place.
+      </Sans>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        snapToInterval={cardWidth + 12}
+        contentContainerStyle={styles.boardsRow}
+      >
+        {live.map(({ b, pieces, cover }) => (
+          <BoutiqueBoard
+            key={b.id}
+            boutique={b}
+            pieces={pieces}
+            cover={b.banner_url || cover}
+            width={cardWidth}
+            onPress={() => go(`/store/${b.slug}`)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function BoutiqueBoard({
+  boutique: b,
+  pieces,
+  cover,
+  width,
+  onPress,
+}: {
+  boutique: Boutique;
+  pieces: number;
+  cover: string | null;
+  width: number;
+  onPress: () => void;
+}) {
+  return (
+    <Touch
+      style={[styles.board, { width, height: Math.round(width * 1.25) }]}
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={b.name}
+    >
+      {cover ? (
+        <Image
+          source={{ uri: cover }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      ) : (
+        <Placeholder label={b.name} dark style={StyleSheet.absoluteFill} />
+      )}
+      <Svg style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id={`board-${b.id}`} x1="0" y1="1" x2="0" y2="0">
+            <Stop offset="0" stopColor={colors.ink} stopOpacity={0.8} />
+            <Stop offset="0.5" stopColor={colors.ink} stopOpacity={0.1} />
+            <Stop offset="1" stopColor={colors.ink} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill={`url(#board-${b.id})`} />
+      </Svg>
+      <View style={styles.boardText}>
+        <View style={styles.boardLogo}>
+          {b.logo_url ? (
+            <Image
+              source={{ uri: b.logo_url }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+            />
+          ) : (
+            <Serif style={styles.boardInitial}>
+              {b.name.charAt(0).toUpperCase()}
+            </Serif>
+          )}
+        </View>
+        {/* Name in big text, the boutique code small just below it. */}
+        <View style={styles.boardNameRow}>
+          <Serif style={styles.boardName} numberOfLines={2}>
+            {b.name}
+          </Serif>
+          {b.is_verified ? (
+            <BadgeCheck
+              size={20}
+              color={colors.gold}
+              accessibilityLabel="Verified boutique"
+            />
+          ) : null}
+        </View>
+        {b.boutique_code ? (
+          <Text style={styles.boardCode}>{b.boutique_code}</Text>
+        ) : null}
+        <View style={styles.boardFoot}>
+          <Text style={styles.boardMeta}>
+            {pieces} {pieces === 1 ? 'piece' : 'pieces'}
+            {b.is_founding ? ' · Founding boutique' : ''}
+          </Text>
+          <View style={styles.boardExplore}>
+            <Text style={[styles.boardMeta, styles.boardExploreText]}>
+              Explore
+            </Text>
+            <ArrowRight size={14} color={colors.ivory} />
+          </View>
+        </View>
+      </View>
+    </Touch>
   );
 }
 
@@ -162,6 +325,67 @@ function TimeBox({ value, unit }: { value: string; unit: string }) {
 }
 
 const styles = StyleSheet.create({
+  boards: { paddingTop: 28, paddingBottom: 8 },
+  boardsIntro: {
+    color: colors.mutedForeground,
+    lineHeight: 21,
+    paddingHorizontal: 16,
+    marginTop: -6,
+    marginBottom: 16,
+  },
+  boardsRow: { gap: 12, paddingHorizontal: 16 },
+  board: { overflow: 'hidden', backgroundColor: colors.maroonDeep },
+  boardText: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 20,
+  },
+  boardLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(252,251,248,0.4)',
+    backgroundColor: colors.ivory,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  boardInitial: { fontSize: 24, color: colors.primary },
+  boardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  boardName: {
+    flexShrink: 1,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.ivory,
+  },
+  boardCode: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    letterSpacing: 2.2,
+    color: 'rgba(252,251,248,0.8)',
+    marginTop: 4,
+  },
+  boardFoot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 8,
+  },
+  boardMeta: {
+    flexShrink: 1,
+    fontFamily: fonts.sans,
+    fontSize: 11,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: 'rgba(252,251,248,0.75)',
+  },
+  boardExplore: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  boardExploreText: { color: colors.ivory },
   strip: {
     backgroundColor: colors.maroonDeep,
     height: 32,

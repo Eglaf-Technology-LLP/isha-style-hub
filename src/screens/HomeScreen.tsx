@@ -1,12 +1,6 @@
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
-import {
-  BadgeCheck,
-  RotateCcw,
-  ShieldCheck,
-  Tag,
-  Truck,
-} from 'lucide-react-native';
+import { RotateCcw, ShieldCheck, Tag, Truck } from 'lucide-react-native';
 import { useMemo } from 'react';
 import {
   RefreshControl,
@@ -18,7 +12,11 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { HeroBanner } from '@/components/HeroBanner';
 import { budgetHref, BUDGETS } from '@/lib/listing';
-import { FlashSales, OfferStrip } from '@/components/HomeExtras';
+import {
+  BoutiqueBoards,
+  FlashSales,
+  OfferStrip,
+} from '@/components/HomeExtras';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Eyebrow,
@@ -29,7 +27,6 @@ import {
   Touch,
 } from '@/components/ui';
 import {
-  Boutique,
   categoryCover,
   onSale,
   useBoutiques,
@@ -52,9 +49,6 @@ export default function Home() {
     return [...pool].sort(() => Math.random() - 0.5).slice(0, 12);
   }, [all]);
   const sale = all.filter(onSale).slice(0, 12);
-  const liveBoutiques = boutiques.filter(b =>
-    all.some(p => p.vendor_id === b.id),
-  );
   const liveCategories = categories.filter(c =>
     all.some(p => p.category_id === c.id),
   );
@@ -137,6 +131,10 @@ export default function Home() {
 
         <HeroBanner />
 
+        {/* The boutique boards are the first section under the banner
+            (website, client corrections 15 Nov 2026, 2.1.3). */}
+        <BoutiqueBoards boutiques={boutiques} products={all} />
+
         <FlashSales />
 
         {/* Promise strip */}
@@ -200,10 +198,6 @@ export default function Home() {
           onAction={() => go('/category/all')}
         />
 
-        {liveBoutiques.length > 0 ? (
-          <BoutiqueRow boutiques={liveBoutiques} onOpen={go} />
-        ) : null}
-
         {sale.length >= 4 ? (
           <ProductRail
             eyebrowText="Limited time"
@@ -221,74 +215,6 @@ export default function Home() {
           </Sans>
         ) : null}
         <View style={{ height: 24 }} />
-      </ScrollView>
-    </View>
-  );
-}
-
-function BoutiqueRow({
-  boutiques,
-  onOpen,
-}: {
-  boutiques: Boutique[];
-  onOpen: (href: string) => void;
-}) {
-  return (
-    <View style={{ paddingVertical: 20, backgroundColor: colors.ivory }}>
-      <SectionHeader
-        eyebrowText="The boutiques"
-        title="Shop by"
-        accent="boutique"
-        action="View all"
-        onAction={() => onOpen('/boutiques')}
-      />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 16, paddingHorizontal: 16 }}
-      >
-        {boutiques.slice(0, 12).map(b => (
-          <Touch
-            key={b.id}
-            style={{ width: 76, alignItems: 'center' }}
-            onPress={() => onOpen(`/store/${b.slug}`)}
-          >
-            <View
-              style={[
-                styles.circle,
-                { width: 68, height: 68, borderRadius: 34 },
-              ]}
-            >
-              {b.logo_url ? (
-                <Image
-                  source={{ uri: b.logo_url }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Placeholder label={b.name.charAt(0)} />
-              )}
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 2,
-                marginTop: 6,
-              }}
-            >
-              <Text
-                style={[styles.circleLabel, { marginTop: 0 }]}
-                numberOfLines={1}
-              >
-                {b.name}
-              </Text>
-              {b.is_verified ? (
-                <BadgeCheck size={11} color={colors.gold} />
-              ) : null}
-            </View>
-          </Touch>
-        ))}
       </ScrollView>
     </View>
   );

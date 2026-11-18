@@ -51,10 +51,13 @@ export interface Boutique {
   id: string;
   name: string;
   slug: string;
+  // "AB0001" - shown small under the name (boutique boards, store page).
+  boutique_code: string | null;
   description: string | null;
   logo_url: string | null;
   banner_url: string | null;
   is_verified: boolean;
+  is_founding: boolean;
 }
 
 const STALE = 5 * 60 * 1000;
@@ -176,22 +179,29 @@ export function useCategories() {
   });
 }
 
+const toBoutique = (b: Boutique): Boutique => ({
+  ...b,
+  boutique_code: b.boutique_code ?? null,
+  is_verified: !!b.is_verified,
+  is_founding: !!b.is_founding,
+});
+
 export function useBoutiques() {
   return useQuery({
     queryKey: ['boutiques'],
     staleTime: STALE,
     queryFn: async (): Promise<Boutique[]> => {
       const snap = await readSnapshot<{ boutiques: Boutique[] }>('menu.json');
-      if (snap) return snap.boutiques;
+      if (snap) return snap.boutiques.map(toBoutique);
       const { data, error } = await supabase
         .from('vendors')
         .select(
-          'id, name, slug, description, logo_url, banner_url, is_verified',
+          'id, name, slug, boutique_code, description, logo_url, banner_url, is_verified, is_founding',
         )
         .eq('status', 'approved')
         .order('name');
       if (error) throw error;
-      return (data || []) as Boutique[];
+      return ((data || []) as Boutique[]).map(toBoutique);
     },
   });
 }
