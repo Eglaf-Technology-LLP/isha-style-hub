@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from './auth';
 import { friendly } from './errors';
@@ -26,7 +27,7 @@ export interface VendorInfo {
     country?: string;
   } | null;
   contact_email: string | null;
-  contact_phone: string | null;
+  gst_number: string | null;
   default_prep_days: number | null;
 }
 
@@ -36,10 +37,12 @@ export function useVendorInfo(vendorId: string | null | undefined) {
     enabled: !!vendorId,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      // Not the boutique's phone: it is never shown to customers (as on the
+      // website, e174257).
       const { data } = await supabase
         .from('vendors')
         .select(
-          'name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, default_prep_days',
+          'name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, gst_number, default_prep_days',
         )
         .eq('id', vendorId!)
         .maybeSingle();
@@ -57,6 +60,38 @@ export function vendorAddressLine(
     a.city
   }, ${a.state} - ${a.pincode}, ${a.country || 'India'}`;
 }
+
+// ---------- the return window (website src/hooks/useReturnWindowHours.ts) ----------
+
+// How long customers can return after delivery - one number for every
+// boutique, set by AllBoutiqs (platform_settings.return_window_hours, 24
+// by default).
+const DEFAULT_RETURN_HOURS = 24;
+
+export function useReturnWindowHours(): number {
+  const { data } = useQuery({
+    queryKey: ['return-window-hours'],
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data: row } = await supabase
+        .from('platform_settings')
+        .select('return_window_hours')
+        .maybeSingle();
+      return Number(row?.return_window_hours) || DEFAULT_RETURN_HOURS;
+    },
+  });
+  return data ?? DEFAULT_RETURN_HOURS;
+}
+
+// "24-hour" / "2-day", for "24-hour returns".
+export const returnWindowAdjective = (hours: number) =>
+  hours > 24 && hours % 24 === 0 ? `${hours / 24}-day` : `${hours}-hour`;
+
+// "24 hours" / "2 days", for "within 24 hours of delivery".
+export const returnWindowSpan = (hours: number) =>
+  hours > 24 && hours % 24 === 0
+    ? `${hours / 24} days`
+    : `${hours} hour${hours === 1 ? '' : 's'}`;
 
 // ---------- reviews ----------
 
@@ -148,22 +183,115 @@ export function useReviewActions(productId: string) {
   return { save, remove };
 }
 
-// ---------- size guide (template per category + the boutique's numbers) ----------
+// ---------- size guide (website src/lib/sizeCharts.ts + SizeGuideModal) ----------
+
+// Client, 2026-11-13: every category's chart is Bust, Waist and Hip, XS to
+// 6XL, starting from AllBoutiqs' numbers (inches); other measurements are
+// hidden. While true, the category's template (size_guides) only gives the
+// chart its name, and every category has a chart.
+export const SIZE_CHART_STANDARD_ONLY = true;
+
+export const STANDARD_SIZES = [
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+  '3XL',
+  '4XL',
+  '5XL',
+  '6XL',
+];
+const STANDARD_ROWS = [
+  {
+    key: 'bust',
+    name: 'Bust',
+    hint: 'Around the fullest part of the chest, tape level',
+    from: 32,
+  },
+  {
+    key: 'waist',
+    name: 'Waist',
+    hint: 'Around the natural waist, the narrowest part',
+    from: 26,
+  },
+  {
+    key: 'hip',
+    name: 'Hip',
+    hint: 'Around the fullest part of the hips',
+    from: 36,
+  },
+];
+
+// A boutique's numbers: { measurementKey: { size: "34" } }
+type ChartValues = Record<string, Record<string, string>>;
+
+interface ChartTemplate {
+  name: string;
+  unit: 'in' | 'cm';
+  sizes: string[];
+  measurements: {
+    key: string;
+    name: string;
+    hint: string;
+    values: Record<string, string>;
+  }[];
+}
 
 export interface SizeChart {
   name: string;
   unit: 'in' | 'cm';
   sizes: string[];
+  // Only the measurements with at least one number.
   rows: { name: string; hint: string; values: Record<string, string> }[];
 }
 
-const hasAnyValue = (
-  values: Record<string, Record<string, string>> | null | undefined,
-) =>
+function parseTemplate(row: any): ChartTemplate {
+  const measurements: any[] = Array.isArray(row?.measurements)
+    ? row.measurements
+    : [];
+  return {
+    name: String(row?.name ?? ''),
+    unit: row?.unit === 'cm' ? 'cm' : 'in',
+    sizes: Array.isArray(row?.sizes) ? row.sizes.map(String) : [],
+    measurements: measurements.map((m, i) => ({
+      key: String(m.key ?? m.name ?? `m${i}`),
+      name: String(m.name ?? m.key ?? ''),
+      hint: String(m.hint ?? ''),
+      values: m.values && typeof m.values === 'object' ? m.values : {},
+    })),
+  };
+}
+
+// The standard chart: 2 inches up per size from XS.
+function standardTemplate(name: string): ChartTemplate {
+  return {
+    name,
+    unit: 'in',
+    sizes: STANDARD_SIZES,
+    measurements: STANDARD_ROWS.map(r => ({
+      key: r.key,
+      name: r.name,
+      hint: r.hint,
+      values: Object.fromEntries(
+        STANDARD_SIZES.map((size, i) => [size, String(r.from + i * 2)]),
+      ),
+    })),
+  };
+}
+
+const hasAnyValue = (values: ChartValues | null | undefined) =>
   !!values &&
   Object.values(values).some(row =>
     Object.values(row ?? {}).some(v => String(v ?? '').trim()),
   );
+
+const standardValues = (t: ChartTemplate): ChartValues =>
+  Object.fromEntries(t.measurements.map(m => [m.key, m.values ?? {}]));
+
+export const unitLabel = (unit: string) =>
+  unit === 'cm' ? 'centimetres (cm)' : 'inches';
 
 export function useSizeChart(
   categoryId: string | null | undefined,
@@ -174,20 +302,28 @@ export function useSizeChart(
     enabled: !!categoryId,
     staleTime: 30 * 60 * 1000,
     queryFn: async (): Promise<SizeChart | null> => {
-      const { data: t } = await supabase
-        .from('size_guides')
-        .select('*')
-        .eq('category_id', categoryId!)
-        .maybeSingle();
-      if (!t) return null;
-      const measurements: any[] = Array.isArray((t as any).measurements)
-        ? (t as any).measurements
-        : [];
-      const sizes: string[] = Array.isArray((t as any).sizes)
-        ? (t as any).sizes.map(String)
-        : [];
-      const keyOf = (m: any, i: number) => String(m.key ?? m.name ?? `m${i}`);
-      let own: Record<string, Record<string, string>> | null = null;
+      // The category's chart: its template, or (standard only) the standard
+      // Bust / Waist / Hip chart, named after the template or the category.
+      const [{ data: t }, { data: category }] = await Promise.all([
+        supabase
+          .from('size_guides')
+          .select('*')
+          .eq('category_id', categoryId!)
+          .maybeSingle(),
+        SIZE_CHART_STANDARD_ONLY
+          ? supabase
+              .from('categories')
+              .select('name')
+              .eq('id', categoryId!)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { name?: string } | null }),
+      ]);
+      const template = t ? parseTemplate(t) : null;
+      const chart = SIZE_CHART_STANDARD_ONLY
+        ? standardTemplate(template?.name || category?.name || 'Size chart')
+        : template;
+      if (!chart) return null;
+      let own: ChartValues | null = null;
       if (vendorId) {
         const { data } = await supabase
           .from('vendor_size_charts')
@@ -195,26 +331,34 @@ export function useSizeChart(
           .eq('vendor_id', vendorId)
           .eq('category_id', categoryId!)
           .maybeSingle();
-        own = (data?.values as Record<string, Record<string, string>>) ?? null;
+        own = (data?.values as ChartValues) ?? null;
       }
-      const standard = Object.fromEntries(
-        measurements.map((m, i) => [keyOf(m, i), m.values ?? {}]),
-      );
-      const values = hasAnyValue(own)
-        ? own!
-        : hasAnyValue(standard)
-        ? standard
+      // The boutique's own numbers for this chart's rows, else the standard
+      // ones.
+      const ownRows: ChartValues | null = own
+        ? Object.fromEntries(
+            chart.measurements.map(m => [m.key, own![m.key] ?? {}]),
+          )
+        : null;
+      const values = hasAnyValue(ownRows)
+        ? ownRows!
+        : hasAnyValue(standardValues(chart))
+        ? standardValues(chart)
         : null;
       if (!values) return null;
       return {
-        name: String((t as any).name ?? ''),
-        unit: (t as any).unit === 'cm' ? 'cm' : 'in',
-        sizes,
-        rows: measurements.map((m, i) => ({
-          name: String(m.name ?? m.key ?? ''),
-          hint: String(m.hint ?? ''),
-          values: values[keyOf(m, i)] ?? {},
-        })),
+        name: chart.name,
+        unit: chart.unit,
+        sizes: chart.sizes,
+        rows: chart.measurements
+          .filter(m =>
+            chart.sizes.some(sz => String(values[m.key]?.[sz] ?? '').trim()),
+          )
+          .map(m => ({
+            name: m.name,
+            hint: m.hint,
+            values: values[m.key] ?? {},
+          })),
       };
     },
   });
@@ -238,43 +382,96 @@ const MONTHS = [
 ];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const dateLabel = (iso: string) => {
-  const d = new Date(iso);
+  // A plain "2026-11-20" is that calendar day, never shifted by time zones.
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(iso);
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 };
 
+export const isPin = (pin: string | null | undefined): pin is string =>
+  !!pin && /^\d{6}$/.test(pin);
+
+export interface DeliveryEstimate {
+  // The PIN code it was worked out for; null = none given yet, so only
+  // "Ships by" is known.
+  pin: string | null;
+  available: boolean;
+  // When the parcel leaves the AllBoutiqs warehouse.
+  shipsBy: string | null;
+  deliveryBy: string | null;
+}
+
+// "Ships by" / "Delivery by" for one piece, as the website's
+// DeliveryEstimate: the server adds up the boutique's preparation time,
+// courier to the warehouse, the quality check (3 working days) and courier
+// to this PIN code. Without a PIN code only "Ships by" comes back.
 export async function estimateDelivery(
   vendorId: string,
   productId: string,
-  pincode: string,
-): Promise<{ available: boolean; etaLabel: string | null }> {
+  pincode: string | null,
+): Promise<DeliveryEstimate> {
   const { data, error } = await supabase.functions.invoke(
     'shiprocket-estimate-delivery',
     {
       body: {
         vendor_id: vendorId,
-        delivery_pincode: pincode,
+        ...(pincode ? { delivery_pincode: pincode } : {}),
         items: [{ product_id: productId, quantity: 1 }],
       },
     },
   );
+  const shipsBy = data?.ships_by_date ? dateLabel(data.ships_by_date) : null;
+  if (!pincode)
+    return {
+      pin: null,
+      available: !error && !!data?.available,
+      shipsBy,
+      deliveryBy: null,
+    };
   const couriers: { etd?: string | null }[] = data?.couriers ?? [];
   if (error || !data?.available || couriers.length === 0)
-    return { available: false, etaLabel: null };
+    return { pin: pincode, available: false, shipsBy: null, deliveryBy: null };
   if (data.estimated_delivery_date)
     return {
+      pin: pincode,
       available: true,
-      etaLabel: dateLabel(data.estimated_delivery_date),
+      shipsBy,
+      deliveryBy: dateLabel(data.estimated_delivery_date),
     };
   // The earliest courier's date, as on the website.
   const dates = couriers
     .map(c => (c.etd ? Date.parse(c.etd) : NaN))
     .filter(n => !Number.isNaN(n));
   return {
+    pin: pincode,
     available: true,
-    etaLabel: dates.length
+    shipsBy,
+    deliveryBy: dates.length
       ? dateLabel(new Date(Math.min(...dates)).toISOString())
       : null,
   };
+}
+
+// The last PIN code checked on this phone, so a shopper without a saved
+// address doesn't retype it on every product. A convenience only: when
+// storage fails the box simply starts empty.
+const LAST_PIN_KEY = 'allboutiqs:delivery-pincode';
+let lastPin: string | null | undefined; // undefined = not read yet
+
+export async function readLastPin(): Promise<string | null> {
+  if (lastPin !== undefined) return lastPin;
+  try {
+    const pin = await AsyncStorage.getItem(LAST_PIN_KEY);
+    lastPin = isPin(pin) ? pin : null;
+  } catch {
+    lastPin = null;
+  }
+  return lastPin;
+}
+
+export function rememberPin(pin: string) {
+  lastPin = pin;
+  AsyncStorage.setItem(LAST_PIN_KEY, pin).catch(() => undefined);
 }
 
 // ---------- back-in-stock alerts (stock_notifications) ----------

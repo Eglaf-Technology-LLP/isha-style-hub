@@ -16,7 +16,9 @@ import { colors, fonts } from '@/theme';
 import { Placeholder, Touch } from './ui';
 
 // The product tile: 3:4 photo, NEW / SOLD OUT tag, wishlist heart, boutique
-// in small capitals, name, price with MRP struck through and % off.
+// in small capitals, name, price with MRP struck through and % off. The
+// whole photo shows, never cropped: one that isn't 3:4 sits on the cream
+// background (as on the website).
 export const ProductCard = memo(function ProductCard({
   product,
   width,
@@ -44,7 +46,7 @@ export const ProductCard = memo(function ProductCard({
           <Image
             source={{ uri: product.images[0] }}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
+            resizeMode="contain"
           />
         ) : (
           <Placeholder label={product.name.charAt(0)} />

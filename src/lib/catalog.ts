@@ -12,7 +12,11 @@ export interface ProductVariant {
   price: number;
   stock: number;
   options: Record<string, string>;
+  // The variant's first photo - always images[0].
   image_url: string | null;
+  // All the variant's photos, in the order the boutique arranged them (every
+  // size of a colour shares them).
+  images: string[];
 }
 
 export interface Product {
@@ -81,9 +85,22 @@ function toProduct(r: Row): Product {
       stock: Number(v.stock) || 0,
       options: (v.options as Record<string, string>) || {},
       image_url: (v.image_url as string | null) ?? null,
+      images: variantImages({
+        image_url: (v.image_url as string | null) ?? null,
+        images: (v.images as string[] | null) ?? [],
+      }),
     })),
   };
 }
+
+// A variant's photos in order - older rows only have image_url (as the
+// website's variantImages).
+export const variantImages = (
+  v: { image_url?: string | null; images?: string[] | null } | null | undefined,
+): string[] =>
+  (v?.images?.length ? v.images : v?.image_url ? [v.image_url] : []).filter(
+    Boolean,
+  );
 
 // One fixed variant order everywhere - the order the boutique added them
 // (then id). The list and the product page are separate queries and the
@@ -147,8 +164,10 @@ export function useProduct(id: string | undefined) {
     staleTime: STALE,
     enabled: !!id,
     queryFn: async () => {
+      // Every variant column, as the website's product page: also the
+      // variants' photos (images).
       const { data, error } = await liveProducts(
-        '*, product_variants(id, name, price, stock, options, image_url, created_at), vendor:vendors(name, slug)',
+        '*, product_variants(*), vendor:vendors(name, slug)',
       )
         .eq('id', id!)
         .maybeSingle();
@@ -207,7 +226,10 @@ export const productSizes = (p: Product) => [
 export const productColors = (p: Product) => [
   ...new Set(p.variants.map(colorOf).filter((c): c is string => !!c)),
 ];
-export const isNewArrival = (p: Product, days = 30) =>
+// "New" badge: listed in the last 7 days; it drops off after a week (as on
+// the website - it was 30 days).
+export const NEW_BADGE_DAYS = 7;
+export const isNewArrival = (p: Product, days = NEW_BADGE_DAYS) =>
   Date.now() - new Date(p.created_at).getTime() < days * 86_400_000;
 export const inStock = (p: Product) =>
   p.variants.length

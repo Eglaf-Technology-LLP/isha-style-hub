@@ -1,13 +1,16 @@
 import {
   BellRing,
   ChevronDown,
+  CircleX,
   Image as ImageIcon,
   MapPin,
+  PackageCheck,
   Ruler,
   Star,
   Trash2,
+  Truck,
 } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,12 +20,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useAddresses } from '@/lib/account';
 import { useSession } from '@/lib/auth';
 import {
+  DeliveryEstimate,
   estimateDelivery,
+  isPin,
   isSubscribedToStock,
+  readLastPin,
+  rememberPin,
   Review,
   subscribeToStock,
+  unitLabel,
   useReviewActions,
   useReviews,
   useSizeChart,
@@ -37,6 +46,15 @@ import { Button, Eyebrow, Sans, Touch } from './ui';
 
 // ---------- delivery date by pincode ----------
 
+// A PIN code the shopper checked by hand - kept for the other products they
+// open (as the website keeps it across products), and never replaced by a
+// saved address that loads later.
+let typedPin: string | null = null;
+
+// "Ships by" (leaves the AllBoutiqs warehouse) and "Delivery by", as the
+// website's DeliveryEstimate. The PIN code fills itself in: the customer's
+// default saved address, else the last one checked on this phone; with
+// neither, only "Ships by" shows. The customer can still type another.
 export function DeliveryCheck({
   vendorId,
   productId,
@@ -44,19 +62,61 @@ export function DeliveryCheck({
   vendorId: string;
   productId: string;
 }) {
+  const { data: addresses = [] } = useAddresses();
+  const saved = addresses.find(a => a.is_default) ?? addresses[0] ?? null;
+  const savedPin = saved?.pincode?.trim();
+  const addressPin = isPin(savedPin) ? savedPin : null;
   const [pin, setPin] = useState('');
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{
-    available: boolean;
-    etaLabel: string | null;
-  } | null>(null);
+  const [result, setResult] = useState<DeliveryEstimate | null>(null);
+  // "vendor|product|pin" of the last check, so the same one isn't repeated.
+  const lastChecked = useRef('');
+  const latestRequest = useRef(0);
 
-  const check = async (value = pin) => {
-    if (!/^\d{6}$/.test(value)) return;
+  const check = async (value: string | null) => {
+    if (value !== null && !isPin(value)) return;
+    lastChecked.current = `${vendorId}|${productId}|${value ?? ''}`;
+    const request = ++latestRequest.current;
     setChecking(true);
     setResult(null);
-    setResult(await estimateDelivery(vendorId, productId, value));
+    if (value) rememberPin(value);
+    const next = await estimateDelivery(vendorId, productId, value).catch(
+      (): DeliveryEstimate => ({
+        pin: value,
+        available: false,
+        shipsBy: null,
+        deliveryBy: null,
+      }),
+    );
+    // A newer check (another PIN) has started since - its answer wins.
+    if (request !== latestRequest.current) return;
     setChecking(false);
+    setResult(next);
+  };
+
+  // Work out the dates straight away: for a PIN typed by hand, else the
+  // default saved address, else the last one checked on this phone - or,
+  // with none of those, just "Ships by". Runs again when the saved
+  // addresses arrive.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const next = typedPin ?? addressPin ?? (await readLastPin());
+      if (!alive) return;
+      if (next) setPin(next);
+      if (lastChecked.current !== `${vendorId}|${productId}|${next ?? ''}`)
+        check(next);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressPin, vendorId, productId]);
+
+  const submit = (value: string) => {
+    if (!isPin(value)) return;
+    typedPin = value;
+    check(value);
   };
 
   return (
@@ -68,37 +128,80 @@ export function DeliveryCheck({
           onChangeText={t => {
             const v = t.replace(/\D/g, '').slice(0, 6);
             setPin(v);
-            setResult(null);
-            if (v.length === 6) check(v);
+            if (v.length === 6) submit(v);
           }}
+          onSubmitEditing={() => submit(pin)}
           keyboardType="number-pad"
           maxLength={6}
-          placeholder="Enter pincode"
+          placeholder="Enter delivery pincode"
           placeholderTextColor={colors.mutedForeground}
           style={styles.pinInput}
           accessibilityLabel="Delivery pincode"
         />
         <Touch
           hitSlop={8}
-          onPress={() => check()}
+          onPress={() => submit(pin)}
           disabled={pin.length !== 6 || checking}
         >
-          <Text style={[styles.pinCheck, pin.length !== 6 && styles.muted]}>
-            Check
-          </Text>
+          {checking ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Text style={[styles.pinCheck, pin.length !== 6 && styles.muted]}>
+              Check
+            </Text>
+          )}
         </Touch>
       </View>
-      {checking ? (
-        <ActivityIndicator color={colors.primary} style={styles.gapSm} />
+      {addressPin && pin === addressPin ? (
+        <Sans style={styles.small}>
+          Your saved address{saved?.city ? ` · ${saved.city}` : ''}
+        </Sans>
       ) : null}
       {result ? (
-        <Sans style={[styles.small, !result.available && styles.bad]}>
-          {result.available
-            ? result.etaLabel
-              ? `Delivery by ${result.etaLabel}`
-              : 'Delivers to this pincode'
-            : "Sorry, we don't deliver to this pincode yet."}
-        </Sans>
+        result.pin === null ? (
+          // No PIN code yet: when it ships, and a prompt for the delivery date.
+          result.available && result.shipsBy ? (
+            <View style={styles.dates}>
+              <View style={styles.dateLine}>
+                <PackageCheck size={16} color={colors.mutedForeground} />
+                <Sans style={styles.flex1}>
+                  Ships by <Text style={styles.strong}>{result.shipsBy}</Text>
+                </Sans>
+              </View>
+              <View style={styles.dateLine}>
+                <Truck size={16} color={colors.mutedForeground} />
+                <Sans style={[styles.flex1, styles.muted]}>
+                  Enter your PIN code for the delivery date
+                </Sans>
+              </View>
+            </View>
+          ) : null
+        ) : result.available && result.deliveryBy ? (
+          <View style={styles.dates}>
+            {result.shipsBy ? (
+              <View style={styles.dateLine}>
+                <PackageCheck size={16} color={colors.mutedForeground} />
+                <Sans style={styles.flex1}>
+                  Ships by <Text style={styles.strong}>{result.shipsBy}</Text>
+                </Sans>
+              </View>
+            ) : null}
+            <View style={styles.dateLine}>
+              <Truck size={16} color={colors.success} />
+              <Sans style={[styles.flex1, styles.good]}>
+                Delivery by{' '}
+                <Text style={styles.strong}>{result.deliveryBy}</Text>
+              </Sans>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.dates, styles.dateLine]}>
+            <CircleX size={16} color={colors.mutedForeground} />
+            <Sans style={[styles.flex1, styles.muted]}>
+              Not deliverable to this pincode
+            </Sans>
+          </View>
+        )
       ) : null}
     </View>
   );
@@ -186,11 +289,17 @@ export function SizeGuideLink({
         <Ruler size={15} color={colors.primary} />
         <Text style={styles.link}>Size guide</Text>
       </Touch>
-      <Sheet visible={open} title="Size guide" onClose={() => setOpen(false)}>
+      <Sheet
+        visible={open}
+        title={chart.name ? `Size guide · ${chart.name}` : 'Size guide'}
+        onClose={() => setOpen(false)}
+        scroll
+      >
         <Sans style={styles.small}>
-          {chart.name ? `${chart.name}. ` : ''}Measurements in{' '}
-          {chart.unit === 'cm' ? 'centimetres (cm)' : 'inches'}.
+          Garment measurements in {unitLabel(chart.unit)}.
         </Sans>
+        {/* One row per size (XS to 6XL) - fits a phone without sideways
+            scrolling; the website shows the same table turned round. */}
         <ScrollView horizontal style={styles.gapSm}>
           <View>
             <View style={styles.tr}>
@@ -208,13 +317,25 @@ export function SizeGuideLink({
                 </Text>
                 {chart.rows.map(r => (
                   <Text key={r.name} style={styles.td}>
-                    {r.values[size] || '-'}
+                    {String(r.values[size] ?? '').trim() || '–'}
                   </Text>
                 ))}
               </View>
             ))}
           </View>
         </ScrollView>
+        {chart.rows.some(r => r.hint) ? (
+          <View style={styles.howTo}>
+            <Text style={styles.howToTitle}>How to measure</Text>
+            {chart.rows
+              .filter(r => r.hint)
+              .map(r => (
+                <Sans key={r.name} style={styles.howToLine}>
+                  <Text style={styles.howToName}>{r.name}:</Text> {r.hint}
+                </Sans>
+              ))}
+          </View>
+        ) : null}
       </Sheet>
     </>
   );
@@ -517,7 +638,9 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   muted: { color: colors.mutedForeground },
-  bad: { color: colors.destructive },
+  good: { color: colors.success },
+  dates: { marginTop: 10, gap: 6 },
+  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   strong: { fontFamily: fonts.sansSemi },
   link: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.primary },
   error: {
@@ -572,6 +695,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   firstCol: { width: 60, textAlign: 'left' },
+  howTo: {
+    marginTop: 16,
+    padding: 14,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+  },
+  howToTitle: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    color: colors.foreground,
+    marginBottom: 6,
+  },
+  howToLine: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.mutedForeground,
+    marginTop: 2,
+  },
+  howToName: { fontFamily: fonts.sansMedium, color: colors.foreground },
   stars: { flexDirection: 'row', gap: 2 },
   reviewHead: {
     flexDirection: 'row',

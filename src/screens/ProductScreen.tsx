@@ -3,13 +3,15 @@ import { useGo, useParams } from '@/navigation';
 import {
   ArrowRight,
   BadgeCheck,
+  Banknote,
+  Earth,
   MessageCircle,
   Heart,
   RotateCcw,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   Truck,
-  Wallet,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -25,6 +27,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import { ColourBoxes } from '@/components/ColourBoxes';
+import { GrievanceOfficerNote } from '@/components/GrievanceOfficerNote';
 import { Chip, Sheet } from '@/components/Listing';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { ProductRail } from '@/components/ProductLists';
@@ -38,7 +42,13 @@ import {
   SizeGuideLink,
 } from '@/components/ProductExtras';
 import { CONFIG } from '@/config';
-import { useVendorInfo, vendorAddressLine } from '@/lib/productExtras';
+import {
+  returnWindowAdjective,
+  returnWindowSpan,
+  useReturnWindowHours,
+  useVendorInfo,
+  vendorAddressLine,
+} from '@/lib/productExtras';
 import {
   Button,
   Eyebrow,
@@ -53,10 +63,13 @@ import {
   productColors,
   productSizes,
   sizeOf,
+  useBoutiques,
   useProduct,
   useProducts,
+  variantImages,
   variantPrice,
 } from '@/lib/catalog';
+import { colourCodes } from '@/lib/colors';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
 import { CartItem, useCart, useWishlist } from '@/lib/stores';
@@ -80,7 +93,9 @@ export default function ProductScreen() {
 
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
-  const [photo, setPhoto] = useState(0);
+  // The photo on screen, for the set of photos it belongs to (another
+  // colour's photos start from the first again).
+  const [photoAt, setPhotoAt] = useState({ gallery: '', index: 0 });
   const [missing, setMissing] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
   // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
@@ -155,6 +170,9 @@ export default function ProductScreen() {
     [all, product],
   );
   const { data: vendorInfo } = useVendorInfo(product?.vendor_id);
+  const { data: boutiques = [] } = useBoutiques();
+  // One return window for every boutique, set by AllBoutiqs (24 hours).
+  const windowHours = useReturnWindowHours();
 
   if (isLoading) {
     return (
@@ -190,7 +208,38 @@ export default function ProductScreen() {
     (product.variants.length
       ? product.variants.every(v => v.stock <= 0)
       : stock <= 0);
-  const images = variant?.image_url ? [variant.image_url] : product.images;
+  // A variant with its own photos (every size of a colour shares them)
+  // replaces the product's photos while selected; otherwise the product's
+  // own photos show (as on the website).
+  const colourImages = (c: string | null) =>
+    c
+      ? variantImages(
+          product.variants.find(
+            v => colorOf(v) === c && variantImages(v).length > 0,
+          ),
+        )
+      : [];
+  const ownImages = variantImages(variant);
+  const variantGallery = ownImages.length ? ownImages : colourImages(color);
+  const images = variantGallery.length ? variantGallery : product.images;
+  const galleryKey = images.join('|');
+  const photo = photoAt.gallery === galleryKey ? photoAt.index : 0;
+  // Each colour's first photo: when any colour has one, the colours show as
+  // small photo boxes (a colour without a photo shows its swatch).
+  const thumbnails: Record<string, string> = {};
+  for (const c of colours) {
+    const first = colourImages(c)[0];
+    if (first) thumbnails[c] = first;
+  }
+  const photoBoxes = Object.keys(thumbnails).length > 0;
+  const swatches = colourCodes(product.variants);
+  const unavailableColours = new Set(
+    product.made_to_order
+      ? []
+      : colours.filter(
+          c => !product.variants.some(v => colorOf(v) === c && v.stock > 0),
+        ),
+  );
   // Same rules as the website's product page.
   const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
   const returnable =
@@ -198,6 +247,20 @@ export default function ProductScreen() {
   const codAvailable =
     product.cod_available !== false && vendorInfo?.cod_enabled !== false;
   const photoHeight = Math.round((width * 4) / 3);
+  const boutique = product.vendor_id
+    ? boutiques.find(b => b.id === product.vendor_id)
+    : undefined;
+  // The return line follows the product's Returnable switch; Cash on
+  // Delivery says whether it's available; the country of origin is the
+  // product's own field (website a12bffc, client corrections 2.4).
+  const returnsTitle = returnable
+    ? `${returnWindowAdjective(windowHours)} returns`
+    : 'Not returnable';
+  const returnsText = returnable
+    ? `Return within ${returnWindowSpan(windowHours)} of delivery`
+    : `Damaged, defective or wrong item: report within ${returnWindowSpan(
+        windowHours,
+      )} of delivery`;
 
   // A size is out of stock when no variant with it (in the chosen colour) has any.
   // A size is greyed out only when no colour has it in stock - picking it
@@ -236,7 +299,8 @@ export default function ProductScreen() {
     return {
       productId: product.id,
       productName: product.name,
-      productImage: product.images[0] ?? null,
+      // The chosen colour's own photo, when it has one.
+      productImage: images[0] ?? product.images[0] ?? null,
       vendorId: product.vendor_id,
       variantId:
         variant?.id ??
@@ -247,6 +311,26 @@ export default function ProductScreen() {
       selectedOptions: options,
     };
   };
+
+  // Help from AllBoutiqs, never the boutique directly: WhatsApp with the
+  // piece's name and link already written - right below the sizes (as on
+  // the website, client corrections 2.3.6).
+  const stylist = (
+    <Touch
+      style={styles.stylist}
+      accessibilityRole="link"
+      onPress={() =>
+        Linking.openURL(
+          `${CONFIG.whatsappUrl}?text=${encodeURIComponent(
+            `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${SITE_URL}/product/${product.id}`,
+          )}`,
+        )
+      }
+    >
+      <MessageCircle size={16} color={colors.foreground} strokeWidth={1.6} />
+      <Text style={styles.stylistText}>Speak to a stylist</Text>
+    </Touch>
+  );
 
   const addToBag = () => {
     if (added) return go('/bag');
@@ -277,13 +361,18 @@ export default function ProductScreen() {
         <View style={{ height: photoHeight, backgroundColor: colors.ivory }}>
           {images.length ? (
             <FlatList
+              // Another colour's photos start from the first one again.
+              key={galleryKey}
               data={images}
               keyExtractor={(u, i) => `${i}-${u}`}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={e =>
-                setPhoto(Math.round(e.nativeEvent.contentOffset.x / width))
+                setPhotoAt({
+                  gallery: galleryKey,
+                  index: Math.round(e.nativeEvent.contentOffset.x / width),
+                })
               }
               renderItem={({ item, index }) => (
                 <Touch
@@ -292,10 +381,12 @@ export default function ProductScreen() {
                     index + 1
                   }. Tap to zoom`}
                 >
+                  {/* The whole photo, never cropped - its corners and edges
+                      included (as on the website). */}
                   <Image
                     source={{ uri: item }}
                     style={{ width, height: photoHeight }}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 </Touch>
               )}
@@ -381,30 +472,44 @@ export default function ProductScreen() {
                 <Text style={{ color: colors.mutedForeground }}>: {color}</Text>
               ) : null}
             </Eyebrow>
-            <View style={styles.options}>
-              {colours.map(c => (
-                <Touch
-                  key={c}
-                  haptic
-                  onPress={() => {
-                    chooseColor(c);
-                    setPhoto(0);
-                    setMissing(null);
-                    setAdded(false);
-                  }}
-                  style={[styles.option, color === c && styles.optionActive]}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      color === c && { color: colors.primary },
-                    ]}
+            {photoBoxes ? (
+              <ColourBoxes
+                options={colours}
+                selected={color}
+                thumbnails={thumbnails}
+                swatches={swatches}
+                unavailable={unavailableColours}
+                onSelect={c => {
+                  chooseColor(c);
+                  setMissing(null);
+                  setAdded(false);
+                }}
+              />
+            ) : (
+              <View style={styles.options}>
+                {colours.map(c => (
+                  <Touch
+                    key={c}
+                    haptic
+                    onPress={() => {
+                      chooseColor(c);
+                      setMissing(null);
+                      setAdded(false);
+                    }}
+                    style={[styles.option, color === c && styles.optionActive]}
                   >
-                    {c}
-                  </Text>
-                </Touch>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        color === c && { color: colors.primary },
+                      ]}
+                    >
+                      {c}
+                    </Text>
+                  </Touch>
+                ))}
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -456,12 +561,15 @@ export default function ProductScreen() {
                 );
               })}
             </View>
+            {stylist}
           </View>
-        ) : null}
+        ) : (
+          <View style={[styles.block, styles.noTop]}>{stylist}</View>
+        )}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
 
-        {/* Promises */}
-        <View style={[styles.block, { gap: 12 }]}>
+        {/* Delivery & services */}
+        <View style={[styles.block, { gap: 14 }]}>
           <Info
             icon={<Truck size={18} color={colors.gold} strokeWidth={1.6} />}
             text={
@@ -470,20 +578,30 @@ export default function ProductScreen() {
                 : 'Free shipping on every order'
             }
           />
-          {returnable ? (
-            <Info
-              icon={
-                <RotateCcw size={18} color={colors.gold} strokeWidth={1.6} />
-              }
-              text={`${vendorInfo?.return_window_days ?? 7}-day returns`}
-            />
-          ) : null}
-          {codAvailable ? (
-            <Info
-              icon={<Wallet size={18} color={colors.gold} strokeWidth={1.6} />}
-              text="Cash on delivery available"
-            />
-          ) : null}
+          <Info
+            icon={<RotateCcw size={18} color={colors.gold} strokeWidth={1.6} />}
+            text={returnsTitle}
+            sub={returnsText}
+          />
+          <Info
+            icon={<Banknote size={18} color={colors.gold} strokeWidth={1.6} />}
+            text={
+              codAvailable ? 'Cash on Delivery available' : 'Cash on Delivery'
+            }
+            sub={codAvailable ? '+ COD fee 3% + GST' : 'Not available'}
+          />
+          <Info
+            icon={<Earth size={18} color={colors.gold} strokeWidth={1.6} />}
+            text="Country of origin"
+            sub={product.country_of_origin || 'India'}
+          />
+          <Info
+            icon={
+              <ShieldCheck size={18} color={colors.gold} strokeWidth={1.6} />
+            }
+            text="Quality-checked"
+            sub="Checked by AllBoutiqs before it ships"
+          />
         </View>
 
         {soldOut ? (
@@ -495,30 +613,19 @@ export default function ProductScreen() {
         {product.vendor_id ? (
           <View style={styles.block}>
             <Eyebrow style={{ color: colors.foreground, marginBottom: 10 }}>
-              Check delivery
+              Delivery date
             </Eyebrow>
             <DeliveryCheck
               vendorId={product.vendor_id}
               productId={product.id}
             />
+            <Sans style={styles.datesNote}>
+              {product.made_to_order
+                ? `Made for you after you order - these dates include the ${prepDays} days it takes to make and our quality check.`
+                : 'These dates include our quality check before it ships to you.'}
+            </Sans>
           </View>
         ) : null}
-
-        <Touch
-          style={[styles.block, styles.stylist]}
-          onPress={() =>
-            Linking.openURL(
-              `${CONFIG.whatsappUrl}?text=${encodeURIComponent(
-                `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${SITE_URL}/product/${product.id}`,
-              )}`,
-            )
-          }
-        >
-          <MessageCircle size={18} color={colors.primary} strokeWidth={1.6} />
-          <Text style={styles.stylistText}>
-            Speak to our stylist on WhatsApp
-          </Text>
-        </Touch>
 
         {/* Details */}
         {product.description || product.specifications?.length ? (
@@ -569,7 +676,6 @@ export default function ProductScreen() {
             <InfoRow label="Customer care">
               {[
                 vendorAddressLine(vendorInfo),
-                vendorInfo?.contact_phone && `Ph: ${vendorInfo.contact_phone}`,
                 vendorInfo?.contact_email &&
                   `Email: ${vendorInfo.contact_email}`,
               ]
@@ -582,6 +688,56 @@ export default function ProductScreen() {
               {CONFIG.whatsapp}
             </InfoRow>
           </Accordion>
+        </View>
+
+        {/* The boutique: its name, address and GSTIN (as on the website) */}
+        {vendorInfo ? (
+          <Touch
+            style={[styles.block, styles.seller]}
+            onPress={() => vendorInfo.slug && go(`/store/${vendorInfo.slug}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Sold by ${vendorInfo.name}`}
+          >
+            <View style={styles.sellerLogo}>
+              {boutique?.logo_url ? (
+                <Image
+                  source={{ uri: boutique.logo_url }}
+                  style={styles.sellerLogoImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Serif style={styles.sellerInitial}>
+                  {vendorInfo.name.charAt(0).toUpperCase()}
+                </Serif>
+              )}
+            </View>
+            <View style={styles.flex1}>
+              <Eyebrow style={{ color: colors.mutedForeground }}>
+                Sold by
+              </Eyebrow>
+              <Serif style={styles.sellerName}>{vendorInfo.name}</Serif>
+              {boutique?.description ? (
+                <Sans style={styles.sellerSmall} numberOfLines={2}>
+                  {boutique.description}
+                </Sans>
+              ) : null}
+              {vendorAddressLine(vendorInfo) ? (
+                <Sans style={[styles.sellerSmall, styles.sellerAddress]}>
+                  {vendorAddressLine(vendorInfo)}
+                </Sans>
+              ) : null}
+              {vendorInfo.gst_number ? (
+                <Sans style={styles.sellerSmall}>
+                  GSTIN {vendorInfo.gst_number}
+                </Sans>
+              ) : null}
+            </View>
+            <ArrowRight size={16} color={colors.foreground} />
+          </Touch>
+        ) : null}
+
+        <View style={styles.block}>
+          <GrievanceOfficerNote />
         </View>
 
         <View style={styles.block}>
@@ -649,19 +805,33 @@ export default function ProductScreen() {
         {colours.length ? (
           <>
             <Text style={styles.chooserLabel}>Colour</Text>
-            <View style={styles.chooserRow}>
-              {colours.map(c => (
-                <Chip
-                  key={c}
-                  label={c}
-                  active={color === c}
-                  onPress={() => {
-                    chooseColor(c);
-                    setMissing(null);
-                  }}
-                />
-              ))}
-            </View>
+            {photoBoxes ? (
+              <ColourBoxes
+                options={colours}
+                selected={color}
+                thumbnails={thumbnails}
+                swatches={swatches}
+                unavailable={unavailableColours}
+                onSelect={c => {
+                  chooseColor(c);
+                  setMissing(null);
+                }}
+              />
+            ) : (
+              <View style={styles.chooserRow}>
+                {colours.map(c => (
+                  <Chip
+                    key={c}
+                    label={c}
+                    active={color === c}
+                    onPress={() => {
+                      chooseColor(c);
+                      setMissing(null);
+                    }}
+                  />
+                ))}
+              </View>
+            )}
           </>
         ) : null}
         {sizes.length ? (
@@ -716,16 +886,66 @@ export default function ProductScreen() {
   );
 }
 
-function Info({ icon, text }: { icon: React.ReactNode; text: string }) {
+function Info({
+  icon,
+  text,
+  sub,
+}: {
+  icon: React.ReactNode;
+  text: string;
+  // A second, smaller line (as the website's service boxes).
+  sub?: string;
+}) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <View style={[styles.info, sub ? styles.infoTop : null]}>
       {icon}
-      <Sans style={{ flex: 1, color: colors.foreground }}>{text}</Sans>
+      <View style={styles.flex1}>
+        <Sans style={{ color: colors.foreground }}>{text}</Sans>
+        {sub ? <Sans style={styles.infoSub}>{sub}</Sans> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
+  noTop: { paddingTop: 0 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoTop: { alignItems: 'flex-start' },
+  seller: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sellerAddress: { marginTop: 6 },
+  sellerLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sellerLogoImage: { width: '100%', height: '100%' },
+  sellerInitial: { fontSize: 24, color: colors.primary },
+  sellerName: { fontSize: 20, lineHeight: 25, marginTop: 4 },
+  sellerSmall: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+    marginTop: 2,
+  },
+  datesNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.mutedForeground,
+    marginTop: 10,
+  },
+  infoSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.mutedForeground,
+    marginTop: 1,
+  },
   counter: {
     position: 'absolute',
     bottom: 12,
@@ -825,11 +1045,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flexBtn: { flex: 1, paddingHorizontal: 8 },
-  stylist: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stylist: {
+    height: 44,
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(35,31,26,0.2)',
+  },
   stylistText: {
     fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.primary,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: colors.foreground,
   },
   soldOut: {
     fontFamily: fonts.sansMedium,
