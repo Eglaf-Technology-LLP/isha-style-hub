@@ -1,28 +1,22 @@
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
+import { RotateCcw, ShieldCheck, Truck } from 'lucide-react-native';
+import { useMemo } from 'react';
 import {
-  BadgeCheck,
-  RotateCcw,
-  ShieldCheck,
-  Tag,
-  Truck,
-} from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  FlatList,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import heroFashion from '../../assets/hero-fashion.jpg';
 import { AppHeader } from '@/components/AppHeader';
+import { HeroBanner } from '@/components/HeroBanner';
 import { budgetHref, BUDGETS } from '@/lib/listing';
-import { FlashSales, OfferStrip } from '@/components/HomeExtras';
+import {
+  BoutiqueBoards,
+  FlashSales,
+  OfferStrip,
+} from '@/components/HomeExtras';
 import { ProductRail } from '@/components/ProductLists';
 import {
   Eyebrow,
@@ -33,7 +27,6 @@ import {
   Touch,
 } from '@/components/ui';
 import {
-  Boutique,
   categoryCover,
   onSale,
   useBoutiques,
@@ -42,38 +35,8 @@ import {
 } from '@/lib/catalog';
 import { colors, fonts } from '@/theme';
 
-// Same slides as the website (src/content/storefront.ts HERO_SLIDES).
-const SLIDES = [
-  {
-    id: 'wedding',
-    eyebrow: 'The Wedding Edit',
-    title: 'Heirlooms in the making,',
-    accent: 'for your big day',
-    cta: 'Shop the edit',
-    href: '/category/lehenga',
-    image: heroFashion,
-  },
-  {
-    id: 'boutiques',
-    eyebrow: 'One address',
-    title: "India's boutiques,",
-    accent: 'under one roof',
-    cta: 'Meet the boutiques',
-    href: '/boutiques',
-  },
-  {
-    id: 'made-to-order',
-    eyebrow: 'Made for you',
-    title: 'Crafted to order,',
-    accent: 'finished by hand',
-    cta: 'Shop made to order',
-    href: '/category/all?availability=made-to-order',
-  },
-];
-
 export default function Home() {
   const go = useGo();
-  const { width } = useWindowDimensions();
   const products = useProducts();
   const { data: categories = [] } = useCategories();
   const { data: boutiques = [] } = useBoutiques();
@@ -86,11 +49,10 @@ export default function Home() {
     return [...pool].sort(() => Math.random() - 0.5).slice(0, 12);
   }, [all]);
   const sale = all.filter(onSale).slice(0, 12);
-  const liveBoutiques = boutiques.filter(b =>
-    all.some(p => p.vendor_id === b.id),
-  );
-  const liveCategories = categories.filter(c =>
-    all.some(p => p.category_id === c.id),
+  // The categories the admin picked for the home page (Admin > Categories),
+  // as the website's "Shop by category" tiles - here only those with pieces.
+  const homeCategories = categories.filter(
+    c => c.show_on_home !== false && all.some(p => p.category_id === c.id),
   );
 
   return (
@@ -109,67 +71,48 @@ export default function Home() {
       >
         <OfferStrip />
 
-        {/* Category circles */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.circles}
-          style={styles.circleBand}
-        >
-          {all.some(onSale) ? (
-            <Touch
-              style={styles.circleItem}
-              onPress={() => go('/category/all?sale=1')}
-            >
-              <View
-                style={[
-                  styles.circle,
-                  {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.gold,
-                    borderWidth: 2,
-                  },
-                ]}
-              >
-                <Tag
-                  size={24}
-                  color={colors.primaryForeground}
-                  strokeWidth={1.6}
-                />
-              </View>
-              <Text style={[styles.circleLabel, { color: colors.primary }]}>
-                Sale
-              </Text>
-            </Touch>
-          ) : null}
-          {liveCategories.map(c => {
-            const src = c.image_url || categoryCover(c.id, all);
-            return (
-              <Touch
-                key={c.id}
-                style={styles.circleItem}
-                onPress={() => go(`/category/${c.slug}`)}
-              >
-                <View style={styles.circle}>
-                  {src ? (
-                    <Image
-                      source={{ uri: src }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Placeholder label={c.name.charAt(0)} />
-                  )}
-                </View>
-                <Text style={styles.circleLabel} numberOfLines={1}>
-                  {c.name}
-                </Text>
-              </Touch>
-            );
-          })}
-        </ScrollView>
+        {/* Category circles. No "Sale" circle: the website took its "New In"
+            and "Sale" menu links away (44e7959); the sale rail stays. */}
+        {homeCategories.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.circles}
+            style={styles.circleBand}
+          >
+            {homeCategories.map(c => {
+              const src = c.image_url || categoryCover(c.id, all);
+              return (
+                <Touch
+                  key={c.id}
+                  style={styles.circleItem}
+                  onPress={() => go(`/category/${c.slug}`)}
+                >
+                  <View style={styles.circle}>
+                    {src ? (
+                      <Image
+                        source={{ uri: src }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Placeholder label={c.name.charAt(0)} />
+                    )}
+                  </View>
+                  <Text style={styles.circleLabel} numberOfLines={1}>
+                    {c.name}
+                  </Text>
+                </Touch>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
-        <Hero width={width} onOpen={go} />
+        <HeroBanner />
+
+        {/* The boutique boards are the first section under the banner
+            (website, client corrections 15 Nov 2026, 2.1.3). */}
+        <BoutiqueBoards boutiques={boutiques} products={all} />
 
         <FlashSales />
 
@@ -234,10 +177,6 @@ export default function Home() {
           onAction={() => go('/category/all')}
         />
 
-        {liveBoutiques.length > 0 ? (
-          <BoutiqueRow boutiques={liveBoutiques} onOpen={go} />
-        ) : null}
-
         {sale.length >= 4 ? (
           <ProductRail
             eyebrowText="Limited time"
@@ -255,167 +194,6 @@ export default function Home() {
           </Sans>
         ) : null}
         <View style={{ height: 24 }} />
-      </ScrollView>
-    </View>
-  );
-}
-
-function Hero({
-  width,
-  onOpen,
-}: {
-  width: number;
-  onOpen: (href: string) => void;
-}) {
-  const [index, setIndex] = useState(0);
-  const listRef = useRef<FlatList>(null);
-  const held = useRef(false);
-  // Moves on by itself (as the website's carousel does), not while touched.
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (held.current) return;
-      setIndex(i => {
-        const next = (i + 1) % SLIDES.length;
-        listRef.current?.scrollToOffset({
-          offset: next * width,
-          animated: true,
-        });
-        return next;
-      });
-    }, 4500);
-    return () => clearInterval(t);
-  }, [width]);
-  const height = Math.round(width * 1.05);
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
-    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
-
-  return (
-    <View>
-      <FlatList
-        ref={listRef}
-        data={SLIDES}
-        keyExtractor={s => s.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScrollBeginDrag={() => {
-          held.current = true;
-        }}
-        onMomentumScrollEnd={e => {
-          held.current = false;
-          onScroll(e);
-        }}
-        renderItem={({ item }) => (
-          <Touch style={{ width, height }} onPress={() => onOpen(item.href)}>
-            {item.image ? (
-              <>
-                <Image
-                  source={item.image}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-                <View style={[StyleSheet.absoluteFill, styles.heroShade]} />
-              </>
-            ) : (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: colors.maroonDeep },
-                ]}
-              >
-                <View style={styles.heroFrame} />
-              </View>
-            )}
-            <View style={styles.heroText}>
-              <Eyebrow>{item.eyebrow}</Eyebrow>
-              <Serif style={styles.heroTitle}>{item.title}</Serif>
-              <Text
-                style={[styles.heroTitle, { fontFamily: fonts.serifItalic }]}
-              >
-                {item.accent}
-              </Text>
-              <View style={styles.heroCta}>
-                <Text style={styles.heroCtaText}>{item.cta}</Text>
-              </View>
-            </View>
-          </Touch>
-        )}
-      />
-      <View style={styles.dots}>
-        {SLIDES.map((s, i) => (
-          <View
-            key={s.id}
-            style={[styles.dot, i === index && styles.dotActive]}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function BoutiqueRow({
-  boutiques,
-  onOpen,
-}: {
-  boutiques: Boutique[];
-  onOpen: (href: string) => void;
-}) {
-  return (
-    <View style={{ paddingVertical: 20, backgroundColor: colors.ivory }}>
-      <SectionHeader
-        eyebrowText="The boutiques"
-        title="Shop by"
-        accent="boutique"
-        action="View all"
-        onAction={() => onOpen('/boutiques')}
-      />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 16, paddingHorizontal: 16 }}
-      >
-        {boutiques.slice(0, 12).map(b => (
-          <Touch
-            key={b.id}
-            style={{ width: 76, alignItems: 'center' }}
-            onPress={() => onOpen(`/store/${b.slug}`)}
-          >
-            <View
-              style={[
-                styles.circle,
-                { width: 68, height: 68, borderRadius: 34 },
-              ]}
-            >
-              {b.logo_url ? (
-                <Image
-                  source={{ uri: b.logo_url }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Placeholder label={b.name.charAt(0)} />
-              )}
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 2,
-                marginTop: 6,
-              }}
-            >
-              <Text
-                style={[styles.circleLabel, { marginTop: 0 }]}
-                numberOfLines={1}
-              >
-                {b.name}
-              </Text>
-              {b.is_verified ? (
-                <BadgeCheck size={11} color={colors.gold} />
-              ) : null}
-            </View>
-          </Touch>
-        ))}
       </ScrollView>
     </View>
   );
@@ -447,47 +225,6 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     maxWidth: 70,
   },
-  heroShade: { backgroundColor: 'rgba(27,22,19,0.42)' },
-  heroText: { position: 'absolute', left: 20, right: 20, bottom: 36 },
-  heroTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
-    lineHeight: 40,
-    color: colors.ivory,
-  },
-  heroFrame: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    margin: 14,
-    borderWidth: 1,
-    borderColor: colors.goldSoft,
-  },
-  heroCta: {
-    alignSelf: 'flex-start',
-    marginTop: 18,
-    backgroundColor: colors.ivory,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  heroCtaText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    color: colors.ink,
-  },
-  dots: {
-    position: 'absolute',
-    bottom: 14,
-    left: 20,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  dot: { width: 18, height: 2, backgroundColor: 'rgba(252,251,248,0.45)' },
-  dotActive: { width: 32, backgroundColor: colors.ivory },
   promises: {
     flexDirection: 'row',
     justifyContent: 'space-around',

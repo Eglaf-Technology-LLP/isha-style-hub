@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { CONFIG } from '@/config';
+import type { HeroSlide } from '@/content/storefront';
 import { supabase } from './supabase';
 
 // The shopper catalogue - the same queries and rules as the website's
@@ -48,16 +49,23 @@ export interface Category {
   slug: string;
   description: string | null;
   image_url: string | null;
+  // Admin's choice (Admin > Categories): a link in the menus (the website's
+  // header) / a tile on Home. Every category is in the listing filter anyway.
+  show_in_header?: boolean;
+  show_on_home?: boolean;
 }
 
 export interface Boutique {
   id: string;
   name: string;
   slug: string;
+  // "AB0001" - shown small under the name (boutique boards, store page).
+  boutique_code: string | null;
   description: string | null;
   logo_url: string | null;
   banner_url: string | null;
   is_verified: boolean;
+  is_founding: boolean;
 }
 
 const STALE = 5 * 60 * 1000;
@@ -186,13 +194,49 @@ export function useCategories() {
       if (snap) return snap.categories;
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, slug, description, image_url')
+        // "*": also works before the header / home page columns exist.
+        .select('*')
         .order('name');
       if (error) throw error;
-      return data || [];
+      return ((data || []) as Category[]).map(c => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        description: c.description,
+        image_url: c.image_url,
+        show_in_header: c.show_in_header,
+        show_on_home: c.show_on_home,
+      }));
     },
   });
 }
+
+// The categories for the menus (the website's useMenuCategories, used by its
+// header, phone menu and footer): the ones the admin put in the header, and
+// only those with at least one live product - an empty category makes the
+// shop look closed. Nothing until both lists have loaded.
+export function useMenuCategories() {
+  const categories = useCategories();
+  const products = useProducts();
+  const ready = categories.isSuccess && products.isSuccess;
+  const live = new Set((products.data ?? []).map(p => p.category_id));
+  return {
+    data: ready
+      ? (categories.data ?? []).filter(
+          c => c.show_in_header !== false && live.has(c.id),
+        )
+      : [],
+    ready,
+    isLoading: categories.isLoading || products.isLoading,
+  };
+}
+
+const toBoutique = (b: Boutique): Boutique => ({
+  ...b,
+  boutique_code: b.boutique_code ?? null,
+  is_verified: !!b.is_verified,
+  is_founding: !!b.is_founding,
+});
 
 export function useBoutiques() {
   return useQuery({
@@ -200,16 +244,95 @@ export function useBoutiques() {
     staleTime: STALE,
     queryFn: async (): Promise<Boutique[]> => {
       const snap = await readSnapshot<{ boutiques: Boutique[] }>('menu.json');
-      if (snap) return snap.boutiques;
+      if (snap) return snap.boutiques.map(toBoutique);
       const { data, error } = await supabase
         .from('vendors')
         .select(
-          'id, name, slug, description, logo_url, banner_url, is_verified',
+          'id, name, slug, boutique_code, description, logo_url, banner_url, is_verified, is_founding',
         )
         .eq('status', 'approved')
         .order('name');
       if (error) throw error;
-      return (data || []) as Boutique[];
+      return ((data || []) as Boutique[]).map(toBoutique);
+    },
+  });
+}
+
+// ---------- home banner (the website's src/hooks/useHeroSlides.ts) ----------
+
+// Edited under Admin > Home Banner (table hero_slides). Shoppers only ever
+// receive live slides - the RLS policy filters on is_active and the
+// schedule; the check here covers the clock too.
+interface HeroSlideRow {
+  id: string;
+  is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  eyebrow: string | null;
+  title: string | null;
+  title_accent: string | null;
+  subtitle: string | null;
+  cta_label: string | null;
+  cta_href: string | null;
+  secondary_cta_label: string | null;
+  secondary_cta_href: string | null;
+  image_url: string | null;
+  mobile_image_url: string | null;
+  video_url: string | null;
+  align: string;
+  show_overlay: boolean;
+}
+
+const clean = (v: string | null | undefined) => {
+  const t = v?.trim();
+  return t ? t : undefined;
+};
+
+function toHeroSlide(row: HeroSlideRow): HeroSlide {
+  const ctaHref = clean(row.cta_href);
+  const secondaryLabel = clean(row.secondary_cta_label);
+  const secondaryHref = clean(row.secondary_cta_href);
+  return {
+    id: row.id,
+    eyebrow: clean(row.eyebrow),
+    title: clean(row.title),
+    titleAccent: clean(row.title_accent),
+    subtitle: clean(row.subtitle),
+    cta: ctaHref ? { label: clean(row.cta_label), href: ctaHref } : undefined,
+    secondaryCta:
+      secondaryLabel && secondaryHref
+        ? { label: secondaryLabel, href: secondaryHref }
+        : undefined,
+    image: clean(row.image_url),
+    mobileImage: clean(row.mobile_image_url),
+    video: clean(row.video_url),
+    align: row.align === 'center' ? 'center' : 'left',
+    overlay: row.show_overlay,
+  };
+}
+
+const isLiveNow = (row: HeroSlideRow, now = Date.now()) =>
+  row.is_active &&
+  !(row.starts_at && new Date(row.starts_at).getTime() > now) &&
+  !(row.ends_at && new Date(row.ends_at).getTime() <= now);
+
+export function useHeroSlides() {
+  return useQuery({
+    queryKey: ['hero-slides'],
+    staleTime: STALE,
+    // One retry only: the banner is the first thing on Home, and on a
+    // failure the built-in slides should show quickly.
+    retry: 1,
+    queryFn: async (): Promise<HeroSlide[]> => {
+      const { data, error } = await supabase
+        .from('hero_slides')
+        .select('*')
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as HeroSlideRow[])
+        .filter(r => isLiveNow(r))
+        .map(toHeroSlide);
     },
   });
 }

@@ -48,7 +48,11 @@ Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-
 | Home, Categories, Boutiques, Wishlist, Profile tabs | `src/screens/*Screen.tsx` |
 | Category listing with Sort and Filter, boutique shop | `src/screens/CategoryScreen.tsx`, `StoreScreen.tsx`, `src/components/Listing.tsx` |
 | Product page, Search, Bag | `src/screens/ProductScreen.tsx`, `SearchScreen.tsx`, `BagScreen.tsx` |
-| Catalogue queries (same as the website's `src/hooks/useStorefront.ts`) | `src/lib/catalog.ts` |
+| Catalogue queries (same as the website's `src/hooks/useStorefront.ts`), Home banner slides (`hero_slides`) | `src/lib/catalog.ts` |
+| Home banner, boutique boards, top strip | `src/components/HeroBanner.tsx`, `HomeExtras.tsx` |
+| Policy and info pages (Terms, Privacy, Shipping, Return & Refund, About us, Contact us, FAQ) and company details, generated from the website by `npm run legal:sync` | `src/content/legal.ts`, `src/content/company.ts`, `src/screens/LegalScreen.tsx` |
+| Complaint form (`submit-complaint` function, ticket number); the website footer's details at the bottom of Profile | `src/screens/ComplaintScreen.tsx`, `src/components/CompanyFooter.tsx` |
+| Admin settings the wording follows (return window, shipping charged) | `src/lib/settings.ts` |
 | Bag (on the phone) and wishlist (phone + account `wishlists` table when signed in) | `src/lib/stores.ts` |
 | Sign in / Create account: email code (`auth-email-otp` function), mobile code (Supabase SMS), password; customers only | `src/lib/auth.ts`, `src/screens/SignInScreen.tsx` |
 | Password: optional field on Create account (saved once the code is right), Forgot password (code, then new password), Set/Change in Profile; min 8 characters, codes keep working | `src/screens/SignInScreen.tsx`, `PasswordScreen.tsx` |
@@ -69,7 +73,7 @@ The app is for shoppers. A boutique (vendor) or admin account that signs in is s
 
 Copied from the `Live-Vendor` branch, which runs on the live project (`allboutiqs-marketplace-live`). It is shared with the website and the seller/admin areas. Deploy backend changes from **one** branch only (today: `Live-Vendor`) and copy them here, so the two copies don't drift. Never run `supabase db push` from this branch against live without checking it matches `Live-Vendor`.
 
-The app uses: `auth-email-otp` (email codes, adding an email), `accept_terms`, `has_role`, `auth_account_exists`, `contact_taken`, and the `products`, `categories`, `vendors`, `wishlists`, `orders`, `order_items`, `vendor_orders` tables under their row-level security.
+The app uses: `auth-email-otp` (email codes, adding an email), `submit-complaint`, `accept_terms`, `has_role`, `auth_account_exists`, `contact_taken`, and the `products`, `categories`, `vendors`, `hero_slides`, `platform_settings`, `wishlists`, `orders`, `order_items`, `vendor_orders` tables under their row-level security.
 
 ## Not built yet
 

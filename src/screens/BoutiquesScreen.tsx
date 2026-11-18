@@ -91,13 +91,18 @@ export default function Boutiques() {
                 <View
                   style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                 >
-                  <Serif style={{ fontSize: 19 }} numberOfLines={1}>
+                  <Serif style={styles.name} numberOfLines={1}>
                     {b.name}
                   </Serif>
                   {b.is_verified ? (
-                    <BadgeCheck size={15} color={colors.gold} />
+                    <BadgeCheck size={17} color={colors.gold} />
                   ) : null}
                 </View>
+                {/* Name in big text, the boutique code small just below it
+                    (as the website's boutique boards). */}
+                {b.boutique_code ? (
+                  <Text style={styles.code}>{b.boutique_code}</Text>
+                ) : null}
                 <Text style={styles.pieces}>
                   {pieces} {pieces === 1 ? 'piece' : 'pieces'}
                 </Text>
@@ -128,6 +133,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.background,
+  },
+  name: { flexShrink: 1, fontSize: 24, lineHeight: 30 },
+  code: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    letterSpacing: 2.2,
+    color: colors.mutedForeground,
+    marginTop: 2,
   },
   pieces: {
     fontFamily: fonts.sans,

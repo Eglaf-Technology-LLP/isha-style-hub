@@ -10,39 +10,40 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { Eyebrow, Serif, Touch } from '@/components/ui';
+import { Button, Eyebrow, Serif, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
+import { COMPANY, telHref } from '@/content/company';
 import {
   Block,
-  LEGAL_UPDATED,
+  LEGAL_DOCS,
+  LEGAL_PATHS,
   LegalDoc,
-  PRIVACY,
+  LegalDocKey,
   Segment,
-  TERMS,
 } from '@/content/legal';
-import { shortDate } from '@/lib/orders';
-import { useGo, useParams } from '@/navigation';
+import { refundChargeLabel, shortDate, useRefundCharge } from '@/lib/orders';
+import { returnWindowSpan, useReturnWindowHours } from '@/lib/settings';
+import { LEGAL_DOC_BY_PATH, useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
 
-// The customer Terms & Conditions and the Privacy Policy, in the app - the
-// website's text word for word (src/content/legal.ts), numbered sections
-// and a contents list that jumps to each one.
+// AllBoutiqs' policy and info pages in the app - Terms & Conditions, Privacy
+// Policy, Shipping and Return & Refund policies, About us, Contact us and
+// FAQ: the website's text word for word (src/content/legal.ts), numbered
+// sections and a contents list that jumps to each one.
 
-// Pages the app has; any other path opens on the website.
-const IN_APP = ['/terms', '/privacy-policy', '/orders', '/account'];
+export type LegalKind = LegalDocKey;
 
-export type LegalKind = 'terms' | 'privacy';
+const isDoc = (doc: string | undefined): doc is LegalDocKey =>
+  !!doc && doc in LEGAL_DOCS;
 
 export default function LegalScreen() {
   const { doc } = useParams<'Legal'>();
   const go = useGo();
+  const kind: LegalDocKey = isDoc(doc) ? doc : 'terms';
   return (
     <View style={styles.flex}>
-      <AppHeader back title={(doc === 'privacy' ? PRIVACY : TERMS).title} />
-      <LegalView
-        kind={doc === 'privacy' ? 'privacy' : 'terms'}
-        onOpenPath={go}
-      />
+      <AppHeader back title={LEGAL_DOCS[kind].title} />
+      <LegalView kind={kind} onOpenPath={go} />
     </View>
   );
 }
@@ -70,7 +71,7 @@ export function LegalModal({
       <View style={[styles.flex, { paddingTop: insets.top }]}>
         <View style={styles.modalHead}>
           <Text style={styles.modalTitle}>
-            {(shown === 'privacy' ? PRIVACY : TERMS).title}
+            {LEGAL_DOCS[shown ?? 'terms'].title}
           </Text>
           <Touch hitSlop={10} onPress={onClose} accessibilityLabel="Close">
             <X size={22} color={colors.foreground} />
@@ -79,10 +80,12 @@ export function LegalModal({
         {shown ? (
           <LegalView
             kind={shown}
+            // Another policy opens in this popup; anything else on the website.
             onOpenPath={path => {
-              if (path === '/terms') setShown('terms');
-              else if (path === '/privacy-policy') setShown('privacy');
-              else Linking.openURL(`${CONFIG.siteUrl}${path}`);
+              const doc = LEGAL_DOC_BY_PATH[path];
+              if (!doc) return false;
+              setShown(doc);
+              return true;
             }}
           />
         ) : null}
@@ -96,11 +99,20 @@ export function LegalView({
   onOpenPath,
 }: {
   kind: LegalKind;
-  onOpenPath: (path: string) => void;
+  // Opens an app page by its website path; false when the app hasn't got it
+  // (then it opens on the website).
+  onOpenPath: (path: string) => boolean;
 }) {
-  const page: LegalDoc = kind === 'privacy' ? PRIVACY : TERMS;
+  const page: LegalDoc = LEGAL_DOCS[kind];
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const offsets = useRef<Record<string, number>>({});
+  // Read from Admin settings, as on the website.
+  const windowHours = useReturnWindowHours();
+  const refundCharge = useRefundCharge().data ?? { pct: 5, gstPct: 18 };
+  const values = {
+    returnSpan: returnWindowSpan(windowHours),
+    refundCharge: refundChargeLabel(refundCharge),
+  };
 
   const open = (href: string) => {
     if (
@@ -109,7 +121,7 @@ export function LegalView({
       href.startsWith('http')
     )
       return Linking.openURL(href);
-    if (IN_APP.includes(href)) return onOpenPath(href);
+    if (onOpenPath(href.split('#')[0])) return;
     return Linking.openURL(`${CONFIG.siteUrl}${href}`);
   };
 
@@ -117,6 +129,8 @@ export function LegalView({
     segs.map((s, i) =>
       typeof s === 'string' ? (
         s
+      ) : 'v' in s ? (
+        values[s.v]
       ) : 'b' in s ? (
         <Text key={i} style={styles.bold}>
           {s.b}
@@ -146,31 +160,39 @@ export function LegalView({
           ))}
         </View>
       );
+    // Contact us: "Raise a complaint" opens the complaint form.
+    if ('complaint' in b)
+      return (
+        <Button
+          key={i}
+          label="Raise a complaint"
+          variant="outline"
+          style={styles.complaint}
+          onPress={() => {
+            if (!onOpenPath('/complaint'))
+              Linking.openURL(`${CONFIG.siteUrl}${LEGAL_PATHS.contact}`);
+          }}
+        />
+      );
+    // The website's GrievanceContact block.
+    const g = COMPANY.grievanceOfficer;
     return (
       <View key={i} style={styles.grievance}>
-        <Text style={styles.bold}>Grievance Officer</Text>
-        <Text style={styles.p}>AllBoutiqs Private Limited</Text>
-        <Text style={styles.p}>
-          19, Puniynagari, Near Smrudhipark, Deesa, Banaskantha, Gujarat 385535
-        </Text>
-        <Text style={styles.p}>
+        <Serif style={styles.grievanceTitle}>
+          Grievance Officer{g.name ? ` - ${g.name}` : ''}
+        </Serif>
+        <Text style={styles.small}>{COMPANY.legalName}</Text>
+        <Text style={styles.small}>{COMPANY.officeAddress}</Text>
+        <Text style={styles.small}>
           Email:{' '}
-          <Text
-            style={styles.link}
-            onPress={() => open(`mailto:${CONFIG.supportEmail}`)}
-          >
-            {CONFIG.supportEmail}
+          <Text style={styles.link} onPress={() => open(`mailto:${g.email}`)}>
+            {g.email}
           </Text>
         </Text>
-        <Text style={styles.p}>
+        <Text style={styles.small}>
           Phone:{' '}
-          <Text
-            style={styles.link}
-            onPress={() =>
-              open(`tel:${CONFIG.supportPhone.replace(/\s/g, '')}`)
-            }
-          >
-            {CONFIG.supportPhone}
+          <Text style={styles.link} onPress={() => open(telHref(g.phone))}>
+            {g.phone}
           </Text>
         </Text>
       </View>
@@ -182,9 +204,13 @@ export function LegalView({
       <View style={styles.hero}>
         <Eyebrow>{page.eyebrow}</Eyebrow>
         <Serif style={styles.title}>{page.title}</Serif>
-        <Text style={styles.updated}>
-          Last updated {shortDate(LEGAL_UPDATED)}
-        </Text>
+        {page.updated ? (
+          <Text style={styles.updated}>
+            Last updated {shortDate(page.updated)}
+          </Text>
+        ) : (
+          <View style={styles.noDate} />
+        )}
         {page.intro.map(renderBlock)}
       </View>
 
@@ -258,6 +284,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 10,
   },
+  noDate: { height: 12 },
   contents: {
     margin: 16,
     padding: 16,
@@ -307,9 +334,19 @@ const styles = StyleSheet.create({
     color: colors.foreground,
   },
   grievance: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.gold,
-    paddingLeft: 12,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    backgroundColor: colors.ivory,
+    padding: 16,
     marginTop: 4,
+    marginBottom: 8,
+  },
+  grievanceTitle: { fontSize: 18, marginBottom: 6 },
+  complaint: { alignSelf: 'flex-start', marginTop: 4, marginBottom: 12 },
+  small: {
+    fontFamily: fonts.sans,
+    fontSize: 13,
+    lineHeight: 21,
+    color: colors.foreground,
   },
 });

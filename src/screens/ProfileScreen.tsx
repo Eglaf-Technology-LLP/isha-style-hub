@@ -1,13 +1,18 @@
 import {
   ChevronRight,
+  CircleHelp,
   FileText,
+  Headphones,
   Heart,
+  Info,
   LogOut,
   MessageCircle,
   Package,
+  RotateCcw,
   Shield,
   KeyRound,
   MapPin,
+  Truck,
   UserRound,
   Wallet,
 } from 'lucide-react-native';
@@ -20,6 +25,7 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
+import { CompanyFooter } from '@/components/CompanyFooter';
 import { Button, Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
 import { hasOwnPassword, signOut, userContact, useSession } from '@/lib/auth';
@@ -65,6 +71,19 @@ export default function ProfileScreen() {
       label: 'Help on WhatsApp',
       onPress: () => Linking.openURL(CONFIG.whatsappUrl),
     },
+    // The website footer's Company and Help pages.
+    { icon: Headphones, label: 'Contact us', onPress: () => go('/contact-us') },
+    { icon: CircleHelp, label: 'FAQ', onPress: () => go('/faq') },
+    {
+      icon: Truck,
+      label: 'Shipping policy',
+      onPress: () => go('/shipping-policy'),
+    },
+    {
+      icon: RotateCcw,
+      label: 'Return & Refund policy',
+      onPress: () => go('/return-refund-policy'),
+    },
     {
       icon: FileText,
       label: 'Terms & Conditions',
@@ -75,6 +94,7 @@ export default function ProfileScreen() {
       label: 'Privacy policy',
       onPress: () => go('/privacy-policy'),
     },
+    { icon: Info, label: 'About us', onPress: () => go('/about-us') },
   ];
 
   const confirmSignOut = () =>
@@ -138,6 +158,7 @@ export default function ProfileScreen() {
             </Touch>
           ) : null}
         </View>
+        <CompanyFooter />
         <Sans style={styles.version}>Version {version}</Sans>
       </ScrollView>
     </View>

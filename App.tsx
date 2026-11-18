@@ -27,6 +27,7 @@ import InvoiceScreen from '@/screens/InvoiceScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
 import LegalScreen from '@/screens/LegalScreen';
 import CheckoutScreen from '@/screens/CheckoutScreen';
+import ComplaintScreen from '@/screens/ComplaintScreen';
 import OrderPlacedScreen from '@/screens/OrderPlacedScreen';
 import ProductScreen from '@/screens/ProductScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
@@ -169,6 +170,11 @@ export default function App() {
               component={NotificationsScreen}
             />
             <Stack.Screen name="Legal" component={LegalScreen} />
+            <Stack.Screen
+              name="Complaint"
+              component={ComplaintScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
             <Stack.Screen name="Checkout" component={CheckoutScreen} />
             <Stack.Screen
               name="OrderPlaced"
