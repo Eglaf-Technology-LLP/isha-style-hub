@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { ColourBoxes } from '@/components/ColourBoxes';
+import { Customiser } from '@/components/Customiser';
 import { GrievanceOfficerNote } from '@/components/GrievanceOfficerNote';
 import { Chip, Sheet } from '@/components/Listing';
 import { PhotoViewer } from '@/components/PhotoViewer';
@@ -71,7 +72,14 @@ import {
 import { colourCodes } from '@/lib/colors';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
-import { CartItem, useCart, useWishlist } from '@/lib/stores';
+import { CartItem, newLineId, useCart, useWishlist } from '@/lib/stores';
+import {
+  buildCustomisation,
+  customisationPrice,
+  emptyCustomiser,
+  readSetup,
+} from '@/lib/customisation';
+import { toast } from '@/lib/toast';
 import { useBuyNow } from '@/lib/checkout';
 import { useSession } from '@/lib/auth';
 import { SITE_URL } from '@/lib/supabase';
@@ -96,6 +104,8 @@ export default function ProductScreen() {
   // colour's photos start from the first again).
   const [photoAt, setPhotoAt] = useState({ gallery: '', index: 0 });
   const [missing, setMissing] = useState<string | null>(null);
+  // "Customise this piece" (products a boutique made customisable).
+  const [customiser, setCustomiser] = useState(emptyCustomiser);
   const [added, setAdded] = useState(false);
   // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
   const [chooser, setChooser] = useState(false);
@@ -241,6 +251,13 @@ export default function ProductScreen() {
   );
   // Same rules as the website's product page.
   const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
+  // Customisation: the boutique's % of the chosen piece's price, on top.
+  const customisationSetup = readSetup(
+    product as unknown as Record<string, unknown>,
+  );
+  const customised = buildCustomisation(customisationSetup, customiser, price);
+  const customisationExtra =
+    'choice' in customised ? customisationPrice(customised.choice) : 0;
   const returnable =
     product.is_returnable !== false && vendorInfo?.returns_enabled !== false;
   const codAvailable =
@@ -291,6 +308,11 @@ export default function ProductScreen() {
     }
     setMissing(null);
     setChooser(false);
+    if ('error' in customised) {
+      toast(customised.error);
+      return null;
+    }
+    const customisation = customised.choice;
     const options = [
       ...(size ? [{ name: 'Size', value: size }] : []),
       ...(color ? [{ name: 'Colour', value: color }] : []),
@@ -305,9 +327,20 @@ export default function ProductScreen() {
         variant?.id ??
         `${product.id}-${size || 'default'}-${color || 'default'}`,
       variantTitle: [size, color].filter(Boolean).join(' / ') || 'Default',
-      price: { amount: String(price), currencyCode: 'INR' },
+      price: {
+        amount: String(
+          price + (customisation ? customisationPrice(customisation) : 0),
+        ),
+        currencyCode: 'INR',
+      },
       quantity: 1,
       selectedOptions: options,
+      sku: product.sku ?? null,
+      // A customised piece is its own bag line, priced with its
+      // customisation (as on the website).
+      ...(customisation
+        ? { lineId: newLineId(), customisation, basePrice: String(price) }
+        : {}),
     };
   };
 
@@ -336,6 +369,7 @@ export default function ProductScreen() {
     const item = chosenItem('bag');
     if (!item) return;
     addItem(item);
+    if (item.customisation) setCustomiser(emptyCustomiser);
     success();
     setAdded(true);
   };
@@ -450,6 +484,18 @@ export default function ProductScreen() {
               </>
             ) : null}
           </View>
+          {customisationExtra > 0 ? (
+            <Sans style={styles.tax}>
+              + {formatINR(customisationExtra)} customisation
+              {customisationSetup.customisation_pct
+                ? ` (${customisationSetup.customisation_pct}%)`
+                : ''}{' '}
+              ={' '}
+              <Text style={styles.customTotal}>
+                {formatINR(price + customisationExtra)}
+              </Text>
+            </Sans>
+          ) : null}
           <Sans style={styles.tax}>Inclusive of all taxes</Sans>
           {soldOut ? <Text style={styles.soldOut}>Out of stock</Text> : null}
           {product.made_to_order ? (
@@ -566,6 +612,18 @@ export default function ProductScreen() {
           <View style={[styles.block, styles.noTop]}>{stylist}</View>
         )}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
+
+        {customisationSetup.customisable ? (
+          <View style={styles.block}>
+            <Customiser
+              setup={customisationSetup}
+              baseDays={prepDays}
+              basePrice={price}
+              value={customiser}
+              onChange={setCustomiser}
+            />
+          </View>
+        ) : null}
 
         {/* Delivery & services */}
         <View style={[styles.block, { gap: 14 }]}>
@@ -989,6 +1047,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   price: { fontFamily: fonts.sansSemi, fontSize: 20, color: colors.foreground },
+  customTotal: { fontFamily: fonts.sansSemi, color: colors.foreground },
   mrp: {
     fontFamily: fonts.sans,
     fontSize: 14,

@@ -15,6 +15,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { CustomisationDetails } from '@/components/Customiser';
 import { AppHeader } from '@/components/AppHeader';
 import {
   CancelSheet,
@@ -186,6 +187,7 @@ export default function OrderScreen() {
                     ''}
                   {` · Qty ${it.quantity}`}
                 </Text>
+                <CustomisationDetails customisation={it.customisation} />
                 <Text style={styles.price}>
                   {formatINR(it.price * it.quantity)}
                 </Text>

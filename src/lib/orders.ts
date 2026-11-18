@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from './auth';
+import type { CustomisationChoice } from './customisation';
 import { supabase } from './supabase';
 
 // The signed-in customer's orders - the same rules as the website's
@@ -12,7 +13,9 @@ export interface OrderItem {
   vendor_order_id: string | null;
   vendor_id: string | null;
   variant_id: string;
-  customisation: unknown | null;
+  // What the customer asked for, as the server priced it (null: not
+  // customised).
+  customisation: CustomisationChoice | null;
   // The product's own flag AND its boutique's returns switch (as the website).
   is_returnable: boolean;
   product_id: string;

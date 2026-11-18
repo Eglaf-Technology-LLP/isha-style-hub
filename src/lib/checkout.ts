@@ -6,7 +6,8 @@ import { CONFIG } from '@/config';
 import { Address, normalizeState } from './account';
 import { useSession } from './auth';
 import { formatINR } from './format';
-import { CartItem } from './stores';
+import { customisationForOrder } from './customisation';
+import { CartItem, cartLineKey } from './stores';
 import { supabase } from './supabase';
 
 // Checkout - the website's (Live-Vendor src/pages/Checkout.tsx with the
@@ -250,7 +251,7 @@ export function splitCoupon(
   categoryOf: (productId: string) => string | null,
 ) {
   const lines = items.map(i => ({
-    key: i.variantId,
+    key: cartLineKey(i),
     productId: i.productId,
     vendorId: i.vendorId,
     categoryId: categoryOf(i.productId),
@@ -367,12 +368,19 @@ export async function checkCoupon(
 // ---------- COD fee and delivery date (through our functions) ----------
 
 const groupsFor = (items: CartItem[]) => {
-  const map = new Map<string, { product_id: string; quantity: number }[]>();
+  const map = new Map<
+    string,
+    { product_id: string; quantity: number; customised: boolean }[]
+  >();
   for (const i of items) {
     if (!i.vendorId) continue;
     map.set(i.vendorId, [
       ...(map.get(i.vendorId) ?? []),
-      { product_id: i.productId, quantity: i.quantity },
+      {
+        product_id: i.productId,
+        quantity: i.quantity,
+        customised: !!i.customisation,
+      },
     ]);
   }
   return [...map.entries()].map(([vendor_id, its]) => ({
@@ -399,7 +407,7 @@ export function codGroups(
       goods_due: round2(
         g.subtotal -
           g.items.reduce(
-            (n, i) => n + (couponPerLine.get(i.variantId) ?? 0),
+            (n, i) => n + (couponPerLine.get(cartLineKey(i)) ?? 0),
             0,
           ) +
           g.shippingCost,
@@ -462,10 +470,8 @@ export async function cartDeliveryDate(
   pincode: string,
   items: CartItem[],
 ): Promise<string | null> {
-  const groups = groupsFor(items).map(g => ({
-    ...g,
-    items: g.items.map(i => ({ ...i, customised: false })),
-  }));
+  // A customised piece takes its extra making days (customised: true).
+  const groups = groupsFor(items);
   if (!groups.length) return null;
   const { data } = await supabase.functions.invoke(
     'shiprocket-estimate-delivery',
@@ -669,11 +675,13 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
         null,
       quantity: i.quantity,
       price: parseFloat(i.price.amount),
-      discount_amount: input.couponPerLine.get(i.variantId) ?? 0,
+      discount_amount: input.couponPerLine.get(cartLineKey(i)) ?? 0,
       vendor_id: i.vendorId,
       vendor_order_id: i.vendorId ? partByVendor[i.vendorId] ?? null : null,
       is_returnable: input.products.get(i.productId)?.is_returnable ?? true,
-      customisation: null,
+      // Re-priced from the product by the server; a customised piece isn't
+      // returnable (enforce_order_item_customisation).
+      customisation: customisationForOrder(i.customisation),
     }));
     const { error: itemsError } = await supabase
       .from('order_items')

@@ -15,6 +15,7 @@ import {
 import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import { CustomisationDetails } from '@/components/Customiser';
 import { Sheet } from '@/components/Listing';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
 import { useSession } from '@/lib/auth';
@@ -33,7 +34,13 @@ import {
 import { cartDeliveryDate } from '@/lib/checkout';
 import { formatINR } from '@/lib/format';
 import { shortDate } from '@/lib/orders';
-import { CartItem, cartCount, cartTotal, useCart } from '@/lib/stores';
+import {
+  CartItem,
+  cartCount,
+  cartLineKey,
+  cartTotal,
+  useCart,
+} from '@/lib/stores';
 import { toast } from '@/lib/toast';
 import { colors, fonts } from '@/theme';
 
@@ -56,11 +63,13 @@ export default function Bag() {
     if (choice.soldOut || size === lineSize(item)) return;
     const stock = choice.variant.stock;
     // A line already in the bag in that size takes this one in.
-    const twin = items.find(
-      i => i !== item && i.variantId === choice.variant.id,
-    );
+    const twin = item.lineId
+      ? undefined
+      : items.find(
+          i => i !== item && !i.lineId && i.variantId === choice.variant.id,
+        );
     const wanted = item.quantity + (twin?.quantity ?? 0);
-    changeVariant(item.variantId, lineAsSize(item, choice), stock);
+    changeVariant(cartLineKey(item), lineAsSize(item, choice), stock);
     toast(
       wanted > stock
         ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
@@ -130,7 +139,7 @@ export default function Bag() {
                 />
               </>
             }
-            keyExtractor={i => i.variantId}
+            keyExtractor={cartLineKey}
             contentContainerStyle={{
               paddingVertical: 8,
               paddingBottom: 200 + insets.bottom,
@@ -142,11 +151,13 @@ export default function Bag() {
               );
               const sku = item.sku || pieces?.skus.get(item.productId);
               // Size (a picker when the piece comes in other sizes in this
-              // colour), colour if any, and the boutique's SKU.
+              // colour), colour if any, customisation Yes / No and the
+              // boutique's SKU.
               const details = [
                 ...item.selectedOptions
                   .filter(o => !(choices && o.name.toLowerCase() === 'size'))
                   .map(o => `${o.name}: ${o.value}`),
+                `Customisation: ${item.customisation ? 'Yes' : 'No'}`,
                 ...(sku ? [`SKU: ${sku}`] : []),
               ].join(' · ');
               return (
@@ -188,6 +199,7 @@ export default function Bag() {
                     {details ? (
                       <Text style={styles.variant}>{details}</Text>
                     ) : null}
+                    <CustomisationDetails customisation={item.customisation} />
                     <Text style={styles.price}>
                       {formatINR(Number(item.price.amount) * item.quantity)}
                     </Text>
@@ -198,7 +210,7 @@ export default function Bag() {
                           hitSlop={6}
                           style={styles.step}
                           onPress={() =>
-                            setQuantity(item.variantId, item.quantity - 1)
+                            setQuantity(cartLineKey(item), item.quantity - 1)
                           }
                           accessibilityLabel="Fewer"
                         >
@@ -210,7 +222,7 @@ export default function Bag() {
                           hitSlop={6}
                           style={styles.step}
                           onPress={() =>
-                            setQuantity(item.variantId, item.quantity + 1)
+                            setQuantity(cartLineKey(item), item.quantity + 1)
                           }
                           accessibilityLabel="More"
                         >
@@ -219,7 +231,7 @@ export default function Bag() {
                       </View>
                       <Touch
                         hitSlop={8}
-                        onPress={() => removeItem(item.variantId)}
+                        onPress={() => removeItem(cartLineKey(item))}
                         accessibilityLabel="Remove"
                       >
                         <Trash2

@@ -21,6 +21,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import { CustomisationDetails } from '@/components/Customiser';
 import {
   DeliverTo,
   useDeliverTo,
@@ -56,7 +57,7 @@ import {
 import { formatINR } from '@/lib/format';
 import { tap } from '@/lib/haptics';
 import { shortDate } from '@/lib/orders';
-import { useCart } from '@/lib/stores';
+import { cartLineKey, useCart } from '@/lib/stores';
 import { toast } from '@/lib/toast';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -123,7 +124,7 @@ export default function CheckoutScreen() {
     items.reduce((sum, i) => {
       const line =
         parseFloat(i.price.amount) * i.quantity -
-        (split?.perLine.get(i.variantId) ?? 0);
+        (split?.perLine.get(cartLineKey(i)) ?? 0);
       const categoryId = categoryOf(i.productId);
       const rule = categoryId ? gstRules?.get(categoryId) ?? null : null;
       return sum + gstInsideLine(rule, line, i.quantity);
@@ -412,7 +413,7 @@ export default function CheckoutScreen() {
             {items.length} {items.length === 1 ? 'item' : 'items'}
           </Eyebrow>
           {items.map(i => (
-            <View key={i.variantId} style={styles.item}>
+            <View key={cartLineKey(i)} style={styles.item}>
               <View style={styles.thumb}>
                 {i.productImage ? (
                   <Image
@@ -432,6 +433,7 @@ export default function CheckoutScreen() {
                   {i.variantTitle !== 'Default' ? `${i.variantTitle} · ` : ''}
                   Qty {i.quantity}
                 </Sans>
+                <CustomisationDetails customisation={i.customisation} />
               </View>
               <Text style={styles.itemPrice}>
                 {formatINR(parseFloat(i.price.amount) * i.quantity)}

@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { useSession } from './auth';
+import type { CustomisationChoice } from './customisation';
 import { supabase } from './supabase';
 
 // Bag and wishlist, kept on the phone. The bag line has exactly the website's
@@ -21,25 +22,45 @@ export interface CartItem {
   // The boutique's own product code, shown on the bag line (as the
   // website's cart). Optional: the bag also looks it up.
   sku?: string | null;
+  // A customised piece is its own bag line (never merged with the same
+  // variant): lineId identifies it, price.amount already includes the
+  // customisation, basePrice is the piece's own price (as the website).
+  lineId?: string;
+  customisation?: CustomisationChoice | null;
+  basePrice?: string;
 }
+
+// The id the bag's actions use for a line.
+export const cartLineKey = (item: Pick<CartItem, 'lineId' | 'variantId'>) =>
+  item.lineId ?? item.variantId;
+
+// A new customised line's id.
+export const newLineId = () =>
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 // What changes when a line moves to another size of the same piece.
 export type VariantChange = Pick<
   CartItem,
-  'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage'
+  | 'variantId'
+  | 'variantTitle'
+  | 'selectedOptions'
+  | 'price'
+  | 'productImage'
+  | 'basePrice'
+  | 'customisation'
 >;
 
 interface CartState {
   items: CartItem[];
   addItem: (item: CartItem) => void;
-  setQuantity: (variantId: string, quantity: number) => void;
+  setQuantity: (lineKey: string, quantity: number) => void;
   // Another size of the same piece (maxQuantity: what it has in stock).
   changeVariant: (
-    variantId: string,
+    lineKey: string,
     next: VariantChange,
     maxQuantity?: number,
   ) => void;
-  removeItem: (variantId: string) => void;
+  removeItem: (lineKey: string) => void;
   clear: () => void;
 }
 
@@ -47,39 +68,46 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      // A plain piece joins the same one already in the bag; a customised
+      // one is always its own line.
       addItem: item => {
-        const existing = get().items.find(i => i.variantId === item.variantId);
+        const existing = item.lineId
+          ? undefined
+          : get().items.find(i => !i.lineId && i.variantId === item.variantId);
         set({
           items: existing
             ? get().items.map(i =>
-                i.variantId === item.variantId
+                i === existing
                   ? { ...i, quantity: i.quantity + item.quantity }
                   : i,
               )
             : [...get().items, item],
         });
       },
-      setQuantity: (variantId, quantity) =>
+      setQuantity: (lineKey, quantity) =>
         set({
           items:
             quantity <= 0
-              ? get().items.filter(i => i.variantId !== variantId)
+              ? get().items.filter(i => cartLineKey(i) !== lineKey)
               : get().items.map(i =>
-                  i.variantId === variantId ? { ...i, quantity } : i,
+                  cartLineKey(i) === lineKey ? { ...i, quantity } : i,
                 ),
         }),
       // From the bag (website 64af7e4): the line takes the new variant's id,
       // size, price and photo, keeping its place. If that size is already
-      // in the bag, the two lines become one. Quantity cut to the stock.
-      changeVariant: (variantId, next, maxQuantity) => {
+      // in the bag, the two lines become one (a customised line stays its
+      // own). Quantity cut to the stock.
+      changeVariant: (lineKey, next, maxQuantity) => {
         const items = get().items;
-        const line = items.find(i => i.variantId === variantId);
+        const line = items.find(i => cartLineKey(i) === lineKey);
         if (!line) return;
         const cap = (q: number) =>
           maxQuantity != null ? Math.max(1, Math.min(q, maxQuantity)) : q;
-        const twin = items.find(
-          i => i !== line && i.variantId === next.variantId,
-        );
+        const twin = line.lineId
+          ? undefined
+          : items.find(
+              i => i !== line && !i.lineId && i.variantId === next.variantId,
+            );
         set({
           items: twin
             ? items
@@ -96,8 +124,8 @@ export const useCart = create<CartState>()(
               ),
         });
       },
-      removeItem: variantId =>
-        set({ items: get().items.filter(i => i.variantId !== variantId) }),
+      removeItem: lineKey =>
+        set({ items: get().items.filter(i => cartLineKey(i) !== lineKey) }),
       clear: () => set({ items: [] }),
     }),
     { name: 'allboutiqs-cart', storage: createJSONStorage(() => AsyncStorage) },

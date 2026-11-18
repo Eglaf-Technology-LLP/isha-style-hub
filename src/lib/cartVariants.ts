@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { customisationPrice, rechargeAt } from './customisation';
 import { sortSizes } from './listing';
 import { CartItem, VariantChange } from './stores';
 import { supabase } from './supabase';
@@ -107,10 +108,20 @@ export function sizeChoices(
 }
 
 // The line as the chosen size: that variant's id and price (a variant
-// without its own price costs what the line does now), its own photo when
-// it has one, and the size in the line's options and title.
+// without its own price costs what the line does now; a customised line
+// keeps its customisation on top, a % charge worked out again on the new
+// price), its own photo when it has one, and the size in the line's options
+// and title.
 export function lineAsSize(item: CartItem, choice: SizeChoice): VariantChange {
-  const base = choice.variant.price || Number(item.price.amount);
+  const oldAmount = Number(item.price.amount);
+  const oldBase = item.basePrice != null ? Number(item.basePrice) : oldAmount;
+  const base = choice.variant.price || oldBase;
+  const customisation = item.customisation
+    ? rechargeAt(item.customisation, base)
+    : null;
+  const charge = customisation?.pct
+    ? customisationPrice(customisation)
+    : oldAmount - oldBase;
   return {
     variantId: choice.variant.id,
     variantTitle: [choice.size, lineColour(item)].filter(Boolean).join(' / '),
@@ -119,8 +130,10 @@ export function lineAsSize(item: CartItem, choice: SizeChoice): VariantChange {
     ),
     price: {
       ...item.price,
-      amount: String(Math.round(base * 100) / 100),
+      amount: String(Math.round((base + charge) * 100) / 100),
     },
     productImage: choice.variant.images[0] ?? item.productImage,
+    ...(item.basePrice != null ? { basePrice: String(base) } : {}),
+    ...(customisation ? { customisation } : {}),
   };
 }
