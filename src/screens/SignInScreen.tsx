@@ -25,6 +25,7 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import {
+  accountExists,
   formatPhone,
   Identifier,
   looksLikePhone,
@@ -46,10 +47,12 @@ import { colors, fonts } from '@/theme';
 // - Sign in: email or mobile, then a one-time code or the password (the
 //   last choice is remembered). "Forgot password?" sets a new one after a code.
 // - Sign up: email or mobile, an optional password, the Privacy
-//   Policy + Terms; a code confirms it, then the password is saved.
+//   Policy + Terms; a code confirms it, then the password is saved. An
+//   email/number that already has an account is sent to Sign in (one-time
+//   code), filled in, with "already registered".
 // - A code for a new email/number simply creates the account.
 
-const CODE_LENGTH = 6;
+export const CODE_LENGTH = 6;
 const PHONE_RESEND_SECONDS = 60;
 const METHOD_KEY = 'allboutiqs:signin-method';
 
@@ -59,6 +62,13 @@ type View_ = 'form' | 'reset' | 'code';
 
 const shown = (id: Identifier) =>
   id.kind === 'phone' ? formatPhone(id.value) : id.value;
+
+// "Sign up" with an email / number that already has an account (website,
+// client corrections 15 Nov 2026, 1.2.2).
+const alreadyRegistered = (id: Identifier) =>
+  `This ${
+    id.kind === 'phone' ? 'mobile number' : 'email'
+  } is already registered with AllBoutiqs. Please sign in.`;
 
 export default function SignInScreen() {
   const back = useBack();
@@ -83,6 +93,8 @@ export default function SignInScreen() {
   const [pendingPassword, setPendingPassword] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // "Already registered - please sign in", shown on the Sign in tab.
+  const [registered, setRegistered] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendIn, setResendIn] = useState(0);
@@ -156,6 +168,7 @@ export default function SignInScreen() {
     setView(next.view ?? 'form');
     setError(null);
     setConsentError(null);
+    setRegistered(null);
     clearNotice();
   };
 
@@ -169,6 +182,7 @@ export default function SignInScreen() {
     if (id.kind === 'phone' && !result.retryAfter)
       setResendIn(PHONE_RESEND_SECONDS);
     tap();
+    setRegistered(null);
     setTarget(id);
     setPendingPassword(savePassword);
     setCode('');
@@ -215,8 +229,27 @@ export default function SignInScreen() {
       pendingMsg.current = { text: "You're signed in" };
       return;
     }
-    // Saved as soon as the code makes the account (src/lib/auth.ts).
-    if (creating) setPendingConsent({ marketing });
+    if (creating) {
+      // Already has an account: say so and move to Sign in with the same
+      // email / number filled in. A one-time code works for every account,
+      // so that's the method shown; the password typed here was a new one,
+      // so it's cleared. If the check itself fails, sign-up carries on as
+      // before (the code then simply signs them in).
+      setBusy(true);
+      setError(null);
+      const exists = await accountExists(parsed);
+      setBusy(false);
+      if (exists) {
+        setTab('signin');
+        setView('form');
+        setMethod('code');
+        setPassword('');
+        setRegistered(alreadyRegistered(parsed));
+        return;
+      }
+      // Saved as soon as the code makes the account (src/lib/auth.ts).
+      setPendingConsent({ marketing });
+    }
     await send(parsed, usesPassword && password ? password : null);
   };
 
@@ -414,6 +447,12 @@ export default function SignInScreen() {
         </View>
       )}
 
+      {registered && tab === 'signin' && !resetting ? (
+        <Text style={styles.registered} accessibilityLiveRegion="polite">
+          {registered}
+        </Text>
+      ) : null}
+
       <Text style={styles.label}>Email or mobile number</Text>
       <View style={styles.field}>
         <IdIcon size={17} color={colors.mutedForeground} />
@@ -422,6 +461,7 @@ export default function SignInScreen() {
           onChangeText={t => {
             setIdentifier(t);
             setError(null);
+            setRegistered(null);
           }}
           placeholder="Email or 10-digit mobile"
           placeholderTextColor={colors.mutedForeground}
@@ -583,8 +623,8 @@ export default function SignInScreen() {
 // The code as six boxes, one digit each (the website's InputOTP). One hidden
 // field underneath takes the typing, so SMS autofill, paste and the number
 // pad all work as normal; the box to fill next is highlighted with a
-// blinking cursor at its start.
-function CodeBoxes({
+// blinking cursor at its start. Also used in My profile.
+export function CodeBoxes({
   value,
   onChange,
   inputRef,
@@ -856,6 +896,18 @@ const styles = StyleSheet.create({
     color: colors.destructive,
     marginTop: 12,
     lineHeight: 19,
+  },
+  registered: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.foreground,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    backgroundColor: colors.ivory,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
   },
   consent: { gap: 12, marginTop: 18 },
   check: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
