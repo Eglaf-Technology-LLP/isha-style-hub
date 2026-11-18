@@ -19,36 +19,18 @@ import { Eyebrow, Placeholder, Sans, SectionHeader, Serif, Touch } from './ui';
 
 // ---------- offers strip (the website's AnnouncementBar) ----------
 
-function useShippingCharged() {
-  return useQuery({
-    queryKey: ['shipping-charged'],
-    staleTime: 30 * 60 * 1000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('platform_settings')
-        .select('customer_shipping_enabled')
-        .maybeSingle();
-      return data?.customer_shipping_enabled === true;
-    },
-  });
-}
-
-// The website's messages (src/content/storefront.ts announcementMessages).
-const messages = (shippingCharged: boolean) => [
-  shippingCharged
-    ? 'Free shipping on orders above ₹999'
-    : 'Free shipping on every order',
-  'Every piece quality-checked before it ships',
-  'Use code ALLBOUTIQS10 for 10% off your first order',
-];
+// The website's messages (src/content/storefront.ts announcementMessages):
+// only the quality line (client corrections, 15 Nov 2026, 2.1 point 1).
+const MESSAGES = ['Every piece quality-checked before it ships'];
 
 export function OfferStrip() {
-  const { data: charged = false } = useShippingCharged();
-  const list = messages(charged);
+  const list = MESSAGES;
   const [i, setI] = useState(0);
   const fade = useRef(new Animated.Value(1)).current;
 
+  // Rotates when there is more than one message.
   useEffect(() => {
+    if (list.length < 2) return;
     const t = setInterval(() => {
       Animated.timing(fade, {
         toValue: 0,
