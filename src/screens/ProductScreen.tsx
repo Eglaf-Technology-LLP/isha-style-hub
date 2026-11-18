@@ -629,10 +629,12 @@ export default function ProductScreen() {
         <View style={[styles.block, { gap: 14 }]}>
           <Info
             icon={<Truck size={18} color={colors.gold} strokeWidth={1.6} />}
+            // The website's "Free Delivery - On all orders" (customers never
+            // pay delivery; client, 10 Nov 2026).
             text={
               product.made_to_order
-                ? 'Made to order, then quality-checked and shipped free'
-                : 'Free shipping on every order'
+                ? 'Free Delivery · Made to order, then quality-checked'
+                : 'Free Delivery · On all orders'
             }
           />
           <Info

@@ -119,7 +119,7 @@ export default function Home() {
         {/* Promise strip */}
         <View style={styles.promises}>
           {[
-            { icon: Truck, text: 'Free shipping' },
+            { icon: Truck, text: 'Free Delivery' },
             { icon: ShieldCheck, text: 'Quality checked' },
             { icon: RotateCcw, text: 'Easy returns' },
           ].map(({ icon: Icon, text }) => (
