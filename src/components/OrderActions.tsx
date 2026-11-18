@@ -71,6 +71,8 @@ export function RefundPicker({
       </View>
     );
   }
+  // The refund charge is only on a Cash on Delivery order's bank transfer
+  // (client, 10 Nov 2026); back to the online payment is always in full.
   const chargeText = charge
     ? ` A refund charge of ${refundChargeLabel(charge)} is deducted.`
     : ' No refund charge on this one.';
@@ -80,7 +82,7 @@ export function RefundPicker({
       (context === 'return'
         ? 'Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days.'
         : 'Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.') +
-      chargeText,
+      ' The full amount - no refund charge.',
     bank: `Email us your bank details. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.${chargeText}`,
   };
   const icon = { wallet: Wallet, original: RotateCcw, bank: Landmark };

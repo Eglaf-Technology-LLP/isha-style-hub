@@ -398,10 +398,14 @@ export const CHARGE_FREE_RETURN_REASONS = [
   'Colour is different from what was shown',
 ];
 
+// The refund charge (platform_settings.refund_charge_pct, plus GST on it):
+// only on a Cash on Delivery order's refund by bank transfer (client, 10 Nov
+// 2026). The wallet and the original online payment get the full amount.
 export interface RefundCharge {
   pct: number;
   gstPct: number;
 }
+export const DEFAULT_REFUND_CHARGE: RefundCharge = { pct: 5, gstPct: 18 };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 export const refundChargeLabel = (c: RefundCharge) =>
   `${c.pct}% + ${c.gstPct}% GST (${round2(
@@ -418,8 +422,10 @@ export function useRefundCharge() {
         .select('refund_charge_pct, refund_charge_gst_pct')
         .maybeSingle();
       return {
-        pct: Number(data?.refund_charge_pct ?? 3),
-        gstPct: Number(data?.refund_charge_gst_pct ?? 18),
+        pct: Number(data?.refund_charge_pct ?? DEFAULT_REFUND_CHARGE.pct),
+        gstPct: Number(
+          data?.refund_charge_gst_pct ?? DEFAULT_REFUND_CHARGE.gstPct,
+        ),
       };
     },
   });
