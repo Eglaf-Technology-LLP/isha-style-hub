@@ -34,6 +34,8 @@ import {
   exchangeVariants,
   MAX_PHOTOS_PER_ITEM,
   MIN_PHOTOS_PER_ITEM,
+  PHOTO_FORMATS,
+  photoProblem,
   pickPhotos,
   RETURN_REASONS,
   RETURN_REASONS_CUSTOMISED,
@@ -140,8 +142,16 @@ export function ReturnSheet({
     const have = photos[item.id]?.length ?? 0;
     const room = MAX_PHOTOS_PER_ITEM - have;
     if (room <= 0) return;
-    const assets = (await pickPhotos(camera, room)).slice(0, room);
-    if (!assets.length) return;
+    const picked = (await pickPhotos(camera, room)).slice(0, room);
+    if (!picked.length) return;
+    // Only an unsupported format, or a photo still over 5 MB, is refused.
+    const problems = picked.map(photoProblem);
+    const assets = picked.filter((_, n) => !problems[n]);
+    const refused = problems.find((p): p is string => !!p);
+    if (!assets.length) {
+      if (refused) toast(refused, { important: true });
+      return;
+    }
     setUploading(item.id);
     const urls = (await Promise.all(assets.map(a => uploadPhoto(a)))).filter(
       (u): u is string => !!u,
@@ -151,6 +161,7 @@ export function ReturnSheet({
       toast('Some photos failed to upload - please try again.', {
         important: true,
       });
+    else if (refused) toast(refused, { important: true });
     setPhotos(cur => ({
       ...cur,
       [item.id]: [...(cur[item.id] ?? []), ...urls],
@@ -333,6 +344,9 @@ export function ReturnSheet({
                     : 'optional'}
                   , up to {MAX_PHOTOS_PER_ITEM})
                 </Text>
+                <Sans style={styles.small}>
+                  {PHOTO_FORMATS} · large photos are compressed automatically
+                </Sans>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}

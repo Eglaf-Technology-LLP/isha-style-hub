@@ -258,12 +258,20 @@ export async function exchangeVariants(
 
 // ---------- photos: pick (made small on the phone) and upload ----------
 
+// The website's photo rule (client, 16 Nov 2026; src/lib/uploadPrep.ts):
+// JPG, PNG, WEBP or HEIC, under 5 MB. Here the picker does the work: HEIC
+// becomes JPG (iOS "compatible" representation; Android converts it) and
+// every photo is re-encoded at most 1600 px, quality 0.8 - far under 5 MB.
+export const PHOTO_FORMATS = 'JPG, PNG, WEBP or HEIC';
+export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
 const PICK = {
   mediaType: 'photo' as const,
   maxWidth: 1600,
   maxHeight: 1600,
   quality: 0.8 as const,
   includeBase64: true,
+  assetRepresentationMode: 'compatible' as const,
 };
 
 export async function pickPhotos(
@@ -272,20 +280,88 @@ export async function pickPhotos(
 ): Promise<Asset[]> {
   const r = fromCamera
     ? await launchCamera({ ...PICK, saveToPhotos: false })
-    : await launchImageLibrary({ ...PICK, selectionLimit: Math.max(1, limit) });
+    : await launchImageLibrary({
+        ...PICK,
+        selectionLimit: Math.max(1, limit),
+        restrictMimeTypes: [
+          'image/jpeg',
+          'image/png',
+          'image/webp',
+          'image/heic',
+          'image/heif',
+        ],
+      });
   if (r.didCancel || r.errorCode) return [];
   return (r.assets ?? []).filter(a => !!a.base64);
 }
 
+type PhotoKind = 'jpeg' | 'png' | 'webp' | 'heic';
+const HEIC_BRANDS = ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm'];
+
+// The real format, from the first bytes (a renamed file can't fool it).
+function photoKind(base64: string): PhotoKind | null {
+  const b = new Uint8Array(decode(base64.slice(0, 64)));
+  const text = (from: number, to: number) =>
+    String.fromCharCode(...b.subarray(from, Math.min(to, b.length)));
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg';
+  if (b[0] === 0x89 && text(1, 4) === 'PNG') return 'png';
+  if (text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') return 'webp';
+  if (text(4, 8) === 'ftyp') {
+    const brands = [text(8, 12)];
+    for (let i = 16; i + 4 <= b.length; i += 4) brands.push(text(i, i + 4));
+    if (brands.some(x => HEIC_BRANDS.includes(x))) return 'heic';
+  }
+  return null;
+}
+
+const MIME: Record<Exclude<PhotoKind, 'heic'>, string> = {
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+};
+
+const byteSize = (base64: string) =>
+  Math.floor((base64.length * 3) / 4) -
+  (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
+
+const photoName = (a: Asset) => {
+  const n = a.fileName ?? '';
+  if (!n) return 'This photo';
+  return `"${n.length > 60 ? `${n.slice(0, 40)}…${n.slice(-15)}` : n}"`;
+};
+
+// Why a picked photo can't be used, in the website's words; null when fine.
+export function photoProblem(asset: Asset): string | null {
+  if (!asset.base64)
+    return `Couldn't prepare ${photoName(asset)} - please try again`;
+  const kind = photoKind(asset.base64);
+  if (!kind)
+    return `${photoName(
+      asset,
+    )} isn't a photo format we take. Please use ${PHOTO_FORMATS}.`;
+  // HEIC is turned into JPG by the picker; one that wasn't can't be shown
+  // in every browser.
+  if (kind === 'heic')
+    return `Couldn't prepare ${photoName(asset)} - please try again`;
+  if (byteSize(asset.base64) > PHOTO_MAX_BYTES)
+    return `${photoName(asset)} is still over ${
+      PHOTO_MAX_BYTES / 1024 / 1024
+    } MB after compressing. Please choose a smaller photo.`;
+  return null;
+}
+
 // The customer's own folder in the public bucket, as the website does
-// (storage policy: first folder = their user id).
+// (storage policy: first folder = their user id). Saved under its real
+// format (photoProblem() first).
 export async function uploadPhoto(
   asset: Asset,
   subfolder = 'returns',
 ): Promise<string | null> {
   const userId = useSession.getState().user?.id;
   if (!userId || !asset.base64) return null;
-  const ext = (asset.fileName?.split('.').pop() || 'jpg').toLowerCase();
+  const kind = photoKind(asset.base64);
+  if (!kind || kind === 'heic') return null;
+  const ext = kind === 'jpeg' ? 'jpg' : kind;
   const name = `${Date.now()}-${Math.random()
     .toString(36)
     .slice(2, 10)}.${ext}`;
@@ -293,7 +369,7 @@ export async function uploadPhoto(
   const { error } = await supabase.storage
     .from('category-images')
     .upload(path, decode(asset.base64), {
-      contentType: asset.type || 'image/jpeg',
+      contentType: MIME[kind],
     });
   if (error) return null;
   return supabase.storage.from('category-images').getPublicUrl(path).data
