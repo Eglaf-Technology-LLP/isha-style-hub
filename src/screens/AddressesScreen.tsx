@@ -14,13 +14,16 @@ import { Sheet } from '@/components/Listing';
 import { Button, Sans, Serif, Touch } from '@/components/ui';
 import {
   Address,
+  addressDefaults,
   AddressForm,
   emptyAddress,
   lookupPincode,
   useAddressActions,
   useAddresses,
+  useProfile,
   validateAddress,
 } from '@/lib/account';
+import { useSession } from '@/lib/auth';
 import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
 import { toast } from '@/lib/toast';
 import { colors, fonts } from '@/theme';
@@ -148,6 +151,11 @@ export function AddressSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const filled = useRef({ city: '', state: '' });
+  const user = useSession(st => st.user);
+  const { data: profile } = useProfile();
+  const { data: saved } = useAddresses();
+  // The account's first address (known only once its addresses have loaded).
+  const firstAddress = editing === 'new' && !!saved && saved.length === 0;
 
   useEffect(() => {
     if (!editing) return;
@@ -168,6 +176,18 @@ export function AddressSheet({
       });
     }
   }, [editing]);
+
+  // A first address starts with the profile's name and mobile number
+  // (still editable), never over what was typed.
+  useEffect(() => {
+    if (!firstAddress || !profile) return;
+    const { name, phone } = addressDefaults(user, profile);
+    setF(cur => ({
+      ...cur,
+      full_name: cur.full_name || name,
+      phone: cur.phone || phone,
+    }));
+  }, [firstAddress, profile, user]);
 
   const set = (patch: Partial<AddressForm>) =>
     setF(cur => ({ ...cur, ...patch }));
