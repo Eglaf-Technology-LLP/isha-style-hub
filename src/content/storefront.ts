@@ -117,12 +117,14 @@ export const PROMISES = [
   {
     icon: "returns",
     title: "Easy returns",
-    text: "Return or exchange within the boutique's return window - picked up from your door.",
+    // Client corrections Part 2, A3.1 (18 Nov 2026): there is no exchange.
+    text: "Return returnable pieces within 24 hours of delivery – picked up from your door.",
   },
   {
     icon: "secure",
     title: "Secure payments",
-    text: "UPI, cards and netbanking, with Cash on Delivery on eligible pieces.",
+    // Client corrections Part 2, A3.2: EMI is offered at checkout.
+    text: "UPI, cards, EMI and netbanking, with Cash on Delivery on eligible pieces.",
   },
 ] as const;
 

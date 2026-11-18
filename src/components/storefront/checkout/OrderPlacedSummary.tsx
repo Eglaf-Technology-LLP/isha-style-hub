@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
-import { formatDateWithDay } from "@/lib/dates";
+import { formatDateInWordsWithDay } from "@/lib/dates";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
@@ -157,7 +157,7 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
           </p>
           {order.estimated_delivery_date && (
             <p>
-              <span className="text-foreground">Expected by</span> {formatDateWithDay(order.estimated_delivery_date)}
+              <span className="text-foreground">Expected by</span> {formatDateInWordsWithDay(order.estimated_delivery_date)}
             </p>
           )}
         </div>

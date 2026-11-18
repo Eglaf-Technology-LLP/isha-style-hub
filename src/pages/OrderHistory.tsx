@@ -27,7 +27,7 @@ import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
@@ -204,8 +204,8 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
     deadlines.length === 0
       ? null
       : deadlines.length === 1
-        ? `Available until ${formatDateTime(deadlines[0])}`
-        : `Available until ${formatDateTime(deadlines[0])} for some items, ${formatDateTime(deadlines[deadlines.length - 1])} for others`;
+        ? `Available until ${formatDateTimeInWords(deadlines[0])}`
+        : `Available until ${formatDateTimeInWords(deadlines[0])} for some items, ${formatDateTimeInWords(deadlines[deadlines.length - 1])} for others`;
   // (A customised piece never had a return window to close.)
   const closedAt =
     items.length === 0 && order.order_items.some((i) => !i.customisation)
@@ -513,7 +513,7 @@ export default function OrderHistory() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
-                        <p className="text-sm">{formatDateTime(new Date(order.created_at))}</p>
+                        <p className="text-sm">{formatDateTimeInWords(new Date(order.created_at))}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Total</p>
@@ -538,7 +538,7 @@ export default function OrderHistory() {
                           type="button"
                           className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                           onClick={() => setCancellingOrder(order)}
-                          title={`You can cancel until ${formatDateTime(customerCancelDeadline(order.created_at))}`}
+                          title={`You can cancel until ${formatDateTimeInWords(customerCancelDeadline(order.created_at))}`}
                         >
                           <Ban className="h-3 w-3" />
                           Cancel order
@@ -771,7 +771,7 @@ export default function OrderHistory() {
                                           {rr.request_type === "return" ? "Return" : "Exchange"} #{rr.id.slice(0, 8).toUpperCase()}
                                         </span>
                                         <span className="text-muted-foreground">
-                                          {formatDate(new Date(rr.created_at))}
+                                          {formatDateInWords(new Date(rr.created_at))}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-2">
@@ -885,7 +885,7 @@ export default function OrderHistory() {
                           ) : (
                             returnWindow.closedAt && (
                               <p className="border-t border-border pt-5 text-xs text-muted-foreground">
-                                Return / exchange window closed on {formatDateTime(returnWindow.closedAt)}
+                                Return / exchange window closed on {formatDateTimeInWords(returnWindow.closedAt)}
                               </p>
                             )
                           )}

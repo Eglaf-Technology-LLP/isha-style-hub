@@ -18,7 +18,7 @@ import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
 import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
-import { formatDate, formatDateTime } from "@/lib/dates";
+import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
@@ -268,7 +268,7 @@ export function OrdersSection() {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
-                    <p className="text-sm">{formatDate(new Date(order.created_at))}</p>
+                    <p className="text-sm">{formatDateInWords(new Date(order.created_at))}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -283,7 +283,7 @@ export function OrdersSection() {
                       type="button"
                       className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                       onClick={() => setCancellingOrder(order)}
-                      title={`You can cancel until ${formatDateTime(customerCancelDeadline(order.created_at))}`}
+                      title={`You can cancel until ${formatDateTimeInWords(customerCancelDeadline(order.created_at))}`}
                     >
                       <Ban className="h-3 w-3" />
                       Cancel order

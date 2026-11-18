@@ -255,7 +255,10 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                         <td className="py-1.5 pr-2">{l.line_no}</td>
                         <td className="py-1.5 pr-2">
                           {l.description}
-                          {l.color && <span className="text-muted-foreground"> · {l.color}</span>}
+                          {/* New lines already read "Lehnga – XS – Black" (A10.2); colour only for an older line without it. */}
+                          {l.color && !l.description.includes(l.color) && (
+                            <span className="text-muted-foreground"> · {l.color}</span>
+                          )}
                         </td>
                         <td className="py-1.5 pr-2 font-mono">{l.hsn_code ?? "—"}</td>
                         <td className="py-1.5 pr-2">{l.size ?? "—"}</td>
@@ -328,13 +331,15 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                 <p className="font-medium">
                   Sold through {COMPANY.legalName}, GSTIN {COMPANY.gstin}
                 </p>
-                <p>Returns and exchanges as per the AllBoutiqs return policy (allboutiqs.com).</p>
+                <p>Returns as per the AllBoutiqs Return &amp; Refund Policy (allboutiqs.com).</p>
                 <p>
                   Customer care: {COMPANY.supportEmail} · {COMPANY.supportPhone} · WhatsApp {COMPANY.whatsapp}
                 </p>
                 <p>Subject to {COMPANY.jurisdiction} jurisdiction.</p>
+                {/* CA-approved wording, exactly (client corrections Part 2, A10.4). */}
                 <p className="text-muted-foreground">
-                  This is a computer-generated invoice issued on behalf of the seller and does not need a signature.
+                  This is a computer-generated invoice issued electronically on behalf of the seller by AllBoutiqs Private
+                  Limited (e-commerce operator). No signature is required.
                 </p>
               </div>
 

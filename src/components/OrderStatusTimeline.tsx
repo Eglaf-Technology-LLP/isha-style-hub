@@ -1,6 +1,6 @@
 import { Package, CheckCircle2, Truck, MapPin, PackageCheck, Ban, RotateCcw, AlertTriangle, Scissors, ShieldCheck } from "lucide-react";
 import { OrderTimeline, TimelineStage } from "@/lib/orderStatus";
-import { formatDate as formatDay, formatDateTime } from "@/lib/dates";
+import { formatDateInWords as formatDay, formatDateInWordsWithDay, formatDateTimeInWords as formatDateTime } from "@/lib/dates";
 
 const STAGE_ICONS: Record<TimelineStage["key"], typeof Package> = {
   placed: Package,
@@ -103,7 +103,7 @@ export function OrderStatusTimeline({ timeline, compact = false }: OrderStatusTi
 
       {timeline.estimatedDeliveryDate && (
         <p className={`text-primary font-medium ${compact ? "text-xs" : "text-sm"}`}>
-          Expected delivery: {formatDate(timeline.estimatedDeliveryDate)}
+          Expected delivery: {formatDateInWordsWithDay(timeline.estimatedDeliveryDate)}
         </p>
       )}
     </div>

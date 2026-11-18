@@ -168,11 +168,17 @@ export async function ensureInvoice(
       igst: Number(a.igst),
       total: Number(a.line_total),
     };
+    // "Lehnga – XS – Black": name, size, colour once each (client corrections
+    // Part 2, A10.2). variant_title only when the line has no size or colour.
+    const sizeColour = [item.size, item.color].filter(Boolean) as string[];
+    const variantParts = sizeColour.length
+      ? sizeColour
+      : item.variant_title && item.variant_title !== "Default" ? [item.variant_title] : [];
     lines.push({
       line_no: idx + 1,
       order_item_id: item.id,
       description:
-        (item.variant_title ? `${item.product_title} (${item.variant_title})` : item.product_title) +
+        [item.product_title, ...variantParts].join(" – ") +
         (item.customisation ? ` - Customised: ${customisationSummary(item.customisation)}` : ""),
       hsn_code: hsn.code,
       size: item.size,

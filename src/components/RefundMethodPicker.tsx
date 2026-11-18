@@ -46,11 +46,14 @@ export function RefundMethodPicker({ options, value, onChange, context, orderId,
     : " No refund charge on this one.";
   const text: Record<RefundMethod, string> = {
     wallet: `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
+    // "The full amount - no refund charge" is not said on a cancel: only the
+    // customer cancels here, and a full refund is only when the boutique or
+    // AllBoutiqs cancels (client corrections Part 2, A11.2).
     original:
-      (context === "return"
-        ? "Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days."
-        : "Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.") +
-      " The full amount - no refund charge.",
+      context === "return"
+        ? "Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days." +
+          " The full amount - no refund charge."
+        : "Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.",
     bank:
       `Email us your bank details. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.` +
       chargeText,
