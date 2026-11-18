@@ -182,22 +182,115 @@ export function useReviewActions(productId: string) {
   return { save, remove };
 }
 
-// ---------- size guide (template per category + the boutique's numbers) ----------
+// ---------- size guide (website src/lib/sizeCharts.ts + SizeGuideModal) ----------
+
+// Client, 2026-11-13: every category's chart is Bust, Waist and Hip, XS to
+// 6XL, starting from AllBoutiqs' numbers (inches); other measurements are
+// hidden. While true, the category's template (size_guides) only gives the
+// chart its name, and every category has a chart.
+export const SIZE_CHART_STANDARD_ONLY = true;
+
+export const STANDARD_SIZES = [
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+  '3XL',
+  '4XL',
+  '5XL',
+  '6XL',
+];
+const STANDARD_ROWS = [
+  {
+    key: 'bust',
+    name: 'Bust',
+    hint: 'Around the fullest part of the chest, tape level',
+    from: 32,
+  },
+  {
+    key: 'waist',
+    name: 'Waist',
+    hint: 'Around the natural waist, the narrowest part',
+    from: 26,
+  },
+  {
+    key: 'hip',
+    name: 'Hip',
+    hint: 'Around the fullest part of the hips',
+    from: 36,
+  },
+];
+
+// A boutique's numbers: { measurementKey: { size: "34" } }
+type ChartValues = Record<string, Record<string, string>>;
+
+interface ChartTemplate {
+  name: string;
+  unit: 'in' | 'cm';
+  sizes: string[];
+  measurements: {
+    key: string;
+    name: string;
+    hint: string;
+    values: Record<string, string>;
+  }[];
+}
 
 export interface SizeChart {
   name: string;
   unit: 'in' | 'cm';
   sizes: string[];
+  // Only the measurements with at least one number.
   rows: { name: string; hint: string; values: Record<string, string> }[];
 }
 
-const hasAnyValue = (
-  values: Record<string, Record<string, string>> | null | undefined,
-) =>
+function parseTemplate(row: any): ChartTemplate {
+  const measurements: any[] = Array.isArray(row?.measurements)
+    ? row.measurements
+    : [];
+  return {
+    name: String(row?.name ?? ''),
+    unit: row?.unit === 'cm' ? 'cm' : 'in',
+    sizes: Array.isArray(row?.sizes) ? row.sizes.map(String) : [],
+    measurements: measurements.map((m, i) => ({
+      key: String(m.key ?? m.name ?? `m${i}`),
+      name: String(m.name ?? m.key ?? ''),
+      hint: String(m.hint ?? ''),
+      values: m.values && typeof m.values === 'object' ? m.values : {},
+    })),
+  };
+}
+
+// The standard chart: 2 inches up per size from XS.
+function standardTemplate(name: string): ChartTemplate {
+  return {
+    name,
+    unit: 'in',
+    sizes: STANDARD_SIZES,
+    measurements: STANDARD_ROWS.map(r => ({
+      key: r.key,
+      name: r.name,
+      hint: r.hint,
+      values: Object.fromEntries(
+        STANDARD_SIZES.map((size, i) => [size, String(r.from + i * 2)]),
+      ),
+    })),
+  };
+}
+
+const hasAnyValue = (values: ChartValues | null | undefined) =>
   !!values &&
   Object.values(values).some(row =>
     Object.values(row ?? {}).some(v => String(v ?? '').trim()),
   );
+
+const standardValues = (t: ChartTemplate): ChartValues =>
+  Object.fromEntries(t.measurements.map(m => [m.key, m.values ?? {}]));
+
+export const unitLabel = (unit: string) =>
+  unit === 'cm' ? 'centimetres (cm)' : 'inches';
 
 export function useSizeChart(
   categoryId: string | null | undefined,
@@ -208,20 +301,28 @@ export function useSizeChart(
     enabled: !!categoryId,
     staleTime: 30 * 60 * 1000,
     queryFn: async (): Promise<SizeChart | null> => {
-      const { data: t } = await supabase
-        .from('size_guides')
-        .select('*')
-        .eq('category_id', categoryId!)
-        .maybeSingle();
-      if (!t) return null;
-      const measurements: any[] = Array.isArray((t as any).measurements)
-        ? (t as any).measurements
-        : [];
-      const sizes: string[] = Array.isArray((t as any).sizes)
-        ? (t as any).sizes.map(String)
-        : [];
-      const keyOf = (m: any, i: number) => String(m.key ?? m.name ?? `m${i}`);
-      let own: Record<string, Record<string, string>> | null = null;
+      // The category's chart: its template, or (standard only) the standard
+      // Bust / Waist / Hip chart, named after the template or the category.
+      const [{ data: t }, { data: category }] = await Promise.all([
+        supabase
+          .from('size_guides')
+          .select('*')
+          .eq('category_id', categoryId!)
+          .maybeSingle(),
+        SIZE_CHART_STANDARD_ONLY
+          ? supabase
+              .from('categories')
+              .select('name')
+              .eq('id', categoryId!)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { name?: string } | null }),
+      ]);
+      const template = t ? parseTemplate(t) : null;
+      const chart = SIZE_CHART_STANDARD_ONLY
+        ? standardTemplate(template?.name || category?.name || 'Size chart')
+        : template;
+      if (!chart) return null;
+      let own: ChartValues | null = null;
       if (vendorId) {
         const { data } = await supabase
           .from('vendor_size_charts')
@@ -229,26 +330,34 @@ export function useSizeChart(
           .eq('vendor_id', vendorId)
           .eq('category_id', categoryId!)
           .maybeSingle();
-        own = (data?.values as Record<string, Record<string, string>>) ?? null;
+        own = (data?.values as ChartValues) ?? null;
       }
-      const standard = Object.fromEntries(
-        measurements.map((m, i) => [keyOf(m, i), m.values ?? {}]),
-      );
-      const values = hasAnyValue(own)
-        ? own!
-        : hasAnyValue(standard)
-        ? standard
+      // The boutique's own numbers for this chart's rows, else the standard
+      // ones.
+      const ownRows: ChartValues | null = own
+        ? Object.fromEntries(
+            chart.measurements.map(m => [m.key, own![m.key] ?? {}]),
+          )
+        : null;
+      const values = hasAnyValue(ownRows)
+        ? ownRows!
+        : hasAnyValue(standardValues(chart))
+        ? standardValues(chart)
         : null;
       if (!values) return null;
       return {
-        name: String((t as any).name ?? ''),
-        unit: (t as any).unit === 'cm' ? 'cm' : 'in',
-        sizes,
-        rows: measurements.map((m, i) => ({
-          name: String(m.name ?? m.key ?? ''),
-          hint: String(m.hint ?? ''),
-          values: values[keyOf(m, i)] ?? {},
-        })),
+        name: chart.name,
+        unit: chart.unit,
+        sizes: chart.sizes,
+        rows: chart.measurements
+          .filter(m =>
+            chart.sizes.some(sz => String(values[m.key]?.[sz] ?? '').trim()),
+          )
+          .map(m => ({
+            name: m.name,
+            hint: m.hint,
+            values: values[m.key] ?? {},
+          })),
       };
     },
   });

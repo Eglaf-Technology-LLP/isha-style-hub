@@ -23,6 +23,7 @@ import {
   isSubscribedToStock,
   Review,
   subscribeToStock,
+  unitLabel,
   useReviewActions,
   useReviews,
   useSizeChart,
@@ -186,11 +187,17 @@ export function SizeGuideLink({
         <Ruler size={15} color={colors.primary} />
         <Text style={styles.link}>Size guide</Text>
       </Touch>
-      <Sheet visible={open} title="Size guide" onClose={() => setOpen(false)}>
+      <Sheet
+        visible={open}
+        title={chart.name ? `Size guide · ${chart.name}` : 'Size guide'}
+        onClose={() => setOpen(false)}
+        scroll
+      >
         <Sans style={styles.small}>
-          {chart.name ? `${chart.name}. ` : ''}Measurements in{' '}
-          {chart.unit === 'cm' ? 'centimetres (cm)' : 'inches'}.
+          Garment measurements in {unitLabel(chart.unit)}.
         </Sans>
+        {/* One row per size (XS to 6XL) - fits a phone without sideways
+            scrolling; the website shows the same table turned round. */}
         <ScrollView horizontal style={styles.gapSm}>
           <View>
             <View style={styles.tr}>
@@ -208,13 +215,25 @@ export function SizeGuideLink({
                 </Text>
                 {chart.rows.map(r => (
                   <Text key={r.name} style={styles.td}>
-                    {r.values[size] || '-'}
+                    {String(r.values[size] ?? '').trim() || '–'}
                   </Text>
                 ))}
               </View>
             ))}
           </View>
         </ScrollView>
+        {chart.rows.some(r => r.hint) ? (
+          <View style={styles.howTo}>
+            <Text style={styles.howToTitle}>How to measure</Text>
+            {chart.rows
+              .filter(r => r.hint)
+              .map(r => (
+                <Sans key={r.name} style={styles.howToLine}>
+                  <Text style={styles.howToName}>{r.name}:</Text> {r.hint}
+                </Sans>
+              ))}
+          </View>
+        ) : null}
       </Sheet>
     </>
   );
@@ -572,6 +591,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   firstCol: { width: 60, textAlign: 'left' },
+  howTo: {
+    marginTop: 16,
+    padding: 14,
+    backgroundColor: colors.background,
+    borderRadius: 6,
+  },
+  howToTitle: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    color: colors.foreground,
+    marginBottom: 6,
+  },
+  howToLine: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.mutedForeground,
+    marginTop: 2,
+  },
+  howToName: { fontFamily: fonts.sansMedium, color: colors.foreground },
   stars: { flexDirection: 'row', gap: 2 },
   reviewHead: {
     flexDirection: 'row',
