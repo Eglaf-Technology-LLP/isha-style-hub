@@ -29,6 +29,8 @@ import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -43,6 +45,9 @@ interface OrderItem {
   variant_title: string | null;
   quantity: number;
   price: number;
+  // This line's coupon share, and its customisation charge per piece (in price).
+  discount_amount?: number | null;
+  customisation_price?: number | null;
   size: string | null;
   color: string | null;
   vendor_id: string | null;
@@ -211,6 +216,11 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
 
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
+  // Product value / customisation / GST for each order (as checkout showed them).
+  const splitGoods = useGoodsSplitter(
+    orders.flatMap((o) => o.order_items.map((i) => i.product_id)),
+    true,
+  );
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [returnOrderId, setReturnOrderId] = useState<string | null>(null);
@@ -700,10 +710,17 @@ export default function OrderHistory() {
                               </p>
                             </div>
                             <dl className="space-y-1.5 text-sm">
-                              <div className="flex justify-between">
-                                <dt className="text-muted-foreground">Subtotal</dt>
-                                <dd>{formatMoney(order.subtotal)}</dd>
-                              </div>
+                              {(() => {
+                                const split = splitGoods(order.order_items, order);
+                                return split ? (
+                                  <GoodsSplitRows split={split} list />
+                                ) : (
+                                  <div className="flex justify-between">
+                                    <dt className="text-muted-foreground">Subtotal</dt>
+                                    <dd>{formatMoney(order.subtotal)}</dd>
+                                  </div>
+                                );
+                              })()}
                               <div className="flex justify-between">
                                 <dt className="text-muted-foreground">Shipping</dt>
                                 <dd>{order.shipping_cost > 0 ? `${formatMoney(order.shipping_cost)}` : <FreeDeliveryBadge />}</dd>

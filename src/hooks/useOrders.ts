@@ -17,6 +17,9 @@ export interface OrderItem {
   sku: string | null;
   quantity: number;
   price: number;
+  // This line's coupon share, and its customisation charge per piece (in price).
+  discount_amount?: number | null;
+  customisation_price?: number | null;
   customisation?: CustomisationChoice | null;
 }
 

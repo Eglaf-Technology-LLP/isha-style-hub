@@ -20,6 +20,8 @@ import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -34,6 +36,9 @@ interface OrderItem {
   variant_title: string | null;
   quantity: number;
   price: number;
+  // This line's coupon share, and its customisation charge per piece (in price).
+  discount_amount?: number | null;
+  customisation_price?: number | null;
   size: string | null;
   color: string | null;
   vendor_id: string | null;
@@ -98,6 +103,11 @@ export function OrdersSection() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  // Product value / customisation / GST for each order (as checkout showed them).
+  const splitGoods = useGoodsSplitter(
+    orders.flatMap((o) => o.order_items.map((i) => i.product_id)),
+    true,
+  );
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
@@ -137,7 +147,7 @@ export function OrdersSection() {
           const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
             supabase
               .from("order_items")
-              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, size, color, vendor_id, vendor_order_id")
+              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, discount_amount, customisation_price, size, color, vendor_id, vendor_order_id")
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
@@ -345,6 +355,14 @@ export function OrdersSection() {
                         </div>
                       ))}
                     </div>
+                    {(() => {
+                      const split = splitGoods(order.order_items, order);
+                      return split ? (
+                        <div className="mt-3 space-y-1 border-t border-border pt-3 text-xs">
+                          <GoodsSplitRows split={split} />
+                        </div>
+                      ) : null;
+                    })()}
                     {order.discount_amount > 0 && (
                       <div className="mt-3 flex justify-between border-t border-border pt-3 text-xs">
                         <span className="text-muted-foreground">

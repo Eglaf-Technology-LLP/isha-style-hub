@@ -4,6 +4,8 @@ import { CheckCircle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatINR } from "@/lib/format";
 import { formatDateWithDay } from "@/lib/dates";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
 interface PlacedOrder {
   id: string;
@@ -19,7 +21,16 @@ interface PlacedOrder {
   customer_name: string;
   shipping_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
   estimated_delivery_date: string | null;
-  order_items: { id: string; product_title: string; variant_title: string | null; quantity: number; price: number }[];
+  order_items: {
+    id: string;
+    product_id: string;
+    product_title: string;
+    variant_title: string | null;
+    quantity: number;
+    price: number;
+    discount_amount: number | null;
+    customisation_price: number | null;
+  }[];
 }
 
 const isPlaced = (o: Pick<PlacedOrder, "payment_method" | "payment_status">) =>
@@ -32,13 +43,15 @@ const isPlaced = (o: Pick<PlacedOrder, "payment_method" | "payment_status">) =>
 // customer's or isn't placed.
 export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; onMissing: () => void }) {
   const [order, setOrder] = useState<PlacedOrder | null>(null);
+  // Product value / customisation / GST, as checkout showed them.
+  const splitGoods = useGoodsSplitter(order?.order_items.map((i) => i.product_id) ?? [], true);
 
   useEffect(() => {
     let cancelled = false;
     supabase
       .from("orders")
       .select(
-        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, wallet_amount, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_title, variant_title, quantity, price)",
+        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, wallet_amount, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_id, product_title, variant_title, quantity, price, discount_amount, customisation_price)",
       )
       .eq("id", orderId)
       .maybeSingle()
@@ -99,10 +112,17 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
           ))}
         </ul>
         <dl className="mt-3 space-y-1.5 border-t border-border pt-3">
-          <div className="flex justify-between">
-            <dt className="text-muted-foreground">Subtotal</dt>
-            <dd className="tabular-nums">{formatINR(order.subtotal)}</dd>
-          </div>
+          {(() => {
+            const split = splitGoods(order.order_items, order);
+            return split ? (
+              <GoodsSplitRows split={split} list format={formatINR} valueClassName="tabular-nums" />
+            ) : (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Subtotal</dt>
+                <dd className="tabular-nums">{formatINR(order.subtotal)}</dd>
+              </div>
+            );
+          })()}
           {Number(order.discount_amount) > 0 && (
             <div className="flex justify-between text-primary">
               <dt>Discount{order.discount_code ? ` (${order.discount_code})` : ""}</dt>

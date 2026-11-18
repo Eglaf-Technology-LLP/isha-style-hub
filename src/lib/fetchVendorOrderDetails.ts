@@ -25,7 +25,7 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
   const [{ data: items }, { data: shipment }] = await Promise.all([
     supabase
       .from("order_items")
-      .select("product_title, variant_title, size, color, sku, quantity, price, discount_amount")
+      .select("product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation_price")
       .eq("vendor_order_id", vendorOrderId),
     supabase
       .from("shipments")

@@ -51,6 +51,8 @@ import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -119,6 +121,11 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     return true;
   });
   const { page, setPage, totalPages, paginatedItems, totalItems, pageSize } = usePagination(visibleOrders, 10);
+  // Product value / customisation / GST of each order on this page and the open one.
+  const splitGoods = useGoodsSplitter([
+    ...paginatedItems.flatMap((o) => o.order_items?.map((i) => i.product_id) ?? []),
+    ...(selectedOrder?.order_items?.map((i) => i.product_id) ?? []),
+  ]);
 
   // Notifications point at a boutique's part of an order (vendor_order id);
   // this list shows whole orders, so either id finds the row.
@@ -334,6 +341,14 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     </TableCell>
                     <TableCell className="font-medium">
                       {formatMoney(order.total)}
+                      {(() => {
+                        const split = splitGoods(order.order_items, order);
+                        return split ? (
+                          <div className="mt-0.5 space-y-0.5 text-xs font-normal text-muted-foreground">
+                            <GoodsSplitRows split={split} compact labelClassName="" />
+                          </div>
+                        ) : null;
+                      })()}
                       {order.discount_amount > 0 && (
                         <div className="text-xs font-normal text-primary">
                           -{formatMoney(order.discount_amount)}{order.discount_code && ` (${order.discount_code})`}
@@ -551,10 +566,17 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
 
                 {/* Order Summary */}
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>{formatMoney(selectedOrder.subtotal)}</span>
-                  </div>
+                  {(() => {
+                    const split = splitGoods(selectedOrder.order_items, selectedOrder);
+                    return split ? (
+                      <GoodsSplitRows split={split} className="flex justify-between" />
+                    ) : (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Subtotal</span>
+                        <span>{formatMoney(selectedOrder.subtotal)}</span>
+                      </div>
+                    );
+                  })()}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Shipping</span>
                     <span>{formatMoney(selectedOrder.shipping_cost)}</span>

@@ -48,7 +48,9 @@ import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
 import { formatINR } from "@/lib/format";
-import { gstInsideLine, useCategoryGstRules } from "@/lib/gst";
+import { useCategoryGstRules } from "@/lib/gst";
+import { splitGoods } from "@/lib/orderAmounts";
+import { customisationPrice } from "@/lib/customisation";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
@@ -450,19 +452,27 @@ export default function Checkout() {
   const discountAmount = coupon?.total ?? 0;
   const goodsDue = Math.round((subtotal - discountAmount + shippingCost) * 100) / 100;
 
-  // 2.9.2: product value and GST on separate lines. Prices include GST; the
-  // GST is what the tax invoice will charge on each line after its coupon
-  // share, in whole rupees. Product value is the rest of the items' price, so
-  // product value + GST - coupon is exactly what the items cost.
+  // 2.9.2: product value and GST on separate lines, and any customisation
+  // charge on its own (before GST). Prices include GST; the GST is what the
+  // tax invoice will charge on each line after its coupon share, in whole
+  // rupees. Product value is the rest of the items' price, so product value
+  // + customisation + GST - coupon is exactly what the items cost.
   const gstRules = useCategoryGstRules();
   const gstReady = !gstRules.loading && items.every((i) => i.productId in categoryByProduct);
-  const gstAmount = Math.round(
-    items.reduce((sum, i) => {
-      const line = parseFloat(i.price.amount) * i.quantity - (coupon?.perLine.get(cartLineKey(i)) ?? 0);
-      return sum + gstInsideLine(gstRules.ruleFor(categoryByProduct[i.productId]), line, i.quantity);
-    }, 0),
+  const {
+    productValue,
+    customisation: customisationValue,
+    gst: gstAmount,
+  } = splitGoods(
+    items.map((i) => ({
+      price: parseFloat(i.price.amount),
+      quantity: i.quantity,
+      discount: coupon?.perLine.get(cartLineKey(i)) ?? 0,
+      customisation: customisationPrice(i.customisation),
+      rule: gstRules.ruleFor(categoryByProduct[i.productId]),
+    })),
+    true,
   );
-  const productValue = Math.round((subtotal - gstAmount) * 100) / 100;
 
   // Cash on Delivery fee (client, 13 Nov 2026): 3% of what each boutique
   // part comes to (its goods less its coupon share plus its shipping) + 18%
@@ -1853,6 +1863,12 @@ export default function Checkout() {
                     <dt className="text-muted-foreground">Product value</dt>
                     <dd>{gstReady ? formatINR(productValue) : "…"}</dd>
                   </div>
+                  {customisationValue > 0 && (
+                    <div className="flex justify-between">
+                      <dt className="text-muted-foreground">Customisation charge (excl. GST)</dt>
+                      <dd>{gstReady ? formatINR(customisationValue) : "…"}</dd>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">GST</dt>
                     <dd>{gstReady ? formatINR(gstAmount) : "…"}</dd>

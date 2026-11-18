@@ -24,8 +24,14 @@ import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
 interface DetailItem {
+  // For the product value / customisation / GST split (left out by older callers).
+  product_id?: string;
+  discount_amount?: number | null;
+  customisation_price?: number | null;
   product_title: string;
   variant_title: string | null;
   size: string | null;
@@ -129,6 +135,8 @@ export function VendorOrderDetailsDialog({
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   const data = providedData ?? lazyData;
+  // Product value / customisation / GST - looked up only once it's open.
+  const splitGoods = useGoodsSplitter(open ? (data?.items ?? []).map((i) => i.product_id ?? "") : []);
 
   useEffect(() => {
     if (!open || providedData || !vendorOrderId) return;
@@ -158,6 +166,14 @@ export function VendorOrderDetailsDialog({
 
   const itemsTotal = (data?.items ?? []).reduce((sum, i) => sum + i.price * i.quantity, 0);
   const orderTotal = data ? data.subtotal + data.shippingCost - (data.discountAmount || 0) : 0;
+  // Lines without their own coupon share take this part's share by value.
+  const goodsSplit =
+    data && data.items.every((i) => i.product_id)
+      ? splitGoods(
+          data.items.map((i) => ({ ...i, product_id: i.product_id! })),
+          { subtotal: itemsTotal, discount_amount: data.discountAmount ?? 0 },
+        )
+      : null;
 
   // Our own booking-side milestones - built entirely from timestamps we
   // already record ourselves (order placed, shipment booked/label
@@ -384,6 +400,11 @@ export function VendorOrderDetailsDialog({
                   <span className="text-muted-foreground">Product Total ({data.items.length} item{data.items.length !== 1 ? "s" : ""})</span>
                   <span>{formatMoney(itemsTotal)}</span>
                 </div>
+                {goodsSplit && (
+                  <div className="space-y-1 border-l-2 border-border pl-2 text-xs">
+                    <GoodsSplitRows split={goodsSplit} />
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Shipping charges</span>
                   <span>{formatMoney(data.shippingCost)}</span>

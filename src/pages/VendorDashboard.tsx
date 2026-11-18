@@ -98,6 +98,8 @@ import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
 import { CUSTOMISATION_ENABLED } from "@/lib/customisation";
 import { formatMoney } from "@/lib/format";
+import { useGoodsSplitter } from "@/lib/orderAmounts";
+import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { boutiqueDiscountShare } from "@/lib/coupons";
 
 interface VendorProduct {
@@ -187,6 +189,9 @@ interface VendorOrder {
 }
 
 interface VendorOrderItem {
+  product_id: string;
+  // Customisation charge per piece (already in price).
+  customisation_price: number | null;
   product_title: string;
   variant_title: string | null;
   size: string | null;
@@ -544,7 +549,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
+          .select("vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation_price, customisation")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -694,6 +699,8 @@ export default function VendorDashboard() {
     totalItems: totalOrders,
     pageSize: orderPageSize,
   } = usePagination(visibleOrders, 10);
+  // Product value / customisation / GST of each order on this page.
+  const splitGoods = useGoodsSplitter(paginatedOrders.flatMap((o) => (o.items ?? []).map((i) => i.product_id)));
 
   // A notification about an order opens its status tab and page and
   // highlights the row, where the actions (confirm, ship) are.
@@ -1262,6 +1269,7 @@ export default function VendorDashboard() {
                           <TableHead className="w-12">#</TableHead>
                           <TableHead>Order</TableHead>
                           <TableHead>Items to Deliver</TableHead>
+                          <TableHead>Order Value</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Commission</TableHead>
                           <TableHead>Net Payable</TableHead>
@@ -1337,6 +1345,23 @@ export default function VendorDashboard() {
                               ) : (
                                 <span className="text-xs text-muted-foreground">—</span>
                               )}
+                            </TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              {(() => {
+                                // This part's items, coupon share by value for lines without their own.
+                                const split = splitGoods(o.items, { subtotal: o.subtotal, discount_amount: o.discount_amount });
+                                return split ? (
+                                  <div className="space-y-0.5 min-w-[170px]">
+                                    <GoodsSplitRows split={split} compact />
+                                    <div className="flex justify-between gap-4 border-t border-border pt-0.5 font-medium">
+                                      <span>Total</span>
+                                      <span>{formatMoney(Number(o.subtotal))}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  formatMoney(Number(o.subtotal))
+                                );
+                              })()}
                             </TableCell>
                             <TableCell>
                               <div>{o.customer_name || "Customer"}</div>
