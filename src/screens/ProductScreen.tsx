@@ -564,7 +564,7 @@ export default function ProductScreen() {
             {stylist}
           </View>
         ) : (
-          <View style={[styles.block, { paddingTop: 0 }]}>{stylist}</View>
+          <View style={[styles.block, styles.noTop]}>{stylist}</View>
         )}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
 
@@ -711,7 +711,7 @@ export default function ProductScreen() {
                 </Serif>
               )}
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={styles.flex1}>
               <Eyebrow style={{ color: colors.mutedForeground }}>
                 Sold by
               </Eyebrow>
@@ -722,7 +722,7 @@ export default function ProductScreen() {
                 </Sans>
               ) : null}
               {vendorAddressLine(vendorInfo) ? (
-                <Sans style={[styles.sellerSmall, { marginTop: 6 }]}>
+                <Sans style={[styles.sellerSmall, styles.sellerAddress]}>
                   {vendorAddressLine(vendorInfo)}
                 </Sans>
               ) : null}
@@ -897,15 +897,9 @@ function Info({
   sub?: string;
 }) {
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: sub ? 'flex-start' : 'center',
-        gap: 12,
-      }}
-    >
+    <View style={[styles.info, sub ? styles.infoTop : null]}>
       {icon}
-      <View style={{ flex: 1 }}>
+      <View style={styles.flex1}>
         <Sans style={{ color: colors.foreground }}>{text}</Sans>
         {sub ? <Sans style={styles.infoSub}>{sub}</Sans> : null}
       </View>
@@ -914,7 +908,12 @@ function Info({
 }
 
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
+  noTop: { paddingTop: 0 },
+  info: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  infoTop: { alignItems: 'flex-start' },
   seller: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sellerAddress: { marginTop: 6 },
   sellerLogo: {
     width: 56,
     height: 56,
