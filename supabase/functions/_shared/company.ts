@@ -10,4 +10,9 @@ export const COMPANY = {
   whatsapp: "+91 78019 40567",
   whatsappUrl: "https://wa.me/917801940567",
   officeAddress: "19, Puniynagari, Near Smrudhipark, Deesa, Banaskantha, Gujarat 385535",
+  grievanceOfficer: {
+    name: "Dhvani Soni",
+    email: "grievance@allboutiqs.com",
+    phone: "+91 76004 84789",
+  },
 } as const;

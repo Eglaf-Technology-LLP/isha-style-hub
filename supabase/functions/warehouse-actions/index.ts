@@ -16,6 +16,7 @@ import {
   Consignee,
   ForwardBookingItem,
   WarehouseRow,
+  PICKUP_SKIPPED_NOTE,
 } from "../_shared/shiprocket.ts";
 import { addWorkingDays, getWarehouse, istToday, loadHolidays, loadWarehouseSettings, PARCEL_DEFAULTS, toShiprocketItems } from "../_shared/warehouse.ts";
 import {
@@ -31,7 +32,7 @@ import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
 import { InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
+import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed, Movement } from "../_shared/ewayBill.ts";
 
 // The warehouse's own steps that need the courier or the payment gateway
 // (receiving, inspecting boutique parcels and packing are plain database RPCs
@@ -42,7 +43,8 @@ import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from
 //                             boutique part over the e-way bill limit waits for
 //                             its e-way bill - _shared/ewayBill.ts)
 //   cancel_dispatch_booking   undo that booking (before pickup) to rebook
-//   book_send_back            book items back to a boutique
+//   book_send_back            book items back to a boutique (over the limit:
+//                             waits for its e-way bill too)
 //   cancel_send_back_booking  undo that booking (before pickup)
 //   return_qc                 inspect a customer return: pass -> refund + forward
 //                             to the boutique; fail -> send back to the customer
@@ -112,16 +114,20 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
   let totalDiscount = 0;
   let leadVendorOrderId: string | null = null;
   let vendorOrderIds: string[] = [];
+  // Per boutique part: the goods in this parcel, for its e-way bill (null =
+  // the whole part).
+  const movedByPart = new Map<string, { order_item_id: string; quantity: number }[] | null>();
 
   if (dispatch.purpose === "order") {
     const { data: vendorOrders } = await supabase
       .from("vendor_orders")
-      .select("id, subtotal, shipping_cost")
+      .select("id, subtotal, shipping_cost, cod_fee_amount, cod_fee_gst_amount")
       .eq("dispatch_id", dispatch.id)
       .order("id");
     if (!vendorOrders?.length) throw new ActionError("This parcel is empty");
     leadVendorOrderId = vendorOrders[0].id;
     vendorOrderIds = vendorOrders.map((v) => v.id);
+    for (const id of vendorOrderIds) movedByPart.set(id, null);
     const { data: lines } = await supabase
       .from("order_items")
       .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price, discount_amount")
@@ -140,9 +146,15 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
       : Number(order.discount_amount) > 0 && orderSubtotal > 0
         ? round2((Number(order.discount_amount) * subTotal) / orderSubtotal)
         : 0;
-    // The COD charge the customer paid at checkout (Extra list M) is
-    // collected too - its share for these parts, added to the delivery charge.
-    if (cod && Number(order.cod_charge) > 0 && orderSubtotal > 0) {
+    // The COD fee the customer pays (3% + GST, per part - 13 Nov 2026) is
+    // collected too: exactly these parts' fees, added to the delivery charge.
+    // Orders from before carry it on the order only: its share by value.
+    const partsCodFee = round2(
+      vendorOrders.reduce((sum, v) => sum + Number(v.cod_fee_amount ?? 0) + Number(v.cod_fee_gst_amount ?? 0), 0),
+    );
+    if (cod && partsCodFee > 0) {
+      shippingCharges = round2(shippingCharges + partsCodFee);
+    } else if (cod && Number(order.cod_charge) > 0 && orderSubtotal > 0) {
       shippingCharges = round2(shippingCharges + (Number(order.cod_charge) * subTotal) / orderSubtotal);
     }
   } else {
@@ -150,9 +162,14 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
     const rrItems = (rr?.items ?? []) as any[];
     const { data: lines } = await supabase
       .from("order_items")
-      .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price")
+      .select("id, product_id, variant_id, product_title, variant_title, sku, quantity, price, vendor_order_id")
       .in("id", rrItems.map((i) => i.order_item_id).filter(Boolean));
     const byId = new Map((lines ?? []).map((l) => [l.id, l]));
+    for (const i of rrItems) {
+      const part = byId.get(i.order_item_id)?.vendor_order_id;
+      if (!part) continue;
+      movedByPart.set(part, [...(movedByPart.get(part) ?? []), { order_item_id: i.order_item_id, quantity: Number(i.quantity ?? 1) }]);
+    }
     const resolved = await toShiprocketItems(
       supabase,
       rrItems
@@ -187,18 +204,44 @@ async function loadDispatchPlan(supabase: Db, dispatchId: string) {
     totalDiscount,
     orderDate: order.created_at,
   };
-  return { dispatch, order, plan, leadVendorOrderId, vendorOrderIds };
+  // One e-way bill per boutique part over the limit, on a delivery challan
+  // from the warehouse (an exchange / failed return carries only its items).
+  const movements: Movement[] = [...movedByPart.entries()].map(([vendorOrderId, items]) => ({
+    vendorOrderId,
+    leg: "warehouse_to_customer",
+    from: { name: warehouse.name, address: warehouse.address as unknown as Record<string, unknown> },
+    to: { name: plan.consignee.name, address: plan.consignee.address as Record<string, unknown> },
+    dispatchId: dispatch.id,
+    returnRequestId: dispatch.purpose === "order" ? null : dispatch.return_request_id,
+    items,
+    requestedBy: null,
+  }));
+  return { dispatch, order, plan, leadVendorOrderId, vendorOrderIds, movements };
 }
 
-// The e-way bills a parcel to the customer needs (one per boutique part over
-// the limit), as the booking dialog shows them.
-async function dispatchEwayBills(supabase: Db, vendorOrderIds: string[]) {
-  const previews = await Promise.all(vendorOrderIds.map((id) => ewayBillPreview(supabase, id, "warehouse_to_customer")));
+// The e-way bills a parcel needs (one per boutique part over the limit), as
+// the booking dialog shows them.
+async function movementEwayBills(supabase: Db, movements: Movement[]) {
+  const previews = await Promise.all(movements.map((m) => ewayBillPreview(supabase, m)));
   const needed = previews.filter((p): p is NonNullable<typeof p> => !!p);
   if (!needed.length) return [];
   const { data: parts } = await supabase.from("vendor_orders").select("id, vendors(name)").in("id", needed.map((p) => p.vendor_order_id));
   const nameById = new Map((parts ?? []).map((p: any) => [p.id, p.vendors?.name ?? "Boutique"]));
   return needed.map((p) => ({ ...p, vendor_name: nameById.get(p.vendor_order_id) ?? "Boutique" }));
+}
+
+// Ask for (or find) each movement's e-way bill: the ready ones, and whether
+// any is still being made.
+async function ewayBillsForParcel(supabase: Db, movements: Movement[], userId: string) {
+  const ready: EwayBill[] = [];
+  let waiting = false;
+  for (const m of movements) {
+    const check = await ewayBillForBooking(supabase, { ...m, requestedBy: userId });
+    if (!check.required) continue;
+    if (check.ready) ready.push(check.bill);
+    else waiting = true;
+  }
+  return { ready, waiting };
 }
 
 async function loadSendBackPlan(supabase: Db, sendBackId: string) {
@@ -253,7 +296,23 @@ async function loadSendBackPlan(supabase: Db, sendBackId: string) {
     totalDiscount: 0,
     orderDate: sendBack.created_at,
   };
-  return { sendBack, plan };
+  // Over the limit it travels on its own e-way bill (inward to the boutique:
+  // a sales return, or an unused exchange replacement coming home).
+  const movement: Movement | null = sendBack.vendor_order_id
+    ? {
+        vendorOrderId: sendBack.vendor_order_id,
+        leg: "warehouse_to_boutique",
+        from: { name: plan.warehouse.name, address: plan.warehouse.address as unknown as Record<string, unknown> },
+        to: { name: vendor.name, address: address as Record<string, unknown> },
+        sendBackId: sendBack.id,
+        items: lines.filter((l) => l.order_item_id).map((l) => ({ order_item_id: l.order_item_id, quantity: l.quantity })),
+        subSupply: String(sendBack.reason ?? "").startsWith("replacement_")
+          ? { type: 8, desc: "Unused replacement" }
+          : null,
+        requestedBy: null,
+      }
+    : null;
+  return { sendBack, plan, movement };
 }
 
 async function ratesFor(supabase: Db, plan: ParcelPlan) {
@@ -271,6 +330,7 @@ async function bookFromWarehouse(
   channelPrefix: string,
   courierId: number | null,
   row: Record<string, unknown>,
+  ewaybillNumbers: string[] = [],
 ) {
   const pickup = await ensureWarehousePickupLocation(supabase, plan.warehouse);
   const channelOrderId = `${channelPrefix}-${Date.now()}`;
@@ -289,6 +349,7 @@ async function bookFromWarehouse(
     breadthCm: plan.breadthCm,
     heightCm: plan.heightCm,
     courierId,
+    ewaybillNumbers,
   });
   const courierCost = await bookedCourierCost(supabase, {
     pickupPincode: plan.warehouse.address.pincode ?? "",
@@ -309,6 +370,7 @@ async function bookFromWarehouse(
       courier_id: booking.courierId,
       courier_name: booking.courierName,
       status: booking.awbCode ? "awb_assigned" : "pending",
+      status_raw: booking.pickupRequested ? null : PICKUP_SKIPPED_NOTE,
       label_url: booking.labelUrl,
       manifest_url: booking.manifestUrl,
       courier_cost: courierCost,
@@ -530,61 +592,47 @@ Deno.serve(async (req) => {
     switch (action) {
       case "parcel_rates": {
         const dispatchPlan = body.dispatch_id ? await loadDispatchPlan(supabase, body.dispatch_id) : null;
-        const plan = dispatchPlan
-          ? dispatchPlan.plan
-          : body.send_back_id
-            ? (await loadSendBackPlan(supabase, body.send_back_id)).plan
-            : null;
+        const sendBackPlan = !dispatchPlan && body.send_back_id ? await loadSendBackPlan(supabase, body.send_back_id) : null;
+        const plan = dispatchPlan?.plan ?? sendBackPlan?.plan ?? null;
         if (!plan) throw new ActionError("dispatch_id or send_back_id is required");
         const couriers = await ratesFor(supabase, plan);
         if (couriers.length === 0) {
           throw new ActionError(`No courier currently services ${plan.warehouse.address.pincode} -> ${plan.consignee.address.pincode}`);
         }
-        const ewayBills = dispatchPlan ? await dispatchEwayBills(supabase, dispatchPlan.vendorOrderIds) : [];
+        const movements = dispatchPlan?.movements ?? (sendBackPlan?.movement ? [sendBackPlan.movement] : []);
+        const ewayBills = await movementEwayBills(supabase, movements);
         return jsonResponse({ couriers, isCod: plan.cod, weightKg: plan.weightKg, eway_bills: ewayBills });
       }
 
       case "book_dispatch": {
-        const { dispatch, plan, leadVendorOrderId, vendorOrderIds } = await loadDispatchPlan(supabase, body.dispatch_id);
+        const { dispatch, plan, leadVendorOrderId, movements } = await loadDispatchPlan(supabase, body.dispatch_id);
         if (dispatch.status !== "packing") throw new ActionError(`This parcel is already ${dispatch.status}`);
         const existing = await liveBooking(supabase, "dispatch_id", dispatch.id);
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
 
         // Each boutique part over the limit travels on its own e-way bill (on
         // a delivery challan from here); the parcel waits until all are in.
-        const ewayBills: EwayBill[] = [];
-        let waiting = false;
-        for (const vendorOrderId of vendorOrderIds) {
-          const check = await ewayBillForBooking(supabase, {
-            vendorOrderId,
-            leg: "warehouse_to_customer",
-            courierId: body.courier_id ?? null,
-            courierName: body.courier_name ?? null,
-            from: { name: plan.warehouse.name, address: plan.warehouse.address as Record<string, unknown> },
-            to: { name: plan.consignee.name, address: plan.consignee.address as Record<string, unknown> },
-            dispatchId: dispatch.id,
-            requestedBy: userId,
-          });
-          if (!check.required) continue;
-          if (check.ready) ewayBills.push(check.bill);
-          else waiting = true;
-        }
+        // AllBoutiqs is the transporter on them, so any courier can carry it.
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
         if (waiting) {
-          return jsonResponse({ eway_bill_pending: true, eway_bills: await dispatchEwayBills(supabase, vendorOrderIds) });
-        }
-        const ewayCouriers = [...new Set(ewayBills.map((b) => b.courier_id))];
-        if (ewayCouriers.length > 1) {
-          throw new ActionError("This parcel's e-way bills are made out to different couriers - correct them in Admin > E-way bills");
+          return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
         }
 
         const etd = parseEtd(body.courier_etd);
-        const shipment = await bookFromWarehouse(supabase, plan, dispatch.id, ewayCouriers[0] ?? body.courier_id ?? null, {
-          shipment_type: "warehouse_to_customer",
-          order_id: dispatch.order_id,
-          dispatch_id: dispatch.id,
-          vendor_order_id: leadVendorOrderId,
-          estimated_delivery_date: etd,
-        });
+        const shipment = await bookFromWarehouse(
+          supabase,
+          plan,
+          dispatch.id,
+          body.courier_id ?? null,
+          {
+            shipment_type: "warehouse_to_customer",
+            order_id: dispatch.order_id,
+            dispatch_id: dispatch.id,
+            vendor_order_id: leadVendorOrderId,
+            estimated_delivery_date: etd,
+          },
+          ewayBills.map((b) => b.ewb_number).filter((n): n is string => !!n),
+        );
         await markEwayBillsUsed(supabase, ewayBills.map((b) => b.id), shipment.id);
         await supabase.from("warehouse_dispatches").update({ status: "booked" }).eq("id", dispatch.id);
         if (dispatch.purpose === "order" && etd) {
@@ -610,17 +658,31 @@ Deno.serve(async (req) => {
       }
 
       case "book_send_back": {
-        const { sendBack, plan } = await loadSendBackPlan(supabase, body.send_back_id);
+        const { sendBack, plan, movement } = await loadSendBackPlan(supabase, body.send_back_id);
         if (sendBack.status !== "required") throw new ActionError(`This send-back is already ${sendBack.status}`);
         const existing = await liveBooking(supabase, "send_back_id", sendBack.id);
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
-        const shipment = await bookFromWarehouse(supabase, plan, sendBack.id, body.courier_id ?? null, {
-          shipment_type: "warehouse_to_boutique",
-          order_id: sendBack.order_id,
-          vendor_order_id: sendBack.vendor_order_id,
-          send_back_id: sendBack.id,
-          estimated_delivery_date: parseEtd(body.courier_etd),
-        });
+        // Over the limit it waits for its e-way bill, like a parcel to a customer.
+        const movements = movement ? [movement] : [];
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
+        if (waiting) {
+          return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
+        }
+        const shipment = await bookFromWarehouse(
+          supabase,
+          plan,
+          sendBack.id,
+          body.courier_id ?? null,
+          {
+            shipment_type: "warehouse_to_boutique",
+            order_id: sendBack.order_id,
+            vendor_order_id: sendBack.vendor_order_id,
+            send_back_id: sendBack.id,
+            estimated_delivery_date: parseEtd(body.courier_etd),
+          },
+          ewayBills.map((b) => b.ewb_number).filter((n): n is string => !!n),
+        );
+        await markEwayBillsUsed(supabase, ewayBills.map((b) => b.id), shipment.id);
         await supabase.from("boutique_send_backs").update({ status: "booked" }).eq("id", sendBack.id);
         return jsonResponse({ shipment, already_booked: false });
       }
@@ -673,17 +735,25 @@ Deno.serve(async (req) => {
         }
 
         // A return: refund now, then the items go on to the boutique(s).
-        const itemsValue = ((ctx.rr.items ?? []) as any[]).reduce((s, i) => s + Number(i.price ?? 0) * Number(i.quantity ?? 1), 0);
+        // Each item's own refund amount (exactly what its credit note takes);
+        // price x quantity only for requests from before that.
+        const itemsValue = round2(
+          ((ctx.rr.items ?? []) as any[]).reduce(
+            (s, i) => s + (i.amount != null ? Number(i.amount) : Number(i.price ?? 0) * Number(i.quantity ?? 1)),
+            0,
+          ),
+        );
         const amount = round2(Number(ctx.rr.refund_amount) > 0 ? Number(ctx.rr.refund_amount) : itemsValue);
         // The customer's choice: wallet (credited now) or the original
         // online payment are automatic; a Cash on Delivery bank transfer
         // is done by hand once they email their bank details.
         const method = returnRefundMethod(ctx.rr, ctx.order);
         const automatic = method === "wallet" || (method === "original" && ctx.order.payment_method === "razorpay");
-        // Refund charge on money back to the bank / original payment, unless
-        // the fault was the boutique's.
+        // Refund charge only on a Cash on Delivery order's bank transfer
+        // (client, 10 Nov 2026) - the wallet and the online payment get the
+        // full amount - and not when the fault was the boutique's.
         const charge =
-          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(ctx.rr.reason) ? await loadRefundCharge(supabase) : null;
+          method === "bank" && !CHARGE_FREE_RETURN_REASONS.includes(ctx.rr.reason) ? await loadRefundCharge(supabase) : null;
         let refundError: string | null = null;
         let charged = { fee: 0, feeGst: 0 };
         if (automatic && amount > 0) {

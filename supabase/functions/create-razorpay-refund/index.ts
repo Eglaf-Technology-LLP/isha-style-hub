@@ -100,7 +100,8 @@ Deno.serve(async (req) => {
         if (orderErr) throw orderErr;
         const method = returnRefundMethod(rr ?? {}, order);
         const charge =
-          method !== "wallet" && !CHARGE_FREE_RETURN_REASONS.includes(rr?.reason ?? "") ? await loadRefundCharge(supabase) : null;
+          // Only a Cash on Delivery order's bank transfer (client, 10 Nov 2026).
+          method === "bank" && !CHARGE_FREE_RETURN_REASONS.includes(rr?.reason ?? "") ? await loadRefundCharge(supabase) : null;
         // Cash on Delivery by bank transfer: done by hand. Record the charge
         // and say how much to transfer.
         if (method === "bank") {

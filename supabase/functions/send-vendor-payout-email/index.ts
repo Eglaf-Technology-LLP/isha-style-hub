@@ -95,8 +95,9 @@ serve(async (req) => {
       vendorId = vo.vendor_id;
       const { vendor, account } = await loadVendor(supabase, vo.vendor_id);
       if (!vendor) return json({ error: "Vendor not found" }, 404);
-      const { data: holdDays } = await supabase.rpc("vendor_order_payout_hold_days", { _vendor_order_id: vo.id });
-      const hold = Number(holdDays ?? 0);
+      // The return window is in hours now (24 by default, set by AllBoutiqs).
+      const { data: windowHours } = await supabase.rpc("vendor_order_return_window_hours", { _vendor_order_id: vo.id });
+      const hold = Number(windowHours ?? 0);
       const ref = `#${String(vo.order_id).slice(0, 8)}`;
       const blocked = blockedReason(vendor, account);
       // Weekly payouts: ready 24h after delivery (or after the return window),
@@ -108,7 +109,7 @@ serve(async (req) => {
         : "";
       const why =
         (hold > 0
-          ? `This is after the ${hold}-day return window, so any return can be settled before you're paid.`
+          ? `This is after the ${hold}-hour return window, so any return can be settled before you're paid.`
           : "Nothing in this order is returnable, so there's no return-window wait.") + weekly;
       built = blocked
         ? {
@@ -167,7 +168,7 @@ serve(async (req) => {
                 ["Total", inr(total)],
                 ["Goes to", `${account ? `account ending ${last4((account as any).bank_account_number)}` : "your bank account"}`],
               ]) +
-              p("You'll get another email when the transfer starts and when it's credited."),
+              p("We transfer payouts every Wednesday. You'll get an email with the bank reference (UTR) as soon as it's sent - it reaches your account within 1 working day."),
             ctaLabel: "View payouts",
           };
     } else if (event === "processing" || event === "credited" || event === "failed") {
@@ -198,18 +199,20 @@ serve(async (req) => {
         };
       } else if (event === "credited") {
         built = {
-          subject: `${inr(payout.net_payable)} credited to your bank account | AllBoutiqs`,
-          heading: "Payout credited",
-          preheader: `${inr(payout.net_payable)} credited - UTR ${payout.payment_reference}`,
+          subject: `${inr(payout.net_payable)} sent to your bank account | AllBoutiqs`,
+          heading: "Payout sent to your bank",
+          preheader: `${inr(payout.net_payable)} sent - UTR ${payout.payment_reference}`,
           bodyHtml:
-            p(`Hi ${vendor.name}, your payout has been credited.`) +
+            p(`Hi ${vendor.name}, we've transferred your payout to your bank account.`) +
             factsBox([
               ["Amount", inr(payout.net_payable)],
-              ["Credited to", acct],
+              ["Orders", String(payout.order_count)],
+              ["Sent to", acct],
               ["Date", payout.paid_at ? day(payout.paid_at) : day(new Date().toISOString())],
               ["Bank reference (UTR)", payout.payment_reference ?? "-"],
             ]) +
-            p("You can match this UTR number with the credit on your bank statement. If you can't find it within 2 working days, reply to this email."),
+            p("It reaches your account within 1 working day, often sooner. Match the UTR with the credit on your bank statement.") +
+            p("The proof of the transfer and the breakdown of every charge (commission, fees and taxes) are on your dashboard under Payouts. If the money hasn't arrived after 1 working day, reply to this email."),
           ctaLabel: "View payout history",
         };
       } else {

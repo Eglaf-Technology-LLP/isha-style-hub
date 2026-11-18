@@ -170,7 +170,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: vendorOrders } = await supabase
       .from("vendor_orders")
-      .select("id, dispatch_id, status, vendor:vendors(name, return_window_days)")
+      .select("id, dispatch_id, status, vendor:vendors(name)")
       .eq("order_id", orderId);
     const thisVendorOrder = (vendorOrders ?? []).find((v: any) => v.id === vendorOrderId) as any;
     const viaWarehouse = order.fulfilment_route === "warehouse";
@@ -290,12 +290,12 @@ const handler = async (req: Request): Promise<Response> => {
         if (trackingUrl) cta = { label: "Track Your Package", url: trackingUrl };
         break;
       case "delivered": {
-        const windowDays = thisVendorOrder?.vendor?.return_window_days;
+        // One return window for every boutique, in hours (AllBoutiqs sets it).
+        const { data: settings } = await supabase.from("platform_settings").select("return_window_hours").maybeSingle();
+        const windowHours = Number(settings?.return_window_hours ?? 24);
         subject = `Delivered - your order #${orderNumber} | AllBoutiqs`;
         heading = "Your order has been delivered!";
-        message = `We hope you love it! If something isn't right, you can request a return or exchange from My Orders${
-          windowDays ? ` within ${windowDays} days` : ""
-        }.`;
+        message = `We hope you love it! If something isn't right, you can request a return or exchange from My Orders within ${windowHours} hours of delivery.`;
         break;
       }
       case "cancelled": {
@@ -399,7 +399,7 @@ const handler = async (req: Request): Promise<Response> => {
           ${
             Number(order.cod_charge) > 0
               ? `<tr>
-            <td colspan="2" style="padding: 12px 16px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">Cash on Delivery charge</td>
+            <td colspan="2" style="padding: 12px 16px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">Cash on Delivery fee (incl. GST)</td>
             <td style="padding: 12px 0 0; text-align: right; border-top: 2px solid #1a1a1a; color:#5a5a5a;">${money(order.cod_charge)}</td>
           </tr>`
               : ""

@@ -61,12 +61,16 @@ Deno.serve(async (req) => {
 
     // An exchange replacement weighs what the exchanged items weigh.
     let parcelItems: { product_id: string; quantity: number }[] = items;
+    let movedItems: { order_item_id: string; quantity: number }[] | null = null;
     if (return_request_id) {
       const { data: rr } = await supabase.from("return_requests").select("items").eq("id", return_request_id).maybeSingle();
       const qtyByItem = new Map(((rr?.items ?? []) as any[]).map((i) => [i.order_item_id, i.quantity]));
       parcelItems = items
         .filter((i) => qtyByItem.has(i.id))
         .map((i) => ({ product_id: i.product_id, quantity: qtyByItem.get(i.id) ?? i.quantity }));
+      movedItems = items
+        .filter((i) => qtyByItem.has(i.id))
+        .map((i) => ({ order_item_id: i.id, quantity: Number(qtyByItem.get(i.id) ?? i.quantity) }));
       if (parcelItems.length === 0) return jsonResponse({ error: "None of this exchange's items are from this boutique" }, 400);
     }
 
@@ -105,12 +109,14 @@ Deno.serve(async (req) => {
     // for nearly every courier regardless of how this specific order will
     // actually be paid, and confusingly labeled "COD" next to a prepaid
     // order's freight-only rate before this fix.
-    // Over the e-way bill limit: the dialog explains the wait, and once the
-    // e-way bill is in, offers only the courier it is made out to.
-    // (Exchange replacements aren't covered yet.)
-    const ewayBill = return_request_id
-      ? null
-      : await ewayBillPreview(supabase, vendor_order_id, warehouse ? "boutique_to_warehouse" : "boutique_to_customer");
+    // Over the e-way bill limit: the dialog shows whether AllBoutiqs has made
+    // it yet (any courier can be booked - AllBoutiqs is the transporter).
+    const ewayBill = await ewayBillPreview(supabase, {
+      vendorOrderId: vendor_order_id,
+      leg: warehouse ? "boutique_to_warehouse" : "boutique_to_customer",
+      returnRequestId: return_request_id ?? null,
+      items: movedItems,
+    });
 
     return jsonResponse({
       couriers,

@@ -18,8 +18,15 @@ import { getWarehouse } from "./warehouse.ts";
 //   across all lines by value. Each boutique's invoice shows its share.
 // * Same state (boutique's GSTIN state = delivery state) -> CGST + SGST,
 //   otherwise IGST.
-// * Shipping is part of the goods' supply: taxed at the rate of the
-//   invoice's main (highest-value) product, under its HSN.
+// * Shipping charged to the customer is AllBoutiqs' supply, not the
+//   boutique's (client, 10 Nov 2026): it goes on AllBoutiqs' own invoice to
+//   the customer (platform_invoices, issued by a trigger with this one), with
+//   any COD charge. It stays on this invoice only while it is the boutique's
+//   (vendor_orders.shipping_to_boutique) - taxed at the rate of the main
+//   (highest-value) product, under its HSN.
+// * Each product line's amount, taxable value and GST come from the
+//   database (invoice_line_amounts) - the same figures the boutique's fees,
+//   credit notes and return refunds use, so they agree to the paisa.
 // * Warehouse route: billed to the customer, shipped to the AllBoutiqs
 //   warehouse - the goods leave the boutique on this invoice (agreed with the
 //   CA for the e-way bill, Nov 2026).
@@ -82,7 +89,7 @@ export async function ensureInvoice(
 
   const { data: vendorOrder, error: voErr } = await supabase
     .from("vendor_orders")
-    .select("id, order_id, vendor_id, shipping_cost")
+    .select("id, order_id, vendor_id, shipping_cost, shipping_to_boutique")
     .eq("id", vendorOrderId)
     .maybeSingle();
   if (voErr) throw voErr;
@@ -135,10 +142,14 @@ export async function ensureInvoice(
   const productById = new Map((products ?? []).map((p: any) => [String(p.id), p]));
 
   const itemsGross = round2(items.reduce((s, i) => s + Number(i.price) * i.quantity, 0));
-  const orderGross = Number(order.subtotal) || itemsGross;
-  const orderDiscount = Number(order.discount_amount) || 0;
 
   const lines: Line[] = [];
+  const { data: amountRows, error: amountsErr } = await supabase.rpc("invoice_line_amounts", {
+    _vendor_order_id: vendorOrder.id,
+  });
+  if (amountsErr) throw amountsErr;
+  const amountsByItem = new Map((amountRows ?? []).map((a: any) => [String(a.order_item_id), a]));
+
   for (const [idx, item] of items.entries()) {
     const product = productById.get(String(item.product_id));
     const hsn = product?.categories?.hsn_codes;
@@ -146,19 +157,17 @@ export async function ensureInvoice(
       const where = product?.categories?.name ? `category "${product.categories.name}"` : `"${item.product_title}" (no category)`;
       throw new InvoiceError(`No HSN code for ${where} - set it in Admin > Categories before invoicing`);
     }
-    const gross = Number(item.price) * item.quantity;
-    const discount =
-      item.discount_amount != null
-        ? Number(item.discount_amount)
-        : orderGross > 0
-          ? round2((orderDiscount * gross) / orderGross)
-          : 0;
-    const { data: rate, error: rateErr } = await supabase.rpc("gst_rate_for", {
-      _hsn_code_id: hsn.id,
-      _unit_price: (gross - discount) / item.quantity,
-    });
-    if (rateErr) throw rateErr;
-    const t = splitTax(gross - discount, Number(rate), intraState);
+    const a = amountsByItem.get(String(item.id));
+    if (!a) throw new InvoiceError(`Couldn't work out the amounts for "${item.product_title}"`, 500);
+    const discount = Number(a.discount);
+    const rate = Number(a.gst_rate);
+    const t = {
+      taxable: Number(a.taxable),
+      cgst: Number(a.cgst),
+      sgst: Number(a.sgst),
+      igst: Number(a.igst),
+      total: Number(a.line_total),
+    };
     lines.push({
       line_no: idx + 1,
       order_item_id: item.id,
@@ -181,7 +190,8 @@ export async function ensureInvoice(
     });
   }
 
-  const shipping = Number(vendorOrder.shipping_cost) || 0;
+  // Shipping only while it's the boutique's; otherwise it's on AllBoutiqs' invoice.
+  const shipping = vendorOrder.shipping_to_boutique ? Number(vendorOrder.shipping_cost) || 0 : 0;
   if (shipping > 0) {
     const main = [...lines].sort((a, b) => b.total - a.total)[0];
     const t = splitTax(shipping, main.gst_rate, intraState);
@@ -266,4 +276,12 @@ export async function ensureInvoice(
   }
 
   return { invoice, lines, created: true };
+}
+
+// AllBoutiqs' own invoice to the customer for the same part (COD charge,
+// shipping that isn't the boutique's) - null when there's none.
+export async function findPlatformInvoice(supabase: SupabaseClient, vendorOrderId: string) {
+  const { data, error } = await supabase.from("platform_invoices").select("*").eq("vendor_order_id", vendorOrderId).maybeSingle();
+  if (error) throw error;
+  return data;
 }

@@ -1,12 +1,22 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { errorMessage } from "./auth.ts";
 import { cancelShiprocketShipment } from "./shiprocket.ts";
-import { loadRefundCharge, refundCustomer, RefundValidationError } from "./refunds.ts";
+import { refundCustomer, RefundValidationError } from "./refunds.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
 
 // A vendor_order past this point already finished its own lifecycle -
 // nothing left for a cancellation to do or undo.
 export const BLOCKED_VENDOR_ORDER_STATUSES = ["delivered", "cancelled", "returned"];
+
+// A customer can cancel only within 24 hours of placing the order (client,
+// 13 Nov 2026); after that it can only come back as a return once it's
+// delivered. Admins and the warehouse aren't held to this. Same number as
+// src/lib/orderCancel.ts, which only decides whether to show the button.
+export const CUSTOMER_CANCEL_WINDOW_HOURS = 24;
+
+export function customerCancelDeadline(orderPlacedAt: string): Date {
+  return new Date(new Date(orderPlacedAt).getTime() + CUSTOMER_CANCEL_WINDOW_HOURS * 3_600_000);
+}
 
 // order_items.variant_id is an unconstrained TEXT column - a no-variant line
 // item carries a synthetic id like `${productId}-default`, not a uuid.
@@ -21,10 +31,6 @@ export interface CancelOneVendorOrderParams {
   // The customer's choice for a paid order: their wallet (instant) or the
   // original payment. An order paid from the wallet always goes back there.
   refundMethod?: "wallet" | "original";
-  // The customer cancelling their own order and taking the money back to
-  // the original payment pays the refund charge. Not when the boutique or
-  // AllBoutiqs cancels.
-  chargeRefundFee?: boolean;
   // Warehouse decisions (an item failing inspection, an undelivered parcel
   // the admin cancels) cancel boutique orders past the normal cut-off and
   // record their own send-back to the boutique.
@@ -56,7 +62,7 @@ export async function cancelOneVendorOrder(
   supabase: SupabaseClient,
   params: CancelOneVendorOrderParams,
 ): Promise<CancelOneVendorOrderResult> {
-  const { vendorOrder, order, cancelledBy, reason, refundMethod, chargeRefundFee = false, force = false } = params;
+  const { vendorOrder, order, cancelledBy, reason, refundMethod, force = false } = params;
   const skip = (skippedReason: string): CancelOneVendorOrderResult => ({
     vendorOrderId: vendorOrder.id,
     cancelled: false,
@@ -174,11 +180,13 @@ export async function cancelOneVendorOrder(
   const refundAmount =
     Math.round((Number(vendorOrder.subtotal) + Number(vendorOrder.shipping_cost) - couponShare) * 100) / 100;
   const method = order.payment_method === "wallet" || refundMethod === "wallet" ? "wallet" : "original";
-  if (
+  const refundDue =
     (order.payment_method === "razorpay" || order.payment_method === "wallet") &&
     (order.payment_status === "paid" || order.payment_status === "partially_refunded") &&
     refundAmount > 0
-  ) {
+      ? refundAmount
+      : 0;
+  if (refundDue > 0) {
     try {
       const result = await refundCustomer(supabase, {
         orderId: order.id,
@@ -189,7 +197,10 @@ export async function cancelOneVendorOrder(
         reason: `Order cancelled by customer: ${reason}`,
         initiatedBy: cancelledBy,
         vendorOrderId: vendorOrder.id,
-        charge: chargeRefundFee && method === "original" ? await loadRefundCharge(supabase) : null,
+        // Back to the wallet or the online payment: in full. The refund
+        // charge is only on a Cash on Delivery order's bank transfer (client,
+        // 10 Nov 2026) - a cancellation never is one.
+        charge: null,
       });
       refundId = result.refundId;
       walletRefund = result.walletAmount;
@@ -216,6 +227,8 @@ export async function cancelOneVendorOrder(
       refund_method: refundId || walletRefund > 0 ? method : null,
       refund_fee: fee,
       refund_fee_gst: feeGst,
+      // What was due back (before any refund charge), wherever it went.
+      refund_amount: refundDue > 0 ? refundDue : null,
     })
     .select("id")
     .single();

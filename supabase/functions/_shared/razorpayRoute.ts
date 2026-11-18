@@ -97,6 +97,8 @@ export interface OnboardResult {
   razorpay_status: string;
   razorpay_error: string | null;
   requirements: unknown;
+  // Route is on hold (payout_rail isn't 'razorpay_route'): nothing was done.
+  skipped?: boolean;
 }
 
 // Creates the boutique's Razorpay linked account (with its bank account as
@@ -109,6 +111,14 @@ export async function onboardVendor(supabase: SupabaseClient, vendorId: string):
     supabase.from("vendor_payout_accounts").select("*").eq("vendor_id", vendorId).maybeSingle(),
   ]);
   if (!account) throw new Error("Add your bank details first");
+
+  // Route is on hold unless payout_rail = 'razorpay_route' (payouts are paid
+  // by hand, with proof): nothing goes to Razorpay, nothing is marked failed
+  // and no admin is told "Razorpay Route isn't available".
+  const { data: rail } = await supabase.from("platform_settings").select("payout_rail").eq("id", true).maybeSingle();
+  if ((rail?.payout_rail ?? "razorpayx") !== "razorpay_route") {
+    return { razorpay_status: account.razorpay_status ?? "not_created", razorpay_error: null, requirements: null, skipped: true };
+  }
 
   const fail = async (message: string): Promise<OnboardResult> => {
     await supabase

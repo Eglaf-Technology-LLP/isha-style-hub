@@ -32,7 +32,7 @@ export async function loadWarehouseSettings(supabase: SupabaseClient): Promise<W
   return {
     routingEnabled: data?.warehouse_routing_enabled ?? true,
     defaultPrepDays: data?.default_prep_days ?? 2,
-    handlingDays: data?.warehouse_handling_days ?? 1,
+    handlingDays: data?.warehouse_handling_days ?? 3,
     cutoffHour: data?.warehouse_cutoff_hour ?? 17,
     maxWaitDays: data?.warehouse_max_wait_days ?? 3,
     inboundTransitDays: data?.warehouse_inbound_transit_days ?? 3,
@@ -115,6 +115,9 @@ export interface EstimateGroup {
 
 export interface WarehouseEstimate {
   available: boolean;
+  // When the parcel leaves the AllBoutiqs warehouse for the customer, after
+  // the quality check ("Ships by" on the product page).
+  shipsByDate: string | null;
   estimatedDeliveryDate: string | null;
   // Longest preparation time across the items (days), and whether any item
   // is made to order - for "Made to order: ships in N days".
@@ -127,10 +130,12 @@ export interface WarehouseEstimate {
 
 // Estimate = slowest boutique (preparation + courier to the warehouse) + the
 // warehouse's handling days + courier from the warehouse to the customer.
+// With no PIN code (a shopper who hasn't given one yet) only the "Ships by"
+// date is worked out - it doesn't depend on where the parcel goes.
 export async function estimateWarehouseDelivery(
   supabase: SupabaseClient,
   warehouse: WarehouseRow,
-  deliveryPincode: string,
+  deliveryPincode: string | null,
   groups: EstimateGroup[],
 ): Promise<WarehouseEstimate> {
   const settings = await loadWarehouseSettings(supabase);
@@ -138,6 +143,7 @@ export async function estimateWarehouseDelivery(
   const warehousePincode = warehouse.address.pincode ?? "";
   const unavailable = (reason: string): WarehouseEstimate => ({
     available: false,
+    shipsByDate: null,
     estimatedDeliveryDate: null,
     prepDays: 0,
     madeToOrder: false,
@@ -195,6 +201,22 @@ export async function estimateWarehouseDelivery(
     if (arrival > latestArrival) latestArrival = arrival;
   }
 
+  // The parcel may arrive on a Sunday or holiday; handling starts on the next
+  // working day either way.
+  const dispatchOn = addWorkingDays(latestArrival, settings.handlingDays, holidays);
+
+  if (!deliveryPincode) {
+    return {
+      available: true,
+      shipsByDate: dispatchOn,
+      estimatedDeliveryDate: null,
+      prepDays: maxPrep,
+      madeToOrder,
+      lastMileCouriers: [],
+      unavailableReason: null,
+    };
+  }
+
   let lastMile: CourierOption[] = [];
   try {
     const weightKg = await computeTotalWeightKg(supabase, groups.flatMap((g) => g.items));
@@ -209,13 +231,11 @@ export async function estimateWarehouseDelivery(
   }
   if (lastMile.length === 0) return unavailable("Not deliverable to this pincode");
 
-  // The parcel may arrive on a Sunday or holiday; handling starts on the next
-  // working day either way.
-  const dispatchOn = addWorkingDays(latestArrival, settings.handlingDays, holidays);
   const outboundDays = routeTransitDays(lastMile) ?? 3;
 
   return {
     available: true,
+    shipsByDate: dispatchOn,
     estimatedDeliveryDate: addCalendarDays(dispatchOn, outboundDays),
     prepDays: maxPrep,
     madeToOrder,
