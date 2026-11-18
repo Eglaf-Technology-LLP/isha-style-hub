@@ -12,11 +12,14 @@ import { Button, Sans, Touch } from './ui';
 // the bag): the default saved address unless another is picked; add one
 // right here when there is none.
 
+// edit: the chosen address (e.g. its line 1 is too short for the courier).
+type DeliverSheet = 'pick' | 'add' | 'edit' | null;
+
 interface DeliverState {
   addressId: string | null;
-  sheet: 'pick' | 'add' | null;
+  sheet: DeliverSheet;
   pick: (id: string) => void;
-  open: (sheet: 'pick' | 'add' | null) => void;
+  open: (sheet: DeliverSheet) => void;
 }
 
 export const useDeliverTo = create<DeliverState>(set => ({
@@ -140,9 +143,16 @@ export function DeliverTo() {
       </Sheet>
 
       <AddressSheet
-        editing={sheet === 'add' ? 'new' : null}
+        editing={
+          sheet === 'add' ? 'new' : sheet === 'edit' && address ? address : null
+        }
         onClose={() => open(null)}
-        onSave={async form => {
+        onSave={async (form, id) => {
+          if (id) {
+            const err = await save(form, id);
+            if (!err) toast('Address updated');
+            return err;
+          }
           // The first address becomes the default, as on the website.
           const err = await save(
             {

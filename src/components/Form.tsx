@@ -8,6 +8,11 @@ import {
   View,
 } from 'react-native';
 import { INDIAN_STATES } from '@/lib/account';
+import {
+  ADDRESS_LINE1_HINT,
+  ADDRESS_LINE1_MIN,
+  addressLine1Count,
+} from '@/lib/addressLine1';
 import { colors, fonts } from '@/theme';
 import { Sheet } from './Listing';
 import { Touch } from './ui';
@@ -36,6 +41,61 @@ export function Field({
         ]}
       />
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+// Address line 1 with the courier minimum (the website's AddressLine1Input):
+// red, with a live count ("6/10"), until it has ADDRESS_LINE1_MIN characters
+// (spaces at the ends not counted), then a tick. The one field every address
+// form in the app uses; each form also locks its Save / Place order button
+// with addressLine1Ok().
+export function AddressLine1Field({
+  value,
+  onChange,
+  onBlur,
+  ...input
+}: Omit<TextInputProps, 'value' | 'onChangeText' | 'onChange'> & {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [touched, setTouched] = useState(false);
+  const count = addressLine1Count(value);
+  const short = count < ADDRESS_LINE1_MIN;
+  // Red once something is typed, or when it was left empty.
+  const red = short && (count > 0 || touched);
+  return (
+    <View style={styles.wrap}>
+      <Text style={styles.label}>Address line 1 *</Text>
+      <TextInput
+        placeholderTextColor={colors.mutedForeground}
+        {...input}
+        value={value}
+        onChangeText={onChange}
+        onBlur={e => {
+          onBlur?.(e);
+          setTouched(true);
+        }}
+        accessibilityHint={ADDRESS_LINE1_HINT}
+        style={[styles.input, red && styles.inputBad, input.style]}
+      />
+      <View style={styles.hintRow}>
+        <Text style={[styles.hint, styles.flex, red && styles.bad]}>
+          {ADDRESS_LINE1_HINT}
+        </Text>
+        {short ? (
+          <Text style={[styles.hint, styles.count, red && styles.countBad]}>
+            {count}/{ADDRESS_LINE1_MIN}
+          </Text>
+        ) : (
+          <Check
+            size={15}
+            color={colors.success}
+            style={styles.tick}
+            accessibilityLabel="Long enough"
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -111,6 +171,13 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     marginTop: 5,
   },
+  flex: { flex: 1 },
+  inputBad: { borderColor: colors.destructive },
+  hintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  bad: { color: colors.destructive },
+  count: { fontVariant: ['tabular-nums'] },
+  countBad: { fontFamily: fonts.sansMedium, color: colors.destructive },
+  tick: { marginTop: 5 },
   select: {
     flexDirection: 'row',
     alignItems: 'center',

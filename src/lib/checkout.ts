@@ -790,7 +790,7 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
     // The database's own reasons are written for shoppers (price_order,
     // price_order_item); anything else gets a plain sentence.
     const shopperReason =
-      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|choose a quantity|choose again|try again/i.test(
+      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|Address line 1 needs at least|choose a quantity|choose again|try again/i.test(
         raw,
       );
     console.warn('[AllBoutiqs] place order', raw);

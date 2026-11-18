@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from './addressLine1';
 import { useSession } from './auth';
 import { friendly } from './errors';
 import { supabase } from './supabase';
@@ -134,7 +135,10 @@ export function useAddressActions() {
           .select('id')
           .single();
     if (error)
-      return friendly(error, "Couldn't save the address. Please try again.");
+      // The database's own refusal is written for shoppers.
+      return error.message?.includes(ADDRESS_LINE1_LOCKED)
+        ? ADDRESS_LINE1_LOCKED
+        : friendly(error, "Couldn't save the address. Please try again.");
     if (data?.id) onSaved?.(data.id as string);
     refresh();
     return null;
@@ -169,6 +173,7 @@ export function validateAddress(f: AddressForm): string | null {
     !f.pincode
   )
     return 'Please fill in all required fields.';
+  if (!addressLine1Ok(f.address_line_1)) return ADDRESS_LINE1_LOCKED;
   if (!/^(\+?91)?[6-9]\d{9}$/.test(f.phone.replace(/[\s-]/g, '')))
     return 'Enter a 10-digit mobile number.';
   if (!/^[1-9]\d{5}$/.test(f.pincode)) return 'Enter a 6-digit pincode.';

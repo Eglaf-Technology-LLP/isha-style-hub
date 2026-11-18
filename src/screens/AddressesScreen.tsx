@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
-import { Field, StatePicker } from '@/components/Form';
+import { AddressLine1Field, Field, StatePicker } from '@/components/Form';
 import { Sheet } from '@/components/Listing';
 import { Button, Sans, Serif, Touch } from '@/components/ui';
 import {
@@ -21,6 +21,7 @@ import {
   useAddresses,
   validateAddress,
 } from '@/lib/account';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
 import { toast } from '@/lib/toast';
 import { colors, fonts } from '@/theme';
 
@@ -191,6 +192,8 @@ export function AddressSheet({
     });
   };
 
+  const line1Ok = addressLine1Ok(f.address_line_1);
+
   const submit = async () => {
     const invalid = validateAddress(f);
     if (invalid) return setError(invalid);
@@ -216,9 +219,13 @@ export function AddressSheet({
           <Button
             label={busy ? 'Saving...' : 'Save address'}
             onPress={submit}
-            disabled={busy}
+            // Locked until address line 1 is long enough for the courier.
+            disabled={busy || !line1Ok}
             style={styles.gapSm}
           />
+          {!line1Ok ? (
+            <Text style={styles.locked}>{ADDRESS_LINE1_LOCKED}</Text>
+          ) : null}
         </View>
       }
     >
@@ -254,11 +261,9 @@ export function AddressSheet({
         autoComplete="postal-code"
         hint="City and state fill in from the pincode."
       />
-      <Field
-        label="Address line 1"
-        required
+      <AddressLine1Field
         value={f.address_line_1}
-        onChangeText={t => set({ address_line_1: t })}
+        onChange={t => set({ address_line_1: t })}
         placeholder="House/Flat No., Building Name"
         autoComplete="address-line1"
       />
@@ -352,6 +357,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMedium,
     color: colors.destructive,
     marginTop: 10,
+  },
+  locked: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.destructive,
+    textAlign: 'center',
+    marginTop: 8,
   },
   defaultRow: {
     flexDirection: 'row',

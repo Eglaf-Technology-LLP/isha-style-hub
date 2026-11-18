@@ -21,9 +21,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { DeliverTo, useDeliveryAddress } from '@/components/DeliverTo';
+import {
+  DeliverTo,
+  useDeliverTo,
+  useDeliveryAddress,
+} from '@/components/DeliverTo';
 import { Button, Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { useWallet } from '@/lib/account';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
 import { useSession } from '@/lib/auth';
 import {
   cartDeliveryDate,
@@ -75,6 +80,10 @@ export default function CheckoutScreen() {
   );
   const user = useSession(st => st.user);
   const { address } = useDeliveryAddress();
+  const openDeliver = useDeliverTo(st => st.open);
+  // Locked until the delivery address line 1 is long enough for the courier
+  // (an address saved before the rule can be shorter).
+  const line1Locked = !!address && !addressLine1Ok(address.address_line_1);
   const { data, isLoading } = useCheckoutData(items);
   const { data: gstRules } = useGstRules();
   const { data: wallet } = useWallet();
@@ -261,6 +270,10 @@ export default function CheckoutScreen() {
     if (!user) return go('/signin');
     if (!address)
       return toast('Please add a delivery address', { important: true });
+    if (line1Locked) {
+      toast(ADDRESS_LINE1_LOCKED, { important: true });
+      return openDeliver('edit');
+    }
     const mail = email.trim();
     if (!mail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))
       return toast('Please enter a valid email for your order updates', {
@@ -631,6 +644,18 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: 10 + insets.bottom }]}>
+        {line1Locked ? (
+          <Touch
+            style={styles.lockedRow}
+            onPress={() => openDeliver('edit')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.locked}>
+              {ADDRESS_LINE1_LOCKED} (Delivery address){' '}
+              <Text style={styles.lockedLink}>Edit address</Text>
+            </Text>
+          </Touch>
+        ) : null}
         <View>
           <Text style={styles.barTotal}>{formatINR(payNow)}</Text>
           <Sans style={styles.small}>
@@ -640,7 +665,7 @@ export default function CheckoutScreen() {
         <Button
           label={actionLabel}
           onPress={place}
-          disabled={placing || !ready || !address}
+          disabled={placing || !ready || !address || line1Locked}
           style={styles.flex1}
         />
       </View>
@@ -896,6 +921,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
@@ -904,6 +930,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  lockedRow: { width: '100%' },
+  locked: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.destructive,
+  },
+  lockedLink: { fontFamily: fonts.sansMedium, textDecorationLine: 'underline' },
   barTotal: {
     fontFamily: fonts.sansSemi,
     fontSize: 18,
