@@ -240,7 +240,7 @@ export default function OrderScreen() {
           />
           {o.cod_charge > 0 ? (
             <Row
-              label="Cash on delivery charge"
+              label="Cash on Delivery fee (incl. GST)"
               value={formatINR(o.cod_charge)}
             />
           ) : null}

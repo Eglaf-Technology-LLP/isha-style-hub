@@ -29,10 +29,14 @@ import {
   cartDeliveryDate,
   checkCoupon,
   checkPending,
+  CodGroup,
+  codGroups,
   codQuote,
+  CodQuote,
   Coupon,
   MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
+  NO_COD_QUOTE,
   payOnline,
   placeOrder,
   splitCoupon,
@@ -77,13 +81,7 @@ export default function CheckoutScreen() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [walletOn, setWalletOn] = useState(false);
   const [method, setMethod] = useState<'razorpay' | 'cod'>('razorpay');
-  const [cod, setCod] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
-    amount: number;
-  }>({
-    status: 'idle',
-    amount: 0,
-  });
+  const [cod, setCod] = useState<CodQuote>(NO_COD_QUOTE);
   const [eta, setEta] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
 
@@ -102,6 +100,11 @@ export default function CheckoutScreen() {
   const split = coupon ? splitCoupon(coupon, items, categoryOf) : null;
   const discount = split?.total ?? 0;
   const goodsDue = round2(subtotal - discount + shipping);
+  // Cash on Delivery fee: 3% of each boutique part + 18% GST on it, quoted
+  // by the server for this PIN code (see codQuote).
+  const codFeeLabel = `Cash on Delivery fee${
+    cod.pct != null ? ` (${cod.pct}% + GST)` : ''
+  }`;
   const codFee = method === 'cod' && cod.status === 'ready' ? cod.amount : 0;
   const total = round2(goodsDue + codFee);
   const walletBalance = wallet?.balance ?? 0;
@@ -158,23 +161,28 @@ export default function CheckoutScreen() {
   // ---- COD quote and delivery date for this PIN ----
   const pin = address?.pincode ?? '';
   const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  // One entry per boutique part, as a stable key for the quote below.
+  const codGroupsKey = useMemo(
+    () => JSON.stringify(codGroups(groups, split?.perLine ?? new Map())),
+    [groups, split?.perLine],
+  );
   useEffect(() => {
-    if (!/^[1-9]\d{5}$/.test(pin) || !items.length) {
-      setCod({ status: 'idle', amount: 0 });
+    const parts = JSON.parse(codGroupsKey) as CodGroup[];
+    if (!/^[1-9]\d{5}$/.test(pin) || !parts.length) {
+      setCod(NO_COD_QUOTE);
       return;
     }
     let alive = true;
     setCod(c => ({ ...c, status: 'loading' }));
     const t = setTimeout(async () => {
-      const q = await codQuote(pin, goodsDue, items);
+      const q = await codQuote(pin, goodsDue, parts);
       if (alive) setCod(q);
     }, 500);
     return () => {
       alive = false;
       clearTimeout(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, itemsKey, goodsDue]);
+  }, [pin, codGroupsKey, goodsDue]);
   useEffect(() => {
     if (!/^\d{6}$/.test(pin) || !items.length) return setEta(null);
     let alive = true;
@@ -242,8 +250,8 @@ export default function CheckoutScreen() {
     if (method === 'cod' && !paidByWallet && cod.status !== 'ready')
       return toast(
         cod.status === 'loading'
-          ? 'Working out the Cash on Delivery charge - try again in a moment'
-          : "Couldn't work out the Cash on Delivery charge for this PIN code. Check it, or pay online.",
+          ? 'Working out the Cash on Delivery fee - try again in a moment'
+          : "Couldn't work out the Cash on Delivery fee for this PIN code. Check it, or pay online.",
         { important: true },
       );
     tap();
@@ -510,13 +518,15 @@ export default function CheckoutScreen() {
               title="Cash on Delivery"
               note={
                 codReason ??
-                (cod.status === 'loading'
-                  ? 'Working out the COD charge...'
-                  : cod.status === 'ready'
-                  ? `COD charge ${formatINR(cod.amount)}`
+                (cod.status === 'ready'
+                  ? `Pay when your order arrives · COD fee ${formatINR(
+                      cod.amount,
+                    )}${cod.pct != null ? ` (${cod.pct}% + GST)` : ''}`
+                  : cod.status === 'loading'
+                  ? 'Pay when your order arrives · working out the COD fee...'
                   : cod.status === 'error'
-                  ? "Couldn't get the COD charge - check the PIN code"
-                  : 'Pay when it arrives')
+                  ? "Pay when your order arrives · couldn't work out the COD fee - check the PIN code"
+                  : 'Pay when your order arrives · the COD fee shows once you enter your PIN code')
               }
             />
             {codDisabled && onlineUnavailable ? (
@@ -569,7 +579,15 @@ export default function CheckoutScreen() {
             ))
           )}
           {codFee > 0 ? (
-            <Row label="Cash on Delivery charge" value={formatINR(codFee)} />
+            <Row
+              label={codFeeLabel}
+              sub={
+                cod.gst > 0
+                  ? `${formatINR(cod.fee)} + ${formatINR(cod.gst)} GST`
+                  : undefined
+              }
+              value={formatINR(codFee)}
+            />
           ) : null}
           {walletUse > 0 ? (
             <Row
@@ -650,18 +668,24 @@ function PayOption({
 
 function Row({
   label,
+  sub,
   value,
   strong,
   good,
 }: {
   label: string;
+  // A smaller line under the label ("₹30 + ₹5.40 GST").
+  sub?: string;
   value: string;
   strong?: boolean;
   good?: boolean;
 }) {
   return (
     <View style={styles.row}>
-      <Sans style={strong ? styles.strong : undefined}>{label}</Sans>
+      <View style={styles.flex1}>
+        <Sans style={strong ? styles.strong : undefined}>{label}</Sans>
+        {sub ? <Sans style={styles.small}>{sub}</Sans> : null}
+      </View>
       <Sans style={[strong && styles.strong, good && styles.good]}>
         {value}
       </Sans>

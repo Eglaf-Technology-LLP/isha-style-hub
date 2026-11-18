@@ -305,7 +305,7 @@ export async function checkCoupon(
   return { coupon, error: null };
 }
 
-// ---------- COD charge and delivery date (Shiprocket, through our functions) ----------
+// ---------- COD fee and delivery date (through our functions) ----------
 
 const groupsFor = (items: CartItem[]) => {
   const map = new Map<string, { product_id: string; quantity: number }[]>();
@@ -322,26 +322,80 @@ const groupsFor = (items: CartItem[]) => {
   }));
 };
 
-// The courier's real COD charge for this parcel to this PIN at this value.
-// shiprocket-cod-charge records the quote; the database accepts the order's
-// COD charge only if it matches one.
+// One entry per boutique part for the COD fee: its goods less its coupon
+// share plus its shipping (goods_due), and its pieces.
+export interface CodGroup {
+  vendor_id: string;
+  goods_due: number;
+  items: { product_id: string; quantity: number }[];
+}
+export function codGroups(
+  groups: VendorGroup[],
+  couponPerLine: Map<string, number>,
+): CodGroup[] {
+  return groups
+    .filter(g => g.vendorId)
+    .map(g => ({
+      vendor_id: g.vendorId!,
+      goods_due: round2(
+        g.subtotal -
+          g.items.reduce(
+            (n, i) => n + (couponPerLine.get(i.variantId) ?? 0),
+            0,
+          ) +
+          g.shippingCost,
+      ),
+      items: g.items.map(i => ({
+        product_id: i.productId,
+        quantity: i.quantity,
+      })),
+    }));
+}
+
+export interface CodQuote {
+  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  // What the customer pays: fee + GST.
+  amount: number;
+  fee: number;
+  gst: number;
+  // The fee's % (3), for "Cash on Delivery fee (3% + GST)".
+  pct: number | null;
+}
+export const NO_COD_QUOTE: CodQuote = {
+  status: 'idle',
+  amount: 0,
+  fee: 0,
+  gst: 0,
+  pct: null,
+};
+
+// The Cash on Delivery fee (client, 13 Nov 2026): 3% of what each boutique
+// part comes to + 18% GST on that fee - worked out by the server
+// (shiprocket-cod-charge, the same sum price_order makes), which also checks
+// a courier collects cash at this PIN code and records the quote; the
+// database accepts the order's COD fee only if it matches.
 export async function codQuote(
   pincode: string,
   goodsDue: number,
-  items: CartItem[],
-): Promise<{ status: 'ready' | 'unavailable' | 'error'; amount: number }> {
-  const groups = groupsFor(items);
-  if (!groups.length) return { status: 'unavailable', amount: 0 };
+  groups: CodGroup[],
+): Promise<CodQuote> {
+  if (!groups.length) return { ...NO_COD_QUOTE, status: 'unavailable' };
   const { data, error } = await supabase.functions.invoke(
     'shiprocket-cod-charge',
     {
       body: { delivery_pincode: pincode, order_value: goodsDue, groups },
     },
   );
-  if (error || !data) return { status: 'error', amount: 0 };
+  if (error || !data) return { ...NO_COD_QUOTE, status: 'error' };
   if (!data.available || data.cod_charge == null)
-    return { status: 'unavailable', amount: 0 };
-  return { status: 'ready', amount: Number(data.cod_charge) };
+    return { ...NO_COD_QUOTE, status: 'unavailable' };
+  return {
+    status: 'ready',
+    amount: Number(data.cod_charge),
+    fee: Number(data.cod_fee ?? 0),
+    gst: Number(data.cod_fee_gst ?? 0),
+    pct: data.cod_fee_pct == null ? null : Number(data.cod_fee_pct),
+  };
 }
 
 // Whole-bag delivery date for this PIN (slowest boutique wins).
@@ -677,7 +731,7 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
     // The database's own reasons are written for shoppers (price_order,
     // price_order_item); anything else gets a plain sentence.
     const shopperReason =
-      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery charge has changed|choose a quantity|choose again|try again/i.test(
+      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|choose a quantity|choose again|try again/i.test(
         raw,
       );
     console.warn('[AllBoutiqs] place order', raw);
