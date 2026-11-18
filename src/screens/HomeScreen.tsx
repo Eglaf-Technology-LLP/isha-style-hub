@@ -7,20 +7,16 @@ import {
   Tag,
   Truck,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import {
-  FlatList,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
-import heroFashion from '../../assets/hero-fashion.jpg';
 import { AppHeader } from '@/components/AppHeader';
+import { HeroBanner } from '@/components/HeroBanner';
 import { budgetHref, BUDGETS } from '@/lib/listing';
 import { FlashSales, OfferStrip } from '@/components/HomeExtras';
 import { ProductRail } from '@/components/ProductLists';
@@ -42,38 +38,8 @@ import {
 } from '@/lib/catalog';
 import { colors, fonts } from '@/theme';
 
-// Same slides as the website (src/content/storefront.ts HERO_SLIDES).
-const SLIDES = [
-  {
-    id: 'wedding',
-    eyebrow: 'The Wedding Edit',
-    title: 'Heirlooms in the making,',
-    accent: 'for your big day',
-    cta: 'Shop the edit',
-    href: '/category/lehenga',
-    image: heroFashion,
-  },
-  {
-    id: 'boutiques',
-    eyebrow: 'One address',
-    title: "India's boutiques,",
-    accent: 'under one roof',
-    cta: 'Meet the boutiques',
-    href: '/boutiques',
-  },
-  {
-    id: 'made-to-order',
-    eyebrow: 'Made for you',
-    title: 'Crafted to order,',
-    accent: 'finished by hand',
-    cta: 'Shop made to order',
-    href: '/category/all?availability=made-to-order',
-  },
-];
-
 export default function Home() {
   const go = useGo();
-  const { width } = useWindowDimensions();
   const products = useProducts();
   const { data: categories = [] } = useCategories();
   const { data: boutiques = [] } = useBoutiques();
@@ -169,7 +135,7 @@ export default function Home() {
           })}
         </ScrollView>
 
-        <Hero width={width} onOpen={go} />
+        <HeroBanner />
 
         <FlashSales />
 
@@ -256,99 +222,6 @@ export default function Home() {
         ) : null}
         <View style={{ height: 24 }} />
       </ScrollView>
-    </View>
-  );
-}
-
-function Hero({
-  width,
-  onOpen,
-}: {
-  width: number;
-  onOpen: (href: string) => void;
-}) {
-  const [index, setIndex] = useState(0);
-  const listRef = useRef<FlatList>(null);
-  const held = useRef(false);
-  // Moves on by itself (as the website's carousel does), not while touched.
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (held.current) return;
-      setIndex(i => {
-        const next = (i + 1) % SLIDES.length;
-        listRef.current?.scrollToOffset({
-          offset: next * width,
-          animated: true,
-        });
-        return next;
-      });
-    }, 4500);
-    return () => clearInterval(t);
-  }, [width]);
-  const height = Math.round(width * 1.05);
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) =>
-    setIndex(Math.round(e.nativeEvent.contentOffset.x / width));
-
-  return (
-    <View>
-      <FlatList
-        ref={listRef}
-        data={SLIDES}
-        keyExtractor={s => s.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onScrollBeginDrag={() => {
-          held.current = true;
-        }}
-        onMomentumScrollEnd={e => {
-          held.current = false;
-          onScroll(e);
-        }}
-        renderItem={({ item }) => (
-          <Touch style={{ width, height }} onPress={() => onOpen(item.href)}>
-            {item.image ? (
-              <>
-                <Image
-                  source={item.image}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-                <View style={[StyleSheet.absoluteFill, styles.heroShade]} />
-              </>
-            ) : (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: colors.maroonDeep },
-                ]}
-              >
-                <View style={styles.heroFrame} />
-              </View>
-            )}
-            <View style={styles.heroText}>
-              <Eyebrow>{item.eyebrow}</Eyebrow>
-              <Serif style={styles.heroTitle}>{item.title}</Serif>
-              <Text
-                style={[styles.heroTitle, { fontFamily: fonts.serifItalic }]}
-              >
-                {item.accent}
-              </Text>
-              <View style={styles.heroCta}>
-                <Text style={styles.heroCtaText}>{item.cta}</Text>
-              </View>
-            </View>
-          </Touch>
-        )}
-      />
-      <View style={styles.dots}>
-        {SLIDES.map((s, i) => (
-          <View
-            key={s.id}
-            style={[styles.dot, i === index && styles.dotActive]}
-          />
-        ))}
-      </View>
     </View>
   );
 }
@@ -447,47 +320,6 @@ const styles = StyleSheet.create({
     color: colors.foreground,
     maxWidth: 70,
   },
-  heroShade: { backgroundColor: 'rgba(27,22,19,0.42)' },
-  heroText: { position: 'absolute', left: 20, right: 20, bottom: 36 },
-  heroTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 34,
-    lineHeight: 40,
-    color: colors.ivory,
-  },
-  heroFrame: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    margin: 14,
-    borderWidth: 1,
-    borderColor: colors.goldSoft,
-  },
-  heroCta: {
-    alignSelf: 'flex-start',
-    marginTop: 18,
-    backgroundColor: colors.ivory,
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-  heroCtaText: {
-    fontFamily: fonts.sansMedium,
-    fontSize: 11,
-    letterSpacing: 2.2,
-    textTransform: 'uppercase',
-    color: colors.ink,
-  },
-  dots: {
-    position: 'absolute',
-    bottom: 14,
-    left: 20,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  dot: { width: 18, height: 2, backgroundColor: 'rgba(252,251,248,0.45)' },
-  dotActive: { width: 32, backgroundColor: colors.ivory },
   promises: {
     flexDirection: 'row',
     justifyContent: 'space-around',

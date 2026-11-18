@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { CONFIG } from '@/config';
+import type { HeroSlide } from '@/content/storefront';
 import { supabase } from './supabase';
 
 // The shopper catalogue - the same queries and rules as the website's
@@ -191,6 +192,85 @@ export function useBoutiques() {
         .order('name');
       if (error) throw error;
       return (data || []) as Boutique[];
+    },
+  });
+}
+
+// ---------- home banner (the website's src/hooks/useHeroSlides.ts) ----------
+
+// Edited under Admin > Home Banner (table hero_slides). Shoppers only ever
+// receive live slides - the RLS policy filters on is_active and the
+// schedule; the check here covers the clock too.
+interface HeroSlideRow {
+  id: string;
+  is_active: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  eyebrow: string | null;
+  title: string | null;
+  title_accent: string | null;
+  subtitle: string | null;
+  cta_label: string | null;
+  cta_href: string | null;
+  secondary_cta_label: string | null;
+  secondary_cta_href: string | null;
+  image_url: string | null;
+  mobile_image_url: string | null;
+  video_url: string | null;
+  align: string;
+  show_overlay: boolean;
+}
+
+const clean = (v: string | null | undefined) => {
+  const t = v?.trim();
+  return t ? t : undefined;
+};
+
+function toHeroSlide(row: HeroSlideRow): HeroSlide {
+  const ctaHref = clean(row.cta_href);
+  const secondaryLabel = clean(row.secondary_cta_label);
+  const secondaryHref = clean(row.secondary_cta_href);
+  return {
+    id: row.id,
+    eyebrow: clean(row.eyebrow),
+    title: clean(row.title),
+    titleAccent: clean(row.title_accent),
+    subtitle: clean(row.subtitle),
+    cta: ctaHref ? { label: clean(row.cta_label), href: ctaHref } : undefined,
+    secondaryCta:
+      secondaryLabel && secondaryHref
+        ? { label: secondaryLabel, href: secondaryHref }
+        : undefined,
+    image: clean(row.image_url),
+    mobileImage: clean(row.mobile_image_url),
+    video: clean(row.video_url),
+    align: row.align === 'center' ? 'center' : 'left',
+    overlay: row.show_overlay,
+  };
+}
+
+const isLiveNow = (row: HeroSlideRow, now = Date.now()) =>
+  row.is_active &&
+  !(row.starts_at && new Date(row.starts_at).getTime() > now) &&
+  !(row.ends_at && new Date(row.ends_at).getTime() <= now);
+
+export function useHeroSlides() {
+  return useQuery({
+    queryKey: ['hero-slides'],
+    staleTime: STALE,
+    // One retry only: the banner is the first thing on Home, and on a
+    // failure the built-in slides should show quickly.
+    retry: 1,
+    queryFn: async (): Promise<HeroSlide[]> => {
+      const { data, error } = await supabase
+        .from('hero_slides')
+        .select('*')
+        .order('position', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return ((data ?? []) as HeroSlideRow[])
+        .filter(r => isLiveNow(r))
+        .map(toHeroSlide);
     },
   });
 }
