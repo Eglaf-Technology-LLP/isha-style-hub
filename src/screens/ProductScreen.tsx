@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import { ColourBoxes } from '@/components/ColourBoxes';
 import { Chip, Sheet } from '@/components/Listing';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { ProductRail } from '@/components/ProductLists';
@@ -55,8 +56,10 @@ import {
   sizeOf,
   useProduct,
   useProducts,
+  variantImages,
   variantPrice,
 } from '@/lib/catalog';
+import { colourCodes } from '@/lib/colors';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
 import { CartItem, useCart, useWishlist } from '@/lib/stores';
@@ -80,7 +83,9 @@ export default function ProductScreen() {
 
   const [size, setSize] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
-  const [photo, setPhoto] = useState(0);
+  // The photo on screen, for the set of photos it belongs to (another
+  // colour's photos start from the first again).
+  const [photoAt, setPhotoAt] = useState({ gallery: '', index: 0 });
   const [missing, setMissing] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
   // Add to bag without a size: the size picker opens from the bottom (Myntra-style).
@@ -190,7 +195,38 @@ export default function ProductScreen() {
     (product.variants.length
       ? product.variants.every(v => v.stock <= 0)
       : stock <= 0);
-  const images = variant?.image_url ? [variant.image_url] : product.images;
+  // A variant with its own photos (every size of a colour shares them)
+  // replaces the product's photos while selected; otherwise the product's
+  // own photos show (as on the website).
+  const colourImages = (c: string | null) =>
+    c
+      ? variantImages(
+          product.variants.find(
+            v => colorOf(v) === c && variantImages(v).length > 0,
+          ),
+        )
+      : [];
+  const ownImages = variantImages(variant);
+  const variantGallery = ownImages.length ? ownImages : colourImages(color);
+  const images = variantGallery.length ? variantGallery : product.images;
+  const galleryKey = images.join('|');
+  const photo = photoAt.gallery === galleryKey ? photoAt.index : 0;
+  // Each colour's first photo: when any colour has one, the colours show as
+  // small photo boxes (a colour without a photo shows its swatch).
+  const thumbnails: Record<string, string> = {};
+  for (const c of colours) {
+    const first = colourImages(c)[0];
+    if (first) thumbnails[c] = first;
+  }
+  const photoBoxes = Object.keys(thumbnails).length > 0;
+  const swatches = colourCodes(product.variants);
+  const unavailableColours = new Set(
+    product.made_to_order
+      ? []
+      : colours.filter(
+          c => !product.variants.some(v => colorOf(v) === c && v.stock > 0),
+        ),
+  );
   // Same rules as the website's product page.
   const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
   const returnable =
@@ -236,7 +272,8 @@ export default function ProductScreen() {
     return {
       productId: product.id,
       productName: product.name,
-      productImage: product.images[0] ?? null,
+      // The chosen colour's own photo, when it has one.
+      productImage: images[0] ?? product.images[0] ?? null,
       vendorId: product.vendor_id,
       variantId:
         variant?.id ??
@@ -277,13 +314,18 @@ export default function ProductScreen() {
         <View style={{ height: photoHeight, backgroundColor: colors.ivory }}>
           {images.length ? (
             <FlatList
+              // Another colour's photos start from the first one again.
+              key={galleryKey}
               data={images}
               keyExtractor={(u, i) => `${i}-${u}`}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={e =>
-                setPhoto(Math.round(e.nativeEvent.contentOffset.x / width))
+                setPhotoAt({
+                  gallery: galleryKey,
+                  index: Math.round(e.nativeEvent.contentOffset.x / width),
+                })
               }
               renderItem={({ item, index }) => (
                 <Touch
@@ -383,30 +425,44 @@ export default function ProductScreen() {
                 <Text style={{ color: colors.mutedForeground }}>: {color}</Text>
               ) : null}
             </Eyebrow>
-            <View style={styles.options}>
-              {colours.map(c => (
-                <Touch
-                  key={c}
-                  haptic
-                  onPress={() => {
-                    chooseColor(c);
-                    setPhoto(0);
-                    setMissing(null);
-                    setAdded(false);
-                  }}
-                  style={[styles.option, color === c && styles.optionActive]}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      color === c && { color: colors.primary },
-                    ]}
+            {photoBoxes ? (
+              <ColourBoxes
+                options={colours}
+                selected={color}
+                thumbnails={thumbnails}
+                swatches={swatches}
+                unavailable={unavailableColours}
+                onSelect={c => {
+                  chooseColor(c);
+                  setMissing(null);
+                  setAdded(false);
+                }}
+              />
+            ) : (
+              <View style={styles.options}>
+                {colours.map(c => (
+                  <Touch
+                    key={c}
+                    haptic
+                    onPress={() => {
+                      chooseColor(c);
+                      setMissing(null);
+                      setAdded(false);
+                    }}
+                    style={[styles.option, color === c && styles.optionActive]}
                   >
-                    {c}
-                  </Text>
-                </Touch>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        color === c && { color: colors.primary },
+                      ]}
+                    >
+                      {c}
+                    </Text>
+                  </Touch>
+                ))}
+              </View>
+            )}
           </View>
         ) : null}
 
@@ -651,19 +707,33 @@ export default function ProductScreen() {
         {colours.length ? (
           <>
             <Text style={styles.chooserLabel}>Colour</Text>
-            <View style={styles.chooserRow}>
-              {colours.map(c => (
-                <Chip
-                  key={c}
-                  label={c}
-                  active={color === c}
-                  onPress={() => {
-                    chooseColor(c);
-                    setMissing(null);
-                  }}
-                />
-              ))}
-            </View>
+            {photoBoxes ? (
+              <ColourBoxes
+                options={colours}
+                selected={color}
+                thumbnails={thumbnails}
+                swatches={swatches}
+                unavailable={unavailableColours}
+                onSelect={c => {
+                  chooseColor(c);
+                  setMissing(null);
+                }}
+              />
+            ) : (
+              <View style={styles.chooserRow}>
+                {colours.map(c => (
+                  <Chip
+                    key={c}
+                    label={c}
+                    active={color === c}
+                    onPress={() => {
+                      chooseColor(c);
+                      setMissing(null);
+                    }}
+                  />
+                ))}
+              </View>
+            )}
           </>
         ) : null}
         {sizes.length ? (
