@@ -1,13 +1,18 @@
 import {
   ChevronRight,
+  CircleHelp,
   FileText,
+  Headphones,
   Heart,
+  Info,
   LogOut,
   MessageCircle,
   Package,
+  RotateCcw,
   Shield,
   KeyRound,
   MapPin,
+  Truck,
   UserRound,
   Wallet,
 } from 'lucide-react-native';
@@ -65,6 +70,19 @@ export default function ProfileScreen() {
       label: 'Help on WhatsApp',
       onPress: () => Linking.openURL(CONFIG.whatsappUrl),
     },
+    // The website footer's Company and Help pages.
+    { icon: Headphones, label: 'Contact us', onPress: () => go('/contact-us') },
+    { icon: CircleHelp, label: 'FAQ', onPress: () => go('/faq') },
+    {
+      icon: Truck,
+      label: 'Shipping policy',
+      onPress: () => go('/shipping-policy'),
+    },
+    {
+      icon: RotateCcw,
+      label: 'Return & Refund policy',
+      onPress: () => go('/return-refund-policy'),
+    },
     {
       icon: FileText,
       label: 'Terms & Conditions',
@@ -75,6 +93,7 @@ export default function ProfileScreen() {
       label: 'Privacy policy',
       onPress: () => go('/privacy-policy'),
     },
+    { icon: Info, label: 'About us', onPress: () => go('/about-us') },
   ];
 
   const confirmSignOut = () =>
