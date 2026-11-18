@@ -228,7 +228,39 @@ export function shortDate(iso: string | null): string {
   return `${d.getDate()} ${m} ${d.getFullYear()}`;
 }
 
+// "19 Oct 2026, 5:33 PM IST" - a moment, always in India time (for
+// deadlines like the cancel and return windows).
+export function shortDateTime(when: string | number | Date | null): string {
+  if (when == null || when === '') return '';
+  const ms = new Date(when).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const ist = new Date(ms + 5.5 * 3600_000);
+  const h = ist.getUTCHours();
+  const min = String(ist.getUTCMinutes()).padStart(2, '0');
+  const day = shortDate(
+    `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(ist.getUTCDate()).padStart(2, '0')}T12:00:00`,
+  );
+  return `${day}, ${h % 12 || 12}:${min} ${h < 12 ? 'AM' : 'PM'} IST`;
+}
+
 // ---------- cancel (cancel-order-items) ----------
+
+// A customer can cancel only within 24 hours of placing the order (client,
+// 13 Nov 2026; website src/lib/orderCancel.ts). This only decides whether
+// the Cancel button shows - cancel-order-items enforces the same window.
+export const CUSTOMER_CANCEL_WINDOW_HOURS = 24;
+export const customerCancelDeadline = (orderPlacedAt: string) =>
+  new Date(
+    new Date(orderPlacedAt).getTime() +
+      CUSTOMER_CANCEL_WINDOW_HOURS * 3_600_000,
+  );
+export const isWithinCustomerCancelWindow = (
+  orderPlacedAt: string,
+  now: number = Date.now(),
+) => now <= customerCancelDeadline(orderPlacedAt).getTime();
 
 // The cancel button shows while any boutique part is still before delivery
 // and (warehouse route) not yet in a booked parcel. The function re-checks.

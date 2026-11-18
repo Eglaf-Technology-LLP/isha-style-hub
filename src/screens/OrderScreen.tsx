@@ -35,7 +35,10 @@ import {
   STAGES,
   useMyOrders,
   cancellableParts,
+  customerCancelDeadline,
   invoiceState,
+  isWithinCustomerCancelWindow,
+  shortDateTime,
 } from '@/lib/orders';
 import { useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -68,7 +71,10 @@ export default function OrderScreen() {
   const stopped = label.tone === 'stopped';
   const stage = orderStage(o);
   const a = o.shipping_address ?? {};
-  const canCancel = cancellableParts(o).length > 0;
+  // The customer's own cancel closes 24 hours after ordering.
+  const canCancel =
+    cancellableParts(o).length > 0 &&
+    isWithinCustomerCancelWindow(o.created_at);
   const returnWin = returnWindow(o);
   const help = `Hi AllBoutiqs, I need help with my order ${orderNumber(o.id)}.`;
 
@@ -140,6 +146,12 @@ export default function OrderScreen() {
               </Touch>
             ) : null}
           </View>
+          {canCancel ? (
+            <Sans style={styles.meta}>
+              You can cancel until{' '}
+              {shortDateTime(customerCancelDeadline(o.created_at))}
+            </Sans>
+          ) : null}
         </View>
 
         <View style={styles.block}>
