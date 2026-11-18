@@ -26,7 +26,7 @@ export interface VendorInfo {
     country?: string;
   } | null;
   contact_email: string | null;
-  contact_phone: string | null;
+  gst_number: string | null;
   default_prep_days: number | null;
 }
 
@@ -36,10 +36,12 @@ export function useVendorInfo(vendorId: string | null | undefined) {
     enabled: !!vendorId,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
+      // Not the boutique's phone: it is never shown to customers (as on the
+      // website, e174257).
       const { data } = await supabase
         .from('vendors')
         .select(
-          'name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, contact_phone, default_prep_days',
+          'name, slug, is_trusted, is_verified, is_founding, return_window_days, returns_enabled, cod_enabled, address, contact_email, gst_number, default_prep_days',
         )
         .eq('id', vendorId!)
         .maybeSingle();

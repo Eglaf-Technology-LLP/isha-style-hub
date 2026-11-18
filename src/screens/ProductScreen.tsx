@@ -28,6 +28,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { ColourBoxes } from '@/components/ColourBoxes';
+import { GrievanceOfficerNote } from '@/components/GrievanceOfficerNote';
 import { Chip, Sheet } from '@/components/Listing';
 import { PhotoViewer } from '@/components/PhotoViewer';
 import { ProductRail } from '@/components/ProductLists';
@@ -62,6 +63,7 @@ import {
   productColors,
   productSizes,
   sizeOf,
+  useBoutiques,
   useProduct,
   useProducts,
   variantImages,
@@ -168,6 +170,7 @@ export default function ProductScreen() {
     [all, product],
   );
   const { data: vendorInfo } = useVendorInfo(product?.vendor_id);
+  const { data: boutiques = [] } = useBoutiques();
   // One return window for every boutique, set by AllBoutiqs (24 hours).
   const windowHours = useReturnWindowHours();
 
@@ -244,6 +247,9 @@ export default function ProductScreen() {
   const codAvailable =
     product.cod_available !== false && vendorInfo?.cod_enabled !== false;
   const photoHeight = Math.round((width * 4) / 3);
+  const boutique = product.vendor_id
+    ? boutiques.find(b => b.id === product.vendor_id)
+    : undefined;
   // The return line follows the product's Returnable switch; Cash on
   // Delivery says whether it's available; the country of origin is the
   // product's own field (website a12bffc, client corrections 2.4).
@@ -658,7 +664,6 @@ export default function ProductScreen() {
             <InfoRow label="Customer care">
               {[
                 vendorAddressLine(vendorInfo),
-                vendorInfo?.contact_phone && `Ph: ${vendorInfo.contact_phone}`,
                 vendorInfo?.contact_email &&
                   `Email: ${vendorInfo.contact_email}`,
               ]
@@ -671,6 +676,56 @@ export default function ProductScreen() {
               {CONFIG.whatsapp}
             </InfoRow>
           </Accordion>
+        </View>
+
+        {/* The boutique: its name, address and GSTIN (as on the website) */}
+        {vendorInfo ? (
+          <Touch
+            style={[styles.block, styles.seller]}
+            onPress={() => vendorInfo.slug && go(`/store/${vendorInfo.slug}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Sold by ${vendorInfo.name}`}
+          >
+            <View style={styles.sellerLogo}>
+              {boutique?.logo_url ? (
+                <Image
+                  source={{ uri: boutique.logo_url }}
+                  style={styles.sellerLogoImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Serif style={styles.sellerInitial}>
+                  {vendorInfo.name.charAt(0).toUpperCase()}
+                </Serif>
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Eyebrow style={{ color: colors.mutedForeground }}>
+                Sold by
+              </Eyebrow>
+              <Serif style={styles.sellerName}>{vendorInfo.name}</Serif>
+              {boutique?.description ? (
+                <Sans style={styles.sellerSmall} numberOfLines={2}>
+                  {boutique.description}
+                </Sans>
+              ) : null}
+              {vendorAddressLine(vendorInfo) ? (
+                <Sans style={[styles.sellerSmall, { marginTop: 6 }]}>
+                  {vendorAddressLine(vendorInfo)}
+                </Sans>
+              ) : null}
+              {vendorInfo.gst_number ? (
+                <Sans style={styles.sellerSmall}>
+                  GSTIN {vendorInfo.gst_number}
+                </Sans>
+              ) : null}
+            </View>
+            <ArrowRight size={16} color={colors.foreground} />
+          </Touch>
+        ) : null}
+
+        <View style={styles.block}>
+          <GrievanceOfficerNote />
         </View>
 
         <View style={styles.block}>
@@ -847,6 +902,27 @@ function Info({
 }
 
 const styles = StyleSheet.create({
+  seller: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  sellerLogo: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sellerLogoImage: { width: '100%', height: '100%' },
+  sellerInitial: { fontSize: 24, color: colors.primary },
+  sellerName: { fontSize: 20, lineHeight: 25, marginTop: 4 },
+  sellerSmall: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+    marginTop: 2,
+  },
   infoSub: {
     fontSize: 12,
     lineHeight: 17,
