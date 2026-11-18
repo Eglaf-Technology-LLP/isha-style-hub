@@ -292,10 +292,12 @@ export default function ProductScreen() {
                     index + 1
                   }. Tap to zoom`}
                 >
+                  {/* The whole photo, never cropped - its corners and edges
+                      included (as on the website). */}
                   <Image
                     source={{ uri: item }}
                     style={{ width, height: photoHeight }}
-                    resizeMode="cover"
+                    resizeMode="contain"
                   />
                 </Touch>
               )}
