@@ -65,7 +65,7 @@ export default function Bag() {
       wanted > stock
         ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
         : twin
-        ? `Size changed to ${size} and added to the ${size} already in your bag`
+        ? `Size changed to ${size} and added to the ${size} already in your cart`
         : `Size changed to ${size}`,
     );
   };
