@@ -47,14 +47,24 @@ export function EwayBillRecordDialog({ bill, onSaved }: { bill: AdminEwayBill; o
   const save = async () => {
     setSaving(true);
     try {
+      // A half-typed date (e.g. a 6-digit year) used to throw here, outside
+      // any handler - the error showed and the button kept spinning.
+      const moment = (value: string, label: string) => {
+        if (!value) return null;
+        const d = new Date(value);
+        if (isNaN(d.getTime())) throw new Error(`${label} isn't a complete date and time - check it and save again`);
+        return d.toISOString();
+      };
+      const ewbDate = moment(generatedAt, "Generated on");
+      const validTill = moment(validUntil, "Valid until");
       setStep("number");
       const { errorMessage } = await withTimeout(
         invokeEdgeFunction("eway-bill-actions", {
           action: "record",
           eway_bill_id: bill.id,
           ewb_number: digits,
-          ewb_date: generatedAt ? new Date(generatedAt).toISOString() : null,
-          valid_until: validUntil ? new Date(validUntil).toISOString() : null,
+          ewb_date: ewbDate,
+          valid_until: validTill,
           ...(changeDocument ? { document_number: documentNumber, document_date: documentDate } : {}),
         }),
         60_000,
