@@ -9,18 +9,22 @@ import {
   View,
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
-import { Field, StatePicker } from '@/components/Form';
+import { AddressLine1Field, Field, StatePicker } from '@/components/Form';
 import { Sheet } from '@/components/Listing';
 import { Button, Sans, Serif, Touch } from '@/components/ui';
 import {
   Address,
+  addressDefaults,
   AddressForm,
   emptyAddress,
   lookupPincode,
   useAddressActions,
   useAddresses,
+  useProfile,
   validateAddress,
 } from '@/lib/account';
+import { useSession } from '@/lib/auth';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
 import { toast } from '@/lib/toast';
 import { colors, fonts } from '@/theme';
 
@@ -147,6 +151,11 @@ export function AddressSheet({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const filled = useRef({ city: '', state: '' });
+  const user = useSession(st => st.user);
+  const { data: profile } = useProfile();
+  const { data: saved } = useAddresses();
+  // The account's first address (known only once its addresses have loaded).
+  const firstAddress = editing === 'new' && !!saved && saved.length === 0;
 
   useEffect(() => {
     if (!editing) return;
@@ -167,6 +176,18 @@ export function AddressSheet({
       });
     }
   }, [editing]);
+
+  // A first address starts with the profile's name and mobile number
+  // (still editable), never over what was typed.
+  useEffect(() => {
+    if (!firstAddress || !profile) return;
+    const { name, phone } = addressDefaults(user, profile);
+    setF(cur => ({
+      ...cur,
+      full_name: cur.full_name || name,
+      phone: cur.phone || phone,
+    }));
+  }, [firstAddress, profile, user]);
 
   const set = (patch: Partial<AddressForm>) =>
     setF(cur => ({ ...cur, ...patch }));
@@ -190,6 +211,8 @@ export function AddressSheet({
       });
     });
   };
+
+  const line1Ok = addressLine1Ok(f.address_line_1);
 
   const submit = async () => {
     const invalid = validateAddress(f);
@@ -216,9 +239,13 @@ export function AddressSheet({
           <Button
             label={busy ? 'Saving...' : 'Save address'}
             onPress={submit}
-            disabled={busy}
+            // Locked until address line 1 is long enough for the courier.
+            disabled={busy || !line1Ok}
             style={styles.gapSm}
           />
+          {!line1Ok ? (
+            <Text style={styles.locked}>{ADDRESS_LINE1_LOCKED}</Text>
+          ) : null}
         </View>
       }
     >
@@ -254,11 +281,9 @@ export function AddressSheet({
         autoComplete="postal-code"
         hint="City and state fill in from the pincode."
       />
-      <Field
-        label="Address line 1"
-        required
+      <AddressLine1Field
         value={f.address_line_1}
-        onChangeText={t => set({ address_line_1: t })}
+        onChange={t => set({ address_line_1: t })}
         placeholder="House/Flat No., Building Name"
         autoComplete="address-line1"
       />
@@ -352,6 +377,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.sansMedium,
     color: colors.destructive,
     marginTop: 10,
+  },
+  locked: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.destructive,
+    textAlign: 'center',
+    marginTop: 8,
   },
   defaultRow: {
     flexDirection: 'row',

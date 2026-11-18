@@ -30,6 +30,8 @@ export interface Shipment {
   status: string;
   dispatch_id: string | null;
   return_window_ends_on: string | null;
+  // The moment returns close (24 hours after delivery), stamped on delivery.
+  return_window_ends_at: string | null;
   // Warehouse route: already in the warehouse's booked parcel to the customer.
   inParcel: boolean;
   updated_at: string;
@@ -85,7 +87,7 @@ export function useMyOrders() {
         supabase
           .from('vendor_orders')
           .select(
-            'id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on',
+            'id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on, return_window_ends_at',
           )
           .in('order_id', ids),
       ]);
@@ -228,7 +230,39 @@ export function shortDate(iso: string | null): string {
   return `${d.getDate()} ${m} ${d.getFullYear()}`;
 }
 
+// "19 Oct 2026, 5:33 PM IST" - a moment, always in India time (for
+// deadlines like the cancel and return windows).
+export function shortDateTime(when: string | number | Date | null): string {
+  if (when == null || when === '') return '';
+  const ms = new Date(when).getTime();
+  if (!Number.isFinite(ms)) return '';
+  const ist = new Date(ms + 5.5 * 3600_000);
+  const h = ist.getUTCHours();
+  const min = String(ist.getUTCMinutes()).padStart(2, '0');
+  const day = shortDate(
+    `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(
+      2,
+      '0',
+    )}-${String(ist.getUTCDate()).padStart(2, '0')}T12:00:00`,
+  );
+  return `${day}, ${h % 12 || 12}:${min} ${h < 12 ? 'AM' : 'PM'} IST`;
+}
+
 // ---------- cancel (cancel-order-items) ----------
+
+// A customer can cancel only within 24 hours of placing the order (client,
+// 13 Nov 2026; website src/lib/orderCancel.ts). This only decides whether
+// the Cancel button shows - cancel-order-items enforces the same window.
+export const CUSTOMER_CANCEL_WINDOW_HOURS = 24;
+export const customerCancelDeadline = (orderPlacedAt: string) =>
+  new Date(
+    new Date(orderPlacedAt).getTime() +
+      CUSTOMER_CANCEL_WINDOW_HOURS * 3_600_000,
+  );
+export const isWithinCustomerCancelWindow = (
+  orderPlacedAt: string,
+  now: number = Date.now(),
+) => now <= customerCancelDeadline(orderPlacedAt).getTime();
 
 // The cancel button shows while any boutique part is still before delivery
 // and (warehouse route) not yet in a booked parcel. The function re-checks.
@@ -364,10 +398,14 @@ export const CHARGE_FREE_RETURN_REASONS = [
   'Colour is different from what was shown',
 ];
 
+// The refund charge (platform_settings.refund_charge_pct, plus GST on it):
+// only on a Cash on Delivery order's refund by bank transfer (client, 10 Nov
+// 2026). The wallet and the original online payment get the full amount.
 export interface RefundCharge {
   pct: number;
   gstPct: number;
 }
+export const DEFAULT_REFUND_CHARGE: RefundCharge = { pct: 5, gstPct: 18 };
 const round2 = (n: number) => Math.round(n * 100) / 100;
 export const refundChargeLabel = (c: RefundCharge) =>
   `${c.pct}% + ${c.gstPct}% GST (${round2(
@@ -384,8 +422,10 @@ export function useRefundCharge() {
         .select('refund_charge_pct, refund_charge_gst_pct')
         .maybeSingle();
       return {
-        pct: Number(data?.refund_charge_pct ?? 3),
-        gstPct: Number(data?.refund_charge_gst_pct ?? 18),
+        pct: Number(data?.refund_charge_pct ?? DEFAULT_REFUND_CHARGE.pct),
+        gstPct: Number(
+          data?.refund_charge_gst_pct ?? DEFAULT_REFUND_CHARGE.gstPct,
+        ),
       };
     },
   });

@@ -1,5 +1,7 @@
+import type { User } from '@supabase/supabase-js';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useSession } from './auth';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from './addressLine1';
+import { nationalPhone, useSession } from './auth';
 import { friendly } from './errors';
 import { supabase } from './supabase';
 
@@ -80,6 +82,19 @@ export const emptyAddress = (): AddressForm => ({
   is_default: false,
 });
 
+// Name and mobile number to start a first address with (client, 16 Nov
+// 2026): the profile's name, and the account's verified mobile number (an
+// account registered with a mobile number), else one saved in the profile.
+export function addressDefaults(
+  user: User | null,
+  profile: Profile | null | undefined,
+): { name: string; phone: string } {
+  return {
+    name: profile?.full_name?.trim() ?? '',
+    phone: nationalPhone(user?.phone || profile?.phone?.trim() || ''),
+  };
+}
+
 export function useAddresses() {
   const userId = useSession(st => st.user?.id ?? null);
   return useQuery({
@@ -139,9 +154,22 @@ export function useAddressActions() {
           .select('id')
           .single();
     if (error)
-      return friendly(error, "Couldn't save the address. Please try again.");
+      // The database's own refusal is written for shoppers.
+      return error.message?.includes(ADDRESS_LINE1_LOCKED)
+        ? ADDRESS_LINE1_LOCKED
+        : friendly(error, "Couldn't save the address. Please try again.");
     if (data?.id) onSaved?.(data.id as string);
     refresh();
+    // A new address's name fills a profile that has none yet. Never the
+    // mobile number - that is verified by SMS in the profile, since it
+    // signs in (website 0551490). Best effort.
+    if (!id && form.full_name.trim())
+      supabase
+        .from('profiles')
+        .update({ full_name: form.full_name.trim() })
+        .eq('user_id', uid)
+        .or('full_name.is.null,full_name.eq.')
+        .then(() => qc.invalidateQueries({ queryKey: ['profile'] }));
     return null;
   };
 
@@ -174,6 +202,7 @@ export function validateAddress(f: AddressForm): string | null {
     !f.pincode
   )
     return 'Please fill in all required fields.';
+  if (!addressLine1Ok(f.address_line_1)) return ADDRESS_LINE1_LOCKED;
   if (!/^(\+?91)?[6-9]\d{9}$/.test(f.phone.replace(/[\s-]/g, '')))
     return 'Enter a 10-digit mobile number.';
   if (!/^[1-9]\d{5}$/.test(f.pincode)) return 'Enter a 6-digit pincode.';

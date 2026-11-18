@@ -18,12 +18,27 @@ export interface CartItem {
   price: { amount: string; currencyCode: string };
   quantity: number;
   selectedOptions: { name: string; value: string }[];
+  // The boutique's own product code, shown on the bag line (as the
+  // website's cart). Optional: the bag also looks it up.
+  sku?: string | null;
 }
+
+// What changes when a line moves to another size of the same piece.
+export type VariantChange = Pick<
+  CartItem,
+  'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage'
+>;
 
 interface CartState {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   setQuantity: (variantId: string, quantity: number) => void;
+  // Another size of the same piece (maxQuantity: what it has in stock).
+  changeVariant: (
+    variantId: string,
+    next: VariantChange,
+    maxQuantity?: number,
+  ) => void;
   removeItem: (variantId: string) => void;
   clear: () => void;
 }
@@ -53,6 +68,34 @@ export const useCart = create<CartState>()(
                   i.variantId === variantId ? { ...i, quantity } : i,
                 ),
         }),
+      // From the bag (website 64af7e4): the line takes the new variant's id,
+      // size, price and photo, keeping its place. If that size is already
+      // in the bag, the two lines become one. Quantity cut to the stock.
+      changeVariant: (variantId, next, maxQuantity) => {
+        const items = get().items;
+        const line = items.find(i => i.variantId === variantId);
+        if (!line) return;
+        const cap = (q: number) =>
+          maxQuantity != null ? Math.max(1, Math.min(q, maxQuantity)) : q;
+        const twin = items.find(
+          i => i !== line && i.variantId === next.variantId,
+        );
+        set({
+          items: twin
+            ? items
+                .filter(i => i !== line)
+                .map(i =>
+                  i === twin
+                    ? { ...i, quantity: cap(i.quantity + line.quantity) }
+                    : i,
+                )
+            : items.map(i =>
+                i === line
+                  ? { ...line, ...next, quantity: cap(line.quantity) }
+                  : i,
+              ),
+        });
+      },
       removeItem: variantId =>
         set({ items: get().items.filter(i => i.variantId !== variantId) }),
       clear: () => set({ items: [] }),

@@ -11,7 +11,13 @@ import { AppHeader } from '@/components/AppHeader';
 import { Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import { useWallet, WALLET_KIND_LABEL } from '@/lib/account';
 import { formatINR } from '@/lib/format';
-import { orderNumber, shortDate } from '@/lib/orders';
+import {
+  DEFAULT_REFUND_CHARGE,
+  orderNumber,
+  refundChargeLabel,
+  shortDate,
+  useRefundCharge,
+} from '@/lib/orders';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
 
@@ -20,6 +26,7 @@ import { colors, fonts } from '@/theme';
 export default function WalletScreen() {
   const go = useGo();
   const { data, isLoading, isRefetching, refetch } = useWallet();
+  const { data: refundCharge = DEFAULT_REFUND_CHARGE } = useRefundCharge();
 
   return (
     <View style={styles.flex}>
@@ -39,20 +46,40 @@ export default function WalletScreen() {
           />
         }
         ListHeaderComponent={
-          <View style={styles.hero}>
-            <Eyebrow>AllBoutiqs Wallet</Eyebrow>
-            {isLoading ? (
-              <ActivityIndicator color={colors.ivory} style={styles.spinner} />
-            ) : (
-              <Serif style={styles.balance}>
-                {formatINR(data?.balance ?? 0)}
-              </Serif>
-            )}
-            <Sans style={styles.heroText}>
-              Refunds you choose to take to your wallet land here instantly, and
-              you can use them on your next order.
-            </Sans>
-          </View>
+          <>
+            <View style={styles.hero}>
+              <Eyebrow>AllBoutiqs Wallet</Eyebrow>
+              {isLoading ? (
+                <ActivityIndicator
+                  color={colors.ivory}
+                  style={styles.spinner}
+                />
+              ) : (
+                <Serif style={styles.balance}>
+                  {formatINR(data?.balance ?? 0)}
+                </Serif>
+              )}
+              <Sans style={styles.heroText}>
+                Refunds you choose to take to your wallet land here instantly,
+                and you can use them on your next order.
+              </Sans>
+            </View>
+            <View style={styles.how}>
+              <Eyebrow style={styles.howHead}>How your wallet works</Eyebrow>
+              {[
+                "When you return an item or cancel a paid order, you can take the refund in your wallet - free of any charge. It's added instantly: for a return, as soon as the items pass our quality check.",
+                'At checkout, your balance can pay for part of an order or the whole of it.',
+                `Wallet balance can't be topped up, withdrawn to a bank account or transferred to someone else. You can also take a refund back to the card, UPI or netbanking you paid with, in full. For a Cash on Delivery order refunded to your bank account, a refund charge of ${refundChargeLabel(
+                  refundCharge,
+                )} is deducted (not when the item arrived damaged, was the wrong item or wasn't as described).`,
+              ].map(t => (
+                <View key={t} style={styles.point}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Sans style={styles.pointText}>{t}</Sans>
+                </View>
+              ))}
+            </View>
+          </>
         }
         ListEmptyComponent={
           isLoading ? undefined : (
@@ -101,6 +128,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     lineHeight: 20,
     fontSize: 13,
+  },
+  how: { backgroundColor: colors.ivory, padding: 16, marginBottom: 8 },
+  howHead: { color: colors.foreground, marginBottom: 8 },
+  point: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  bullet: { color: colors.mutedForeground, lineHeight: 19 },
+  pointText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.mutedForeground,
   },
   spinner: { marginTop: 14, alignSelf: 'flex-start' },
   empty: { alignItems: 'center', paddingTop: 40, gap: 10 },

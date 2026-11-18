@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { CONFIG } from '@/config';
 import { Address, normalizeState } from './account';
 import { useSession } from './auth';
+import { formatINR } from './format';
 import { CartItem } from './stores';
 import { supabase } from './supabase';
 
@@ -17,6 +18,10 @@ import { supabase } from './supabase';
 // what the app showed, the order is cancelled before anything is charged.
 
 export const MIN_ONLINE_PAYMENT_AMOUNT = 1;
+// Razorpay's per-transaction ceiling for our account (the website's
+// MAX_ONLINE_PAYMENT_AMOUNT, checked 6 Nov 2026): Rs 5,00,000 goes through,
+// more is refused. Above it, online payment is off and COD is offered.
+export const MAX_ONLINE_PAYMENT_AMOUNT = 500000;
 const PLATFORM_SHIPPING = { flatRate: 99, threshold: 999 };
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -162,6 +167,65 @@ export function vendorGroups(
   });
 }
 
+// ---------- GST inside the prices (src/lib/gst.ts on the website) ----------
+
+// A category's GST rule (its HSN code): the rate, and a higher rate above a
+// price limit (e.g. clothing: 5% up to Rs 2,500 a piece, 18% above).
+export interface GstRule {
+  gst_rate: number;
+  price_limit: number | null;
+  gst_rate_above_limit: number | null;
+}
+
+// GST rate for one piece sold at a GST-inclusive price, as the database's
+// gst_rate_for: the band is decided on the value before GST at the lower rate.
+function gstRateForInclusive(rule: GstRule | null, unitPrice: number): number {
+  if (!rule) return 0;
+  const rate = Number(rule.gst_rate);
+  if (
+    rule.price_limit == null ||
+    unitPrice / (1 + rate / 100) <= Number(rule.price_limit)
+  )
+    return rate;
+  return Number(rule.gst_rate_above_limit ?? rate);
+}
+
+// The GST inside a GST-inclusive line total, split the way the tax invoice
+// splits it (invoice_line_amounts): taxable = round(total / (1 + rate)), GST
+// = the rest.
+export function gstInsideLine(
+  rule: GstRule | null,
+  lineTotal: number,
+  quantity: number,
+): number {
+  if (!Number.isFinite(lineTotal) || lineTotal <= 0) return 0;
+  const rate = gstRateForInclusive(rule, lineTotal / Math.max(quantity, 1));
+  const taxable =
+    Math.round(Number(((lineTotal * 100) / (1 + rate / 100)).toFixed(4))) / 100;
+  return round2(lineTotal - taxable);
+}
+
+// Each category's GST rule (null = no HSN code set for it yet).
+export function useGstRules() {
+  return useQuery({
+    queryKey: ['gst-rules'],
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, hsn_codes(gst_rate, price_limit, gst_rate_above_limit)');
+      if (error) throw error;
+      const map = new Map<string, GstRule | null>();
+      for (const c of (data ?? []) as any[])
+        map.set(
+          c.id as string,
+          (Array.isArray(c.hsn_codes) ? c.hsn_codes[0] : c.hsn_codes) ?? null,
+        );
+      return map;
+    },
+  });
+}
+
 // ---------- coupon (src/lib/coupons.ts + Checkout's validateDiscountCode) ----------
 
 export interface Coupon {
@@ -300,7 +364,7 @@ export async function checkCoupon(
   return { coupon, error: null };
 }
 
-// ---------- COD charge and delivery date (Shiprocket, through our functions) ----------
+// ---------- COD fee and delivery date (through our functions) ----------
 
 const groupsFor = (items: CartItem[]) => {
   const map = new Map<string, { product_id: string; quantity: number }[]>();
@@ -317,26 +381,80 @@ const groupsFor = (items: CartItem[]) => {
   }));
 };
 
-// The courier's real COD charge for this parcel to this PIN at this value.
-// shiprocket-cod-charge records the quote; the database accepts the order's
-// COD charge only if it matches one.
+// One entry per boutique part for the COD fee: its goods less its coupon
+// share plus its shipping (goods_due), and its pieces.
+export interface CodGroup {
+  vendor_id: string;
+  goods_due: number;
+  items: { product_id: string; quantity: number }[];
+}
+export function codGroups(
+  groups: VendorGroup[],
+  couponPerLine: Map<string, number>,
+): CodGroup[] {
+  return groups
+    .filter(g => g.vendorId)
+    .map(g => ({
+      vendor_id: g.vendorId!,
+      goods_due: round2(
+        g.subtotal -
+          g.items.reduce(
+            (n, i) => n + (couponPerLine.get(i.variantId) ?? 0),
+            0,
+          ) +
+          g.shippingCost,
+      ),
+      items: g.items.map(i => ({
+        product_id: i.productId,
+        quantity: i.quantity,
+      })),
+    }));
+}
+
+export interface CodQuote {
+  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
+  // What the customer pays: fee + GST.
+  amount: number;
+  fee: number;
+  gst: number;
+  // The fee's % (3), for "Cash on Delivery fee (3% + GST)".
+  pct: number | null;
+}
+export const NO_COD_QUOTE: CodQuote = {
+  status: 'idle',
+  amount: 0,
+  fee: 0,
+  gst: 0,
+  pct: null,
+};
+
+// The Cash on Delivery fee (client, 13 Nov 2026): 3% of what each boutique
+// part comes to + 18% GST on that fee - worked out by the server
+// (shiprocket-cod-charge, the same sum price_order makes), which also checks
+// a courier collects cash at this PIN code and records the quote; the
+// database accepts the order's COD fee only if it matches.
 export async function codQuote(
   pincode: string,
   goodsDue: number,
-  items: CartItem[],
-): Promise<{ status: 'ready' | 'unavailable' | 'error'; amount: number }> {
-  const groups = groupsFor(items);
-  if (!groups.length) return { status: 'unavailable', amount: 0 };
+  groups: CodGroup[],
+): Promise<CodQuote> {
+  if (!groups.length) return { ...NO_COD_QUOTE, status: 'unavailable' };
   const { data, error } = await supabase.functions.invoke(
     'shiprocket-cod-charge',
     {
       body: { delivery_pincode: pincode, order_value: goodsDue, groups },
     },
   );
-  if (error || !data) return { status: 'error', amount: 0 };
+  if (error || !data) return { ...NO_COD_QUOTE, status: 'error' };
   if (!data.available || data.cod_charge == null)
-    return { status: 'unavailable', amount: 0 };
-  return { status: 'ready', amount: Number(data.cod_charge) };
+    return { ...NO_COD_QUOTE, status: 'unavailable' };
+  return {
+    status: 'ready',
+    amount: Number(data.cod_charge),
+    fee: Number(data.cod_fee ?? 0),
+    gst: Number(data.cod_fee_gst ?? 0),
+    pct: data.cod_fee_pct == null ? null : Number(data.cod_fee_pct),
+  };
 }
 
 // Whole-bag delivery date for this PIN (slowest boutique wins).
@@ -381,6 +499,8 @@ export interface PlaceInput {
   };
   deliveryEta: string | null;
   products: Map<string, { is_returnable: boolean | null; sku: string | null }>;
+  // Cash on Delivery can be chosen for this bag (for the wording only).
+  codAvailable: boolean;
 }
 
 export type PlaceResult =
@@ -440,6 +560,20 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
       kind: 'error',
       message:
         'Online payment needs at least ₹1 - please choose Cash on Delivery instead',
+    };
+  // Checked before anything is saved: Razorpay refuses an order above the
+  // account's ceiling, and the customer would only see a generic error.
+  if (
+    orderPaymentMethod === 'razorpay' &&
+    totals.payNow > MAX_ONLINE_PAYMENT_AMOUNT
+  )
+    return {
+      kind: 'error',
+      message: `Online payment is limited to ${formatINR(
+        MAX_ONLINE_PAYMENT_AMOUNT,
+      )} per order - remove an item and place it as a separate order${
+        input.codAvailable ? ', or choose Cash on Delivery' : ''
+      }`,
     };
 
   // The name on the address becomes the account's name if it has none yet.
@@ -656,7 +790,7 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
     // The database's own reasons are written for shoppers (price_order,
     // price_order_item); anything else gets a plain sentence.
     const shopperReason =
-      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery charge has changed|choose a quantity|choose again|try again/i.test(
+      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|Address line 1 needs at least|choose a quantity|choose again|try again/i.test(
         raw,
       );
     console.warn('[AllBoutiqs] place order', raw);
@@ -693,7 +827,23 @@ export async function readPending(userId: string): Promise<Pending | null> {
   }
 }
 
-export type PayOutcome = 'paid' | 'processing' | 'released' | 'unverified';
+// refunded: the payment came through after the unpaid checkout had been
+// released - no order; the server refunds it automatically (lateCapture.ts).
+export type PayOutcome =
+  | 'paid'
+  | 'processing'
+  | 'released'
+  | 'refunded'
+  | 'unverified';
+
+// The client's exact words when Razorpay is closed or the payment fails
+// (website 2.9.1). No order is placed and the bag stays as it was.
+export const PAYMENT_NOT_COMPLETED = 'Payment not completed – please try again';
+
+// A payment that came through after its checkout had been released as
+// unpaid (website 0e22763). The bag is kept; it's never shown as placed.
+export const LATE_PAYMENT_MESSAGE =
+  'Your payment came through after the checkout had timed out, so no order was placed. It is being refunded to your original payment method (usually 5-7 working days). Your cart is saved - you can place the order again.';
 
 export async function payOnline(
   orderId: string,
@@ -731,6 +881,12 @@ export async function payOnline(
         },
       },
     );
+    if (data?.released) {
+      // Released as unpaid before this payment came through: no order, the
+      // payment is refunded automatically, the bag stays as it was.
+      await clearPending();
+      return 'refunded';
+    }
     if (error || !data?.verified) return 'unverified';
     await clearPending();
     await sendOrderEmails(orderId);
@@ -743,7 +899,11 @@ export async function payOnline(
       await sendOrderEmails(orderId);
       return 'paid';
     }
-    return status === 'processing' ? 'processing' : 'released';
+    return status === 'processing'
+      ? 'processing'
+      : status === 'refunded'
+      ? 'refunded'
+      : 'released';
   }
 }
 
@@ -758,14 +918,21 @@ export async function checkPending(
     .select('payment_status, order_status')
     .eq('id', pending.orderId)
     .maybeSingle();
+  // Cancelled first: a checkout released as unpaid and paid after that is
+  // refunded automatically, never placed.
+  const paid = !!o && ['paid', 'refunded'].includes(o.payment_status);
   let status: PayOutcome;
-  if (o && ['paid', 'refunded'].includes(o.payment_status)) status = 'paid';
-  else if (!o || o.order_status === 'cancelled') status = 'released';
+  if (!o) status = 'released';
+  else if (o.order_status === 'cancelled')
+    status = paid ? 'refunded' : 'released';
+  else if (paid) status = 'paid';
   else {
     const s = await releaseUnpaid(pending.orderId);
     status =
       s === 'paid'
         ? 'paid'
+        : s === 'refunded'
+        ? 'refunded'
         : s === 'processing' || s === null
         ? 'processing'
         : 'released';

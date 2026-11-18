@@ -21,22 +21,36 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { DeliverTo, useDeliveryAddress } from '@/components/DeliverTo';
+import {
+  DeliverTo,
+  useDeliverTo,
+  useDeliveryAddress,
+} from '@/components/DeliverTo';
 import { Button, Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { useWallet } from '@/lib/account';
+import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
 import { useSession } from '@/lib/auth';
 import {
   cartDeliveryDate,
   checkCoupon,
   checkPending,
+  CodGroup,
+  codGroups,
   codQuote,
+  CodQuote,
   Coupon,
+  MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
+  gstInsideLine,
+  LATE_PAYMENT_MESSAGE,
+  NO_COD_QUOTE,
+  PAYMENT_NOT_COMPLETED,
   payOnline,
   placeOrder,
   splitCoupon,
   useBuyNow,
   useCheckoutData,
+  useGstRules,
   vendorGroups,
 } from '@/lib/checkout';
 import { formatINR } from '@/lib/format';
@@ -66,7 +80,12 @@ export default function CheckoutScreen() {
   );
   const user = useSession(st => st.user);
   const { address } = useDeliveryAddress();
+  const openDeliver = useDeliverTo(st => st.open);
+  // Locked until the delivery address line 1 is long enough for the courier
+  // (an address saved before the rule can be shorter).
+  const line1Locked = !!address && !addressLine1Ok(address.address_line_1);
   const { data, isLoading } = useCheckoutData(items);
+  const { data: gstRules } = useGstRules();
   const { data: wallet } = useWallet();
 
   const [email, setEmail] = useState(user?.email ?? '');
@@ -76,13 +95,7 @@ export default function CheckoutScreen() {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [walletOn, setWalletOn] = useState(false);
   const [method, setMethod] = useState<'razorpay' | 'cod'>('razorpay');
-  const [cod, setCod] = useState<{
-    status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error';
-    amount: number;
-  }>({
-    status: 'idle',
-    amount: 0,
-  });
+  const [cod, setCod] = useState<CodQuote>(NO_COD_QUOTE);
   const [eta, setEta] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
 
@@ -101,6 +114,27 @@ export default function CheckoutScreen() {
   const split = coupon ? splitCoupon(coupon, items, categoryOf) : null;
   const discount = split?.total ?? 0;
   const goodsDue = round2(subtotal - discount + shipping);
+  // Product value and GST on separate lines (website 2.9.2). Prices include
+  // GST; the GST is what the tax invoice will charge on each line after its
+  // coupon share, in whole rupees. Product value is the rest of the items'
+  // price, so product value + GST - coupon is exactly what the items cost.
+  const gstReady = !!gstRules && !!data;
+  const gstAmount = Math.round(
+    items.reduce((sum, i) => {
+      const line =
+        parseFloat(i.price.amount) * i.quantity -
+        (split?.perLine.get(i.variantId) ?? 0);
+      const categoryId = categoryOf(i.productId);
+      const rule = categoryId ? gstRules?.get(categoryId) ?? null : null;
+      return sum + gstInsideLine(rule, line, i.quantity);
+    }, 0),
+  );
+  const productValue = round2(subtotal - gstAmount);
+  // Cash on Delivery fee: 3% of each boutique part + 18% GST on it, quoted
+  // by the server for this PIN code (see codQuote).
+  const codFeeLabel = `Cash on Delivery fee${
+    cod.pct != null ? ` (${cod.pct}% + GST)` : ''
+  }`;
   const codFee = method === 'cod' && cod.status === 'ready' ? cod.amount : 0;
   const total = round2(goodsDue + codFee);
   const walletBalance = wallet?.balance ?? 0;
@@ -108,6 +142,11 @@ export default function CheckoutScreen() {
   const payNow = round2(total - walletUse);
   const paidByWallet = walletUse > 0 && payNow <= 0;
   const belowOnlineMinimum = payNow > 0 && payNow < MIN_ONLINE_PAYMENT_AMOUNT;
+  const aboveOnlineMaximum = payNow > MAX_ONLINE_PAYMENT_AMOUNT;
+  const onlineUnavailable = belowOnlineMinimum || aboveOnlineMaximum;
+  const onlineUnavailableText = belowOnlineMinimum
+    ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)}`
+    : `Not available above ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order`;
 
   // COD only when every boutique and piece allows it, a courier collects
   // cash at this PIN, and the wallet isn't used (the website's rules).
@@ -143,31 +182,37 @@ export default function CheckoutScreen() {
   useEffect(() => {
     if (codDisabled && method === 'cod') setMethod('razorpay');
   }, [codDisabled, method]);
+  // Online payment not possible for this amount: Cash on Delivery instead.
   useEffect(() => {
-    if (belowOnlineMinimum && method === 'razorpay' && !codDisabled)
+    if (onlineUnavailable && method === 'razorpay' && !codDisabled)
       setMethod('cod');
-  }, [belowOnlineMinimum, method, codDisabled]);
+  }, [onlineUnavailable, method, codDisabled]);
 
   // ---- COD quote and delivery date for this PIN ----
   const pin = address?.pincode ?? '';
   const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  // One entry per boutique part, as a stable key for the quote below.
+  const codGroupsKey = useMemo(
+    () => JSON.stringify(codGroups(groups, split?.perLine ?? new Map())),
+    [groups, split?.perLine],
+  );
   useEffect(() => {
-    if (!/^[1-9]\d{5}$/.test(pin) || !items.length) {
-      setCod({ status: 'idle', amount: 0 });
+    const parts = JSON.parse(codGroupsKey) as CodGroup[];
+    if (!/^[1-9]\d{5}$/.test(pin) || !parts.length) {
+      setCod(NO_COD_QUOTE);
       return;
     }
     let alive = true;
     setCod(c => ({ ...c, status: 'loading' }));
     const t = setTimeout(async () => {
-      const q = await codQuote(pin, goodsDue, items);
+      const q = await codQuote(pin, goodsDue, parts);
       if (alive) setCod(q);
     }, 500);
     return () => {
       alive = false;
       clearTimeout(t);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, itemsKey, goodsDue]);
+  }, [pin, codGroupsKey, goodsDue]);
   useEffect(() => {
     if (!/^\d{6}$/.test(pin) || !items.length) return setEta(null);
     let alive = true;
@@ -192,11 +237,9 @@ export default function CheckoutScreen() {
             important: true,
           },
         );
-      else
-        toast(
-          "Your last payment didn't go through, so no order was placed. You can try again.",
-          { important: true },
-        );
+      else if (r.status === 'refunded')
+        toast(LATE_PAYMENT_MESSAGE, { important: true });
+      else toast(PAYMENT_NOT_COMPLETED, { important: true });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -227,6 +270,10 @@ export default function CheckoutScreen() {
     if (!user) return go('/signin');
     if (!address)
       return toast('Please add a delivery address', { important: true });
+    if (line1Locked) {
+      toast(ADDRESS_LINE1_LOCKED, { important: true });
+      return openDeliver('edit');
+    }
     const mail = email.trim();
     if (!mail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))
       return toast('Please enter a valid email for your order updates', {
@@ -235,8 +282,8 @@ export default function CheckoutScreen() {
     if (method === 'cod' && !paidByWallet && cod.status !== 'ready')
       return toast(
         cod.status === 'loading'
-          ? 'Working out the Cash on Delivery charge - try again in a moment'
-          : "Couldn't work out the Cash on Delivery charge for this PIN code. Check it, or pay online.",
+          ? 'Working out the Cash on Delivery fee - try again in a moment'
+          : "Couldn't work out the Cash on Delivery fee for this PIN code. Check it, or pay online.",
         { important: true },
       );
     tap();
@@ -262,6 +309,7 @@ export default function CheckoutScreen() {
       products: new Map(
         [...(data?.products.entries() ?? [])].map(([id, p]) => [id, p]),
       ),
+      codAvailable: !codDisabled,
     });
     if (r.kind === 'error') {
       setPlacing(false);
@@ -283,6 +331,8 @@ export default function CheckoutScreen() {
           important: true,
         },
       );
+    if (outcome === 'refunded')
+      return toast(LATE_PAYMENT_MESSAGE, { important: true });
     if (outcome === 'unverified')
       return toast(
         'Payment could not be verified. If you were charged, contact support with your order reference.',
@@ -290,10 +340,7 @@ export default function CheckoutScreen() {
           important: true,
         },
       );
-    toast(
-      'Payment not completed, so no order was placed. Your bag is saved - you can try again.',
-      { important: true },
-    );
+    toast(PAYMENT_NOT_COMPLETED, { important: true });
   };
 
   if (!items.length) {
@@ -474,7 +521,7 @@ export default function CheckoutScreen() {
             <Eyebrow style={styles.head}>Payment</Eyebrow>
             <PayOption
               on={method === 'razorpay'}
-              disabled={belowOnlineMinimum}
+              disabled={onlineUnavailable}
               onPress={() => setMethod('razorpay')}
               icon={
                 <CreditCard
@@ -485,8 +532,10 @@ export default function CheckoutScreen() {
               }
               title="Pay online"
               note={
-                belowOnlineMinimum
-                  ? 'Online payment needs at least ₹1'
+                onlineUnavailable
+                  ? `${onlineUnavailableText}${
+                      codDisabled ? '' : ' - use Cash on Delivery'
+                    }`
                   : 'UPI, cards, netbanking and wallets - secured by Razorpay'
               }
             />
@@ -500,50 +549,93 @@ export default function CheckoutScreen() {
               title="Cash on Delivery"
               note={
                 codReason ??
-                (cod.status === 'loading'
-                  ? 'Working out the COD charge...'
-                  : cod.status === 'ready'
-                  ? `COD charge ${formatINR(cod.amount)}`
+                (cod.status === 'ready'
+                  ? `Pay when your order arrives · COD fee ${formatINR(
+                      cod.amount,
+                    )}${cod.pct != null ? ` (${cod.pct}% + GST)` : ''}`
+                  : cod.status === 'loading'
+                  ? 'Pay when your order arrives · working out the COD fee...'
                   : cod.status === 'error'
-                  ? "Couldn't get the COD charge - check the PIN code"
-                  : 'Pay when it arrives')
+                  ? "Pay when your order arrives · couldn't work out the COD fee - check the PIN code"
+                  : 'Pay when your order arrives · the COD fee shows once you enter your PIN code')
               }
             />
+            {codDisabled && onlineUnavailable ? (
+              <Text style={styles.error}>
+                {belowOnlineMinimum
+                  ? `This order is also below the ${formatINR(
+                      MIN_ONLINE_PAYMENT_AMOUNT,
+                    )} minimum for online payment - add another item to check out.`
+                  : `This order is also above the ${formatINR(
+                      MAX_ONLINE_PAYMENT_AMOUNT,
+                    )} limit for one online payment - remove an item and place it as a separate order.`}
+              </Text>
+            ) : null}
+            {aboveOnlineMaximum && !codDisabled ? (
+              <Sans style={styles.small}>
+                Online payment is limited to{' '}
+                {formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order. Pay by Cash on
+                Delivery, or split the cart into smaller orders.
+              </Sans>
+            ) : null}
           </View>
         ) : null}
 
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Price details</Eyebrow>
           {!ready ? <ActivityIndicator color={colors.primary} /> : null}
-          <Row label="Items" value={formatINR(subtotal)} />
-          {discount > 0 ? (
+          <Row
+            label="Product value"
+            value={gstReady ? formatINR(productValue) : '…'}
+          />
+          <Row label="GST" value={gstReady ? formatINR(gstAmount) : '…'} />
+          {/* Free delivery is one line, not one per boutique. */}
+          {groups.every(g => g.shippingCost === 0) ? (
+            <Row label="Delivery" value="Free Delivery" good />
+          ) : (
+            groups.map(g => (
+              <Row
+                key={g.vendorId ?? 'platform'}
+                label={`Shipping${g.vendorName ? ` — ${g.vendorName}` : ''}`}
+                value={
+                  g.shippingCost > 0
+                    ? formatINR(g.shippingCost)
+                    : 'Free Delivery'
+                }
+                good={g.shippingCost === 0}
+              />
+            ))
+          )}
+          {codFee > 0 ? (
             <Row
-              label="Coupon discount"
+              label={codFeeLabel}
+              sub={
+                cod.gst > 0
+                  ? `${formatINR(cod.fee)} + ${formatINR(cod.gst)} GST`
+                  : undefined
+              }
+              value={formatINR(codFee)}
+            />
+          ) : null}
+          {coupon ? (
+            <Row
+              label={`Coupon (${coupon.code})`}
               value={`- ${formatINR(discount)}`}
               good
             />
           ) : null}
-          <Row
-            label="Shipping"
-            value={shipping > 0 ? formatINR(shipping) : 'Free'}
-            good={shipping === 0}
-          />
-          {codFee > 0 ? (
-            <Row label="Cash on Delivery charge" value={formatINR(codFee)} />
-          ) : null}
-          {walletUse > 0 ? (
-            <Row
-              label="Paid from wallet"
-              value={`- ${formatINR(walletUse)}`}
-              good
-            />
-          ) : null}
           <View style={styles.rule} />
-          <Row
-            label={walletUse > 0 ? 'To pay' : 'Total'}
-            value={formatINR(payNow)}
-            strong
-          />
+          <Row label="Total" value={formatINR(total)} strong />
+          {walletUse > 0 ? (
+            <>
+              <Row
+                label="Paid from your wallet"
+                value={`- ${formatINR(walletUse)}`}
+                good
+              />
+              <Row label="To pay" value={formatINR(payNow)} strong />
+            </>
+          ) : null}
           <Sans style={styles.small}>
             Prices include GST. The final amount is confirmed when the order is
             placed.
@@ -552,6 +644,18 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: 10 + insets.bottom }]}>
+        {line1Locked ? (
+          <Touch
+            style={styles.lockedRow}
+            onPress={() => openDeliver('edit')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.locked}>
+              {ADDRESS_LINE1_LOCKED} (Delivery address){' '}
+              <Text style={styles.lockedLink}>Edit address</Text>
+            </Text>
+          </Touch>
+        ) : null}
         <View>
           <Text style={styles.barTotal}>{formatINR(payNow)}</Text>
           <Sans style={styles.small}>
@@ -561,7 +665,7 @@ export default function CheckoutScreen() {
         <Button
           label={actionLabel}
           onPress={place}
-          disabled={placing || !ready || !address}
+          disabled={placing || !ready || !address || line1Locked}
           style={styles.flex1}
         />
       </View>
@@ -610,18 +714,24 @@ function PayOption({
 
 function Row({
   label,
+  sub,
   value,
   strong,
   good,
 }: {
   label: string;
+  // A smaller line under the label ("₹30 + ₹5.40 GST").
+  sub?: string;
   value: string;
   strong?: boolean;
   good?: boolean;
 }) {
   return (
     <View style={styles.row}>
-      <Sans style={strong ? styles.strong : undefined}>{label}</Sans>
+      <View style={styles.flex1}>
+        <Sans style={strong ? styles.strong : undefined}>{label}</Sans>
+        {sub ? <Sans style={styles.small}>{sub}</Sans> : null}
+      </View>
       <Sans style={[strong && styles.strong, good && styles.good]}>
         {value}
       </Sans>
@@ -811,6 +921,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
@@ -819,6 +930,13 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  lockedRow: { width: '100%' },
+  locked: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.destructive,
+  },
+  lockedLink: { fontFamily: fonts.sansMedium, textDecorationLine: 'underline' },
   barTotal: {
     fontFamily: fonts.sansSemi,
     fontSize: 18,

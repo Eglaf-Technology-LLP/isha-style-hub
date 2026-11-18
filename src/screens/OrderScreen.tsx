@@ -35,7 +35,10 @@ import {
   STAGES,
   useMyOrders,
   cancellableParts,
+  customerCancelDeadline,
   invoiceState,
+  isWithinCustomerCancelWindow,
+  shortDateTime,
 } from '@/lib/orders';
 import { useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -68,7 +71,10 @@ export default function OrderScreen() {
   const stopped = label.tone === 'stopped';
   const stage = orderStage(o);
   const a = o.shipping_address ?? {};
-  const canCancel = cancellableParts(o).length > 0;
+  // The customer's own cancel closes 24 hours after ordering.
+  const canCancel =
+    cancellableParts(o).length > 0 &&
+    isWithinCustomerCancelWindow(o.created_at);
   const returnWin = returnWindow(o);
   const help = `Hi AllBoutiqs, I need help with my order ${orderNumber(o.id)}.`;
 
@@ -89,11 +95,6 @@ export default function OrderScreen() {
             {label.text}
           </Text>
           <Sans style={styles.meta}>Placed on {shortDate(o.created_at)}</Sans>
-          {returnWin.items.length && returnWin.until ? (
-            <Sans style={styles.meta}>
-              Return or exchange until {shortDate(returnWin.until)}
-            </Sans>
-          ) : null}
           {o.estimated_delivery_date && stage < 4 && !stopped ? (
             <Sans style={styles.meta}>
               Expected by {shortDate(o.estimated_delivery_date)}
@@ -140,6 +141,20 @@ export default function OrderScreen() {
               </Touch>
             ) : null}
           </View>
+          {returnWin.items.length && returnWin.note ? (
+            <Sans style={styles.meta}>{returnWin.note}</Sans>
+          ) : !returnWin.items.length && returnWin.closedAt ? (
+            <Sans style={styles.meta}>
+              Return / exchange window closed on{' '}
+              {shortDateTime(returnWin.closedAt)}
+            </Sans>
+          ) : null}
+          {canCancel ? (
+            <Sans style={styles.meta}>
+              You can cancel until{' '}
+              {shortDateTime(customerCancelDeadline(o.created_at))}
+            </Sans>
+          ) : null}
         </View>
 
         <View style={styles.block}>
@@ -240,7 +255,7 @@ export default function OrderScreen() {
           />
           {o.cod_charge > 0 ? (
             <Row
-              label="Cash on delivery charge"
+              label="Cash on Delivery fee (incl. GST)"
               value={formatINR(o.cod_charge)}
             />
           ) : null}
