@@ -47,6 +47,8 @@ export type RootParams = {
   Invoice: { id: string };
   Notifications: undefined;
   Legal: { doc: LegalDocKey };
+  // The complaint form (a pop-up on the website, no page of its own).
+  Complaint: undefined;
   Checkout: { buyNow?: string } | undefined;
   OrderPlaced: { id: string };
 };
@@ -154,6 +156,7 @@ export function useGo() {
       else if (section === 'search') name = 'Search';
       else if (section === 'bag') name = 'Bag';
       else if (section === 'notifications') name = 'Notifications';
+      else if (section === 'complaint') name = 'Complaint';
       else if (section === 'checkout')
         [name, routeParams] = ['Checkout', params];
       else if (section === 'order-placed' && id)

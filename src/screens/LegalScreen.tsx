@@ -10,12 +10,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
-import { Eyebrow, Serif, Touch } from '@/components/ui';
+import { Button, Eyebrow, Serif, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
 import { COMPANY, telHref } from '@/content/company';
 import {
   Block,
   LEGAL_DOCS,
+  LEGAL_PATHS,
   LegalDoc,
   LegalDocKey,
   Segment,
@@ -159,7 +160,20 @@ export function LegalView({
           ))}
         </View>
       );
-    if ('complaint' in b) return null;
+    // Contact us: "Raise a complaint" opens the complaint form.
+    if ('complaint' in b)
+      return (
+        <Button
+          key={i}
+          label="Raise a complaint"
+          variant="outline"
+          style={styles.complaint}
+          onPress={() => {
+            if (!onOpenPath('/complaint'))
+              Linking.openURL(`${CONFIG.siteUrl}${LEGAL_PATHS.contact}`);
+          }}
+        />
+      );
     // The website's GrievanceContact block.
     const g = COMPANY.grievanceOfficer;
     return (
@@ -328,6 +342,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   grievanceTitle: { fontSize: 18, marginBottom: 6 },
+  complaint: { alignSelf: 'flex-start', marginTop: 4, marginBottom: 12 },
   small: {
     fontFamily: fonts.sans,
     fontSize: 13,
