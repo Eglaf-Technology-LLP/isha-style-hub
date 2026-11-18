@@ -95,11 +95,6 @@ export default function OrderScreen() {
             {label.text}
           </Text>
           <Sans style={styles.meta}>Placed on {shortDate(o.created_at)}</Sans>
-          {returnWin.items.length && returnWin.until ? (
-            <Sans style={styles.meta}>
-              Return or exchange until {shortDate(returnWin.until)}
-            </Sans>
-          ) : null}
           {o.estimated_delivery_date && stage < 4 && !stopped ? (
             <Sans style={styles.meta}>
               Expected by {shortDate(o.estimated_delivery_date)}
@@ -146,6 +141,14 @@ export default function OrderScreen() {
               </Touch>
             ) : null}
           </View>
+          {returnWin.items.length && returnWin.note ? (
+            <Sans style={styles.meta}>{returnWin.note}</Sans>
+          ) : !returnWin.items.length && returnWin.closedAt ? (
+            <Sans style={styles.meta}>
+              Return / exchange window closed on{' '}
+              {shortDateTime(returnWin.closedAt)}
+            </Sans>
+          ) : null}
           {canCancel ? (
             <Sans style={styles.meta}>
               You can cancel until{' '}

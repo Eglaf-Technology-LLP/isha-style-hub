@@ -30,6 +30,8 @@ export interface Shipment {
   status: string;
   dispatch_id: string | null;
   return_window_ends_on: string | null;
+  // The moment returns close (24 hours after delivery), stamped on delivery.
+  return_window_ends_at: string | null;
   // Warehouse route: already in the warehouse's booked parcel to the customer.
   inParcel: boolean;
   updated_at: string;
@@ -85,7 +87,7 @@ export function useMyOrders() {
         supabase
           .from('vendor_orders')
           .select(
-            'id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on',
+            'id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on, return_window_ends_at',
           )
           .in('order_id', ids),
       ]);

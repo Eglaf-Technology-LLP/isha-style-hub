@@ -6,7 +6,13 @@ import {
   Asset,
 } from 'react-native-image-picker';
 import { useSession } from './auth';
-import { Order, OrderItem, RefundMethod } from './orders';
+import {
+  Order,
+  OrderItem,
+  RefundMethod,
+  Shipment,
+  shortDateTime,
+} from './orders';
 import { friendly } from './errors';
 import { supabase } from './supabase';
 
@@ -49,27 +55,43 @@ export const RETURN_STATUS_LABEL: Record<string, string> = {
 
 // ---------- the return window (OrderHistory.tsx returnWindowFor) ----------
 
-const istToday = () =>
-  new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+// When a part's returns close: the moment stamped on delivery (24 hours
+// after it by default, return_window_ends_at); a part delivered before
+// windows were timed stays open to the end of that day (IST).
+function windowEnd(s: Shipment): number | null {
+  if (s.return_window_ends_at)
+    return new Date(s.return_window_ends_at).getTime();
+  if (s.return_window_ends_on)
+    return (
+      new Date(`${s.return_window_ends_on}T23:59:59+05:30`).getTime() + 1000
+    );
+  return null;
+}
 
-// Each boutique part can come back from delivery until its window ends; a
-// customised piece only within 24 hours of its delivery.
+// Each boutique part can come back from its delivery until its return
+// window closes - the server enforces the same rule (enforce_return_window);
+// a customised piece only within 24 hours of its delivery.
 export function returnWindow(o: Order): {
   items: OrderItem[];
-  until: string | null;
+  // "Available until ..." while some items can still come back.
+  note: string | null;
+  // When the window closed, once nothing can come back any more.
+  closedAt: number | null;
 } {
-  const today = istToday();
+  const now = Date.now();
   const delivered = o.shipments.filter(s => s.status === 'delivered');
   const open = new Set(
     delivered
-      .filter(s => !s.return_window_ends_on || s.return_window_ends_on >= today)
+      .filter(s => {
+        const end = windowEnd(s);
+        return end === null || end > now;
+      })
       .map(s => s.id),
   );
   const customisedOpen = new Set(
     delivered
       .filter(
-        s =>
-          Date.now() - new Date(s.delivered_at ?? 0).getTime() < 24 * 3600_000,
+        s => now - new Date(s.delivered_at ?? 0).getTime() < 24 * 3600_000,
       )
       .map(s => s.id),
   );
@@ -80,12 +102,34 @@ export function returnWindow(o: Order): {
         ? customisedOpen.has(i.vendor_order_id)
         : open.has(i.vendor_order_id)),
   );
-  const deadlines = delivered
-    .filter(s => open.has(s.id))
-    .map(s => s.return_window_ends_on)
-    .filter((d): d is string => !!d)
-    .sort();
-  return { items, until: deadlines[0] ?? null };
+  const deadlines = [
+    ...new Set(
+      delivered
+        .filter(s => open.has(s.id))
+        .map(windowEnd)
+        .filter((d): d is number => d !== null),
+    ),
+  ].sort((x, y) => x - y);
+  const note =
+    deadlines.length === 0
+      ? null
+      : deadlines.length === 1
+      ? `Available until ${shortDateTime(deadlines[0])}`
+      : `Available until ${shortDateTime(
+          deadlines[0],
+        )} for some items, ${shortDateTime(
+          deadlines[deadlines.length - 1],
+        )} for others`;
+  // (A customised piece never had a return window to close.)
+  const closedAt =
+    items.length === 0 && o.items.some(i => !i.customisation)
+      ? delivered
+          .map(windowEnd)
+          .filter((d): d is number => d !== null)
+          .sort((x, y) => x - y)
+          .pop() ?? null
+      : null;
+  return { items, note, closedAt };
 }
 
 // ---------- requests on an order ----------
