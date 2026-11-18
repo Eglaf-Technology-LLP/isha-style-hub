@@ -31,6 +31,7 @@ import {
   checkPending,
   codQuote,
   Coupon,
+  MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
   payOnline,
   placeOrder,
@@ -108,6 +109,11 @@ export default function CheckoutScreen() {
   const payNow = round2(total - walletUse);
   const paidByWallet = walletUse > 0 && payNow <= 0;
   const belowOnlineMinimum = payNow > 0 && payNow < MIN_ONLINE_PAYMENT_AMOUNT;
+  const aboveOnlineMaximum = payNow > MAX_ONLINE_PAYMENT_AMOUNT;
+  const onlineUnavailable = belowOnlineMinimum || aboveOnlineMaximum;
+  const onlineUnavailableText = belowOnlineMinimum
+    ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)}`
+    : `Not available above ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order`;
 
   // COD only when every boutique and piece allows it, a courier collects
   // cash at this PIN, and the wallet isn't used (the website's rules).
@@ -143,10 +149,11 @@ export default function CheckoutScreen() {
   useEffect(() => {
     if (codDisabled && method === 'cod') setMethod('razorpay');
   }, [codDisabled, method]);
+  // Online payment not possible for this amount: Cash on Delivery instead.
   useEffect(() => {
-    if (belowOnlineMinimum && method === 'razorpay' && !codDisabled)
+    if (onlineUnavailable && method === 'razorpay' && !codDisabled)
       setMethod('cod');
-  }, [belowOnlineMinimum, method, codDisabled]);
+  }, [onlineUnavailable, method, codDisabled]);
 
   // ---- COD quote and delivery date for this PIN ----
   const pin = address?.pincode ?? '';
@@ -262,6 +269,7 @@ export default function CheckoutScreen() {
       products: new Map(
         [...(data?.products.entries() ?? [])].map(([id, p]) => [id, p]),
       ),
+      codAvailable: !codDisabled,
     });
     if (r.kind === 'error') {
       setPlacing(false);
@@ -474,7 +482,7 @@ export default function CheckoutScreen() {
             <Eyebrow style={styles.head}>Payment</Eyebrow>
             <PayOption
               on={method === 'razorpay'}
-              disabled={belowOnlineMinimum}
+              disabled={onlineUnavailable}
               onPress={() => setMethod('razorpay')}
               icon={
                 <CreditCard
@@ -485,8 +493,10 @@ export default function CheckoutScreen() {
               }
               title="Pay online"
               note={
-                belowOnlineMinimum
-                  ? 'Online payment needs at least ₹1'
+                onlineUnavailable
+                  ? `${onlineUnavailableText}${
+                      codDisabled ? '' : ' - use Cash on Delivery'
+                    }`
                   : 'UPI, cards, netbanking and wallets - secured by Razorpay'
               }
             />
@@ -509,6 +519,24 @@ export default function CheckoutScreen() {
                   : 'Pay when it arrives')
               }
             />
+            {codDisabled && onlineUnavailable ? (
+              <Text style={styles.error}>
+                {belowOnlineMinimum
+                  ? `This order is also below the ${formatINR(
+                      MIN_ONLINE_PAYMENT_AMOUNT,
+                    )} minimum for online payment - add another item to check out.`
+                  : `This order is also above the ${formatINR(
+                      MAX_ONLINE_PAYMENT_AMOUNT,
+                    )} limit for one online payment - remove an item and place it as a separate order.`}
+              </Text>
+            ) : null}
+            {aboveOnlineMaximum && !codDisabled ? (
+              <Sans style={styles.small}>
+                Online payment is limited to{' '}
+                {formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order. Pay by Cash on
+                Delivery, or split the cart into smaller orders.
+              </Sans>
+            ) : null}
           </View>
         ) : null}
 

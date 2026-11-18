@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { CONFIG } from '@/config';
 import { Address, normalizeState } from './account';
 import { useSession } from './auth';
+import { formatINR } from './format';
 import { CartItem } from './stores';
 import { supabase } from './supabase';
 
@@ -17,6 +18,10 @@ import { supabase } from './supabase';
 // what the app showed, the order is cancelled before anything is charged.
 
 export const MIN_ONLINE_PAYMENT_AMOUNT = 1;
+// Razorpay's per-transaction ceiling for our account (the website's
+// MAX_ONLINE_PAYMENT_AMOUNT, checked 6 Nov 2026): Rs 5,00,000 goes through,
+// more is refused. Above it, online payment is off and COD is offered.
+export const MAX_ONLINE_PAYMENT_AMOUNT = 500000;
 const PLATFORM_SHIPPING = { flatRate: 99, threshold: 999 };
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -381,6 +386,8 @@ export interface PlaceInput {
   };
   deliveryEta: string | null;
   products: Map<string, { is_returnable: boolean | null; sku: string | null }>;
+  // Cash on Delivery can be chosen for this bag (for the wording only).
+  codAvailable: boolean;
 }
 
 export type PlaceResult =
@@ -440,6 +447,20 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
       kind: 'error',
       message:
         'Online payment needs at least ₹1 - please choose Cash on Delivery instead',
+    };
+  // Checked before anything is saved: Razorpay refuses an order above the
+  // account's ceiling, and the customer would only see a generic error.
+  if (
+    orderPaymentMethod === 'razorpay' &&
+    totals.payNow > MAX_ONLINE_PAYMENT_AMOUNT
+  )
+    return {
+      kind: 'error',
+      message: `Online payment is limited to ${formatINR(
+        MAX_ONLINE_PAYMENT_AMOUNT,
+      )} per order - remove an item and place it as a separate order${
+        input.codAvailable ? ', or choose Cash on Delivery' : ''
+      }`,
     };
 
   // The name on the address becomes the account's name if it has none yet.
