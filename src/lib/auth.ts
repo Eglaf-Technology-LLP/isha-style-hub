@@ -174,6 +174,17 @@ export async function verifyCode(
   };
 }
 
+// "Create account" checks first: does this email / mobile number already
+// have an account? (yes/no only, from auth_account_exists). null when the
+// check itself failed - the caller then carries on as before.
+export async function accountExists(id: Identifier): Promise<boolean | null> {
+  const { data, error } = await supabase.rpc(
+    'auth_account_exists',
+    id.kind === 'email' ? { _email: id.value } : { _phone: id.value },
+  );
+  return error ? null : !!data;
+}
+
 export async function signInWithPassword(id: Identifier, password: string) {
   const { error } = await supabase.auth.signInWithPassword(
     id.kind === 'email'
