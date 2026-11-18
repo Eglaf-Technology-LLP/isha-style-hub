@@ -45,6 +45,10 @@ export interface Category {
   slug: string;
   description: string | null;
   image_url: string | null;
+  // Admin's choice (Admin > Categories): a link in the menus (the website's
+  // header) / a tile on Home. Every category is in the listing filter anyway.
+  show_in_header?: boolean;
+  show_on_home?: boolean;
 }
 
 export interface Boutique {
@@ -171,12 +175,41 @@ export function useCategories() {
       if (snap) return snap.categories;
       const { data, error } = await supabase
         .from('categories')
-        .select('id, name, slug, description, image_url')
+        // "*": also works before the header / home page columns exist.
+        .select('*')
         .order('name');
       if (error) throw error;
-      return data || [];
+      return ((data || []) as Category[]).map(c => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        description: c.description,
+        image_url: c.image_url,
+        show_in_header: c.show_in_header,
+        show_on_home: c.show_on_home,
+      }));
     },
   });
+}
+
+// The categories for the menus (the website's useMenuCategories, used by its
+// header, phone menu and footer): the ones the admin put in the header, and
+// only those with at least one live product - an empty category makes the
+// shop look closed. Nothing until both lists have loaded.
+export function useMenuCategories() {
+  const categories = useCategories();
+  const products = useProducts();
+  const ready = categories.isSuccess && products.isSuccess;
+  const live = new Set((products.data ?? []).map(p => p.category_id));
+  return {
+    data: ready
+      ? (categories.data ?? []).filter(
+          c => c.show_in_header !== false && live.has(c.id),
+        )
+      : [],
+    ready,
+    isLoading: categories.isLoading || products.isLoading,
+  };
 }
 
 const toBoutique = (b: Boutique): Boutique => ({

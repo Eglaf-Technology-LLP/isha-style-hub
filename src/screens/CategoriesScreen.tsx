@@ -1,12 +1,6 @@
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
-import {
-  ChevronRight,
-  Package,
-  Sparkles,
-  Tag,
-  Truck,
-} from 'lucide-react-native';
+import { ChevronRight, Package, Truck } from 'lucide-react-native';
 import {
   ActivityIndicator,
   ScrollView,
@@ -16,12 +10,12 @@ import {
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Eyebrow, Placeholder, Serif, Touch } from '@/components/ui';
-import { categoryCover, useCategories, useProducts } from '@/lib/catalog';
+import { categoryCover, useMenuCategories, useProducts } from '@/lib/catalog';
 import { colors, fonts } from '@/theme';
 
+// No "New in" or "Sale" here: the website took those links out of its
+// header and phone menu (44e7959).
 const QUICK = [
-  { href: '/category/all?sort=newest', label: 'New in', icon: Sparkles },
-  { href: '/category/all?sale=1', label: 'Sale', icon: Tag },
   { href: '/category/all?max=1999', label: 'Under ₹1,999', icon: Package },
   {
     href: '/category/all?availability=ready',
@@ -30,11 +24,13 @@ const QUICK = [
   },
 ];
 
-// Every category as a banner row - the Myntra/Ajio category screen in the
-// AllBoutiqs maroon, ivory and gold.
+// The menu's categories as banner rows - the Myntra/Ajio category screen in
+// the AllBoutiqs maroon, ivory and gold. Same list as the website's header
+// and phone menu: the ones the admin put in the header (Admin > Categories)
+// that have a live piece. Every category is still in a listing's filter.
 export default function Categories() {
   const go = useGo();
-  const { data: categories = [], isLoading } = useCategories();
+  const { data: categories, isLoading } = useMenuCategories();
   const { data: products = [] } = useProducts();
   const count = (id: string) =>
     products.filter(p => p.category_id === id).length;

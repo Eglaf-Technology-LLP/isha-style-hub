@@ -1,6 +1,6 @@
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
-import { RotateCcw, ShieldCheck, Tag, Truck } from 'lucide-react-native';
+import { RotateCcw, ShieldCheck, Truck } from 'lucide-react-native';
 import { useMemo } from 'react';
 import {
   RefreshControl,
@@ -49,8 +49,10 @@ export default function Home() {
     return [...pool].sort(() => Math.random() - 0.5).slice(0, 12);
   }, [all]);
   const sale = all.filter(onSale).slice(0, 12);
-  const liveCategories = categories.filter(c =>
-    all.some(p => p.category_id === c.id),
+  // The categories the admin picked for the home page (Admin > Categories),
+  // as the website's "Shop by category" tiles - here only those with pieces.
+  const homeCategories = categories.filter(
+    c => c.show_on_home !== false && all.some(p => p.category_id === c.id),
   );
 
   return (
@@ -69,65 +71,42 @@ export default function Home() {
       >
         <OfferStrip />
 
-        {/* Category circles */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.circles}
-          style={styles.circleBand}
-        >
-          {all.some(onSale) ? (
-            <Touch
-              style={styles.circleItem}
-              onPress={() => go('/category/all?sale=1')}
-            >
-              <View
-                style={[
-                  styles.circle,
-                  {
-                    backgroundColor: colors.primary,
-                    borderColor: colors.gold,
-                    borderWidth: 2,
-                  },
-                ]}
-              >
-                <Tag
-                  size={24}
-                  color={colors.primaryForeground}
-                  strokeWidth={1.6}
-                />
-              </View>
-              <Text style={[styles.circleLabel, { color: colors.primary }]}>
-                Sale
-              </Text>
-            </Touch>
-          ) : null}
-          {liveCategories.map(c => {
-            const src = c.image_url || categoryCover(c.id, all);
-            return (
-              <Touch
-                key={c.id}
-                style={styles.circleItem}
-                onPress={() => go(`/category/${c.slug}`)}
-              >
-                <View style={styles.circle}>
-                  {src ? (
-                    <Image
-                      source={{ uri: src }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <Placeholder label={c.name.charAt(0)} />
-                  )}
-                </View>
-                <Text style={styles.circleLabel} numberOfLines={1}>
-                  {c.name}
-                </Text>
-              </Touch>
-            );
-          })}
-        </ScrollView>
+        {/* Category circles. No "Sale" circle: the website took its "New In"
+            and "Sale" menu links away (44e7959); the sale rail stays. */}
+        {homeCategories.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.circles}
+            style={styles.circleBand}
+          >
+            {homeCategories.map(c => {
+              const src = c.image_url || categoryCover(c.id, all);
+              return (
+                <Touch
+                  key={c.id}
+                  style={styles.circleItem}
+                  onPress={() => go(`/category/${c.slug}`)}
+                >
+                  <View style={styles.circle}>
+                    {src ? (
+                      <Image
+                        source={{ uri: src }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Placeholder label={c.name.charAt(0)} />
+                    )}
+                  </View>
+                  <Text style={styles.circleLabel} numberOfLines={1}>
+                    {c.name}
+                  </Text>
+                </Touch>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         <HeroBanner />
 
