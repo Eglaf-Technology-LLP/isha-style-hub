@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
 import {
@@ -7,8 +8,9 @@ import {
   ShieldCheck,
   ShoppingBag,
   Trash2,
+  Truck,
 } from 'lucide-react-native';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
@@ -18,8 +20,10 @@ import {
   useDeliverTo,
   useDeliveryAddress,
 } from '@/components/DeliverTo';
+import { cartDeliveryDate } from '@/lib/checkout';
 import { formatINR } from '@/lib/format';
-import { cartCount, cartTotal, useCart } from '@/lib/stores';
+import { shortDate } from '@/lib/orders';
+import { CartItem, cartCount, cartTotal, useCart } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
 
 export default function Bag() {
@@ -70,15 +74,24 @@ export default function Bag() {
           <FlatList
             data={items}
             ListHeaderComponent={
-              signedIn ? (
-                <DeliverTo />
-              ) : (
-                <Touch style={styles.signinStrip} onPress={() => go('/signin')}>
-                  <Text style={styles.signinText}>
-                    Sign in to choose where it's delivered
-                  </Text>
-                </Touch>
-              )
+              <>
+                {signedIn ? (
+                  <DeliverTo />
+                ) : (
+                  <Touch
+                    style={styles.signinStrip}
+                    onPress={() => go('/signin')}
+                  >
+                    <Text style={styles.signinText}>
+                      Sign in to choose where it's delivered
+                    </Text>
+                  </Touch>
+                )}
+                <DeliveryDate
+                  items={items}
+                  pincode={signedIn ? address?.pincode ?? null : null}
+                />
+              </>
             }
             keyExtractor={i => i.variantId}
             contentContainerStyle={{
@@ -160,14 +173,6 @@ export default function Bag() {
                 {formatINR(total)}
               </Sans>
             </View>
-            <View style={styles.totalRow}>
-              <Sans>Shipping</Sans>
-              <Sans
-                style={{ color: colors.success, fontFamily: fonts.sansMedium }}
-              >
-                Free
-              </Sans>
-            </View>
             <Button
               label="Place order"
               icon={<Lock size={15} color={colors.primaryForeground} />}
@@ -193,7 +198,112 @@ export default function Bag() {
   );
 }
 
+// Delivery is free for every customer, so the bag doesn't spend room saying
+// so - it only offers the delivery date (the website's CartShippingEstimate):
+// for the delivery address's PIN code, else for a PIN code typed here.
+function DeliveryDate({
+  items,
+  pincode,
+}: {
+  items: CartItem[];
+  pincode: string | null;
+}) {
+  const [typed, setTyped] = useState('');
+  const [checkedPin, setCheckedPin] = useState<string | null>(null);
+  const [eta, setEta] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const pin = pincode ?? checkedPin;
+  const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  useEffect(() => {
+    setEta(null);
+    if (!pin || !/^\d{6}$/.test(pin) || !items.length) return;
+    let alive = true;
+    setChecking(true);
+    cartDeliveryDate(pin, items).then(d => {
+      if (!alive) return;
+      setEta(d);
+      setChecking(false);
+    });
+    return () => {
+      alive = false;
+      setChecking(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin, itemsKey]);
+
+  if (pincode && !eta) return null;
+  return (
+    <View style={styles.dateBlock}>
+      {pincode ? null : (
+        <View style={styles.pinRow}>
+          <TextInput
+            value={typed}
+            onChangeText={t => setTyped(t.replace(/\D/g, '').slice(0, 6))}
+            keyboardType="number-pad"
+            maxLength={6}
+            placeholder="Enter pincode for delivery date"
+            placeholderTextColor={colors.mutedForeground}
+            style={styles.pinInput}
+            onSubmitEditing={() => typed.length === 6 && setCheckedPin(typed)}
+          />
+          <Touch
+            style={[styles.pinCheck, typed.length !== 6 && styles.dim]}
+            disabled={typed.length !== 6 || checking}
+            onPress={() => setCheckedPin(typed)}
+          >
+            <Text style={styles.pinCheckText}>
+              {checking ? '...' : 'Check'}
+            </Text>
+          </Touch>
+        </View>
+      )}
+      {eta ? (
+        <View style={styles.etaRow}>
+          <Truck size={15} color={colors.success} />
+          <Text style={styles.etaText}>
+            Estimated delivery by {shortDate(eta)}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  dateBlock: { paddingHorizontal: 16, marginBottom: 8 },
+  pinRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  pinInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.ivory,
+    paddingHorizontal: 12,
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    color: colors.foreground,
+  },
+  pinCheck: {
+    height: 42,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.foreground,
+  },
+  pinCheckText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.foreground,
+  },
+  dim: { opacity: 0.5 },
+  etaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  etaText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 13,
+    color: colors.success,
+  },
   signinStrip: { backgroundColor: colors.ivory, padding: 16, marginBottom: 8 },
   signinText: {
     fontFamily: fonts.sansMedium,

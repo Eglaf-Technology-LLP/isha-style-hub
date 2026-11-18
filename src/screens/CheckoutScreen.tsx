@@ -551,11 +551,23 @@ export default function CheckoutScreen() {
               good
             />
           ) : null}
-          <Row
-            label="Shipping"
-            value={shipping > 0 ? formatINR(shipping) : 'Free'}
-            good={shipping === 0}
-          />
+          {/* Free delivery is one line, not one per boutique. */}
+          {groups.every(g => g.shippingCost === 0) ? (
+            <Row label="Delivery" value="Free Delivery" good />
+          ) : (
+            groups.map(g => (
+              <Row
+                key={g.vendorId ?? 'platform'}
+                label={`Shipping${g.vendorName ? ` — ${g.vendorName}` : ''}`}
+                value={
+                  g.shippingCost > 0
+                    ? formatINR(g.shippingCost)
+                    : 'Free Delivery'
+                }
+                good={g.shippingCost === 0}
+              />
+            ))
+          )}
           {codFee > 0 ? (
             <Row label="Cash on Delivery charge" value={formatINR(codFee)} />
           ) : null}
