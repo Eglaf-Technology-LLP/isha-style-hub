@@ -42,13 +42,12 @@ import {
   SizeGuideLink,
 } from '@/components/ProductExtras';
 import { CONFIG } from '@/config';
+import { useVendorInfo, vendorAddressLine } from '@/lib/productExtras';
 import {
   returnWindowAdjective,
   returnWindowSpan,
   useReturnWindowHours,
-  useVendorInfo,
-  vendorAddressLine,
-} from '@/lib/productExtras';
+} from '@/lib/settings';
 import {
   Button,
   Eyebrow,
@@ -653,8 +652,8 @@ export default function ProductScreen() {
               {product.sku || product.id.slice(0, 8)}
             </InfoRow>
             <InfoRow label="MRP">
-              {formatINR(product.compare_at_price ?? price)} inclusive
-              of all taxes
+              {formatINR(product.compare_at_price ?? price)} inclusive of all
+              taxes
             </InfoRow>
             <InfoRow label="Sold by">
               {vendorInfo?.name || 'AllBoutiqs'}
