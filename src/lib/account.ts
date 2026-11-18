@@ -29,14 +29,19 @@ export function useProfile() {
   });
 }
 
-export async function saveProfile(p: Profile): Promise<string | null> {
-  const userId = useSession.getState().user?.id;
-  if (!userId) return 'Please sign in again.';
+// The name. The mobile number isn't typed in here: it's the account's
+// verified one (registration, or the SMS check in My profile), kept in the
+// profile too - as on the website.
+export async function saveProfile(p: {
+  full_name: string;
+}): Promise<string | null> {
+  const user = useSession.getState().user;
+  if (!user) return 'Please sign in again.';
   const { error } = await supabase.from('profiles').upsert(
     {
-      user_id: userId,
+      user_id: user.id,
       full_name: p.full_name.trim() || null,
-      phone: p.phone.trim() || null,
+      ...(user.phone ? { phone: `+${user.phone.replace(/\D/g, '')}` } : {}),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' },

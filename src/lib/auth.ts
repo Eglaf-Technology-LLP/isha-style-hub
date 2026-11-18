@@ -107,6 +107,12 @@ function authError(error: AuthError | null): {
       "We couldn't text a code to this number right now. Please use your email instead.",
     phone_provider_disabled:
       "Mobile numbers can't be used yet - text messages aren't switched on. Please use your email for now.",
+    phone_exists:
+      'This mobile number already has its own AllBoutiqs account. Sign in with it, or use another number.',
+    email_exists: 'This email already has its own AllBoutiqs account.',
+    same_password: "That's already your password.",
+    phone_not_confirmed:
+      "This mobile number isn't verified yet. Sign in with a code first.",
     user_banned:
       'This account has been blocked. Please contact AllBoutiqs support.',
     validation_failed: 'Check the email or mobile number and try again.',
@@ -349,6 +355,9 @@ export function startSession() {
 export const signOut = () => supabase.auth.signOut();
 
 // ---------- the other email / mobile number (My profile) ----------
+// Registered with a mobile number: the email is added / changed here.
+// Registered with an email: the mobile number. Either is confirmed with a
+// code sent to it and then signs in to this same account.
 
 // Does ANOTHER account sign in with this email / number? (contact_taken,
 // yes/no only.) null when the check itself failed.
@@ -389,4 +398,36 @@ export async function verifyEmailLink(email: string, code: string) {
       useSession.setState({ user: data.user });
   }
   return { error };
+}
+
+// Adds or changes the mobile number of an account registered with an
+// email: Supabase texts a code to the new number, and once it's right the
+// number signs in to this same account.
+export async function sendPhoneChangeCode(phone: string) {
+  const { error } = await supabase.auth.updateUser({ phone });
+  return authError(error);
+}
+
+export async function verifyPhoneChange(phone: string, code: string) {
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone,
+    token: code,
+    type: 'phone_change',
+  });
+  if (!error && data.user) {
+    if (useSession.getState().status === 'signed-in')
+      useSession.setState({ user: data.user });
+    // The verified number is the profile's mobile number too (orders,
+    // address forms). Best effort - the sign-in number is already saved.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ phone })
+      .eq('user_id', data.user.id);
+    if (profileError)
+      console.warn(
+        "[AllBoutiqs] Couldn't copy the mobile number to the profile:",
+        profileError.message,
+      );
+  }
+  return { error: authError(error).error };
 }

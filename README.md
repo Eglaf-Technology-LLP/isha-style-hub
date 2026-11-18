@@ -52,6 +52,7 @@ Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-
 | Bag (on the phone) and wishlist (phone + account `wishlists` table when signed in) | `src/lib/stores.ts` |
 | Sign in / Create account: email code (`auth-email-otp` function), mobile code (Supabase SMS), password; customers only | `src/lib/auth.ts`, `src/screens/SignInScreen.tsx` |
 | Password: optional field on Create account (saved once the code is right), Forgot password (code, then new password), Set/Change in Profile; min 8 characters, codes keep working | `src/screens/SignInScreen.tsx`, `PasswordScreen.tsx` |
+| My profile: name; the email/mobile the account was registered with is locked, the other one is added or changed with a code sent to it and then signs in too (`contact_taken`) | `src/screens/MyProfileScreen.tsx`, `src/lib/auth.ts` |
 | Terms consent at sign-up, or once after sign-in (`accept_terms` RPC) | `src/components/ConsentGate.tsx` |
 | My orders and order detail | `src/lib/orders.ts`, `src/screens/OrdersScreen.tsx`, `OrderScreen.tsx` |
 | Supabase backend: migrations and edge functions (copied from `Live-Vendor`) | `supabase/` |
@@ -68,13 +69,12 @@ The app is for shoppers. A boutique (vendor) or admin account that signs in is s
 
 Copied from the `Live-Vendor` branch, which runs on the live project (`allboutiqs-marketplace-live`). It is shared with the website and the seller/admin areas. Deploy backend changes from **one** branch only (today: `Live-Vendor`) and copy them here, so the two copies don't drift. Never run `supabase db push` from this branch against live without checking it matches `Live-Vendor`.
 
-The app uses: `auth-email-otp` (email codes), `accept_terms`, `has_role`, and the `products`, `categories`, `vendors`, `wishlists`, `orders`, `order_items`, `vendor_orders` tables under their row-level security.
+The app uses: `auth-email-otp` (email codes, adding an email), `accept_terms`, `has_role`, `auth_account_exists`, `contact_taken`, and the `products`, `categories`, `vendors`, `wishlists`, `orders`, `order_items`, `vendor_orders` tables under their row-level security.
 
 ## Not built yet
 
 - **Checkout goes live only after the backend deploy** in [docs/DEPLOY-SERVER-PRICING.md](docs/DEPLOY-SERVER-PRICING.md) (server-side order prices). The app's checkout (COD, online via `react-native-razorpay`, wallet, coupons, Buy now) is built against it.
 - "Recently viewed" and "Complete the look" rails, newsletter sign-up.
 - Profile photo upload; adding photos to a review (both possible now that the image picker is in).
-- Add a mobile number or email to an existing account.
 - Printing / saving the tax invoice as PDF (the app shows it; the website prints it).
 - iOS app icon and launch screen (do on a Mac in Xcode).

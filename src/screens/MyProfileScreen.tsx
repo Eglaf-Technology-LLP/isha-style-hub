@@ -17,10 +17,12 @@ import {
   nationalPhone,
   parseIdentifier,
   sendEmailLinkCode,
+  sendPhoneChangeCode,
   signedUpWith,
   toE164,
   useSession,
   verifyEmailLink,
+  verifyPhoneChange,
 } from '@/lib/auth';
 import { success, tap } from '@/lib/haptics';
 import { toast } from '@/lib/toast';
@@ -35,49 +37,29 @@ const takenMessage = (what: 'email' | 'mobile number') =>
 // website's My Account (Live-Vendor ProfileSection, client 16 Nov 2026).
 // The one the account was registered with is shown locked, for good - also
 // after the other one is added and used to sign in. The other one can be
-// added or changed, but never to one another account already has. An email
-// added here is confirmed with a code and becomes a second way to sign in;
-// a mobile number added here is the contact number for orders.
+// added or changed, but never to one another account already has. Either
+// one added here is confirmed with a code sent to it (email, or SMS) and
+// becomes a second way to sign in to this same account.
 export default function MyProfileScreen() {
   const back = useBack();
   const user = useSession(st => st.user);
   const { data, isLoading, refetch } = useProfile();
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const phoneLocked = signedUpWith(user) === 'phone';
-  // A refetch mustn't wipe what's typed but not saved yet.
+  // A refetch (after a number is verified) mustn't wipe a name typed but
+  // not saved yet.
   const edited = useRef(false);
 
   useEffect(() => {
-    if (data && !edited.current) {
-      setName(data.full_name);
-      setPhone(nationalPhone(data.phone));
-    }
+    if (data && !edited.current) setName(data.full_name);
   }, [data]);
 
   const save = async () => {
     setError(null);
-    // Registered with a mobile number: the profile keeps that number.
-    // Otherwise the typed one, if it's a real number no other account has.
-    let savedPhone = '';
-    if (phoneLocked) {
-      savedPhone = user?.phone ? `+${user.phone.replace(/\D/g, '')}` : '';
-    } else if (phone.trim()) {
-      const e164 = toE164(phone);
-      if (!e164)
-        return setError(
-          'Enter a 10-digit mobile number (or +country code for numbers outside India).',
-        );
-      setBusy(true);
-      const taken = await contactTaken({ phone: e164 });
-      setBusy(false);
-      if (taken) return setError(takenMessage('mobile number'));
-      savedPhone = e164;
-    }
     setBusy(true);
-    const err = await saveProfile({ full_name: name, phone: savedPhone });
+    const err = await saveProfile({ full_name: name });
     setBusy(false);
     if (err) return setError(err);
     success();
@@ -110,7 +92,7 @@ export default function MyProfileScreen() {
           placeholder="Your name"
         />
         {phoneLocked ? (
-          <EmailField current={user?.email || ''} />
+          <VerifiedField kind="email" current={user?.email || ''} />
         ) : (
           <Field
             label="Email"
@@ -127,19 +109,13 @@ export default function MyProfileScreen() {
             hint="You registered with this number, so it can't be changed."
           />
         ) : (
-          <Field
-            label="Mobile number"
-            value={phone}
-            onChangeText={t => {
-              edited.current = true;
-              setPhone(t);
-              setError(null);
-            }}
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            textContentType="telephoneNumber"
-            placeholder="10-digit mobile number"
-            hint="For your orders and deliveries."
+          // An unverified number saved here before (older accounts) is
+          // offered for verifying.
+          <VerifiedField
+            kind="phone"
+            current={user?.phone || ''}
+            suggested={nationalPhone(data?.phone)}
+            onSaved={refetch}
           />
         )}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -153,11 +129,25 @@ export default function MyProfileScreen() {
   );
 }
 
-// The email of an account registered with a mobile number: add one, or
-// change it, by confirming a code sent to it. It then signs in to this same
-// account (auth-email-otp, purpose "link").
-function EmailField({ current }: { current: string }) {
-  const [text, setText] = useState(current);
+// The email or mobile number the account was NOT registered with: add it,
+// or change it, by confirming a code sent to it (email: auth-email-otp,
+// purpose "link"; mobile: an SMS from Supabase Auth). It then signs in to
+// this same account. current: the verified one, as the account has it
+// (email, or 919876543210). suggested: an unverified number to start with.
+function VerifiedField({
+  kind,
+  current,
+  suggested = '',
+  onSaved,
+}: {
+  kind: 'email' | 'phone';
+  current: string;
+  suggested?: string;
+  onSaved?: () => void;
+}) {
+  const phone = kind === 'phone';
+  const shownCurrent = phone ? nationalPhone(current) : current;
+  const [text, setText] = useState(shownCurrent || suggested);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -165,8 +155,11 @@ function EmailField({ current }: { current: string }) {
   const [resendIn, setResendIn] = useState(0);
   const codeInput = useRef<ComponentRef<typeof TextInput>>(null);
 
-  // Shows the saved email once it's confirmed.
-  useEffect(() => setText(current), [current]);
+  // Shows the saved one once it's confirmed.
+  useEffect(
+    () => setText(shownCurrent || suggested),
+    [shownCurrent, suggested],
+  );
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -174,24 +167,37 @@ function EmailField({ current }: { current: string }) {
     return () => clearTimeout(t);
   }, [resendIn]);
 
+  // What a code would go to: an email, or +919876543210.
   const parsed = parseIdentifier(text);
-  const email = parsed?.kind === 'email' ? parsed.value : null;
-  const changed = text.trim().toLowerCase() !== current.toLowerCase();
+  const value = phone
+    ? toE164(text)
+    : parsed?.kind === 'email'
+    ? parsed.value
+    : null;
+  const currentValue = phone
+    ? current
+      ? `+${current.replace(/\D/g, '')}`
+      : ''
+    : current.toLowerCase();
+  const changed = (value ?? text.trim().toLowerCase()) !== currentValue;
+  const shown = (v: string) => (phone ? formatPhone(v) : v);
 
-  const sendCode = async (value: string) => {
+  const sendCode = async (target: string) => {
     setBusy(true);
     setError(null);
-    if (await contactTaken({ email: value })) {
+    if (await contactTaken(phone ? { phone: target } : { email: target })) {
       setBusy(false);
-      return setError(takenMessage('email'));
+      return setError(takenMessage(phone ? 'mobile number' : 'email'));
     }
-    const r = await sendEmailLinkCode(value);
+    const r = phone
+      ? await sendPhoneChangeCode(target)
+      : await sendEmailLinkCode(target);
     setBusy(false);
     if (r.retryAfter) setResendIn(r.retryAfter);
     if (r.error) return setError(r.error);
     if (!r.retryAfter) setResendIn(60);
     tap();
-    setSentTo(value);
+    setSentTo(target);
     setCode('');
   };
 
@@ -199,7 +205,9 @@ function EmailField({ current }: { current: string }) {
     if (!sentTo || typed.length !== CODE_LENGTH || busy) return;
     setBusy(true);
     setError(null);
-    const r = await verifyEmailLink(sentTo, typed);
+    const r = phone
+      ? await verifyPhoneChange(sentTo, typed)
+      : await verifyEmailLink(sentTo, typed);
     setBusy(false);
     if (r.error) {
       // Clear the boxes and put the cursor back for a fresh try.
@@ -209,13 +217,14 @@ function EmailField({ current }: { current: string }) {
       return;
     }
     success();
-    toast(`${sentTo} saved. You can sign in with it too.`);
+    toast(`${shown(sentTo)} saved. You can sign in with it too.`);
     setSentTo(null);
+    onSaved?.();
   };
 
   return (
     <View style={styles.block}>
-      <Text style={styles.label}>Email</Text>
+      <Text style={styles.label}>{phone ? 'Mobile number' : 'Email'}</Text>
       <TextInput
         value={text}
         editable={!sentTo}
@@ -223,13 +232,13 @@ function EmailField({ current }: { current: string }) {
           setText(t);
           setError(null);
         }}
-        placeholder="you@example.com"
+        placeholder={phone ? '10-digit mobile number' : 'you@example.com'}
         placeholderTextColor={colors.mutedForeground}
-        keyboardType="email-address"
+        keyboardType={phone ? 'phone-pad' : 'email-address'}
         autoCapitalize="none"
         autoCorrect={false}
-        autoComplete="email"
-        textContentType="emailAddress"
+        autoComplete={phone ? 'tel' : 'email'}
+        textContentType={phone ? 'telephoneNumber' : 'emailAddress'}
         style={[
           styles.input,
           !!sentTo && styles.readOnly,
@@ -241,7 +250,7 @@ function EmailField({ current }: { current: string }) {
         <>
           <Sans style={styles.small}>
             Enter the 6-digit code sent to{' '}
-            <Text style={styles.strong}>{sentTo}</Text>.{' '}
+            <Text style={styles.strong}>{shown(sentTo)}</Text>.{' '}
             {resendIn > 0 ? (
               <Text>Resend in {resendIn}s</Text>
             ) : (
@@ -294,8 +303,12 @@ function EmailField({ current }: { current: string }) {
             </Text>
           ) : (
             <Text style={styles.hint}>
-              {changed && text.trim() && !email
-                ? 'Enter a valid email address.'
+              {changed && text.trim() && !value
+                ? phone
+                  ? 'Enter a 10-digit mobile number (or +country code for numbers outside India).'
+                  : 'Enter a valid email address.'
+                : phone
+                ? "We'll text a code to confirm it. You can then sign in with it too."
                 : "We'll email a code to confirm it. You can then sign in with it too."}
             </Text>
           )}
@@ -304,13 +317,17 @@ function EmailField({ current }: { current: string }) {
               label={
                 busy
                   ? 'Sending...'
+                  : phone
+                  ? current
+                    ? 'Verify new number'
+                    : 'Verify number'
                   : current
                   ? 'Verify new email'
                   : 'Verify email'
               }
               variant="outline"
-              onPress={() => email && sendCode(email)}
-              disabled={busy || !email}
+              onPress={() => value && sendCode(value)}
+              disabled={busy || !value}
               style={styles.verify}
             />
           ) : null}
