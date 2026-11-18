@@ -613,12 +613,17 @@ export default function ProductScreen() {
         {product.vendor_id ? (
           <View style={styles.block}>
             <Eyebrow style={{ color: colors.foreground, marginBottom: 10 }}>
-              Check delivery
+              Delivery date
             </Eyebrow>
             <DeliveryCheck
               vendorId={product.vendor_id}
               productId={product.id}
             />
+            <Sans style={styles.datesNote}>
+              {product.made_to_order
+                ? `Made for you after you order - these dates include the ${prepDays} days it takes to make and our quality check.`
+                : 'These dates include our quality check before it ships to you.'}
+            </Sans>
           </View>
         ) : null}
 
@@ -929,6 +934,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.mutedForeground,
     marginTop: 2,
+  },
+  datesNote: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.mutedForeground,
+    marginTop: 10,
   },
   infoSub: {
     fontSize: 12,

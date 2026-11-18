@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from './auth';
 import { friendly } from './errors';
@@ -381,43 +382,96 @@ const MONTHS = [
 ];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const dateLabel = (iso: string) => {
-  const d = new Date(iso);
+  // A plain "2026-11-20" is that calendar day, never shifted by time zones.
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(iso);
   return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 };
 
+export const isPin = (pin: string | null | undefined): pin is string =>
+  !!pin && /^\d{6}$/.test(pin);
+
+export interface DeliveryEstimate {
+  // The PIN code it was worked out for; null = none given yet, so only
+  // "Ships by" is known.
+  pin: string | null;
+  available: boolean;
+  // When the parcel leaves the AllBoutiqs warehouse.
+  shipsBy: string | null;
+  deliveryBy: string | null;
+}
+
+// "Ships by" / "Delivery by" for one piece, as the website's
+// DeliveryEstimate: the server adds up the boutique's preparation time,
+// courier to the warehouse, the quality check (3 working days) and courier
+// to this PIN code. Without a PIN code only "Ships by" comes back.
 export async function estimateDelivery(
   vendorId: string,
   productId: string,
-  pincode: string,
-): Promise<{ available: boolean; etaLabel: string | null }> {
+  pincode: string | null,
+): Promise<DeliveryEstimate> {
   const { data, error } = await supabase.functions.invoke(
     'shiprocket-estimate-delivery',
     {
       body: {
         vendor_id: vendorId,
-        delivery_pincode: pincode,
+        ...(pincode ? { delivery_pincode: pincode } : {}),
         items: [{ product_id: productId, quantity: 1 }],
       },
     },
   );
+  const shipsBy = data?.ships_by_date ? dateLabel(data.ships_by_date) : null;
+  if (!pincode)
+    return {
+      pin: null,
+      available: !error && !!data?.available,
+      shipsBy,
+      deliveryBy: null,
+    };
   const couriers: { etd?: string | null }[] = data?.couriers ?? [];
   if (error || !data?.available || couriers.length === 0)
-    return { available: false, etaLabel: null };
+    return { pin: pincode, available: false, shipsBy: null, deliveryBy: null };
   if (data.estimated_delivery_date)
     return {
+      pin: pincode,
       available: true,
-      etaLabel: dateLabel(data.estimated_delivery_date),
+      shipsBy,
+      deliveryBy: dateLabel(data.estimated_delivery_date),
     };
   // The earliest courier's date, as on the website.
   const dates = couriers
     .map(c => (c.etd ? Date.parse(c.etd) : NaN))
     .filter(n => !Number.isNaN(n));
   return {
+    pin: pincode,
     available: true,
-    etaLabel: dates.length
+    shipsBy,
+    deliveryBy: dates.length
       ? dateLabel(new Date(Math.min(...dates)).toISOString())
       : null,
   };
+}
+
+// The last PIN code checked on this phone, so a shopper without a saved
+// address doesn't retype it on every product. A convenience only: when
+// storage fails the box simply starts empty.
+const LAST_PIN_KEY = 'allboutiqs:delivery-pincode';
+let lastPin: string | null | undefined; // undefined = not read yet
+
+export async function readLastPin(): Promise<string | null> {
+  if (lastPin !== undefined) return lastPin;
+  try {
+    const pin = await AsyncStorage.getItem(LAST_PIN_KEY);
+    lastPin = isPin(pin) ? pin : null;
+  } catch {
+    lastPin = null;
+  }
+  return lastPin;
+}
+
+export function rememberPin(pin: string) {
+  lastPin = pin;
+  AsyncStorage.setItem(LAST_PIN_KEY, pin).catch(() => undefined);
 }
 
 // ---------- back-in-stock alerts (stock_notifications) ----------
