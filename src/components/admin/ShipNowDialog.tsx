@@ -15,7 +15,7 @@ import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
-import { EwayBillPreview, awaitingPdf } from "@/lib/ewayBill";
+import { EwayBillPreview, awaitingPdf, picksCourier } from "@/lib/ewayBill";
 import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface ShipNowDialogProps {
@@ -62,7 +62,11 @@ export function ShipNowDialog({
   const [ewayBill, setEwayBill] = useState<EwayBillPreview | null>(null);
 
   const waitingForPdf = awaitingPdf(ewayBill?.bill);
-  const waitingForEwayBill = ewayBill?.bill?.status === "pending" || waitingForPdf;
+  const selectedName = couriers?.find((c) => c.courierId === selectedCourierId)?.courierName ?? null;
+  // While the e-way bill is being made, the courier picked here goes on it
+  // (its partner's transporter ID).
+  const pickingCourier = !!ewayBill && picksCourier([ewayBill], selectedName);
+  const waitingForEwayBill = (ewayBill?.bill?.status === "pending" && !pickingCourier) || waitingForPdf;
   const applyEwayBill = (preview: EwayBillPreview | null) => setEwayBill(preview);
 
   const openDialog = async () => {
@@ -78,7 +82,11 @@ export function ShipNowDialog({
       setIsCod(result.isCod);
       setDestination(result.destination ?? null);
       setWeightKg(result.weightKg ?? null);
-      setSelectedCourierId(result.couriers[0]?.courierId ?? null);
+      // The courier already picked for the e-way bill, if it's offered.
+      const picked = result.ewayBill?.bill?.courier_name;
+      setSelectedCourierId(
+        result.couriers.find((c) => picked && c.courierName === picked)?.courierId ?? result.couriers[0]?.courierId ?? null,
+      );
       applyEwayBill(result.ewayBill ?? null);
     } else {
       setOpen(false);
@@ -214,7 +222,9 @@ export function ShipNowDialog({
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {ewayBill && !ewayBill.bill
               ? "Ask for e-way bill"
-              : waitingForPdf
+              : pickingCourier
+                ? "Use this courier for the e-way bill"
+                : waitingForPdf
                 ? "Waiting for e-way bill PDF"
                 : waitingForEwayBill
                   ? "E-way bill being made"

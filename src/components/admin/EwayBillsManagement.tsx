@@ -23,7 +23,7 @@ import {
 import { buildBulkJson, downloadJson } from "@/lib/ewayBillJson";
 import { PromptDialog } from "@/components/warehouse/PromptDialog";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
-import { EwayBillRequestCard } from "./EwayBillRequestCard";
+import { CourierTransporterLine, EwayBillRequestCard } from "./EwayBillRequestCard";
 import { EwayBillRecordDialog } from "./EwayBillRecordDialog";
 import { EwayBillBulkEntryDialog, EwayBillPdfUploadDialog } from "./EwayBillBulkDialogs";
 import { EwayBillCreateDialog, EwayBillExtendDialog } from "./EwayBillActionDialogs";
@@ -384,8 +384,9 @@ export function EwayBillsManagement() {
                                 <div className="text-muted-foreground">{formatMoney(b.value)}</div>
                               </TableCell>
                               <TableCell className="text-xs font-mono">{b.document_number}</TableCell>
-                              <TableCell className="text-xs">
+                              <TableCell className="text-xs max-w-[260px]">
                                 {b.shipment?.awb_code ? `AWB ${b.shipment.awb_code}` : "Not booked yet"}
+                                <CourierTransporterLine bill={b} />
                               </TableCell>
                               <TableCell className="text-xs whitespace-nowrap">
                                 {b.valid_until ? (

@@ -250,6 +250,8 @@ Deno.serve(async (req) => {
       returnRequestId: isReplacement ? (return_request_id as string) : null,
       items: movedItems,
       requestedBy: userId,
+      // The courier picked in Ship Now: its transporter ID goes on the e-way bill.
+      courier: { id: courier_id ?? null, name: courier_name ?? null },
     };
     let ewayBill: EwayBill | null = null;
     const check = await ewayBillForBooking(supabase, movement);

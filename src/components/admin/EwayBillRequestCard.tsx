@@ -74,6 +74,33 @@ function waitingFor(iso: string) {
   return `${Math.round(hours / 24)} days`;
 }
 
+// The courier picked for an e-way bill and its partner's transporter ID.
+// AllBoutiqs makes the e-way bill as its transporter (it can only make bills
+// it is a party to), then sets this ID on the portal.
+export function CourierTransporterLine({ bill }: { bill: AdminEwayBill }) {
+  if (!bill.transporter_id) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Courier not picked yet - the boutique / warehouse picks it when booking, and its transporter ID shows here.
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs">
+      Courier: <span className="font-medium">{bill.courier_name}</span> → {bill.transporter_name} transporter ID{" "}
+      <button
+        type="button"
+        className="font-mono underline decoration-dotted"
+        title="Copy"
+        onClick={() => copy(bill.transporter_id!, "Transporter ID copied")}
+      >
+        {bill.transporter_id}
+      </button>
+      <span className="text-muted-foreground"> - on the portal: e-Waybill &gt; Update Transporter to this ID.</span>
+    </p>
+  );
+}
+
 // One request waiting for its number.
 export function EwayBillRequestCard({
   bill,
@@ -118,6 +145,7 @@ export function EwayBillRequestCard({
         </div>
       </div>
 
+      <CourierTransporterLine bill={bill} />
       {!bill.invoice && <p className="text-xs text-destructive">No invoice found - it can't go in the JSON.</p>}
 
       <div className="flex flex-wrap gap-2 items-center">

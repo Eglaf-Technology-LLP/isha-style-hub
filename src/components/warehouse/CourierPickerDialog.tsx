@@ -15,7 +15,7 @@ import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
-import { EwayBillPreview, awaitingPdf, firstMadeBill } from "@/lib/ewayBill";
+import { EwayBillPreview, awaitingPdf, chosenCourier, firstMadeBill, picksCourier } from "@/lib/ewayBill";
 import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface CourierPickerDialogProps {
@@ -45,7 +45,10 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
   // AllBoutiqs is the transporter on the e-way bills, so any courier can be booked.
   // The first made bill goes to Shiprocket and needs its PDF.
   const waitingForPdf = awaitingPdf(firstMadeBill(ewayBills));
-  const waiting = ewayBills.some((p) => p.bill?.status === "pending") || waitingForPdf;
+  const selectedName = couriers.find((c) => c.courierId === selected)?.courierName ?? null;
+  // While an e-way bill is being made, the courier picked here goes on it.
+  const pickingCourier = picksCourier(ewayBills, selectedName);
+  const waiting = (ewayBills.some((p) => p.bill?.status === "pending") && !pickingCourier) || waitingForPdf;
   const notAskedYet = ewayBills.some((p) => !p.bill);
   const applyEwayBills = (previews: EwayBillPreview[]) => setEwayBills(previews);
 
@@ -62,7 +65,14 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
     setCouriers(result.couriers);
     setIsCod(result.isCod);
     setWeightKg(result.weightKg ?? null);
-    setSelected(result.couriers.find((c) => c.recommended)?.courierId ?? result.couriers[0]?.courierId ?? null);
+    // The courier already picked for the e-way bills, if it's offered.
+    const picked = chosenCourier(result.ewayBills ?? [])?.courier_name;
+    setSelected(
+      result.couriers.find((c) => picked && c.courierName === picked)?.courierId ??
+        result.couriers.find((c) => c.recommended)?.courierId ??
+        result.couriers[0]?.courierId ??
+        null,
+    );
     applyEwayBills(result.ewayBills ?? []);
   };
 
@@ -147,7 +157,9 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {notAskedYet
               ? "Ask for e-way bill"
-              : waitingForPdf
+              : pickingCourier
+                ? "Use this courier for the e-way bill"
+                : waitingForPdf
                 ? "Waiting for e-way bill PDF"
                 : waiting
                   ? "E-way bill being made"

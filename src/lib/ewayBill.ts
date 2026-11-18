@@ -55,6 +55,12 @@ export interface EwayBillRequest {
   valid_until: string | null;
   pdf_path: string | null;
   requested_at: string;
+  // The courier picked for it and that partner's GST transporter ID
+  // (E-way bills > Settings); null = not picked yet.
+  courier_id?: number | null;
+  courier_name?: string | null;
+  transporter_id?: string | null;
+  transporter_name?: string | null;
 }
 
 // What a booking dialog shows for one boutique part over the limit
@@ -79,6 +85,15 @@ export const awaitingPdf = (bill: Pick<EwayBillRequest, "status" | "pdf_path"> |
 // parcel with several sends one) - see ewayBillForShiprocket on the server.
 export const firstMadeBill = (previews: EwayBillPreview[]) =>
   previews.map((p) => p.bill).find((b) => b?.status === "active" && b.ewb_number) ?? null;
+
+// The courier already picked for these e-way bills (the first that has one).
+export const chosenCourier = (previews: EwayBillPreview[]) =>
+  previews.map((p) => p.bill).find((b) => b?.courier_name) ?? null;
+
+// Booking with this courier would pick (or change) the courier of an e-way
+// bill still being made - the button says so instead of waiting.
+export const picksCourier = (previews: EwayBillPreview[], courierName: string | null | undefined) =>
+  !!courierName && previews.some((p) => p.bill?.status === "pending" && p.bill.courier_name !== courierName);
 
 // 1234 5678 9012 - how the portal prints it.
 export const formatEwbNumber = (n: string | null | undefined) => (n ? n.replace(/(\d{4})(?=\d)/g, "$1 ") : "");

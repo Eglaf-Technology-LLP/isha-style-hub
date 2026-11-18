@@ -229,6 +229,39 @@ export type Database = {
           },
         ]
       }
+      courier_partner_transporters: {
+        Row: {
+          created_at: string
+          id: string
+          match_names: string
+          partner: string
+          sort_order: number
+          transporter_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          match_names?: string
+          partner: string
+          sort_order?: number
+          transporter_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          match_names?: string
+          partner?: string
+          sort_order?: number
+          transporter_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       courier_transporters: {
         Row: {
           courier_id: number
@@ -630,6 +663,7 @@ export type Database = {
           cancelled_by: string | null
           cgst_amount: number | null
           challan_id: string | null
+          courier_chosen_at: string | null
           courier_id: number | null
           courier_name: string | null
           created_at: string
@@ -669,6 +703,8 @@ export type Database = {
           taxable_value: number | null
           to_address: Json
           to_name: string
+          transporter_id: string | null
+          transporter_name: string | null
           updated_at: string
           valid_until: string | null
           value: number
@@ -682,6 +718,7 @@ export type Database = {
           cancelled_by?: string | null
           cgst_amount?: number | null
           challan_id?: string | null
+          courier_chosen_at?: string | null
           courier_id?: number | null
           courier_name?: string | null
           created_at?: string
@@ -721,6 +758,8 @@ export type Database = {
           taxable_value?: number | null
           to_address: Json
           to_name: string
+          transporter_id?: string | null
+          transporter_name?: string | null
           updated_at?: string
           valid_until?: string | null
           value: number
@@ -734,6 +773,7 @@ export type Database = {
           cancelled_by?: string | null
           cgst_amount?: number | null
           challan_id?: string | null
+          courier_chosen_at?: string | null
           courier_id?: number | null
           courier_name?: string | null
           created_at?: string
@@ -773,6 +813,8 @@ export type Database = {
           taxable_value?: number | null
           to_address?: Json
           to_name?: string
+          transporter_id?: string | null
+          transporter_name?: string | null
           updated_at?: string
           valid_until?: string | null
           value?: number

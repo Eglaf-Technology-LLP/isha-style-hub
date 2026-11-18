@@ -240,11 +240,17 @@ async function movementEwayBills(supabase: Db, movements: Movement[]) {
 
 // Ask for (or find) each movement's e-way bill: the ready ones, and whether
 // any is still being made.
-async function ewayBillsForParcel(supabase: Db, movements: Movement[], userId: string) {
+async function ewayBillsForParcel(
+  supabase: Db,
+  movements: Movement[],
+  userId: string,
+  // The courier picked: its transporter ID goes on each e-way bill.
+  courier: Movement["courier"] = null,
+) {
   const ready: EwayBill[] = [];
   let waiting = false;
   for (const m of movements) {
-    const check = await ewayBillForBooking(supabase, { ...m, requestedBy: userId });
+    const check = await ewayBillForBooking(supabase, { ...m, requestedBy: userId, courier });
     if (!check.required) continue;
     if (check.ready) ready.push(check.bill);
     else waiting = true;
@@ -621,7 +627,10 @@ Deno.serve(async (req) => {
         // Each boutique part over the limit travels on its own e-way bill (on
         // a delivery challan from here); the parcel waits until all are in.
         // AllBoutiqs is the transporter on them, so any courier can carry it.
-        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId, {
+          id: body.courier_id ?? null,
+          name: body.courier_name ?? null,
+        });
         if (waiting) {
           return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
         }
@@ -672,7 +681,10 @@ Deno.serve(async (req) => {
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
         // Over the limit it waits for its e-way bill, like a parcel to a customer.
         const movements = movement ? [movement] : [];
-        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId, {
+          id: body.courier_id ?? null,
+          name: body.courier_name ?? null,
+        });
         if (waiting) {
           return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
         }

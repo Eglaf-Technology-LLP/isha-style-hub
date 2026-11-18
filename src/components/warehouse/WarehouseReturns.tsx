@@ -329,11 +329,12 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
                             );
                             return res && res.couriers ? { ...res, ewayBills: res.eway_bills ?? [] } : null;
                           }}
-                          onBook={async (courierId, etd) => {
+                          onBook={async (courierId, etd, courierName) => {
                             // Over the e-way bill limit it waits for AllBoutiqs to make one.
                             const res = await runAction<{ eway_bill_pending?: boolean; eway_bills?: EwayBillPreview[] }>("book_send_back", {
                               send_back_id: sb.id,
                               courier_id: courierId,
+                              courier_name: courierName,
                               courier_etd: etd,
                             });
                             if (!res) return false;

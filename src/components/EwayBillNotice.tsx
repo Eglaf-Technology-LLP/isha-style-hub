@@ -10,6 +10,13 @@ import { EwayBillPdfLink } from "@/components/vendor/EwayBillStatusLine";
 // that holds several.
 export function EwayBillNotice({ preview, boutique }: { preview: EwayBillPreview; boutique?: string }) {
   const { bill } = preview;
+  // The courier picked for it and its partner's transporter ID.
+  const transporter = bill?.transporter_name ? (
+    <p className="text-xs">
+      Courier for this e-way bill: <span className="font-medium">{bill.courier_name}</span> - transporter {bill.transporter_name} (
+      <span className="font-mono">{bill.transporter_id}</span>). Book with this courier.
+    </p>
+  ) : null;
   const turnaround = preview.turnaround ?? EWAY_TURNAROUND;
   const over = `${boutique ? `${boutique}: goods` : "These goods"} come to ${formatMoney(preview.value)}, over the ${formatMoney(preview.threshold)} limit`;
 
@@ -40,6 +47,7 @@ export function EwayBillNotice({ preview, boutique }: { preview: EwayBillPreview
           Print it and put it in the parcel with the {bill.document_type === "delivery_challan" ? "delivery challan" : "invoice"}. The
           number goes to the courier with the booking{bill.valid_until ? `; valid until ${formatDateTime(bill.valid_until)}` : ""}.
         </p>
+        {transporter}
         <EwayBillPdfLink bill={{ ewb_number: bill.ewb_number, pdf_path: bill.pdf_path }} />
       </div>
     );
@@ -55,6 +63,11 @@ export function EwayBillNotice({ preview, boutique }: { preview: EwayBillPreview
           {over}, so the courier can't be booked until its e-way bill is ready. Asked for on {formatDateTime(bill.requested_at)} -
           usually ready within {turnaround}. You'll get an email and a notification; then book from here.
         </p>
+        {transporter ?? (
+          <p className="text-xs">
+            Pick the courier below and press "Use this courier for the e-way bill" - its transporter ID goes on the e-way bill.
+          </p>
+        )}
       </div>
     );
   }
