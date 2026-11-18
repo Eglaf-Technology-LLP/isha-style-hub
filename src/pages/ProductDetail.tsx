@@ -303,6 +303,10 @@ export default function ProductDetail() {
   const customised = buildCustomisation(customisationSetup, customiser, currentPrice);
   const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
+  // Another size / colour with fewer pieces: the quantity can't stay above them.
+  useEffect(() => {
+    if (currentStock > 0) setQuantity((q) => Math.min(q, currentStock));
+  }, [currentStock]);
   // Same rule OrderHistory applies after purchase: the product's own flag
   // AND the vendor's store-wide returns switch must both allow it.
   const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
@@ -849,7 +853,14 @@ export default function ProductDetail() {
                       <div>
                         <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Availability</dt>
                         <dd className="mt-0.5 text-sm">
-                          {product.stock_quantity > 0 ? `In stock (${product.stock_quantity} available)` : "Out of stock"}
+                          {/* The chosen size / colour's own stock, not the whole product's. */}
+                          {currentStock > 0
+                            ? `In stock (${currentStock} available${
+                                [selectedSize, selectedColor].some(Boolean)
+                                  ? ` in ${[selectedSize, selectedColor].filter(Boolean).join(" / ")}`
+                                  : ""
+                              })`
+                            : "Out of stock"}
                         </dd>
                       </div>
                       {vendorInfo && (
