@@ -36,12 +36,15 @@ import {
   Coupon,
   MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
+  gstInsideLine,
   NO_COD_QUOTE,
+  PAYMENT_NOT_COMPLETED,
   payOnline,
   placeOrder,
   splitCoupon,
   useBuyNow,
   useCheckoutData,
+  useGstRules,
   vendorGroups,
 } from '@/lib/checkout';
 import { formatINR } from '@/lib/format';
@@ -72,6 +75,7 @@ export default function CheckoutScreen() {
   const user = useSession(st => st.user);
   const { address } = useDeliveryAddress();
   const { data, isLoading } = useCheckoutData(items);
+  const { data: gstRules } = useGstRules();
   const { data: wallet } = useWallet();
 
   const [email, setEmail] = useState(user?.email ?? '');
@@ -100,6 +104,22 @@ export default function CheckoutScreen() {
   const split = coupon ? splitCoupon(coupon, items, categoryOf) : null;
   const discount = split?.total ?? 0;
   const goodsDue = round2(subtotal - discount + shipping);
+  // Product value and GST on separate lines (website 2.9.2). Prices include
+  // GST; the GST is what the tax invoice will charge on each line after its
+  // coupon share, in whole rupees. Product value is the rest of the items'
+  // price, so product value + GST - coupon is exactly what the items cost.
+  const gstReady = !!gstRules && !!data;
+  const gstAmount = Math.round(
+    items.reduce((sum, i) => {
+      const line =
+        parseFloat(i.price.amount) * i.quantity -
+        (split?.perLine.get(i.variantId) ?? 0);
+      const categoryId = categoryOf(i.productId);
+      const rule = categoryId ? gstRules?.get(categoryId) ?? null : null;
+      return sum + gstInsideLine(rule, line, i.quantity);
+    }, 0),
+  );
+  const productValue = round2(subtotal - gstAmount);
   // Cash on Delivery fee: 3% of each boutique part + 18% GST on it, quoted
   // by the server for this PIN code (see codQuote).
   const codFeeLabel = `Cash on Delivery fee${
@@ -207,11 +227,7 @@ export default function CheckoutScreen() {
             important: true,
           },
         );
-      else
-        toast(
-          "Your last payment didn't go through, so no order was placed. You can try again.",
-          { important: true },
-        );
+      else toast(PAYMENT_NOT_COMPLETED, { important: true });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -306,10 +322,7 @@ export default function CheckoutScreen() {
           important: true,
         },
       );
-    toast(
-      'Payment not completed, so no order was placed. Your bag is saved - you can try again.',
-      { important: true },
-    );
+    toast(PAYMENT_NOT_COMPLETED, { important: true });
   };
 
   if (!items.length) {
@@ -553,14 +566,11 @@ export default function CheckoutScreen() {
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Price details</Eyebrow>
           {!ready ? <ActivityIndicator color={colors.primary} /> : null}
-          <Row label="Items" value={formatINR(subtotal)} />
-          {discount > 0 ? (
-            <Row
-              label="Coupon discount"
-              value={`- ${formatINR(discount)}`}
-              good
-            />
-          ) : null}
+          <Row
+            label="Product value"
+            value={gstReady ? formatINR(productValue) : '…'}
+          />
+          <Row label="GST" value={gstReady ? formatINR(gstAmount) : '…'} />
           {/* Free delivery is one line, not one per boutique. */}
           {groups.every(g => g.shippingCost === 0) ? (
             <Row label="Delivery" value="Free Delivery" good />
@@ -589,19 +599,25 @@ export default function CheckoutScreen() {
               value={formatINR(codFee)}
             />
           ) : null}
-          {walletUse > 0 ? (
+          {coupon ? (
             <Row
-              label="Paid from wallet"
-              value={`- ${formatINR(walletUse)}`}
+              label={`Coupon (${coupon.code})`}
+              value={`- ${formatINR(discount)}`}
               good
             />
           ) : null}
           <View style={styles.rule} />
-          <Row
-            label={walletUse > 0 ? 'To pay' : 'Total'}
-            value={formatINR(payNow)}
-            strong
-          />
+          <Row label="Total" value={formatINR(total)} strong />
+          {walletUse > 0 ? (
+            <>
+              <Row
+                label="Paid from your wallet"
+                value={`- ${formatINR(walletUse)}`}
+                good
+              />
+              <Row label="To pay" value={formatINR(payNow)} strong />
+            </>
+          ) : null}
           <Sans style={styles.small}>
             Prices include GST. The final amount is confirmed when the order is
             placed.
