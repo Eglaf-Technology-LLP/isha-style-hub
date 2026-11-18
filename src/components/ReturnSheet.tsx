@@ -142,11 +142,11 @@ export function ReturnSheet({
     const have = photos[item.id]?.length ?? 0;
     const room = MAX_PHOTOS_PER_ITEM - have;
     if (room <= 0) return;
-    const picked = (await pickPhotos(camera, room)).slice(0, room);
-    if (!picked.length) return;
+    const fromPicker = (await pickPhotos(camera, room)).slice(0, room);
+    if (!fromPicker.length) return;
     // Only an unsupported format, or a photo still over 5 MB, is refused.
-    const problems = picked.map(photoProblem);
-    const assets = picked.filter((_, n) => !problems[n]);
+    const problems = fromPicker.map(photoProblem);
+    const assets = fromPicker.filter((_, n) => !problems[n]);
     const refused = problems.find((p): p is string => !!p);
     if (!assets.length) {
       if (refused) toast(refused, { important: true });

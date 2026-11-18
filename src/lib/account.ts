@@ -164,7 +164,7 @@ export function useAddressActions() {
     // mobile number - that is verified by SMS in the profile, since it
     // signs in (website 0551490). Best effort.
     if (!id && form.full_name.trim())
-      void supabase
+      supabase
         .from('profiles')
         .update({ full_name: form.full_name.trim() })
         .eq('user_id', uid)
