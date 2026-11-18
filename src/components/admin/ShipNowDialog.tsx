@@ -15,7 +15,7 @@ import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
-import { EwayBillPreview } from "@/lib/ewayBill";
+import { EwayBillPreview, awaitingPdf } from "@/lib/ewayBill";
 import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface ShipNowDialogProps {
@@ -61,7 +61,8 @@ export function ShipNowDialog({
   const [booking, setBooking] = useState(false);
   const [ewayBill, setEwayBill] = useState<EwayBillPreview | null>(null);
 
-  const waitingForEwayBill = ewayBill?.bill?.status === "pending";
+  const waitingForPdf = awaitingPdf(ewayBill?.bill);
+  const waitingForEwayBill = ewayBill?.bill?.status === "pending" || waitingForPdf;
   const applyEwayBill = (preview: EwayBillPreview | null) => setEwayBill(preview);
 
   const openDialog = async () => {
@@ -213,9 +214,11 @@ export function ShipNowDialog({
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             {ewayBill && !ewayBill.bill
               ? "Ask for e-way bill"
-              : waitingForEwayBill
-                ? "E-way bill being made"
-                : <>Confirm &amp; Ship</>}
+              : waitingForPdf
+                ? "Waiting for e-way bill PDF"
+                : waitingForEwayBill
+                  ? "E-way bill being made"
+                  : <>Confirm &amp; Ship</>}
           </Button>
         </DialogFooter>
       </DialogContent>

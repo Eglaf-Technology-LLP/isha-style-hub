@@ -15,7 +15,7 @@ import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
-import { EwayBillPreview } from "@/lib/ewayBill";
+import { EwayBillPreview, awaitingPdf, firstMadeBill } from "@/lib/ewayBill";
 import { EwayBillNotice } from "@/components/EwayBillNotice";
 
 interface CourierPickerDialogProps {
@@ -43,7 +43,9 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
   const [ewayBills, setEwayBills] = useState<EwayBillPreview[]>([]);
 
   // AllBoutiqs is the transporter on the e-way bills, so any courier can be booked.
-  const waiting = ewayBills.some((p) => p.bill?.status === "pending");
+  // The first made bill goes to Shiprocket and needs its PDF.
+  const waitingForPdf = awaitingPdf(firstMadeBill(ewayBills));
+  const waiting = ewayBills.some((p) => p.bill?.status === "pending") || waitingForPdf;
   const notAskedYet = ewayBills.some((p) => !p.bill);
   const applyEwayBills = (previews: EwayBillPreview[]) => setEwayBills(previews);
 
@@ -143,7 +145,13 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
           </Button>
           <Button onClick={confirm} disabled={!selected || booking || loading || (waiting && !notAskedYet)}>
             {booking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {notAskedYet ? "Ask for e-way bill" : waiting ? "E-way bill being made" : <>Confirm &amp; Book</>}
+            {notAskedYet
+              ? "Ask for e-way bill"
+              : waitingForPdf
+                ? "Waiting for e-way bill PDF"
+                : waiting
+                  ? "E-way bill being made"
+                  : <>Confirm &amp; Book</>}
           </Button>
         </DialogFooter>
       </DialogContent>

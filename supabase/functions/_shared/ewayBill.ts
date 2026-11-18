@@ -377,6 +377,43 @@ export async function requestEwayBill(
 // The booking functions' name for it.
 export const ewayBillForBooking = requestEwayBill;
 
+// The e-way bill a booking sends to Shiprocket: the first of these with a
+// number, its PDF as a signed link (the bucket is private; 30 days covers the
+// pickup and the journey) and the document it was made on. Shiprocket won't
+// take the number without the PDF, so a bill without one stops the booking
+// with a message, and the admins are told to attach it.
+const SHIPROCKET_PDF_LINK_SECONDS = 30 * 86_400;
+
+export async function ewayBillForShiprocket(
+  supabase: SupabaseClient,
+  bills: EwayBill[],
+): Promise<{ number: string; url: string; invoice: string } | null> {
+  const bill = bills.find((b) => b.ewb_number);
+  if (!bill?.ewb_number) return null;
+  if (!bill.pdf_path) {
+    try {
+      await notifyAllAdmins(supabase, {
+        type: "eway_bill_problem",
+        title: "E-way bill PDF needed to ship",
+        body: `Order ${orderRef(bill.order_id)} can't be booked: e-way bill ${bill.ewb_number} has no PDF attached, and the courier needs it. Attach it in E-way bills.`,
+        link: links.adminEwayBill(bill.id),
+        category: "order",
+      });
+    } catch (e) {
+      console.error("eway bill: telling admins about the missing PDF failed", errorMessage(e));
+    }
+    throw new InvoiceError(
+      `E-way bill ${bill.ewb_number} has no PDF attached yet, and the courier needs it with the number. AllBoutiqs has been told - book again once it's attached.`,
+      409,
+    );
+  }
+  const { data, error } = await supabase.storage.from("eway-bills").createSignedUrl(bill.pdf_path, SHIPROCKET_PDF_LINK_SECONDS);
+  if (error || !data?.signedUrl) {
+    throw new InvoiceError(`Couldn't link the e-way bill PDF for the courier: ${error?.message ?? "no link"}`, 500);
+  }
+  return { number: bill.ewb_number, url: data.signedUrl, invoice: bill.document_number };
+}
+
 // The booking that used it - a later booking of this movement needs a new one.
 export async function markEwayBillsUsed(supabase: SupabaseClient, billIds: string[], shipmentId: string) {
   if (!billIds.length) return;

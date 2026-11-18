@@ -70,6 +70,16 @@ export interface EwayBillPreview {
   vendor_name?: string; // warehouse parcels hold several boutiques' parts
 }
 
+// Made, but its PDF isn't attached yet: Shiprocket won't take the number
+// without it (ewaybill_url), so the parcel can't be booked until it is.
+export const awaitingPdf = (bill: Pick<EwayBillRequest, "status" | "pdf_path"> | null | undefined) =>
+  bill?.status === "active" && !bill.pdf_path;
+
+// The bill a booking sends to Shiprocket: the first one made (a warehouse
+// parcel with several sends one) - see ewayBillForShiprocket on the server.
+export const firstMadeBill = (previews: EwayBillPreview[]) =>
+  previews.map((p) => p.bill).find((b) => b?.status === "active" && b.ewb_number) ?? null;
+
 // 1234 5678 9012 - how the portal prints it.
 export const formatEwbNumber = (n: string | null | undefined) => (n ? n.replace(/(\d{4})(?=\d)/g, "$1 ") : "");
 

@@ -1,7 +1,7 @@
 import { FileCheck2, FileClock, FileWarning } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { formatDateTime } from "@/lib/dates";
-import { EWAY_TURNAROUND, EwayBillPreview, formatEwbNumber } from "@/lib/ewayBill";
+import { EWAY_TURNAROUND, EwayBillPreview, awaitingPdf, formatEwbNumber } from "@/lib/ewayBill";
 import { EwayBillPdfLink } from "@/components/vendor/EwayBillStatusLine";
 
 // Inside a booking dialog: why this parcel waits for an e-way bill and where
@@ -12,6 +12,22 @@ export function EwayBillNotice({ preview, boutique }: { preview: EwayBillPreview
   const { bill } = preview;
   const turnaround = preview.turnaround ?? EWAY_TURNAROUND;
   const over = `${boutique ? `${boutique}: goods` : "These goods"} come to ${formatMoney(preview.value)}, over the ${formatMoney(preview.threshold)} limit`;
+
+  // The courier gets the PDF with the number (Shiprocket refuses it alone).
+  if (bill && awaitingPdf(bill)) {
+    return (
+      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm space-y-1 text-amber-950">
+        <p className="font-medium flex items-center gap-1.5">
+          <FileClock className="h-4 w-4" /> E-way bill {formatEwbNumber(bill.ewb_number)} is made - its PDF is still to come
+          {boutique && <span className="font-normal">({boutique})</span>}
+        </p>
+        <p>
+          The courier needs the e-way bill's PDF with the number, so the parcel can be booked once AllBoutiqs has attached it -
+          you'll get a notification.
+        </p>
+      </div>
+    );
+  }
 
   if (bill?.status === "active") {
     return (
