@@ -312,6 +312,26 @@ export default function ProductScreen() {
     };
   };
 
+  // Help from AllBoutiqs, never the boutique directly: WhatsApp with the
+  // piece's name and link already written - right below the sizes (as on
+  // the website, client corrections 2.3.6).
+  const stylist = (
+    <Touch
+      style={styles.stylist}
+      accessibilityRole="link"
+      onPress={() =>
+        Linking.openURL(
+          `${CONFIG.whatsappUrl}?text=${encodeURIComponent(
+            `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${SITE_URL}/product/${product.id}`,
+          )}`,
+        )
+      }
+    >
+      <MessageCircle size={16} color={colors.foreground} strokeWidth={1.6} />
+      <Text style={styles.stylistText}>Speak to a stylist</Text>
+    </Touch>
+  );
+
   const addToBag = () => {
     if (added) return go('/bag');
     const item = chosenItem('bag');
@@ -541,8 +561,11 @@ export default function ProductScreen() {
                 );
               })}
             </View>
+            {stylist}
           </View>
-        ) : null}
+        ) : (
+          <View style={[styles.block, { paddingTop: 0 }]}>{stylist}</View>
+        )}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
 
         {/* Delivery & services */}
@@ -598,22 +621,6 @@ export default function ProductScreen() {
             />
           </View>
         ) : null}
-
-        <Touch
-          style={[styles.block, styles.stylist]}
-          onPress={() =>
-            Linking.openURL(
-              `${CONFIG.whatsappUrl}?text=${encodeURIComponent(
-                `Hi AllBoutiqs, I'd like help with this piece: ${product.name} - ${SITE_URL}/product/${product.id}`,
-              )}`,
-            )
-          }
-        >
-          <MessageCircle size={18} color={colors.primary} strokeWidth={1.6} />
-          <Text style={styles.stylistText}>
-            Speak to our stylist on WhatsApp
-          </Text>
-        </Touch>
 
         {/* Details */}
         {product.description || product.specifications?.length ? (
@@ -1028,11 +1035,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   flexBtn: { flex: 1, paddingHorizontal: 8 },
-  stylist: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stylist: {
+    height: 44,
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(35,31,26,0.2)',
+  },
   stylistText: {
     fontFamily: fonts.sansMedium,
-    fontSize: 14,
-    color: colors.primary,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: colors.foreground,
   },
   soldOut: {
     fontFamily: fonts.sansMedium,
