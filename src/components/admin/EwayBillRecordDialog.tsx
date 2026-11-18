@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2 } from "lucide-react";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { BOUTIQUE_LEGS, EwayBillLeg, localInput, orderRefOf, uploadEwayBillPdf } from "@/lib/ewayBill";
+import { BOUTIQUE_LEGS, EwayBillLeg, localInput, orderRefOf, uploadEwayBillPdf, withTimeout } from "@/lib/ewayBill";
 import type { AdminEwayBill } from "@/hooks/useEwayBillsAdmin";
 
 // One number, typed in from the portal (bulk entry covers many). The PDF can
@@ -15,6 +15,8 @@ import type { AdminEwayBill } from "@/hooks/useEwayBillsAdmin";
 export function EwayBillRecordDialog({ bill, onSaved }: { bill: AdminEwayBill; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // What Save is doing right now, on the button.
+  const [step, setStep] = useState<"number" | "pdf" | null>(null);
   const [number, setNumber] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
   const [validUntil, setValidUntil] = useState("");
@@ -37,39 +39,62 @@ export function EwayBillRecordDialog({ bill, onSaved }: { bill: AdminEwayBill; o
   const digits = number.replace(/\s/g, "");
   const valid = /^\d{12}$/.test(digits);
 
+  // The number first, then the PDF - the same order as entering the number
+  // and attaching the PDF with Edit later, which always worked; with the PDF
+  // first, Save could spin without ever saving the number. A PDF that doesn't
+  // go up never holds back the number (the boutique is told to ship either
+  // way, and told again once the PDF is attached). Nothing spins for ever.
   const save = async () => {
     setSaving(true);
-    // The PDF first, so the boutique's "ready" message can say it's there.
-    if (pdf) {
-      const pdfError = await uploadEwayBillPdf(bill, pdf);
-      if (pdfError) {
-        setSaving(false);
-        toast.error(pdfError);
+    try {
+      setStep("number");
+      const { errorMessage } = await withTimeout(
+        invokeEdgeFunction("eway-bill-actions", {
+          action: "record",
+          eway_bill_id: bill.id,
+          ewb_number: digits,
+          ewb_date: generatedAt ? new Date(generatedAt).toISOString() : null,
+          valid_until: validUntil ? new Date(validUntil).toISOString() : null,
+          ...(changeDocument ? { document_number: documentNumber, document_date: documentDate } : {}),
+        }),
+        60_000,
+        "Saving the e-way bill took too long - refresh the page to see whether it was saved, then try again",
+      );
+      if (errorMessage) {
+        toast.error(errorMessage);
         return;
       }
-    }
-    const { errorMessage } = await invokeEdgeFunction("eway-bill-actions", {
-      action: "record",
-      eway_bill_id: bill.id,
-      ewb_number: digits,
-      ewb_date: generatedAt ? new Date(generatedAt).toISOString() : null,
-      valid_until: validUntil ? new Date(validUntil).toISOString() : null,
-      ...(changeDocument ? { document_number: documentNumber, document_date: documentDate } : {}),
-    });
-    setSaving(false);
-    if (errorMessage) {
-      toast.error(errorMessage);
-      return;
-    }
-    toast.success(
-      BOUTIQUE_LEGS.includes(bill.leg as EwayBillLeg)
+
+      let pdfError: string | null = null;
+      if (pdf) {
+        setStep("pdf");
+        pdfError = await withTimeout(
+          uploadEwayBillPdf(bill, pdf),
+          90_000,
+          "the upload took too long",
+        ).catch((e: unknown) => (e instanceof Error ? e.message : "the upload failed"));
+      }
+
+      const saved = BOUTIQUE_LEGS.includes(bill.leg as EwayBillLeg)
         ? `Saved - ${bill.vendorName} has been told to ship`
         : bill.leg.startsWith("warehouse_")
           ? "Saved - the warehouse can book the parcel now"
-          : "Saved",
-    );
-    setOpen(false);
-    onSaved();
+          : "Saved";
+      if (pdfError) {
+        toast.warning(`${saved}. The PDF wasn't attached (${pdfError}) - attach it with Attach PDF in the list.`, {
+          duration: 10_000,
+        });
+      } else {
+        toast.success(saved);
+      }
+      setOpen(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the e-way bill");
+    } finally {
+      setSaving(false);
+      setStep(null);
+    }
   };
 
   return (
@@ -139,7 +164,7 @@ export function EwayBillRecordDialog({ bill, onSaved }: { bill: AdminEwayBill; o
           </Button>
           <Button onClick={save} disabled={!valid || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Save
+            {step === "number" ? "Saving number…" : step === "pdf" ? "Uploading PDF…" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

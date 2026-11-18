@@ -90,18 +90,43 @@ export const localInput = (d: Date) => {
 
 export const EWAY_BUCKET = "eway-bills";
 
+// Rejects with `message` when the promise hasn't settled in `ms` (the request
+// itself may still finish - saves here are safe to repeat).
+export function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 // Admin: store the portal's PDF for a bill and link it (the boutique is told
 // it can print it). Returns an error message, or null.
 export async function uploadEwayBillPdf(bill: { id: string; vendor_id: string }, file: File): Promise<string | null> {
   if (file.type && file.type !== "application/pdf") return `${file.name} isn't a PDF`;
   if (file.size > 5 * 1024 * 1024) return `${file.name} is over 5 MB`;
   const path = `${bill.vendor_id}/${bill.id}.pdf`;
-  const { error } = await supabase.storage
-    .from(EWAY_BUCKET)
-    .upload(path, file, { upsert: true, contentType: "application/pdf", cacheControl: "60" });
-  if (error) return error.message;
-  const { errorMessage } = await invokeEdgeFunction("eway-bill-actions", { action: "attach_pdf", eway_bill_id: bill.id, path });
-  return errorMessage ?? null;
+  try {
+    // A Blob typed as PDF: some computers give a portal download no type,
+    // and the bucket only takes application/pdf.
+    const body = file.type === "application/pdf" ? file : new Blob([file], { type: "application/pdf" });
+    const { error } = await supabase.storage
+      .from(EWAY_BUCKET)
+      .upload(path, body, { upsert: true, contentType: "application/pdf", cacheControl: "60" });
+    if (error) return error.message;
+    const { errorMessage } = await invokeEdgeFunction("eway-bill-actions", { action: "attach_pdf", eway_bill_id: bill.id, path });
+    return errorMessage ?? null;
+  } catch (e) {
+    return e instanceof Error ? e.message : "The PDF couldn't be uploaded";
+  }
 }
 
 // Opens the portal's PDF (private bucket) in a new tab to print / save.
