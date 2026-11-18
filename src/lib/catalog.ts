@@ -207,7 +207,10 @@ export const productSizes = (p: Product) => [
 export const productColors = (p: Product) => [
   ...new Set(p.variants.map(colorOf).filter((c): c is string => !!c)),
 ];
-export const isNewArrival = (p: Product, days = 30) =>
+// "New" badge: listed in the last 7 days; it drops off after a week (as on
+// the website - it was 30 days).
+export const NEW_BADGE_DAYS = 7;
+export const isNewArrival = (p: Product, days = NEW_BADGE_DAYS) =>
   Date.now() - new Date(p.created_at).getTime() < days * 86_400_000;
 export const inStock = (p: Product) =>
   p.variants.length
