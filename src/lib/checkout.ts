@@ -827,11 +827,23 @@ export async function readPending(userId: string): Promise<Pending | null> {
   }
 }
 
-export type PayOutcome = 'paid' | 'processing' | 'released' | 'unverified';
+// refunded: the payment came through after the unpaid checkout had been
+// released - no order; the server refunds it automatically (lateCapture.ts).
+export type PayOutcome =
+  | 'paid'
+  | 'processing'
+  | 'released'
+  | 'refunded'
+  | 'unverified';
 
 // The client's exact words when Razorpay is closed or the payment fails
 // (website 2.9.1). No order is placed and the bag stays as it was.
 export const PAYMENT_NOT_COMPLETED = 'Payment not completed – please try again';
+
+// A payment that came through after its checkout had been released as
+// unpaid (website 0e22763). The bag is kept; it's never shown as placed.
+export const LATE_PAYMENT_MESSAGE =
+  'Your payment came through after the checkout had timed out, so no order was placed. It is being refunded to your original payment method (usually 5-7 working days). Your cart is saved - you can place the order again.';
 
 export async function payOnline(
   orderId: string,
@@ -869,6 +881,12 @@ export async function payOnline(
         },
       },
     );
+    if (data?.released) {
+      // Released as unpaid before this payment came through: no order, the
+      // payment is refunded automatically, the bag stays as it was.
+      await clearPending();
+      return 'refunded';
+    }
     if (error || !data?.verified) return 'unverified';
     await clearPending();
     await sendOrderEmails(orderId);
@@ -881,7 +899,11 @@ export async function payOnline(
       await sendOrderEmails(orderId);
       return 'paid';
     }
-    return status === 'processing' ? 'processing' : 'released';
+    return status === 'processing'
+      ? 'processing'
+      : status === 'refunded'
+      ? 'refunded'
+      : 'released';
   }
 }
 
@@ -896,14 +918,21 @@ export async function checkPending(
     .select('payment_status, order_status')
     .eq('id', pending.orderId)
     .maybeSingle();
+  // Cancelled first: a checkout released as unpaid and paid after that is
+  // refunded automatically, never placed.
+  const paid = !!o && ['paid', 'refunded'].includes(o.payment_status);
   let status: PayOutcome;
-  if (o && ['paid', 'refunded'].includes(o.payment_status)) status = 'paid';
-  else if (!o || o.order_status === 'cancelled') status = 'released';
+  if (!o) status = 'released';
+  else if (o.order_status === 'cancelled')
+    status = paid ? 'refunded' : 'released';
+  else if (paid) status = 'paid';
   else {
     const s = await releaseUnpaid(pending.orderId);
     status =
       s === 'paid'
         ? 'paid'
+        : s === 'refunded'
+        ? 'refunded'
         : s === 'processing' || s === null
         ? 'processing'
         : 'released';

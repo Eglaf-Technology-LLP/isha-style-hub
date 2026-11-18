@@ -37,6 +37,7 @@ import {
   MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
   gstInsideLine,
+  LATE_PAYMENT_MESSAGE,
   NO_COD_QUOTE,
   PAYMENT_NOT_COMPLETED,
   payOnline,
@@ -227,6 +228,8 @@ export default function CheckoutScreen() {
             important: true,
           },
         );
+      else if (r.status === 'refunded')
+        toast(LATE_PAYMENT_MESSAGE, { important: true });
       else toast(PAYMENT_NOT_COMPLETED, { important: true });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,6 +318,8 @@ export default function CheckoutScreen() {
           important: true,
         },
       );
+    if (outcome === 'refunded')
+      return toast(LATE_PAYMENT_MESSAGE, { important: true });
     if (outcome === 'unverified')
       return toast(
         'Payment could not be verified. If you were charged, contact support with your order reference.',
