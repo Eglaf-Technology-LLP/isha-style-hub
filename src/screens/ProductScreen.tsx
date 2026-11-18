@@ -3,13 +3,15 @@ import { useGo, useParams } from '@/navigation';
 import {
   ArrowRight,
   BadgeCheck,
+  Banknote,
+  Earth,
   MessageCircle,
   Heart,
   RotateCcw,
   Share2,
+  ShieldCheck,
   ShoppingBag,
   Truck,
-  Wallet,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -39,7 +41,13 @@ import {
   SizeGuideLink,
 } from '@/components/ProductExtras';
 import { CONFIG } from '@/config';
-import { useVendorInfo, vendorAddressLine } from '@/lib/productExtras';
+import {
+  returnWindowAdjective,
+  returnWindowSpan,
+  useReturnWindowHours,
+  useVendorInfo,
+  vendorAddressLine,
+} from '@/lib/productExtras';
 import {
   Button,
   Eyebrow,
@@ -160,6 +168,8 @@ export default function ProductScreen() {
     [all, product],
   );
   const { data: vendorInfo } = useVendorInfo(product?.vendor_id);
+  // One return window for every boutique, set by AllBoutiqs (24 hours).
+  const windowHours = useReturnWindowHours();
 
   if (isLoading) {
     return (
@@ -234,6 +244,17 @@ export default function ProductScreen() {
   const codAvailable =
     product.cod_available !== false && vendorInfo?.cod_enabled !== false;
   const photoHeight = Math.round((width * 4) / 3);
+  // The return line follows the product's Returnable switch; Cash on
+  // Delivery says whether it's available; the country of origin is the
+  // product's own field (website a12bffc, client corrections 2.4).
+  const returnsTitle = returnable
+    ? `${returnWindowAdjective(windowHours)} returns`
+    : 'Not returnable';
+  const returnsText = returnable
+    ? `Return within ${returnWindowSpan(windowHours)} of delivery`
+    : `Damaged, defective or wrong item: report within ${returnWindowSpan(
+        windowHours,
+      )} of delivery`;
 
   // A size is out of stock when no variant with it (in the chosen colour) has any.
   // A size is greyed out only when no colour has it in stock - picking it
@@ -518,8 +539,8 @@ export default function ProductScreen() {
         ) : null}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
 
-        {/* Promises */}
-        <View style={[styles.block, { gap: 12 }]}>
+        {/* Delivery & services */}
+        <View style={[styles.block, { gap: 14 }]}>
           <Info
             icon={<Truck size={18} color={colors.gold} strokeWidth={1.6} />}
             text={
@@ -528,20 +549,30 @@ export default function ProductScreen() {
                 : 'Free shipping on every order'
             }
           />
-          {returnable ? (
-            <Info
-              icon={
-                <RotateCcw size={18} color={colors.gold} strokeWidth={1.6} />
-              }
-              text={`${vendorInfo?.return_window_days ?? 7}-day returns`}
-            />
-          ) : null}
-          {codAvailable ? (
-            <Info
-              icon={<Wallet size={18} color={colors.gold} strokeWidth={1.6} />}
-              text="Cash on delivery available"
-            />
-          ) : null}
+          <Info
+            icon={<RotateCcw size={18} color={colors.gold} strokeWidth={1.6} />}
+            text={returnsTitle}
+            sub={returnsText}
+          />
+          <Info
+            icon={<Banknote size={18} color={colors.gold} strokeWidth={1.6} />}
+            text={
+              codAvailable ? 'Cash on Delivery available' : 'Cash on Delivery'
+            }
+            sub={codAvailable ? '+ COD fee 3% + GST' : 'Not available'}
+          />
+          <Info
+            icon={<Earth size={18} color={colors.gold} strokeWidth={1.6} />}
+            text="Country of origin"
+            sub={product.country_of_origin || 'India'}
+          />
+          <Info
+            icon={
+              <ShieldCheck size={18} color={colors.gold} strokeWidth={1.6} />
+            }
+            text="Quality-checked"
+            sub="Checked by AllBoutiqs before it ships"
+          />
         </View>
 
         {soldOut ? (
@@ -788,16 +819,40 @@ export default function ProductScreen() {
   );
 }
 
-function Info({ icon, text }: { icon: React.ReactNode; text: string }) {
+function Info({
+  icon,
+  text,
+  sub,
+}: {
+  icon: React.ReactNode;
+  text: string;
+  // A second, smaller line (as the website's service boxes).
+  sub?: string;
+}) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: sub ? 'flex-start' : 'center',
+        gap: 12,
+      }}
+    >
       {icon}
-      <Sans style={{ flex: 1, color: colors.foreground }}>{text}</Sans>
+      <View style={{ flex: 1 }}>
+        <Sans style={{ color: colors.foreground }}>{text}</Sans>
+        {sub ? <Sans style={styles.infoSub}>{sub}</Sans> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  infoSub: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.mutedForeground,
+    marginTop: 1,
+  },
   counter: {
     position: 'absolute',
     bottom: 12,

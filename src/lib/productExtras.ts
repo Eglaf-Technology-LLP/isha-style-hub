@@ -58,6 +58,38 @@ export function vendorAddressLine(
   }, ${a.state} - ${a.pincode}, ${a.country || 'India'}`;
 }
 
+// ---------- the return window (website src/hooks/useReturnWindowHours.ts) ----------
+
+// How long customers can return after delivery - one number for every
+// boutique, set by AllBoutiqs (platform_settings.return_window_hours, 24
+// by default).
+const DEFAULT_RETURN_HOURS = 24;
+
+export function useReturnWindowHours(): number {
+  const { data } = useQuery({
+    queryKey: ['return-window-hours'],
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data: row } = await supabase
+        .from('platform_settings')
+        .select('return_window_hours')
+        .maybeSingle();
+      return Number(row?.return_window_hours) || DEFAULT_RETURN_HOURS;
+    },
+  });
+  return data ?? DEFAULT_RETURN_HOURS;
+}
+
+// "24-hour" / "2-day", for "24-hour returns".
+export const returnWindowAdjective = (hours: number) =>
+  hours > 24 && hours % 24 === 0 ? `${hours / 24}-day` : `${hours}-hour`;
+
+// "24 hours" / "2 days", for "within 24 hours of delivery".
+export const returnWindowSpan = (hours: number) =>
+  hours > 24 && hours % 24 === 0
+    ? `${hours / 24} days`
+    : `${hours} hour${hours === 1 ? '' : 's'}`;
+
 // ---------- reviews ----------
 
 export interface Review {
