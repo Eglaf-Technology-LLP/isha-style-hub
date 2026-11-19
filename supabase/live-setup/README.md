@@ -65,20 +65,24 @@ Set these under Dashboard → Edge Functions → **Secrets**, or with `npx supab
 | `SHIPROCKET_WEBHOOK_TOKEN` | Any long random text. Use the same text in the Shiprocket webhook (section E) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` | Zoho mail. `SMTP_PORT` must be `465`, because Supabase blocks 587 |
 | `OTP_HASH_SECRET` | Any long random text, e.g. the output of `openssl rand -hex 32` |
-| `MSG91_AUTH_KEY` | MSG91 auth key for transactional DLT SMS |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | The Twilio account credentials used by Programmable Messaging (store these separately in Edge Function Secrets; Supabase Auth's Verify settings are not automatically available to functions) |
+| `TWILIO_FROM` | The DLT-registered alphanumeric sender ID configured for Twilio India domestic messaging |
+| `TWILIO_DLT_PE_ID` | The AllBoutiqs Principal Entity ID registered on DLT |
+| `TWILIO_DLT_TEMPLATES` | JSON map of the 15 approved DLT template IDs and their exact approved message text, keyed by event and audience |
 | `SMS_ADMIN_PHONES` | Comma-separated AllBoutiqs admin mobile numbers, with or without the `+91` prefix |
-| `SMS_DLT_<EVENT>_<AUDIENCE>_TEMPLATE_ID` | MSG91 template IDs mapped to approved DLT templates; configure all 15 combinations of `EVENT` (`PLACED`, `SHIPPED`, `DELIVERED`, `CANCELLED`, `RETURN`) and `AUDIENCE` (`CUSTOMER`, `BOUTIQUE`, `ADMIN`) |
 
 Not needed yet: `GEMINI_API_KEY` (the AI features are hidden), and `RAZORPAYX_ACCOUNT_NUMBER` and `RAZORPAYX_WEBHOOK_SECRET` (RazorpayX payouts are paused). Supabase sets the `SUPABASE_*` values by itself.
 
 ### Order SMS setup
 
-Order SMS is sent by the `send-order-sms` Edge Function using MSG91's DLT flow API. Until `MSG91_AUTH_KEY`, `SMS_ADMIN_PHONES`, and the 15 template IDs are configured, the function records failed attempts (including the missing configuration) in the admin SMS log; it does not send non-DLT fallback text. Add the secrets in Supabase Dashboard → Edge Functions → Secrets, then deploy the function and apply the migration `20261119100000_order_sms_notifications.sql`.
+Order SMS is sent by the `send-order-sms` Edge Function using Twilio Programmable Messaging. Login OTP remains on Supabase Auth's Twilio Verify integration; the Verify Service SID is not used to send order messages. The Account SID/Auth Token can be the same Twilio account credentials, but must also be added to Edge Function Secrets. Configure a DLT-registered sender ID and approved templates for domestic India SMS. Until Twilio credentials, `TWILIO_FROM`, `TWILIO_DLT_PE_ID`, `SMS_ADMIN_PHONES`, and the 15 templates are configured, the function records failed attempts (including missing configuration) in the admin SMS log; it does not send non-DLT fallback text. Add the secrets in Supabase Dashboard → Edge Functions → Secrets, then deploy the function and apply the migration `20261119100000_order_sms_notifications.sql`.
 
-Register and get DLT approval for templates that match your Principal Entity, sender ID, and telecom operator's rules. Configure the corresponding MSG91 template ID for every audience/event pair above. The `VAR` values are sent in this exact order:
+Register and get DLT approval for templates that match your Principal Entity, sender ID, and telecom operator's rules. `TWILIO_DLT_TEMPLATES` must contain a DLT portal template ID and its exact approved body for each audience/event pair. Use `{{1}}`, `{{2}}`, etc. in the configured body only where the approved DLT text has variable slots; the function replaces these with the values below before submitting `DltPEId` and `DltTemplateId` to Twilio:
 
-- `PLACED_CUSTOMER`: order number, total amount. `PLACED_BOUTIQUE`: order number, product, size, ship-by date. `PLACED_ADMIN`: order number, total amount.
-- Each `SHIPPED`, `DELIVERED`, `CANCELLED`, and `RETURN` template for every audience receives the order number as `VAR1`.
+- `placed.customer`: order number, total amount. `placed.boutique`: order number, product, size, ship-by date. `placed.admin`: order number, total amount.
+- Each `shipped`, `delivered`, `cancelled`, and `return` template for every audience receives the order number as `{{1}}`.
+
+Example shape (replace every ID and body with the values approved for your DLT sender): `{"placed":{"customer":{"id":"DLT_TEMPLATE_ID","body":"Order confirmed {{1}}, amount INR {{2}}"},"boutique":{"id":"DLT_TEMPLATE_ID","body":"New order {{1}}, {{2}}, size {{3}}, ship by {{4}}"},"admin":{"id":"DLT_TEMPLATE_ID","body":"New order {{1}}, amount INR {{2}}"}},"shipped":{"customer":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} shipped"},"boutique":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} shipped"},"admin":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} shipped"}},"delivered":{"customer":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} delivered"},"boutique":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} delivered"},"admin":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} delivered"}},"cancelled":{"customer":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} cancelled"},"boutique":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} cancelled"},"admin":{"id":"DLT_TEMPLATE_ID","body":"Order {{1}} cancelled"}},"return":{"customer":{"id":"DLT_TEMPLATE_ID","body":"Return for order {{1}} received"},"boutique":{"id":"DLT_TEMPLATE_ID","body":"Return for order {{1}} received"},"admin":{"id":"DLT_TEMPLATE_ID","body":"Return for order {{1}} received"}}}`.
 
 The app calls the SMS function after a placed order is persisted/paid, on boutique shipment delivery transitions, cancellations, and return request creation. SMS attempts and provider responses are visible in Admin → Orders → Order Details → SMS Log.
 

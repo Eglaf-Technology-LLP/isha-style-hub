@@ -9,13 +9,14 @@ CREATE TABLE public.order_sms_logs (
   audience text NOT NULL CHECK (audience IN ('customer','boutique','admin')),
   phone text NOT NULL DEFAULT '',
   template_id text,
+  message_body text,
   variables jsonb NOT NULL DEFAULT '[]'::jsonb,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','failed')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','failed')),
   provider_message_id text,
   provider_response jsonb,
   error_message text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  sent_at timestamptz
+  accepted_at timestamptz
 );
 CREATE INDEX order_sms_logs_order_created_idx ON public.order_sms_logs(order_id, created_at DESC);
 ALTER TABLE public.order_sms_logs ENABLE ROW LEVEL SECURITY;

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { normalizeIndianPhone, sendDltSms, smsTemplateId, type SmsAudience, type SmsEvent } from "../_shared/sms.ts";
+import { getDltTemplate, normalizeIndianPhone, renderDltBody, sendTwilioDltSms, type SmsAudience, type SmsEvent } from "../_shared/sms.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" };
 type RequestBody = { orderId: string; event: SmsEvent; vendorOrderId?: string; returnRequestId?: string };
@@ -32,7 +32,7 @@ serve(async (req) => {
     if (vendorOrder?.vendor_id) {
       const { data } = await supabase.from("vendors").select("id,name,contact_phone").eq("id", vendorOrder.vendor_id).maybeSingle();
       if (data) boutiques = [data];
-    } else if (event === "placed") {
+    } else if (["placed", "shipped", "delivered", "cancelled"].includes(event)) {
       const vendorIds = [...new Set((items ?? []).map((item) => item.vendor_id).filter((id): id is string => !!id))];
       if (vendorIds.length) {
         const { data } = await supabase.from("vendors").select("id,name,contact_phone").in("id", vendorIds);
@@ -56,27 +56,35 @@ serve(async (req) => {
       ...((Deno.env.get("SMS_ADMIN_PHONES") ?? "").split(",").map((phone) => ({ audience: "admin" as const, phone: normalizeIndianPhone(phone), variables: event === "placed" ? [orderNumber, String(Math.round(Number(order.total)))] : [orderNumber] }))),
     ];
     const results = await Promise.all(destinations.map(async ({ audience, phone, variables }) => {
-      const templateId = smsTemplateId(event, audience);
+      let template: ReturnType<typeof getDltTemplate> = null;
+      let messageBody: string | null = null;
+      let templateError: string | null = null;
+      try {
+        template = getDltTemplate(event, audience);
+        if (!template) throw new Error(`DLT template is not configured for ${event}/${audience}`);
+        messageBody = renderDltBody(template.body, variables);
+      } catch (error) {
+        templateError = error instanceof Error ? error.message : String(error);
+      }
       const { data: log, error: logError } = await supabase.from("order_sms_logs").insert({
         order_id: orderId, vendor_order_id: vendorOrderId ?? null, return_request_id: returnRequestId ?? null,
-        event, audience, phone: phone ?? "", template_id: templateId, variables, status: "pending",
+        event, audience, phone: phone ?? "", template_id: template?.id ?? null, message_body: messageBody, variables, status: "pending",
       }).select("id").single();
       if (logError) throw logError;
       let status = "failed", providerMessageId: string | null = null, errorMessage: string | null = null, providerResponse: unknown = null;
       try {
         if (!phone) throw new Error(`${audience} phone number is missing or invalid`);
-        if (!templateId) throw new Error(`DLT template is not configured for ${event}/${audience}`);
-        const result = await sendDltSms(templateId, phone, variables);
+        if (templateError) throw new Error(templateError);
+        const result = await sendTwilioDltSms(template!.id, phone, messageBody!);
         providerResponse = result.response;
-        const parsed = result.response as { message?: string; request_id?: string; message_id?: string; type?: string; hasError?: boolean };
-        if (parsed?.type === "error" || parsed?.hasError === true) throw new Error(JSON.stringify(result.response).slice(0, 500));
-        status = "sent";
-        providerMessageId = parsed?.message_id ?? parsed?.request_id ?? parsed?.message ?? null;
+        const parsed = result.response as { sid?: string; status?: string };
+        status = "accepted";
+        providerMessageId = parsed?.sid ?? null;
       } catch (error) { errorMessage = error instanceof Error ? error.message : String(error); }
-      await supabase.from("order_sms_logs").update({ status, provider_message_id: providerMessageId, error_message: errorMessage, provider_response: providerResponse, sent_at: status === "sent" ? new Date().toISOString() : null }).eq("id", log.id);
+      await supabase.from("order_sms_logs").update({ status, provider_message_id: providerMessageId, error_message: errorMessage, provider_response: providerResponse, accepted_at: status === "accepted" ? new Date().toISOString() : null }).eq("id", log.id);
       return { audience, status, error: errorMessage };
     }));
-    return new Response(JSON.stringify({ success: results.every((r) => r.status === "sent"), results }), { status: 200, headers: { "Content-Type": "application/json", ...cors } });
+    return new Response(JSON.stringify({ success: results.every((r) => r.status === "accepted"), results }), { status: 200, headers: { "Content-Type": "application/json", ...cors } });
   } catch (error) {
     console.error("send-order-sms failed", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), { status: 500, headers: { "Content-Type": "application/json", ...cors } });
