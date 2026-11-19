@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import {
   Loader2,
+  Check,
   Package,
   ShoppingCart,
   IndianRupee,
@@ -251,6 +252,7 @@ export default function VendorDashboard() {
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
+  const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>("all");
   const [productStatusFilter, setProductStatusFilter] = useState<ProductStatusFilter>("all");
@@ -585,6 +587,29 @@ export default function VendorDashboard() {
       toast.success(value ? "Product listed" : "Product unlisted");
     } catch (e: any) {
       toast.error(e.message || "Failed to update product");
+    }
+  };
+
+  const acceptVendorOrder = async (order: VendorOrder) => {
+    if (!vendor || order.status !== "pending") return;
+    setAcceptingOrderId(order.id);
+    try {
+      const { data, error } = await supabase
+        .from("vendor_orders")
+        .update({ status: "confirmed" })
+        .eq("id", order.id)
+        .eq("vendor_id", vendor.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("This order has already changed. Refresh the page and check its status.");
+      setOrders((previous) => previous.map((item) => item.id === order.id ? { ...item, status: "confirmed" } : item));
+      toast.success("Order accepted. AllBoutiqs has been notified.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not accept this order");
+    } finally {
+      setAcceptingOrderId(null);
     }
   };
 
@@ -1392,9 +1417,17 @@ export default function VendorDashboard() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge className={vendorOrderStatusColors[o.status] || "bg-muted"}>
-                                {vendorOrderStatusLabel(o.status, !!o.via_warehouse)}
-                              </Badge>
+                              <div className="space-y-2">
+                                <Badge className={vendorOrderStatusColors[o.status] || "bg-muted"}>
+                                  {vendorOrderStatusLabel(o.status, !!o.via_warehouse)}
+                                </Badge>
+                                {o.status === "pending" && (
+                                  <Button size="sm" variant="outline" className="flex items-center gap-1" disabled={acceptingOrderId === o.id} onClick={() => void acceptVendorOrder(o)}>
+                                    {acceptingOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                    Accept
+                                  </Button>
+                                )}
+                              </div>
                               {o.via_warehouse && (
                                 <div className="text-[11px] text-muted-foreground mt-1 whitespace-nowrap">Via AllBoutiqs warehouse</div>
                               )}

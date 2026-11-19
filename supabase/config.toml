@@ -85,3 +85,8 @@ verify_jwt = true
 # not, so there's no user JWT to check. Abuse limits are in the function.
 [functions.submit-complaint]
 verify_jwt = false
+
+# The email link carries a hashed-on-use, single-use token that is checked
+# against vendor_order_acceptance_tokens before any status change.
+[functions.accept-vendor-order]
+verify_jwt = false
