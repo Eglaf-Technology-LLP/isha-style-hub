@@ -53,6 +53,7 @@ import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { OrderSmsLog } from "@/components/admin/OrderSmsLog";
 
 interface OrderManagementProps {
   isAdmin: boolean;
@@ -561,6 +562,10 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                   </h4>
                   <OrderFulfillmentSection order={selectedOrder} />
                 </div>
+
+                <Separator />
+
+                <OrderSmsLog orderId={selectedOrder.id} />
 
                 <Separator />
 

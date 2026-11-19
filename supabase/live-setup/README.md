@@ -65,8 +65,22 @@ Set these under Dashboard → Edge Functions → **Secrets**, or with `npx supab
 | `SHIPROCKET_WEBHOOK_TOKEN` | Any long random text. Use the same text in the Shiprocket webhook (section E) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL` | Zoho mail. `SMTP_PORT` must be `465`, because Supabase blocks 587 |
 | `OTP_HASH_SECRET` | Any long random text, e.g. the output of `openssl rand -hex 32` |
+| `MSG91_AUTH_KEY` | MSG91 auth key for transactional DLT SMS |
+| `SMS_ADMIN_PHONES` | Comma-separated AllBoutiqs admin mobile numbers, with or without the `+91` prefix |
+| `SMS_DLT_<EVENT>_<AUDIENCE>_TEMPLATE_ID` | MSG91 template IDs mapped to approved DLT templates; configure all 15 combinations of `EVENT` (`PLACED`, `SHIPPED`, `DELIVERED`, `CANCELLED`, `RETURN`) and `AUDIENCE` (`CUSTOMER`, `BOUTIQUE`, `ADMIN`) |
 
 Not needed yet: `GEMINI_API_KEY` (the AI features are hidden), and `RAZORPAYX_ACCOUNT_NUMBER` and `RAZORPAYX_WEBHOOK_SECRET` (RazorpayX payouts are paused). Supabase sets the `SUPABASE_*` values by itself.
+
+### Order SMS setup
+
+Order SMS is sent by the `send-order-sms` Edge Function using MSG91's DLT flow API. Until `MSG91_AUTH_KEY`, `SMS_ADMIN_PHONES`, and the 15 template IDs are configured, the function records failed attempts (including the missing configuration) in the admin SMS log; it does not send non-DLT fallback text. Add the secrets in Supabase Dashboard → Edge Functions → Secrets, then deploy the function and apply the migration `20261119100000_order_sms_notifications.sql`.
+
+Register and get DLT approval for templates that match your Principal Entity, sender ID, and telecom operator's rules. Configure the corresponding MSG91 template ID for every audience/event pair above. The `VAR` values are sent in this exact order:
+
+- `PLACED_CUSTOMER`: order number, total amount. `PLACED_BOUTIQUE`: order number, product, size, ship-by date. `PLACED_ADMIN`: order number, total amount.
+- Each `SHIPPED`, `DELIVERED`, `CANCELLED`, and `RETURN` template for every audience receives the order number as `VAR1`.
+
+The app calls the SMS function after a placed order is persisted/paid, on boutique shipment delivery transitions, cancellations, and return request creation. SMS attempts and provider responses are visible in Admin → Orders → Order Details → SMS Log.
 
 ## D. Dashboard settings
 
