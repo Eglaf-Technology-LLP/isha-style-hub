@@ -39,6 +39,7 @@ import { normalizeState } from "@/lib/indianStates";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { usePlatformRates } from "@/hooks/usePlatformRates";
 import { CheckoutShell } from "@/components/storefront/checkout/CheckoutShell";
+import { CheckoutTermsNote } from "@/components/storefront/checkout/CheckoutTermsNote";
 import { AddressLine1Input } from "@/components/AddressLine1Input";
 import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 import { SmartImage } from "@/components/storefront/SmartImage";
@@ -1412,6 +1413,7 @@ export default function Checkout() {
         // Phones: total + place order, always in reach
         <div className="store-container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
           {addressLine1Locked && <p className="w-full text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
+          <CheckoutTermsNote compact className="w-full" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
             <p className="font-serif text-xl leading-tight">{formatINR(payNow)}</p>
@@ -1941,6 +1943,7 @@ export default function Checkout() {
                   </p>
                 )}
 
+                <CheckoutTermsNote />
                 <button
                   type="button"
                   onClick={placeOrder}

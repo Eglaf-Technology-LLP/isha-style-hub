@@ -10,7 +10,8 @@ import { useMenuCategories } from "@/hooks/useStorefront";
 import { RaiseComplaintButton } from "@/components/ComplaintForm";
 import logo from "@/assets/logo-white.png";
 
-const PAYMENT_METHODS = ["UPI", "Visa", "Mastercard", "RuPay", "Net banking", "Cash on Delivery"];
+// EMI shown wherever payments are listed (client corrections Part 2, A4.1).
+const PAYMENT_METHODS = ["UPI", "Visa", "Mastercard", "RuPay", "Net banking", "EMI", "Cash on Delivery"];
 
 export function Footer() {
   const { role } = useStaffRole();

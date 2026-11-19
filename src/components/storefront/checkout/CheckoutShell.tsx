@@ -66,7 +66,8 @@ export function CheckoutShell({
 
       <main className="flex-1">{children}</main>
 
-      <footer className={cn("border-t border-border bg-ivory", bottomBar && "pb-20 lg:pb-0")}>
+      {/* Room for the phone bar: total + button, and the terms line (A23.1). */}
+      <footer className={cn("border-t border-border bg-ivory", bottomBar && "pb-32 lg:pb-0")}>
         <div className="store-container flex flex-col items-center justify-between gap-4 py-6 text-xs text-muted-foreground md:flex-row">
           <p>
             Need help? WhatsApp{" "}

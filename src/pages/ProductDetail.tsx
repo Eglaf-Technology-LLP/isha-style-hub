@@ -634,7 +634,8 @@ export default function ProductDetail() {
                   <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
                 </p>
               )}
-              <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</p>
+              {/* "EMI available" under the price (client corrections Part 2, A4.1). */}
+              <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes · EMI available</p>
               {freeDelivery && <FreeDeliveryBadge className="mt-2" />}
 
               {(madeToOrder || soldOut || currentStock <= 5) && (
