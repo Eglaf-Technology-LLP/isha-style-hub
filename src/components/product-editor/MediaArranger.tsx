@@ -161,7 +161,8 @@ export function MediaArranger({
     try {
       let file: File;
       try {
-        file = await prepareVideo(picked, setVideoProgress);
+        // Re-encoded visually lossless when that makes it smaller (lib/uploadPrep).
+        file = await prepareVideo(picked, setVideoProgress, { shrink: true });
       } catch (e) {
         return toast.error(uploadProblemMessage(e, picked.name), { duration: 10000 });
       } finally {

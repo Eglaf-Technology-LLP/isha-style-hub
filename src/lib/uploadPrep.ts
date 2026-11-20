@@ -4,7 +4,8 @@
 //   videos     MP4, MOV               up to 50 MB
 //   documents  PDF, JPG, PNG          up to 10 MB
 // A bigger file is compressed in the browser, keeping it sharp and readable.
-// The person only sees an error for a format we don't take, or a file that
+// Product videos are also re-encoded visually lossless whenever that makes
+// them smaller (20 Nov 2026, see SHRINK_QUANTIZER). The person only sees an error for a format we don't take, or a file that
 // still can't be brought under the limit. The heavy converters (HEIC
 // decoder, video encoder, PDF renderer) load only when a file needs them.
 
@@ -250,13 +251,46 @@ const MAX_VIDEO_BPS = 8_000_000;
 
 const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 
-// An MP4 or MOV of at most 50 MB. A bigger one is re-encoded to H.264 MP4
-// (plays everywhere) at the highest resolution and bitrate that fit: 1080p
-// for most phone clips, less only for long ones. Sound is kept as it is.
-export async function prepareVideo(file: File, onProgress?: (fraction: number) => void): Promise<File> {
+// Product videos are re-encoded "visually lossless" (client, 20 Nov 2026:
+// the quality and the timing must not change). Same picture size, frame
+// rate, frames and timing, the sound copied byte for byte - only a phone
+// camera's bitrate (~16 Mbps at 1080p) comes down. Quantizer 20 works like
+// ffmpeg's CRF 20: on the live product videos every sampled frame kept SSIM
+// ~0.99 and PSNR 42+ dB at 36-47% less size. A browser whose encoder can't
+// do quantizer mode uses SHRINK_BITS_PER_PIXEL as the bitrate instead
+// (0.16 let single frames dip to PSNR 39 on those videos; 0.20 doesn't).
+const SHRINK_QUANTIZER = 20;
+const SHRINK_BITS_PER_PIXEL = 0.2;
+// A video already leaner than this (bits per pixel per frame) can't get
+// smaller at that quality, so it isn't tried.
+const SHRINK_LEAN_BITS_PER_PIXEL = 0.12;
+// The result is used only if it saves at least this much...
+const SHRINK_MIN_SAVING = 0.15;
+// ...and each of these frames, spread over the video, matches the original's
+// frame at the same moment at least this closely (luma SSIM and PSNR). So an
+// encoder on some phone that does worse can never lower the quality: the
+// original is uploaded instead.
+const SHRINK_CHECK_FRAMES = 10;
+const SHRINK_MIN_SSIM = 0.978;
+const SHRINK_MIN_PSNR = 40;
+
+// An MP4 or MOV of at most 50 MB. With { shrink: true } (product videos) it
+// is first re-encoded visually lossless, as above. A video still over 50 MB
+// is re-encoded to H.264 MP4 (plays everywhere) at the highest resolution and
+// bitrate that fit: 1080p for most phone clips, less only for long ones.
+// Sound is kept as it is.
+export async function prepareVideo(
+  file: File,
+  onProgress?: (fraction: number) => void,
+  { shrink = false }: { shrink?: boolean } = {},
+): Promise<File> {
   const kind = await detectKind(file);
   if (kind !== "mp4" && kind !== "mov") {
     throw new UploadProblem(`${quoted(file.name)} isn't a video format we take. Please use ${VIDEO_FORMATS}.`);
+  }
+  if (shrink) {
+    const smaller = await shrinkVideo(file, onProgress);
+    if (smaller && smaller.size <= VIDEO_MAX_BYTES) return smaller;
   }
   if (file.size <= VIDEO_MAX_BYTES) return withType(file, kind);
 
@@ -358,6 +392,197 @@ export async function prepareVideo(file: File, onProgress?: (fraction: number) =
     if (videoBps < MIN_VIDEO_BPS) break;
   }
   throw new UploadProblem(`${quoted(file.name)} is still over 50 MB after compressing. Please trim it and try again.`);
+}
+
+type Mediabunny = typeof import("mediabunny");
+
+interface VideoFacts {
+  width: number;
+  height: number;
+  frameRate: number;
+  videoBps: number;
+  duration: number;
+  // Frames shown while it plays. An edited MOV can hold a few frames before
+  // 0 s that the editor cut and no player shows; a re-encode leaves them out.
+  shownFrames: number;
+  audio: string | null;
+}
+
+// The visually lossless re-encode described at SHRINK_QUANTIZER, or null
+// when the browser can't do it, it wouldn't save enough, or the result isn't
+// the same video in every way checked - the original is used then.
+async function shrinkVideo(file: File, onProgress?: (fraction: number) => void): Promise<File | null> {
+  if (typeof VideoEncoder === "undefined") return null;
+  try {
+    const mb = await import("mediabunny");
+    const before = await videoFacts(mb, file);
+    if (!before) return null;
+    const { width, height } = before;
+    const pixelsPerSecond = width * height * before.frameRate;
+    if (before.videoBps < SHRINK_LEAN_BITS_PER_PIXEL * pixelsPerSecond) return null;
+    const quality = new mb.Quality({
+      quantizer: SHRINK_QUANTIZER,
+      bitrate: Math.round(SHRINK_BITS_PER_PIXEL * pixelsPerSecond),
+      bitrateMode: "variable",
+    });
+    if (!(await mb.canEncodeVideo("avc", { width, height, quality }))) return null;
+
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const output = new mb.Output({ format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }), target: new mb.BufferTarget() });
+    let buffer: ArrayBuffer | null;
+    try {
+      const conversion = await mb.Conversion.init({
+        input,
+        output,
+        // No size or frame rate given: both stay as they are. The sound
+        // isn't named either, so it is copied as it is.
+        video: { codec: "avc", quality, forceTranscode: true, keyFrameInterval: 2 },
+        showWarnings: false,
+      });
+      if (!conversion.isValid || conversion.discardedTracks.length > 0) return null;
+      conversion.onProgress = (p) => onProgress?.(p * 0.9);
+      await conversion.execute();
+      buffer = output.target.buffer;
+    } finally {
+      input.dispose();
+    }
+    if (!buffer || buffer.byteLength > file.size * (1 - SHRINK_MIN_SAVING)) return null;
+
+    const result = new File([buffer], renamed(file.name, "mp4"), { type: "video/mp4", lastModified: file.lastModified });
+    const after = await videoFacts(mb, result);
+    const sameTiming =
+      !!after &&
+      after.width === width &&
+      after.height === height &&
+      after.shownFrames === before.shownFrames &&
+      Math.abs(after.duration - before.duration) <= 1 / before.frameRate &&
+      after.audio === before.audio;
+    if (!sameTiming || !(await looksTheSame(mb, file, result, before.duration))) return null;
+    onProgress?.(1);
+    return result;
+  } catch (e) {
+    console.warn("Video kept as uploaded: re-encoding it failed", e);
+    return null;
+  }
+}
+
+async function videoFacts(mb: Mediabunny, file: File): Promise<VideoFacts | null> {
+  const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+  try {
+    const video = await input.getPrimaryVideoTrack();
+    if (!video || !(await video.canDecode())) return null;
+    const stats = await video.computePacketStats();
+    let shownFrames = 0;
+    for await (const packet of new mb.EncodedPacketSink(video).packets(undefined, undefined, { metadataOnly: true })) {
+      if (packet.timestamp + packet.duration > 1e-6) shownFrames++;
+    }
+    const audio = await input.getPrimaryAudioTrack();
+    return {
+      width: video.displayWidth,
+      height: video.displayHeight,
+      frameRate: stats.averagePacketRate,
+      videoBps: stats.averageBitrate,
+      duration: await input.computeDuration(),
+      shownFrames,
+      audio: audio ? `${audio.codec}/${audio.numberOfChannels}ch/${audio.sampleRate}Hz` : null,
+    };
+  } finally {
+    input.dispose();
+  }
+}
+
+// SHRINK_CHECK_FRAMES moments spread over the video: the re-encoded frame
+// shown at each must be the original's frame (same timestamp) and match it
+// to SHRINK_MIN_SSIM / SHRINK_MIN_PSNR.
+async function looksTheSame(mb: Mediabunny, original: File, encoded: File, duration: number): Promise<boolean> {
+  const a = new mb.Input({ source: new mb.BlobSource(original), formats: mb.ALL_FORMATS });
+  const b = new mb.Input({ source: new mb.BlobSource(encoded), formats: mb.ALL_FORMATS });
+  try {
+    const [trackA, trackB] = [await a.getPrimaryVideoTrack(), await b.getPrimaryVideoTrack()];
+    if (!trackA || !trackB) return false;
+    const sinkA = new mb.CanvasSink(trackA, { poolSize: 1 });
+    const sinkB = new mb.CanvasSink(trackB, { poolSize: 1 });
+    for (let i = 0; i < SHRINK_CHECK_FRAMES; i++) {
+      const t = ((i + 0.5) * duration) / SHRINK_CHECK_FRAMES;
+      const frameA = await sinkA.getCanvas(t);
+      const lumaA = frameA && lumaOf(frameA.canvas);
+      const frameB = await sinkB.getCanvas(t);
+      const lumaB = frameB && lumaOf(frameB.canvas);
+      if (!lumaA || !lumaB || Math.abs(frameA.timestamp - frameB.timestamp) > 0.001) return false;
+      const { ssim, psnr } = compareLuma(lumaA, lumaB);
+      if (ssim < SHRINK_MIN_SSIM || psnr < SHRINK_MIN_PSNR) return false;
+    }
+    return true;
+  } finally {
+    a.dispose();
+    b.dispose();
+  }
+}
+
+interface Luma {
+  y: Float32Array;
+  width: number;
+  height: number;
+}
+
+function lumaOf(canvas: HTMLCanvasElement | OffscreenCanvas): Luma | null {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true }) as
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D
+    | null;
+  if (!ctx) return null;
+  const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const y = new Float32Array(width * height);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) y[j] = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+  return { y, width, height };
+}
+
+// SSIM averaged over 8x8 blocks, and PSNR, both on brightness.
+function compareLuma(a: Luma, b: Luma): { ssim: number; psnr: number } {
+  const { width: w, height: h } = a;
+  if (w !== b.width || h !== b.height) return { ssim: 0, psnr: 0 };
+  const C1 = (0.01 * 255) ** 2;
+  const C2 = (0.03 * 255) ** 2;
+  let squaredError = 0;
+  for (let i = 0; i < a.y.length; i++) {
+    const d = a.y[i] - b.y[i];
+    squaredError += d * d;
+  }
+  let ssimSum = 0;
+  let blocks = 0;
+  for (let by = 0; by + 8 <= h; by += 8) {
+    for (let bx = 0; bx + 8 <= w; bx += 8) {
+      let meanA = 0;
+      let meanB = 0;
+      for (let y = by; y < by + 8; y++) {
+        for (let x = bx; x < bx + 8; x++) {
+          meanA += a.y[y * w + x];
+          meanB += b.y[y * w + x];
+        }
+      }
+      meanA /= 64;
+      meanB /= 64;
+      let varA = 0;
+      let varB = 0;
+      let cov = 0;
+      for (let y = by; y < by + 8; y++) {
+        for (let x = bx; x < bx + 8; x++) {
+          const da = a.y[y * w + x] - meanA;
+          const db = b.y[y * w + x] - meanB;
+          varA += da * da;
+          varB += db * db;
+          cov += da * db;
+        }
+      }
+      varA /= 63;
+      varB /= 63;
+      cov /= 63;
+      ssimSum += ((2 * meanA * meanB + C1) * (2 * cov + C2)) / ((meanA * meanA + meanB * meanB + C1) * (varA + varB + C2));
+      blocks++;
+    }
+  }
+  const mse = squaredError / a.y.length;
+  return { ssim: blocks ? ssimSum / blocks : 0, psnr: mse === 0 ? 99 : 10 * Math.log10((255 * 255) / mse) };
 }
 
 // ---------- documents ----------
