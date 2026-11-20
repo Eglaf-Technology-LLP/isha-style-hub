@@ -96,6 +96,11 @@ export interface Product {
   cod_available: boolean;
   prep_days?: number | null;
   made_to_order?: boolean;
+  // "When a size sells out" (Ready to Ship) - see src/lib/soldOutMadeToOrder.ts.
+  sold_out_action?: string | null;
+  sold_out_extra_amount?: number | null;
+  sold_out_extra_pct?: number | null;
+  sold_out_extra_days?: number | null;
   // Customisation (made to measure / extra options, each priced) - see
   // src/lib/customisation.ts.
   customisable?: boolean;
@@ -172,6 +177,11 @@ export interface ProductFormData {
   cod_available?: boolean;
   prep_days?: number | null;
   made_to_order?: boolean;
+  // Sent together (all four) when the form has them.
+  sold_out_action?: "made_to_order" | "hide" | null;
+  sold_out_extra_amount?: number | null;
+  sold_out_extra_pct?: number | null;
+  sold_out_extra_days?: number | null;
   customisable?: boolean;
   customisation_options?: CustomisationOption[];
   custom_size_price?: number | null;
@@ -277,6 +287,14 @@ export async function insertProductRecord(
       cod_available: productData.cod_available ?? true,
       ...(productData.prep_days !== undefined ? { prep_days: productData.prep_days } : {}),
       ...(productData.made_to_order !== undefined ? { made_to_order: productData.made_to_order } : {}),
+      ...(productData.sold_out_action !== undefined
+        ? {
+            sold_out_action: productData.sold_out_action,
+            sold_out_extra_amount: productData.sold_out_extra_amount ?? null,
+            sold_out_extra_pct: productData.sold_out_extra_pct ?? null,
+            sold_out_extra_days: productData.sold_out_extra_days ?? null,
+          }
+        : {}),
       ...(productData.customisable !== undefined
         ? {
             customisable: productData.customisable,
@@ -387,6 +405,12 @@ export async function applyProductUpdate(
   if (productData.cod_available !== undefined) updateData.cod_available = productData.cod_available;
   if (productData.prep_days !== undefined) updateData.prep_days = productData.prep_days;
   if (productData.made_to_order !== undefined) updateData.made_to_order = productData.made_to_order;
+  if (productData.sold_out_action !== undefined) {
+    updateData.sold_out_action = productData.sold_out_action;
+    updateData.sold_out_extra_amount = productData.sold_out_extra_amount ?? null;
+    updateData.sold_out_extra_pct = productData.sold_out_extra_pct ?? null;
+    updateData.sold_out_extra_days = productData.sold_out_extra_days ?? null;
+  }
   if (productData.customisable !== undefined) {
     updateData.customisable = productData.customisable;
     updateData.customisation_options = (productData.customisation_options ?? []) as unknown as Json;

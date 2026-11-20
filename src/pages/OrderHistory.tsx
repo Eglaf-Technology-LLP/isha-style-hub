@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
+import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import type { CustomisationChoice } from "@/lib/customisation";
 import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -56,6 +57,10 @@ interface OrderItem {
   image: string | null;
   // Customised for the customer: no return or exchange.
   customisation?: CustomisationChoice | null;
+  // Made after the order (no stock taken); sold_out_terms when it's a
+  // sold-out size made to order (src/lib/soldOutMadeToOrder.ts).
+  made_to_order?: boolean;
+  sold_out_terms?: unknown;
 }
 
 // Every field here is an internal fulfillment/grouping detail - never
@@ -625,6 +630,7 @@ export default function OrderHistory() {
                                         Non-refundable
                                       </span>
                                     )}
+                                    <MadeToOrderBadge madeToOrder={item.made_to_order} soldOutTerms={item.sold_out_terms} className="mt-2" />
                                     {item.customisation && <CustomisationDetails customisation={item.customisation} className="mt-2" />}
                                   </div>
                                   <p className="shrink-0 font-medium">{formatMoney((item.price * item.quantity))}</p>

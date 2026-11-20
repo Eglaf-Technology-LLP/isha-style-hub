@@ -127,6 +127,8 @@ const ONLY_WHEN_CUSTOMISABLE = new Set(["customisation charge %", "customisation
 const NOT_WHEN_SIZE_HIDDEN = new Set(["extra when made to order", "extra days when made to order"]);
 // Saved on the product's customisation fields, not as product details.
 const CUSTOMISATION_COLUMNS = new Set(["customisation", "customisation charge %", "customisation extra days"]);
+// Saved as the product's "When a size sells out" set-up, not as product details.
+const SOLD_OUT_COLUMNS = READY_TO_SHIP_ONLY;
 
 const NOT_NEEDED_RE = /^[—–-]+\s*not needed$/i;
 // "Other – write in Note": the real value is in the boutique's note, not here.
@@ -603,6 +605,56 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     }
     const sizeHidden = /hide/i.test(detailCell(main, "when sold out").text);
 
+    // "When a size sells out" (Ready to Ship; 3.2.4 and the Part 4 list):
+    // Make to order (extra ₹ or % + extra days) or Hide that size. Empty =
+    // the size shows as sold out.
+    let soldOut: Pick<
+      ProductFormData,
+      "sold_out_action" | "sold_out_extra_amount" | "sold_out_extra_pct" | "sold_out_extra_days"
+    > | null = null;
+    if (listingType === "rts" && hasDetail("when sold out")) {
+      const whenText = oneLine(detailCell(main, "when sold out").text);
+      const none = { sold_out_extra_amount: null, sold_out_extra_pct: null, sold_out_extra_days: null };
+      if (!whenText || NOT_NEEDED_RE.test(whenText)) {
+        soldOut = { sold_out_action: null, ...none };
+      } else if (sizeHidden) {
+        soldOut = { sold_out_action: "hide", ...none };
+      } else if (/make|made|order/i.test(whenText)) {
+        const extraText = oneLine(detailCell(main, "extra when made to order").text);
+        let amount: number | null = null;
+        let pct: number | null = null;
+        if (extraText && !NOT_NEEDED_RE.test(extraText)) {
+          if (extraText.includes("%")) {
+            const p = Number(extraText.replace(/[%\s]/g, ""));
+            if ((CUSTOMISATION_PCTS as readonly number[]).includes(p)) pct = p;
+            else problem(main, `Extra when made to order "${extraText}" must be 1, 2, 3, 4, 5, 7, 10, 15 or 20% - or a ₹ amount`);
+          } else {
+            const n = parseNumber(detailCell(main, "extra when made to order"));
+            if ("value" in n && n.value !== null && Number.isInteger(n.value) && n.value >= 0 && n.value <= 50000) amount = n.value;
+            else problem(main, `Extra when made to order must be a ₹ amount from 0 to 50,000 or a % (found "${extraText}")`);
+          }
+        }
+        const daysText = oneLine(detailCell(main, "extra days when made to order").text);
+        const days = Number(daysText.replace(/\s*days?$/i, ""));
+        if (!daysText || NOT_NEEDED_RE.test(daysText)) {
+          problem(main, "Extra days when made to order is empty (When sold out is Make to order)");
+        } else if (OTHER_RE.test(daysText)) {
+          problem(main, 'Extra days when made to order is "Other - write in Note" - pick a number of days from the list');
+        } else if (!Number.isInteger(days) || days < 1 || days > 90) {
+          problem(main, `Extra days when made to order must be a whole number of days from 1 to 90 (found "${daysText}")`);
+        } else {
+          soldOut = {
+            sold_out_action: "made_to_order",
+            sold_out_extra_amount: pct === null ? amount ?? 0 : null,
+            sold_out_extra_pct: pct,
+            sold_out_extra_days: days,
+          };
+        }
+      } else {
+        problem(main, `When sold out "${whenText}" must be Make to order or Hide that size`);
+      }
+    }
+
     // A detail column that applies to this product (see MADE_TO_ORDER_ONLY...).
     const detailApplies = (key: string) =>
       !(listingType === "mto" && READY_TO_SHIP_ONLY.has(key)) &&
@@ -793,7 +845,14 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     const specifications: ProductSpecification[] = [];
     for (const d of main.details) {
       const text = oneLine(d.cell.text);
-      if (!text || OTHER_RE.test(text) || !detailApplies(d.key) || CUSTOMISATION_COLUMNS.has(d.key)) continue;
+      if (
+        !text ||
+        OTHER_RE.test(text) ||
+        !detailApplies(d.key) ||
+        CUSTOMISATION_COLUMNS.has(d.key) ||
+        SOLD_OUT_COLUMNS.has(d.key)
+      )
+        continue;
       if (!specifications.some((s) => s.label.toLowerCase() === d.label.toLowerCase())) {
         specifications.push({ label: d.label, value: text });
       }
@@ -819,6 +878,7 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
       cod_available: ("value" in cod ? cod.value : null) ?? true,
       prep_days: prepDays,
       made_to_order: listingType === "mto",
+      ...(soldOut ?? {}),
       // "No AI" is saved. The two AI options need an original photo, which
       // a sheet can't carry (products_ai_original_photo_required): left
       // undeclared, the product form asks for both when it's next saved.

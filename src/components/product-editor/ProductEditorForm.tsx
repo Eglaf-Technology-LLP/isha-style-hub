@@ -19,8 +19,17 @@ import {
 import { CUSTOMISATION_ENABLED, type CustomisationOption } from "@/lib/customisation";
 import { useCategories } from "@/hooks/useCategories";
 import {
+  SOLD_OUT_EXTRA_AMOUNTS,
+  SOLD_OUT_EXTRA_DAYS,
+  SOLD_OUT_EXTRA_PCTS,
+  madeToOrderLine,
+  soldOutTermsFor,
+} from "@/lib/soldOutMadeToOrder";
+import { formatINR } from "@/lib/format";
+import {
   ProductVariant,
   ProductSpecification,
+  type ProductFormData,
   insertProductRecord,
   applyProductUpdate,
   approveProduct,
@@ -68,6 +77,10 @@ export interface VendorProductRow {
   cod_available?: boolean;
   prep_days?: number | null;
   made_to_order?: boolean;
+  sold_out_action?: string | null;
+  sold_out_extra_amount?: number | null;
+  sold_out_extra_pct?: number | null;
+  sold_out_extra_days?: number | null;
   customisable?: boolean;
   customisation_options?: unknown;
   custom_size_price?: number | null;
@@ -119,6 +132,12 @@ const empty = {
   // Empty = the boutique's own "ready to ship in" days.
   prep_days: "",
   made_to_order: false,
+  // "When a size sells out" (Ready to Ship): "" = show it as sold out.
+  sold_out_action: "" as "" | "made_to_order" | "hide",
+  sold_out_extra_kind: "amount" as "amount" | "pct",
+  sold_out_extra_amount: "0",
+  sold_out_extra_pct: "",
+  sold_out_extra_days: "",
 };
 
 // Form fields from a product being edited (empty for a new one).
@@ -146,8 +165,48 @@ const formFrom = (product: VendorProductRow | null): typeof empty =>
         cod_available: product.cod_available ?? true,
         prep_days: product.prep_days != null ? String(product.prep_days) : "",
         made_to_order: product.made_to_order ?? false,
+        sold_out_action:
+          product.sold_out_action === "made_to_order" || product.sold_out_action === "hide" ? product.sold_out_action : "",
+        sold_out_extra_kind: product.sold_out_extra_pct != null ? "pct" : "amount",
+        sold_out_extra_amount: product.sold_out_extra_amount != null ? String(Number(product.sold_out_extra_amount)) : "0",
+        sold_out_extra_pct: product.sold_out_extra_pct != null ? String(Number(product.sold_out_extra_pct)) : "",
+        sold_out_extra_days: product.sold_out_extra_days != null ? String(product.sold_out_extra_days) : "",
       }
     : { ...empty };
+
+type SoldOutFields = Pick<
+  ProductFormData,
+  "sold_out_action" | "sold_out_extra_amount" | "sold_out_extra_pct" | "sold_out_extra_days"
+>;
+const NO_SOLD_OUT: SoldOutFields = {
+  sold_out_action: null,
+  sold_out_extra_amount: null,
+  sold_out_extra_pct: null,
+  sold_out_extra_days: null,
+};
+
+// "When a size sells out" as saved (client corrections 15 Nov 2026, 3.2.4).
+// Only Ready to Ship pieces have stock to run out of.
+function soldOutPayload(f: typeof empty): { value: SoldOutFields } | { error: string } {
+  if (f.made_to_order || !f.sold_out_action) return { value: NO_SOLD_OUT };
+  if (f.sold_out_action === "hide") return { value: { ...NO_SOLD_OUT, sold_out_action: "hide" } };
+  const days = Number(f.sold_out_extra_days);
+  if (!f.sold_out_extra_days || !Number.isInteger(days) || days < 1 || days > 90) {
+    return { error: "Choose how many extra days it takes to make a sold-out size" };
+  }
+  if (f.sold_out_extra_kind === "pct") {
+    const pct = Number(f.sold_out_extra_pct);
+    if (!(SOLD_OUT_EXTRA_PCTS as readonly number[]).includes(pct)) {
+      return { error: "Choose the extra % for a sold-out size made to order" };
+    }
+    return { value: { sold_out_action: "made_to_order", sold_out_extra_amount: null, sold_out_extra_pct: pct, sold_out_extra_days: days } };
+  }
+  const amount = Number(f.sold_out_extra_amount || 0);
+  if (!Number.isFinite(amount) || amount < 0 || amount > 50000) {
+    return { error: "Choose the extra ₹ for a sold-out size made to order" };
+  }
+  return { value: { sold_out_action: "made_to_order", sold_out_extra_amount: amount, sold_out_extra_pct: null, sold_out_extra_days: days } };
+}
 
 function Section({ title, description, children, className }: { title: string; description?: string; children: ReactNode; className?: string }) {
   return (
@@ -183,6 +242,135 @@ function ToggleRow({
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
       <Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5 shrink-0" />
+    </div>
+  );
+}
+
+// "When a size sells out" (Ready to Ship only): show it as sold out, make it
+// to order (extra ₹ or % and extra days) or hide that size.
+function SoldOutSettings({
+  form,
+  set,
+  customerPrice,
+}: {
+  form: typeof empty;
+  set: (k: keyof typeof empty, v: string | boolean) => void;
+  // One piece's price to the customer (GST included), for the preview.
+  customerPrice: number | null;
+}) {
+  const action = form.sold_out_action || "show";
+  const days = Number(form.sold_out_extra_days) || null;
+  const dispatchDays = form.prep_days.trim() !== "" ? Number(form.prep_days) || 0 : null;
+  const preview =
+    action === "made_to_order" && days
+      ? soldOutTermsFor(
+          {
+            action: "made_to_order",
+            extraAmount: form.sold_out_extra_kind === "amount" ? Number(form.sold_out_extra_amount || 0) : null,
+            extraPct: form.sold_out_extra_kind === "pct" ? Number(form.sold_out_extra_pct) || null : null,
+            extraDays: days,
+          },
+          customerPrice ?? 0,
+        )
+      : null;
+  return (
+    <div className="space-y-3 border-t border-border pt-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="pe-soldout" className="text-sm">
+          When a size sells out
+        </Label>
+        <Select value={action} onValueChange={(v) => set("sold_out_action", v === "show" ? "" : v)}>
+          <SelectTrigger id="pe-soldout" className="h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="show">Show it as sold out</SelectItem>
+            <SelectItem value="made_to_order">Make to order</SelectItem>
+            <SelectItem value="hide">Hide that size</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {action === "made_to_order"
+            ? "Customers can still order a size with no stock and you make it for them. No Cash on Delivery for these orders."
+            : action === "hide"
+              ? "A size with no stock is left off the product page until you add stock."
+              : 'A size with no stock shows as sold out, with "Notify me".'}
+        </p>
+      </div>
+      {action === "made_to_order" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="pe-soldout-kind" className="text-xs">
+              Extra charge
+            </Label>
+            <Select value={form.sold_out_extra_kind} onValueChange={(v) => set("sold_out_extra_kind", v)}>
+              <SelectTrigger id="pe-soldout-kind" className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="amount">Fixed ₹</SelectItem>
+                <SelectItem value="pct">% of the price</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="pe-soldout-extra" className="text-xs">
+              {form.sold_out_extra_kind === "pct" ? "Extra %" : "Extra ₹ (GST incl.)"}
+            </Label>
+            {form.sold_out_extra_kind === "pct" ? (
+              <Select value={form.sold_out_extra_pct} onValueChange={(v) => set("sold_out_extra_pct", v)}>
+                <SelectTrigger id="pe-soldout-extra" className="h-9">
+                  <SelectValue placeholder="Choose %" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOLD_OUT_EXTRA_PCTS.map((p) => (
+                    <SelectItem key={p} value={String(p)}>
+                      {p}%
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Select value={form.sold_out_extra_amount || "0"} onValueChange={(v) => set("sold_out_extra_amount", v)}>
+                <SelectTrigger id="pe-soldout-extra" className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOLD_OUT_EXTRA_AMOUNTS.map((a) => (
+                    <SelectItem key={a} value={String(a)}>
+                      {a === 0 ? "No extra charge" : formatINR(a)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <div className="col-span-2 space-y-1">
+            <Label htmlFor="pe-soldout-days" className="text-xs">
+              Extra days to make it (added to "Ready to ship in")
+            </Label>
+            <Select value={form.sold_out_extra_days} onValueChange={(v) => set("sold_out_extra_days", v)}>
+              <SelectTrigger id="pe-soldout-days" className="h-9">
+                <SelectValue placeholder="Choose days" />
+              </SelectTrigger>
+              <SelectContent>
+                {SOLD_OUT_EXTRA_DAYS.map((d) => (
+                  <SelectItem key={d} value={String(d)}>
+                    {d} days
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {preview && (
+            <p className="col-span-2 rounded-md bg-muted/60 px-3 py-2 text-xs">
+              Customers see: <strong>{madeToOrderLine(preview, dispatchDays)}</strong>
+              {dispatchDays == null && " (on top of your store's ready-to-ship days)"}
+              {form.sold_out_extra_kind === "pct" && customerPrice == null && " - pick a category and price to see the ₹"}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +434,8 @@ export function ProductEditorForm({
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
     const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order);
     if ("error" in stockCheck) return toast.error(stockCheck.error);
+    const soldOut = soldOutPayload(form);
+    if ("error" in soldOut) return toast.error(soldOut.error);
     const photoProblem = checkPhotos(media.images, variants);
     if (photoProblem) return toast.error(photoProblem);
     const netQuantity = parseNetQuantity(form.net_quantity);
@@ -322,6 +512,7 @@ export function ProductEditorForm({
         prep_days:
           form.prep_days.trim() === "" ? null : Math.min(90, Math.max(0, Math.round(Number(form.prep_days) || 0))),
         made_to_order: form.made_to_order,
+        ...soldOut.value,
         ...custom.value,
         ai_content_status: aiContentStatus,
         // Cleared on "No AI" - originals only belong with an AI declaration.
@@ -555,6 +746,17 @@ export function ProductEditorForm({
               </div>
               <p className="text-xs text-muted-foreground">Working days to make or pack it before the courier collects. Empty = the store's default.</p>
             </div>
+            {!form.made_to_order && (
+              <SoldOutSettings
+                form={form}
+                set={set}
+                customerPrice={
+                  form.category_id
+                    ? gstBreakdown(gstRules.ruleFor(form.category_id), Number(form.product_value))?.price ?? null
+                    : null
+                }
+              />
+            )}
           </Section>
 
           <Section title="Parcel" description="Optional - for courier booking; defaults apply if left blank.">

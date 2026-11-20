@@ -25,12 +25,18 @@ interface VendorShippingGroup {
 // estimated. Shared with Checkout.
 export async function fetchCartDeliveryDate(
   pin: string,
-  vendorItemsMap: Map<string, { productId: string; quantity: number; customised?: boolean }[]>,
+  vendorItemsMap: Map<string, { productId: string; quantity: number; customised?: boolean; soldOutMadeToOrder?: boolean }[]>,
 ): Promise<string | null> {
   const groups = [...vendorItemsMap.entries()].map(([vendorId, items]) => ({
     vendor_id: vendorId,
-    // A customised piece takes its extra making days.
-    items: items.map((i) => ({ product_id: i.productId, quantity: i.quantity, customised: !!i.customised })),
+    // A customised piece takes its extra making days, and so does a
+    // sold-out size made to order.
+    items: items.map((i) => ({
+      product_id: i.productId,
+      quantity: i.quantity,
+      customised: !!i.customised,
+      ...(i.soldOutMadeToOrder ? { sold_out_made_to_order: true } : {}),
+    })),
   }));
   if (groups.length === 0) return null;
   const { data } = await invokeEdgeFunction<{ available: boolean; estimated_delivery_date?: string | null }>(
@@ -113,7 +119,19 @@ export function CartShippingEstimate({ items }: { items: CartItem[] }) {
     if (!/^\d{6}$/.test(pin) || groups.length === 0) return;
     setChecking(true);
     setCartEta(undefined);
-    const etaRequest = fetchCartDeliveryDate(pin, vendorItemsMap).then(setCartEta);
+    // Customised pieces and sold-out sizes made to order take their extra days.
+    const etaItems = new Map(
+      [...vendorItemsMap].map(([vendorId, list]) => [
+        vendorId,
+        list.map((i) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          customised: !!i.customisation,
+          soldOutMadeToOrder: !!i.soldOutTerms,
+        })),
+      ]),
+    );
+    const etaRequest = fetchCartDeliveryDate(pin, etaItems).then(setCartEta);
     await Promise.all(
       groups.map(async (group) => {
         // Already free regardless of courier rate - no need to call out.

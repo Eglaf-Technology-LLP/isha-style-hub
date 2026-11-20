@@ -9,7 +9,7 @@ import { WishlistButton } from "@/components/WishlistButton";
 import { CompareButton } from "@/components/ProductComparison";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
-import { colorOf, inStock, isNewArrival, productColors, sizeOf } from "@/hooks/useStorefront";
+import { canBeOrdered, colorOf, inStock, isNewArrival, productColors, sizeOf } from "@/hooks/useStorefront";
 import { discountPercent, formatINR } from "@/lib/format";
 import { colourCodes, isMulticolour, swatchColor } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,11 @@ export function ProductCard({ product, priority = false, viewOnly = false }: Pro
 
   const [first, second] = product.images;
   const off = discountPercent(product.price, product.compare_at_price);
-  const available = inStock(product);
+  // Made to order counts as available (no "Out of Stock" on the card).
+  const available = canBeOrdered(product);
+  // Quick add only for what ships from stock or a Made to Order listing - a
+  // sold-out size made to order is added from the product page.
+  const quickAddable = inStock(product) || !!product.made_to_order;
   const colors = productColors(product);
   const codes = colourCodes(product.variants);
   const video = shopperVideo(product);
@@ -147,14 +151,17 @@ export function ProductCard({ product, priority = false, viewOnly = false }: Pro
           )}
 
           {/* Quick add (desktop hover) */}
-          {!viewOnly && available && (quickAddSizes || quickAddPlain) && (
+          {!viewOnly && quickAddable && (quickAddSizes || quickAddPlain) && (
             <div className="absolute inset-x-0 bottom-0 hidden translate-y-full bg-ivory/95 px-3 py-3 backdrop-blur-sm transition-transform duration-300 ease-out group-hover:translate-y-0 md:block">
               {quickAddSizes ? (
                 <>
                   <p className="eyebrow mb-2 text-center text-muted-foreground">Quick add</p>
                   <div className="flex flex-wrap justify-center gap-1.5">
                     {sizeVariants.map(({ size, variant }) => {
-                      const out = (variant.stock ?? 0) <= 0;
+                      // A Made to Order listing has no stock; a sold-out size made to
+                      // order is added from the product page, where its extra
+                      // charge and days are shown.
+                      const out = !product.made_to_order && (variant.stock ?? 0) <= 0;
                       return (
                         <button
                           key={size}

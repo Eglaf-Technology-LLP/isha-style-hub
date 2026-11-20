@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { CustomisationChoice } from '@/lib/customisation';
+import type { SoldOutTerms } from '@/lib/soldOutMadeToOrder';
 
 export interface CartItem {
   productId: string;
@@ -27,15 +28,29 @@ export interface CartItem {
   // The boutique's own product code, shown on the cart line (lines added
   // before it was kept don't show one).
   sku?: string | null;
+  // A sold-out size the boutique makes to order: its extra charge (already
+  // in price.amount; basePrice is the piece's own price) and extra days.
+  // The server works them out again when the order is placed.
+  soldOutTerms?: SoldOutTerms | null;
 }
 
 // The id cart actions use for a line.
 export const cartLineKey = (item: Pick<CartItem, 'lineId' | 'variantId'>) => item.lineId ?? item.variantId;
 
 // What changes when a line moves to another size of the same piece.
-export type VariantChange = Pick<CartItem, 'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage' | 'basePrice' | 'customisation'>;
+export type VariantChange = Pick<
+  CartItem,
+  'variantId' | 'variantTitle' | 'selectedOptions' | 'price' | 'productImage' | 'basePrice' | 'customisation' | 'soldOutTerms'
+>;
 // A line's new price; a % customisation charge moves with it (see rechargeAt).
-export type LinePrice = { amount: string; basePrice?: string; customisation?: CustomisationChoice | null };
+// soldOutTerms: set = now made to order, null = from stock again, left out =
+// unchanged.
+export type LinePrice = {
+  amount: string;
+  basePrice?: string;
+  customisation?: CustomisationChoice | null;
+  soldOutTerms?: SoldOutTerms | null;
+};
 
 interface CartStore {
   items: CartItem[];
@@ -148,6 +163,7 @@ export const useCartStore = create<CartStore>()(
               price: { ...item.price, amount: p.amount },
               ...(p.basePrice ? { basePrice: p.basePrice } : {}),
               ...(p.customisation ? { customisation: p.customisation } : {}),
+              ...(p.soldOutTerms !== undefined ? { soldOutTerms: p.soldOutTerms } : {}),
             };
           }),
         });

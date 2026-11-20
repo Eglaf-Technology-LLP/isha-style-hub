@@ -20,6 +20,10 @@ export interface WhItem {
   discount_amount?: number | null;
   // Customised for the customer - QC checks the piece against this.
   customisation?: CustomisationChoice | null;
+  // Made after the order (no stock taken); sold_out_terms when it's a
+  // sold-out size made to order (src/lib/soldOutMadeToOrder.ts).
+  made_to_order?: boolean;
+  sold_out_terms?: unknown;
 }
 
 export interface WhShipment {
@@ -263,7 +267,7 @@ export function useWarehouseData(enabled: boolean) {
       const [{ data: itemRows }, { data: vendorRows }] = await Promise.all([
         supabase
           .from("order_items")
-          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation")
+          .select("id, order_id, vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation, made_to_order, sold_out_terms")
           .in("order_id", orderIds),
         vendorIds.length
           ? supabase.from("vendors").select("id, name").in("id", vendorIds)

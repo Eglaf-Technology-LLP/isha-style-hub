@@ -13,6 +13,8 @@ interface CourierOption {
 interface DeliveryEstimateProps {
   vendorId: string;
   productId: string;
+  // The chosen size is sold out and made to order: its extra days count.
+  soldOutMadeToOrder?: boolean;
 }
 
 function dateLabel(isoDate: string): string {
@@ -71,7 +73,7 @@ interface EstimateResult {
 // The PIN code fills itself in: the signed-in customer's default saved
 // address, otherwise the last one checked on this device. The customer can
 // still type another.
-export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps) {
+export function DeliveryEstimate({ vendorId, productId, soldOutMadeToOrder = false }: DeliveryEstimateProps) {
   const { defaultAddress } = useSavedAddresses();
   const [pincode, setPincode] = useState("");
   const [checking, setChecking] = useState(false);
@@ -88,7 +90,7 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
 
   const check = async (pin: string | null) => {
     if (pin !== null && !isPin(pin)) return;
-    lastChecked.current = `${vendorId}|${productId}|${pin ?? ""}`;
+    lastChecked.current = `${vendorId}|${productId}|${soldOutMadeToOrder}|${pin ?? ""}`;
     const request = ++latestRequest.current;
     setChecking(true);
     setResult(null);
@@ -101,7 +103,7 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
     }>("shiprocket-estimate-delivery", {
       vendor_id: vendorId,
       ...(pin ? { delivery_pincode: pin } : {}),
-      items: [{ product_id: productId, quantity: 1 }],
+      items: [{ product_id: productId, quantity: 1, ...(soldOutMadeToOrder ? { sold_out_made_to_order: true } : {}) }],
     });
     // A newer check (another PIN) has started since - its answer wins.
     if (request !== latestRequest.current) return;
@@ -133,9 +135,9 @@ export function DeliveryEstimate({ vendorId, productId }: DeliveryEstimateProps)
   useEffect(() => {
     const pin = typedPin.current ?? addressPin ?? readLastPin();
     if (pin) setPincode(pin);
-    if (lastChecked.current !== `${vendorId}|${productId}|${pin ?? ""}`) check(pin);
+    if (lastChecked.current !== `${vendorId}|${productId}|${soldOutMadeToOrder}|${pin ?? ""}`) check(pin);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressPin, vendorId, productId]);
+  }, [addressPin, vendorId, productId, soldOutMadeToOrder]);
 
   return (
     <div className="space-y-2.5">

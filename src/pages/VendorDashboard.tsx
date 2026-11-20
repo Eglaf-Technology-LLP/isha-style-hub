@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
+import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import type { CustomisationChoice } from "@/lib/customisation";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -203,6 +204,10 @@ interface VendorOrderItem {
   discount_amount: number | null;
   // What the customer asked for, if they customised it (make it from this).
   customisation: CustomisationChoice | null;
+  // Made after the order (no stock taken); sold_out_terms when it's a
+  // sold-out size made to order.
+  made_to_order?: boolean;
+  sold_out_terms?: unknown;
 }
 
 // The product list's quick filters, each with its count. "Live on site":
@@ -556,7 +561,7 @@ export default function VendorDashboard() {
         const vendorOrderIds = vOrders.map((o) => o.id);
         const { data: itemRows } = await supabase
           .from("order_items")
-          .select("vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation_price, customisation")
+          .select("vendor_order_id, product_id, product_title, variant_title, size, color, sku, quantity, price, discount_amount, customisation_price, customisation, made_to_order, sold_out_terms")
           .in("vendor_order_id", vendorOrderIds);
         const itemsByVendorOrder = new Map<string, VendorOrderItem[]>();
         (itemRows || []).forEach((item: any) => {
@@ -1366,6 +1371,13 @@ export default function VendorDashboard() {
                                       ) : (
                                         <div className="text-destructive">No SKU set</div>
                                       )}
+                                      <MadeToOrderBadge
+                                        madeToOrder={item.made_to_order}
+                                        soldOutTerms={item.sold_out_terms}
+                                        orderedAt={o.created_at}
+                                        forBoutique
+                                        className="mt-1 min-w-[220px]"
+                                      />
                                       {item.customisation && (
                                         <CustomisationDetails customisation={item.customisation} className="mt-1 min-w-[220px]" />
                                       )}

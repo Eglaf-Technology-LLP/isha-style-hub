@@ -132,6 +132,12 @@ export function inStock(p: Product): boolean {
   return (p.stock_quantity ?? 0) > 0;
 }
 
+// Can be ordered now: in stock, or made to order (a Made to Order listing,
+// or sold-out sizes the boutique makes to order).
+export function canBeOrdered(p: Product): boolean {
+  return inStock(p) || !!p.made_to_order || p.sold_out_action === "made_to_order";
+}
+
 // The first photo of any product in a category - a stand-in for a category
 // tile until an admin uploads the category's own image.
 export function categoryCover(categoryId: string, products: Product[]): string | null {

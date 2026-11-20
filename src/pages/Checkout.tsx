@@ -52,6 +52,7 @@ import { formatINR } from "@/lib/format";
 import { useCategoryGstRules } from "@/lib/gst";
 import { splitGoods } from "@/lib/orderAmounts";
 import { customisationPrice } from "@/lib/customisation";
+import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
@@ -405,12 +406,17 @@ export default function Checkout() {
   // warehouse + courier to the customer. Saved on the order as the date shown.
   const [deliveryEta, setDeliveryEta] = useState<string | null>(null);
   const etaVendorItems = useMemo(() => {
-    const map = new Map<string, { productId: string; quantity: number; customised?: boolean }[]>();
+    const map = new Map<string, { productId: string; quantity: number; customised?: boolean; soldOutMadeToOrder?: boolean }[]>();
     for (const item of items) {
       if (!item.vendorId) continue;
       map.set(item.vendorId, [
         ...(map.get(item.vendorId) ?? []),
-        { productId: item.productId, quantity: item.quantity, customised: !!item.customisation },
+        {
+          productId: item.productId,
+          quantity: item.quantity,
+          customised: !!item.customisation,
+          soldOutMadeToOrder: !!item.soldOutTerms,
+        },
       ]);
     }
     return map;
@@ -574,10 +580,16 @@ export default function Checkout() {
   const codOffAtPin = codQuote.status === "unavailable";
   // The courier can't collect "the rest" of a part-wallet order, so the
   // wallet and Cash on Delivery don't mix (apply_wallet_to_order agrees).
-  const codDisabled = codOffVendors.length > 0 || codOffProducts.length > 0 || codOffAtPin || walletOn;
+  // A sold-out size the boutique makes to order is paid online (the database
+  // refuses it on Cash on Delivery too).
+  const codOffMadeToOrder = [...new Set(items.filter((i) => i.soldOutTerms).map((i) => i.productName))];
+  const codDisabled =
+    codOffVendors.length > 0 || codOffProducts.length > 0 || codOffMadeToOrder.length > 0 || codOffAtPin || walletOn;
   const codUnavailableReason = codDisabled
     ? [
         walletOn && "Cash on Delivery can't be combined with your wallet balance - untick the wallet to pay on delivery",
+        codOffMadeToOrder.length > 0 &&
+          `Cash on Delivery isn't available for made-to-order pieces (${codOffMadeToOrder.map((n) => `"${n}"`).join(", ")}) - please pay online`,
         codOffAtPin && "Cash on Delivery isn't available for this PIN code",
         codOffProducts.length > 0 &&
           `Cash on Delivery isn't available for ${codOffProducts.map((n) => `"${n}"`).join(", ")}`,
@@ -1061,6 +1073,12 @@ export default function Checkout() {
         vendor_id: item.vendorId,
         vendor_order_id: item.vendorId ? vendorOrderIdByVendor[item.vendorId] ?? null : null,
         is_returnable: productMetaById.get(item.productId)?.is_returnable ?? true,
+        // A sold-out size made to order, as the cart shows it - the server
+        // works out its charge and days again and refuses the order if the
+        // stock has moved since (sold_out_made_to_order_trigger).
+        sold_out_terms: item.soldOutTerms
+          ? { extra: item.soldOutTerms.extra, days: item.soldOutTerms.days, pct: item.soldOutTerms.pct }
+          : null,
         // Re-priced from the product by the server; a customised piece
         // isn't returnable (enforce_order_item_customisation).
         customisation: item.customisation
@@ -1075,9 +1093,10 @@ export default function Checkout() {
           : null,
       }));
 
-      const { error: itemsError } = await supabase
+      const { data: savedItems, error: itemsError } = await supabase
         .from("order_items")
-        .insert(orderItems);
+        .insert(orderItems)
+        .select("product_id, variant_id, quantity, made_to_order");
 
       if (itemsError) {
         await supabase.rpc("cancel_pending_order", { _order_id: newOrderId });
@@ -1105,7 +1124,20 @@ export default function Checkout() {
       // below, a failure here must stop the order rather than being logged and
       // ignored - letting checkout continue after a stock call fails would
       // mean charging for something that was never actually reserved.
-      for (const item of items) {
+      // A line made to order (a Made to Order listing, or a sold-out size the
+      // boutique makes) takes no stock - the database marked it.
+      const stockLines =
+        savedItems && savedItems.length === orderItems.length
+          ? savedItems
+              .filter((row) => !row.made_to_order)
+              .map((row) => ({
+                productId: row.product_id,
+                variantId: row.variant_id,
+                quantity: row.quantity,
+                productName: items.find((i) => i.productId === row.product_id)?.productName ?? "This piece",
+              }))
+          : items.filter((item) => !item.soldOutTerms);
+      for (const item of stockLines) {
         // Cart items without a real matched variant (product has no
         // variants, or came from a quick-add that never selected one) carry
         // a synthetic id like `${productId}-default` - not a uuid. Only pass
@@ -1782,6 +1814,7 @@ export default function Checkout() {
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {item.variantTitle && item.variantTitle !== "Default" ? `${item.variantTitle} · ` : ""}Qty: {item.quantity}
                         </p>
+                        {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="my-1.5" />}
                         {item.customisation && (
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
                         )}

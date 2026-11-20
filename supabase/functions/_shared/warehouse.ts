@@ -110,7 +110,9 @@ export function addWorkingDays(isoDate: string, n: number, holidays: Set<string>
 export interface EstimateGroup {
   vendorId: string;
   // customised: the piece is customised, so it takes the product's extra making days.
-  items: { product_id: string; quantity: number; customised?: boolean }[];
+  // sold_out_made_to_order: a sold-out size the boutique makes to order, so
+  // it takes the product's extra days for that (sold_out_extra_days).
+  items: { product_id: string; quantity: number; customised?: boolean; sold_out_made_to_order?: boolean }[];
 }
 
 export interface WarehouseEstimate {
@@ -155,7 +157,10 @@ export async function estimateWarehouseDelivery(
   const productIds = [...new Set(groups.flatMap((g) => g.items.map((i) => i.product_id)))];
   const [{ data: vendors }, { data: products }] = await Promise.all([
     supabase.from("vendors").select("id, address, default_prep_days").in("id", vendorIds),
-    supabase.from("products").select("id, prep_days, made_to_order, customisable, customisation_days").in("id", productIds),
+    supabase
+      .from("products")
+      .select("id, prep_days, made_to_order, customisable, customisation_days, sold_out_action, sold_out_extra_days")
+      .in("id", productIds),
   ]);
   const vendorById = new Map((vendors ?? []).map((v: any) => [v.id, v]));
   const productById = new Map((products ?? []).map((p: any) => [p.id, p]));
@@ -174,9 +179,14 @@ export async function estimateWarehouseDelivery(
       0,
       ...group.items.map((i) => {
         const p = productById.get(i.product_id);
-        if (p?.made_to_order || (i.customised && p?.customisable)) madeToOrder = true;
+        const soldOutMade = !!i.sold_out_made_to_order && !p?.made_to_order && p?.sold_out_action === "made_to_order";
+        if (p?.made_to_order || (i.customised && p?.customisable) || soldOutMade) madeToOrder = true;
         const base = p?.prep_days ?? vendor?.default_prep_days ?? settings.defaultPrepDays;
-        return base + (i.customised && p?.customisable ? Number(p.customisation_days ?? 0) : 0);
+        return (
+          base +
+          (i.customised && p?.customisable ? Number(p.customisation_days ?? 0) : 0) +
+          (soldOutMade ? Number(p?.sold_out_extra_days ?? 0) : 0)
+        );
       }),
     );
     maxPrep = Math.max(maxPrep, prep);

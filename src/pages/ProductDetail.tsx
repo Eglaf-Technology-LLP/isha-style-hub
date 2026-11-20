@@ -46,6 +46,13 @@ import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
 import { AI_SIZE_FINDER_ENABLED, VIRTUAL_TRY_ON_ENABLED } from "@/lib/aiFeatures";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
+import {
+  MADE_TO_ORDER_MAX_QUANTITY,
+  readSoldOutSetup,
+  soldOutChargeLabel,
+  soldOutTermsFor,
+  takesSoldOutOrders,
+} from "@/lib/soldOutMadeToOrder";
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { ProductCustomiser, buildCustomisation, emptyCustomiser, type CustomiserState } from "@/components/ProductCustomiser";
@@ -303,10 +310,21 @@ export default function ProductDetail() {
   const customised = buildCustomisation(customisationSetup, customiser, currentPrice);
   const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
+  // "When a size sells out" (Ready to Ship): sold-out sizes made to order,
+  // or left off the page - src/lib/soldOutMadeToOrder.ts.
+  const soldOutSetup = readSoldOutSetup(product);
+  // A Made to Order listing has no stock: it's made after every order.
+  const listingMadeToOrder = !!product?.made_to_order;
+  // This size has none left, but the boutique makes it to order.
+  const sizeMadeToOrder = !!product && !listingMadeToOrder && currentStock <= 0 && takesSoldOutOrders(soldOutSetup);
+  const soldOutTerms = sizeMadeToOrder ? soldOutTermsFor(soldOutSetup, currentPrice) : null;
+  const madeToOrderExtra = soldOutTerms?.extra ?? 0;
+  // Stock limits the quantity only for a piece that ships from stock.
+  const maxQuantity = listingMadeToOrder || sizeMadeToOrder ? MADE_TO_ORDER_MAX_QUANTITY : currentStock;
   // Another size / colour with fewer pieces: the quantity can't stay above them.
   useEffect(() => {
-    if (currentStock > 0) setQuantity((q) => Math.min(q, currentStock));
-  }, [currentStock]);
+    if (maxQuantity > 0) setQuantity((q) => Math.min(q, maxQuantity));
+  }, [maxQuantity]);
   // Same rule OrderHistory applies after purchase: the product's own flag
   // AND the vendor's store-wide returns switch must both allow it.
   const isRefundable = (product?.is_returnable ?? true) && vendorInfo?.returns_enabled !== false;
@@ -372,12 +390,15 @@ export default function ProductDetail() {
       variantId,
       variantTitle,
       price: {
-        amount: (currentPrice + (customisation ? customisationPrice(customisation) : 0)).toString(),
+        amount: (currentPrice + (customisation ? customisationPrice(customisation) : 0) + madeToOrderExtra).toString(),
         currencyCode: "INR",
       },
       quantity,
       selectedOptions,
       sku: product.sku || null,
+      // A sold-out size made to order: its extra charge and days (the
+      // server checks them again when the order is placed).
+      ...(soldOutTerms ? { soldOutTerms, basePrice: currentPrice.toString() } : {}),
       // A customised piece is its own cart line, priced with its customisation.
       ...(customisation
         ? { lineId: crypto.randomUUID(), customisation, basePrice: currentPrice.toString() }
@@ -400,6 +421,7 @@ export default function ProductDetail() {
     if (selectedSize) details.push(`Size: ${selectedSize}`);
     if (selectedColor) details.push(`Colour: ${selectedColor}`);
     if ("choice" in customised && customised.choice) details.push(`Customised: ${customisationSummary(customised.choice)}`);
+    if (soldOutTerms) details.push("Made to order");
     details.push(`Qty: ${quantity}`);
 
     toast.success("Added to cart", {
@@ -490,16 +512,21 @@ export default function ProductDetail() {
   // MRP is shown whenever it's above the price being charged right now.
   const mrp = product.compare_at_price && product.compare_at_price > currentPrice ? product.compare_at_price : null;
   const off = discountPercent(currentPrice, product.compare_at_price);
-  const soldOut = currentStock <= 0;
-  const madeToOrder = !!product.made_to_order;
+  const soldOut = currentStock <= 0 && !listingMadeToOrder && !sizeMadeToOrder;
+  const madeToOrder = listingMadeToOrder;
   const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
+  // Dispatch days + the extra days to make a sold-out size.
+  const madeToOrderDays = soldOutTerms ? prepDays + soldOutTerms.days : prepDays;
+  const piecePrice = currentPrice + madeToOrderExtra;
   const boutique = product.vendor_id ? boutiques.find((b) => b.id === product.vendor_id) : undefined;
 
   // Sizes/colours with nothing in stock (for the chosen colour, where there is
   // one) - shown crossed out but still selectable for "notify me".
+  // Nothing is unavailable on a piece made to order (a Made to Order
+  // listing, or sold-out sizes made to order).
   const unavailableSizes = new Set<string>();
   const unavailableColors = new Set<string>();
-  if (variantList.length > 0) {
+  if (variantList.length > 0 && !listingMadeToOrder && !takesSoldOutOrders(soldOutSetup)) {
     for (const s of availableSizes) {
       const pool = variantList.filter((v) => sizeOf(v) === s);
       const inColour = selectedColor ? pool.filter((v) => colorOf(v) === selectedColor) : [];
@@ -509,6 +536,12 @@ export default function ProductDetail() {
       if (!variantList.some((v) => colorOf(v) === c && (v.stock ?? 0) > 0)) unavailableColors.add(c);
     }
   }
+  // "Hide that size": sold-out sizes are left off (the chosen one stays, shown
+  // sold out). When every size is sold out they all show, sold out.
+  const sizeOptions =
+    soldOutSetup.action === "hide" && unavailableSizes.size < availableSizes.length
+      ? availableSizes.filter((s) => !unavailableSizes.has(s) || s === selectedSize)
+      : availableSizes;
 
   const vendorAddress = vendorInfo?.address?.address_line1
     ? `${vendorInfo.address.address_line1}${vendorInfo.address.address_line2 ? `, ${vendorInfo.address.address_line2}` : ""}, ${vendorInfo.address.city}, ${vendorInfo.address.state} - ${vendorInfo.address.pincode}, ${vendorInfo.address.country || "India"}`
@@ -537,9 +570,11 @@ export default function ProductDetail() {
   const services = [
     { icon: Truck, title: shippingTitle, text: shippingText },
     { icon: RotateCcw, title: returnsTitle, text: returnsText },
-    codAvailable
-      ? { icon: Banknote, title: "Cash on Delivery available", text: "+ COD fee 3% + GST" }
-      : { icon: Banknote, title: "Cash on Delivery", text: "Not available" },
+    sizeMadeToOrder
+      ? { icon: Banknote, title: "Cash on Delivery", text: "Not available for made-to-order sizes - pay online" }
+      : codAvailable
+        ? { icon: Banknote, title: "Cash on Delivery available", text: "+ COD fee 3% + GST" }
+        : { icon: Banknote, title: "Cash on Delivery", text: "Not available" },
     { icon: Globe2, title: "Country of origin", text: product.country_of_origin || "India" },
     { icon: ShieldCheck, title: "Quality-checked", text: "Checked by AllBoutiqs before it ships" },
   ];
@@ -627,28 +662,34 @@ export default function ProductDetail() {
                 {mrp && <span className="text-base text-muted-foreground line-through">{formatINR(mrp)}</span>}
                 {off && <span className="text-sm font-medium text-primary">{off}% off</span>}
               </div>
+              {soldOutTerms && madeToOrderExtra > 0 && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  + {inr(madeToOrderExtra)} made-to-order charge{soldOutTerms.pct ? ` (${soldOutTerms.pct}%)` : ""} ={" "}
+                  <strong className="text-foreground">{inr(piecePrice)}</strong>
+                </p>
+              )}
               {customisationExtra > 0 && (
                 <p className="mt-1 text-sm text-muted-foreground">
                   + {inr(customisationExtra)} customisation
                   {customisationSetup.customisation_pct ? ` (${customisationSetup.customisation_pct}%)` : ""} ={" "}
-                  <strong className="text-foreground">{inr(currentPrice + customisationExtra)}</strong>
+                  <strong className="text-foreground">{inr(piecePrice + customisationExtra)}</strong>
                 </p>
               )}
               {/* "EMI available" under the price (client corrections Part 2, A4.1). */}
               <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes · EMI available</p>
               {freeDelivery && <FreeDeliveryBadge className="mt-2" />}
 
-              {(madeToOrder || soldOut || currentStock <= 5) && (
+              {(madeToOrder || sizeMadeToOrder || soldOut || currentStock <= 5) && (
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {madeToOrder && (
+                  {(madeToOrder || sizeMadeToOrder) && (
                     <span className="inline-flex items-center gap-1.5 border border-gold/40 bg-ivory px-3 py-1.5 text-[11px] uppercase tracking-[0.16em]">
-                      <Scissors className="h-3.5 w-3.5 text-gold" /> Made to order · ships in {prepDays} days
+                      <Scissors className="h-3.5 w-3.5 text-gold" /> Made to order · ships in {madeToOrderDays} days
                     </span>
                   )}
                   {soldOut && (
                     <span className="inline-flex items-center bg-foreground px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-background">Out of Stock</span>
                   )}
-                  {!soldOut && currentStock <= 5 && (
+                  {!soldOut && !madeToOrder && !sizeMadeToOrder && currentStock <= 5 && (
                     <span className="inline-flex items-center border border-primary/30 px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-primary">
                       Only {currentStock} left
                     </span>
@@ -677,7 +718,7 @@ export default function ProductDetail() {
                   id="choose-size"
                   label="Size"
                   type="size"
-                  options={sortSizes(availableSizes)}
+                  options={sortSizes(sizeOptions)}
                   selected={selectedSize}
                   onSelect={chooseSize}
                   unavailable={unavailableSizes}
@@ -691,6 +732,36 @@ export default function ProductDetail() {
                     </div>
                   }
                 />
+                {soldOutTerms && (
+                  <div className="border border-gold/40 bg-ivory p-4" role="note">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <Scissors className="h-4 w-4 shrink-0 text-gold" />
+                      {selectedSize ? `Size ${selectedSize} is sold out` : "This piece is sold out"} - the boutique will make it for you
+                    </p>
+                    <ul className="mt-2.5 list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
+                      <li>
+                        {madeToOrderExtra > 0 ? (
+                          <>
+                            Price: {inr(currentPrice)} + {inr(madeToOrderExtra)} made-to-order charge
+                            {soldOutTerms.pct ? ` (${soldOutTerms.pct}%)` : ""} ={" "}
+                            <strong className="text-foreground">{inr(piecePrice)}</strong> per piece, GST included.
+                          </>
+                        ) : (
+                          <>Price: {inr(currentPrice)} per piece - no extra charge for making it.</>
+                        )}
+                      </li>
+                      <li>
+                        Ships from the boutique in {madeToOrderDays} days ({prepDays} + {soldOutTerms.days} days to make it). The
+                        delivery date below includes this.
+                      </li>
+                      <li>Pay online - Cash on Delivery isn't available for made-to-order pieces.</li>
+                      <li>
+                        You can cancel within 24 hours of ordering.{" "}
+                        {isRefundable ? "Returns as usual for this piece." : "This piece isn't returnable."}
+                      </li>
+                    </ul>
+                  </div>
+                )}
                 {/* Help from AllBoutiqs, never the boutique directly (Part 8, 47):
                     WhatsApp with the piece's name and link already written. */}
                 {!viewOnly && (
@@ -737,9 +808,9 @@ export default function ProductDetail() {
                       </span>
                       <button
                         type="button"
-                        onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
+                        onClick={() => setQuantity((prev) => Math.min(maxQuantity, prev + 1))}
                         className="flex h-full w-10 items-center justify-center hover:text-primary disabled:opacity-30"
-                        disabled={soldOut || quantity >= currentStock}
+                        disabled={soldOut || quantity >= maxQuantity}
                         aria-label="Increase quantity"
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -797,10 +868,10 @@ export default function ProductDetail() {
                 {product.vendor_id && (
                   <div className="border-b border-border p-5">
                     <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.2em]">Delivery date</p>
-                    <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} />
+                    <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} soldOutMadeToOrder={sizeMadeToOrder} />
                     <p className="mt-2.5 text-xs text-muted-foreground">
-                      {madeToOrder
-                        ? `Made for you after you order - these dates include the ${prepDays} days it takes to make and our quality check.`
+                      {madeToOrder || sizeMadeToOrder
+                        ? `Made for you after you order - these dates include the ${madeToOrderDays} days it takes to make and our quality check.`
                         : "These dates include our quality check before it ships to you."}
                     </p>
                   </div>
@@ -855,7 +926,11 @@ export default function ProductDetail() {
                         <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Availability</dt>
                         <dd className="mt-0.5 text-sm">
                           {/* The chosen size / colour's own stock, not the whole product's. */}
-                          {currentStock > 0
+                          {madeToOrder
+                            ? `Made to order - ships in ${prepDays} days`
+                            : sizeMadeToOrder
+                              ? `Sold out${selectedSize ? ` in size ${selectedSize}` : ""} - made to order, ships in ${madeToOrderDays} days`
+                              : currentStock > 0
                             ? `In stock (${currentStock} available${
                                 [selectedSize, selectedColor].some(Boolean)
                                   ? ` in ${[selectedSize, selectedColor].filter(Boolean).join(" / ")}`
@@ -875,7 +950,9 @@ export default function ProductDetail() {
                       {codAvailable && (
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Payment</dt>
-                          <dd className="mt-0.5 text-sm">Cash on Delivery available</dd>
+                          <dd className="mt-0.5 text-sm">
+                            {sizeMadeToOrder ? "Online only for made-to-order sizes" : "Cash on Delivery available"}
+                          </dd>
                         </div>
                       )}
                       {madeToOrder && (
@@ -1001,7 +1078,7 @@ export default function ProductDetail() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">{product.name}</p>
               <p className="text-sm font-medium">
-                {formatINR(currentPrice)}
+                {formatINR(piecePrice)}
                 {[selectedSize, selectedColor].filter(Boolean).length > 0 && (
                   <span className="ml-2 font-normal text-muted-foreground">{[selectedSize, selectedColor].filter(Boolean).join(" / ")}</span>
                 )}

@@ -1695,6 +1695,7 @@ export type Database = {
           discount_amount: number | null
           id: string
           is_returnable: boolean
+          made_to_order: boolean
           order_id: string
           prep_days: number | null
           price: number
@@ -1703,6 +1704,8 @@ export type Database = {
           quantity: number
           size: string | null
           sku: string | null
+          sold_out_extra: number
+          sold_out_terms: Json | null
           variant_id: string
           variant_title: string | null
           vendor_id: string | null
@@ -1716,6 +1719,7 @@ export type Database = {
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
+          made_to_order?: boolean
           order_id: string
           prep_days?: number | null
           price: number
@@ -1724,6 +1728,8 @@ export type Database = {
           quantity: number
           size?: string | null
           sku?: string | null
+          sold_out_extra?: number
+          sold_out_terms?: Json | null
           variant_id: string
           variant_title?: string | null
           vendor_id?: string | null
@@ -1737,6 +1743,7 @@ export type Database = {
           discount_amount?: number | null
           id?: string
           is_returnable?: boolean
+          made_to_order?: boolean
           order_id?: string
           prep_days?: number | null
           price?: number
@@ -1745,6 +1752,8 @@ export type Database = {
           quantity?: number
           size?: string | null
           sku?: string | null
+          sold_out_extra?: number
+          sold_out_terms?: Json | null
           variant_id?: string
           variant_title?: string | null
           vendor_id?: string | null
@@ -2404,6 +2413,10 @@ export type Database = {
           rejection_reason: string | null
           related_product_ids: string[] | null
           sku: string | null
+          sold_out_action: string | null
+          sold_out_extra_amount: number | null
+          sold_out_extra_days: number | null
+          sold_out_extra_pct: number | null
           specifications: Json
           stock_quantity: number
           tags: string[] | null
@@ -2448,6 +2461,10 @@ export type Database = {
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
+          sold_out_action?: string | null
+          sold_out_extra_amount?: number | null
+          sold_out_extra_days?: number | null
+          sold_out_extra_pct?: number | null
           specifications?: Json
           stock_quantity?: number
           tags?: string[] | null
@@ -2492,6 +2509,10 @@ export type Database = {
           rejection_reason?: string | null
           related_product_ids?: string[] | null
           sku?: string | null
+          sold_out_action?: string | null
+          sold_out_extra_amount?: number | null
+          sold_out_extra_days?: number | null
+          sold_out_extra_pct?: number | null
           specifications?: Json
           stock_quantity?: number
           tags?: string[] | null

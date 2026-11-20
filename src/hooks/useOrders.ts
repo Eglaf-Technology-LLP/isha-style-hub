@@ -21,6 +21,10 @@ export interface OrderItem {
   discount_amount?: number | null;
   customisation_price?: number | null;
   customisation?: CustomisationChoice | null;
+  // Made after the order (no stock taken); sold_out_terms when it's a
+  // sold-out size made to order (src/lib/soldOutMadeToOrder.ts).
+  made_to_order?: boolean;
+  sold_out_terms?: unknown;
 }
 
 interface ShippingAddress {

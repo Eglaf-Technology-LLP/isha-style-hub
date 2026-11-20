@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { colorOf, inStock, sizeOf, StoreProduct } from "@/hooks/useStorefront";
+import { canBeOrdered, colorOf, inStock, sizeOf, StoreProduct } from "@/hooks/useStorefront";
 
 // Listing filters, kept in the URL so a filtered page can be shared/bookmarked:
 // ?search= &sort= &min= &max= &cat= &boutique= &size= &color= &availability= &stock=1 &sale=1
@@ -138,7 +138,7 @@ function sortProducts(products: StoreProduct[], sort: SortKey): StoreProduct[] {
       // Featured: available pieces with photos first, then newest.
       return arr.sort(
         (a, b) =>
-          Number(inStock(b)) - Number(inStock(a)) ||
+          Number(canBeOrdered(b)) - Number(canBeOrdered(a)) ||
           Number(!!b.images?.[0]) - Number(!!a.images?.[0]) ||
           +new Date(b.created_at) - +new Date(a.created_at),
       );

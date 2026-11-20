@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/accordion";
 import { Loader2, ShoppingBag, ExternalLink, RotateCcw, ArrowLeftRight, Ban, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
@@ -44,6 +45,9 @@ interface OrderItem {
   vendor_id: string | null;
   vendor_order_id: string | null;
   image: string | null;
+  // Made after the order; sold_out_terms for a sold-out size made to order.
+  made_to_order?: boolean;
+  sold_out_terms?: unknown;
 }
 
 // Internal fulfillment/grouping details only - never rendered as "which
@@ -147,7 +151,7 @@ export function OrdersSection() {
           const [{ data: itemsData }, { data: vendorOrdersData }] = await Promise.all([
             supabase
               .from("order_items")
-              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, discount_amount, customisation_price, size, color, vendor_id, vendor_order_id")
+              .select("id, product_id, variant_id, product_title, variant_title, quantity, price, discount_amount, customisation_price, size, color, vendor_id, vendor_order_id, made_to_order, sold_out_terms")
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
@@ -330,6 +334,7 @@ export function OrdersSection() {
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   {[item.size && `Size ${item.size}`, item.color, `Qty ${item.quantity}`].filter(Boolean).join(" · ")}
                                 </p>
+                                <MadeToOrderBadge madeToOrder={item.made_to_order} soldOutTerms={item.sold_out_terms} className="mt-1" />
                               </div>
                               <span className="shrink-0 font-medium">{formatINR((item.price * item.quantity))}</span>
                             </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
+import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -537,6 +538,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                           <p className="text-xs font-mono text-muted-foreground mt-1">
                             SKU: {item.sku || "not set"}
                           </p>
+                          <MadeToOrderBadge madeToOrder={item.made_to_order} soldOutTerms={item.sold_out_terms} className="mt-2" />
                           {item.customisation && <CustomisationDetails customisation={item.customisation} className="mt-2" />}
                         </div>
                         <div className="text-right">

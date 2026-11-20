@@ -11,7 +11,9 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
-import { lineAsSize, lineSize, sizeChoices, useCartVariants, type SizeChoice } from "@/hooks/useCartVariants";
+import { lineAsSize, lineSize, sizeChoices, useCartSoldOutSetups, useCartVariants, type SizeChoice } from "@/hooks/useCartVariants";
+import { MADE_TO_ORDER_MAX_QUANTITY } from "@/lib/soldOutMadeToOrder";
+import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import type { CartItem } from "@/stores/cartStore";
@@ -27,21 +29,29 @@ export function CartDrawer() {
     items.map((i) => i.productId),
     isOpen,
   );
+  // Which products make a sold-out size to order.
+  const { data: soldOutSetups } = useCartSoldOutSetups(
+    items.map((i) => i.productId),
+    isOpen,
+  );
 
   const changeSize = (item: CartItem, size: string, choices: SizeChoice[]) => {
     const choice = choices.find((c) => c.size === size);
-    if (!choice || choice.soldOut || size === lineSize(item)) return;
-    const stock = choice.variant.stock ?? 0;
+    if (!choice || (choice.soldOut && !choice.madeToOrder) || size === lineSize(item)) return;
+    // A size made to order isn't limited by stock.
+    const stock = choice.madeToOrder ? MADE_TO_ORDER_MAX_QUANTITY : choice.variant.stock ?? 0;
     // A plain line joins one already in the cart in that size.
     const twin = item.lineId ? undefined : items.find((i) => i !== item && !i.lineId && i.variantId === choice.variant.id);
     const wanted = item.quantity + (twin?.quantity ?? 0);
-    changeVariant(cartLineKey(item), lineAsSize(item, choice), stock);
+    changeVariant(cartLineKey(item), lineAsSize(item, choice, soldOutSetups?.get(item.productId)), stock);
     toast.success(
-      wanted > stock
-        ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
-        : twin
-          ? `Size changed to ${size} and added to the ${size} already in your cart`
-          : `Size changed to ${size}`,
+      choice.madeToOrder
+        ? `Size changed to ${size} - made to order. Check the extra charge and delivery time below.`
+        : wanted > stock
+          ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
+          : twin
+            ? `Size changed to ${size} and added to the ${size} already in your cart`
+            : `Size changed to ${size}`,
     );
   };
 
@@ -104,7 +114,7 @@ export function CartDrawer() {
             <div className="min-h-0 flex-1 overflow-y-auto px-6">
               <ul className="divide-y divide-border">
                 {items.map((item) => {
-                  const choices = sizeChoices(item, variantsByProduct?.get(item.productId));
+                  const choices = sizeChoices(item, variantsByProduct?.get(item.productId), soldOutSetups?.get(item.productId));
                   return (
                   <li key={cartLineKey(item)} className="flex gap-4 py-5">
                     <Link
@@ -153,9 +163,14 @@ export function CartDrawer() {
                             </SelectTrigger>
                             <SelectContent className="rounded-none">
                               {choices.map((c) => (
-                                <SelectItem key={c.size} value={c.size} disabled={c.soldOut && c.size !== lineSize(item)} className="text-xs">
+                                <SelectItem
+                                  key={c.size}
+                                  value={c.size}
+                                  disabled={c.soldOut && !c.madeToOrder && c.size !== lineSize(item)}
+                                  className="text-xs"
+                                >
                                   {c.size}
-                                  {c.soldOut ? " (sold out)" : ""}
+                                  {c.madeToOrder ? " (made to order)" : c.soldOut ? " (sold out)" : ""}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -171,6 +186,7 @@ export function CartDrawer() {
                           ...(item.sku ? [`SKU: ${item.sku}`] : []),
                         ].join(" · ")}
                       </p>
+                      {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="mt-1" />}
                       {item.customisation && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           <span className="mr-1 bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground">Customised</span>
