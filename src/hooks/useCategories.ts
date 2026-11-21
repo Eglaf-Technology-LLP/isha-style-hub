@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { uploadShopMedia } from "@/lib/mediaStorage";
 
 export interface Category {
   id: string;
@@ -61,20 +62,10 @@ export function useCategories() {
       let image_url = imageUrl || null;
 
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${slug}-${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('category-images')
-          .upload(fileName, imageFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('category-images')
-          .getPublicUrl(fileName);
-
-        image_url = publicUrl;
+        // Cloudflare R2 once it is set up, Supabase Storage until then.
+        const url = await uploadShopMedia(imageFile, 'categories');
+        if (!url) throw new Error('Category image upload failed');
+        image_url = url;
       }
 
       const { data, error } = await supabase
@@ -114,20 +105,10 @@ export function useCategories() {
       let image_url = updates.image_url;
 
       if (imageFile) {
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${updates.name?.toLowerCase().replace(/\s+/g, '-') || id}-${Date.now()}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('category-images')
-          .upload(fileName, imageFile);
-
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('category-images')
-          .getPublicUrl(fileName);
-
-        image_url = publicUrl;
+        // Cloudflare R2 once it is set up, Supabase Storage until then.
+        const url = await uploadShopMedia(imageFile, 'categories');
+        if (!url) throw new Error('Category image upload failed');
+        image_url = url;
       }
 
       const { data, error } = await supabase

@@ -1,3 +1,5 @@
+import { mediaCopyUrl } from "@/lib/mediaStorage";
+
 const STORAGE_OBJECT_PATH = "/storage/v1/object/public/";
 const STORAGE_RENDER_PATH = "/storage/v1/render/image/public/";
 
@@ -20,6 +22,9 @@ export function getOptimizedImageUrl(
   opts: { width: number; quality?: number } = { width: 600 },
 ): string | null {
   if (!url) return null;
+  // A photo on Cloudflare R2 has smaller copies made when it was uploaded.
+  const copy = mediaCopyUrl(url, opts.width);
+  if (copy) return copy;
   if (!TRANSFORM_ENABLED) return url;
   const idx = url.indexOf(STORAGE_OBJECT_PATH);
   if (idx === -1) return url;

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Json } from "@/integrations/supabase/types";
 import type { AiContentStatus } from "@/lib/aiContent";
+import { uploadShopMedia, type MediaFolder } from "@/lib/mediaStorage";
 
 export interface ProductVariant {
   id: string;
@@ -211,31 +212,17 @@ export async function uploadProductImages(images: File[]): Promise<string[]> {
   return imageUrls;
 }
 
-// Single-file upload, reused for variant images (and anywhere else that
-// needs one photo rather than a batch). folder picks the storage path
-// prefix - "products" for admin uploads, "vendor-uploads" for vendor
-// uploads, since the bucket's RLS only allows vendors to write under
-// that specific prefix (they can't write to "products" at all).
-// "hero" holds the home page banner photos (Admin > Home Banner); like
-// "products", only admins can write there.
-export type UploadFolder = "products" | "vendor-uploads" | "hero";
+// Single-file upload (a photo or a product video), reused for variant
+// images and anywhere else that needs one file rather than a batch. folder
+// picks the path prefix - "products" for admin uploads, "vendor-uploads"
+// for vendor uploads, since vendors may only write under that prefix (they
+// can't write to "products" at all). "hero" holds the home page banner
+// photos (Admin > Home Banner); like "products", only admins can write
+// there. Goes to Cloudflare R2 once it is set up (lib/mediaStorage).
+export type UploadFolder = MediaFolder;
 
 export async function uploadImageFile(image: File, folder: UploadFolder): Promise<string | null> {
-  const fileName = `${Date.now()}-${image.name}`;
-  const { error: uploadError } = await supabase.storage
-    .from("category-images")
-    .upload(`${folder}/${fileName}`, image);
-
-  if (uploadError) {
-    console.error("Image upload error:", uploadError);
-    return null;
-  }
-
-  const { data: urlData } = supabase.storage
-    .from("category-images")
-    .getPublicUrl(`${folder}/${fileName}`);
-
-  return urlData?.publicUrl ?? null;
+  return uploadShopMedia(image, folder);
 }
 
 export async function fetchProductWithVariants(id: string): Promise<Product> {

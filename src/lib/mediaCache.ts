@@ -1,6 +1,9 @@
+import { MEDIA_BASE_URL } from "@/lib/mediaStorage";
+
 // Shop photos and videos are kept on the device after their first download
 // (public/media-sw.js), so Supabase Storage egress is paid once per device
-// instead of on every visit, page and <video> (client, 19 Nov 2026).
+// instead of on every visit, page and <video> (client, 19 Nov 2026). Media
+// on Cloudflare R2 is kept too: free to download, but faster from the device.
 //
 // Kill switch: build with VITE_MEDIA_CACHE="off" and every browser that has
 // the worker drops it, and the files it kept, on its next visit.
@@ -21,9 +24,15 @@ function addMediaCache() {
   } catch {
     return;
   }
-  navigator.serviceWorker
-    .register(`${WORKER_PATH}?storage=${encodeURIComponent(storage)}`)
-    .catch((e) => console.warn("Media cache unavailable", e));
+  // Cloudflare R2, once shop media is moved there (lib/mediaStorage).
+  let media = "";
+  try {
+    if (MEDIA_BASE_URL) media = new URL(MEDIA_BASE_URL).origin;
+  } catch {
+    // a bad VITE_MEDIA_BASE_URL - only Supabase media is kept
+  }
+  const query = `storage=${encodeURIComponent(storage)}${media ? `&media=${encodeURIComponent(media)}` : ""}`;
+  navigator.serviceWorker.register(`${WORKER_PATH}?${query}`).catch((e) => console.warn("Media cache unavailable", e));
 }
 
 async function removeMediaCache() {

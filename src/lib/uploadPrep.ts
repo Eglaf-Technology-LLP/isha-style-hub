@@ -242,6 +242,55 @@ export async function preparePhoto(file: File, maxBytes = PHOTO_MAX_BYTES): Prom
   }
 }
 
+const COPY_QUALITY = 0.82;
+
+// Smaller copies of a photo (one per width, never wider than the photo), so
+// cards and grids don't download the full photo (shop media on R2, see
+// lib/mediaStorage). WEBP where the browser can write it, otherwise JPEG -
+// but only from a JPEG, since a JPEG copy would turn a transparent PNG or
+// WEBP (a logo) white. null = no copies; the full photo is shown everywhere.
+export async function photoCopies(
+  file: File,
+  widths: readonly number[],
+): Promise<{ format: "webp" | "jpeg"; blobs: Blob[] } | null> {
+  const kind = await detectKind(file);
+  if (kind !== "jpeg" && kind !== "png" && kind !== "webp") return null;
+  const webp = await canEncodeWebp();
+  if (!webp && kind !== "jpeg") return null;
+  const type = webp ? "image/webp" : "image/jpeg";
+
+  let image: ImageBitmap;
+  try {
+    image = await decodeImage(file);
+  } catch {
+    return null;
+  }
+  const canvas = document.createElement("canvas");
+  try {
+    const blobs: Blob[] = [];
+    for (const width of widths) {
+      const scale = Math.min(1, width / image.width);
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+      if (type === "image/jpeg") {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const blob = await canvasToBlob(canvas, type, COPY_QUALITY);
+      if (!blob || blob.type !== type) return null;
+      blobs.push(blob);
+    }
+    return { format: webp ? "webp" : "jpeg", blobs };
+  } finally {
+    canvas.width = canvas.height = 0;
+    image.close();
+  }
+}
+
 // ---------- videos ----------
 
 // Video bitrate never goes below this (it would look blocky); a clip that

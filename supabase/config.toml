@@ -59,6 +59,11 @@ verify_jwt = true
 [functions.razorpay-route-onboard]
 verify_jwt = true
 
+# Signs R2 upload links for shop photos/videos; checks admin or boutique
+# membership itself after the platform's JWT gate.
+[functions.media-upload-url]
+verify_jwt = true
+
 [functions.razorpay-route-release]
 verify_jwt = true
 

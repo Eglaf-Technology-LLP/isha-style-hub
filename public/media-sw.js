@@ -19,9 +19,11 @@
  * vendor-uploads/ and hero/ folders and the category images at its root.
  * Customer folders in that bucket (avatars, which are overwritten in place,
  * review and return photos) and every other bucket go to the network as
- * before - several people can share a device.
+ * before - several people can share a device. Shop media on Cloudflare R2
+ * (its own origin, which holds nothing else) is kept the same way.
  *
- * Registered by src/lib/mediaCache.ts as /media-sw.js?storage=<Supabase origin>.
+ * Registered by src/lib/mediaCache.ts as
+ * /media-sw.js?storage=<Supabase origin>[&media=<R2 media origin>].
  */
 
 const VERSION = 1;
@@ -43,18 +45,22 @@ const STREAM_CHUNK_BYTES = 256 * 1024;
 const SIZE_HEADER = "x-ab-media-bytes";
 const CORS = { mode: "cors", credentials: "omit" };
 
-const STORAGE_ORIGIN = (() => {
+function originParam(name) {
   try {
-    return new URL(new URL(self.location.href).searchParams.get("storage")).origin;
+    return new URL(new URL(self.location.href).searchParams.get(name)).origin;
   } catch {
     return null;
   }
-})();
+}
+
+const STORAGE_ORIGIN = originParam("storage");
+const MEDIA_ORIGIN = originParam("media");
 
 const SHOP_MEDIA_PATH =
   /^\/storage\/v1\/(?:object|render\/image)\/public\/category-images\/(?:(?:products|vendor-uploads|hero)\/)?[^/]+$/;
 
 function isShopMedia(url) {
+  if (MEDIA_ORIGIN && url.origin === MEDIA_ORIGIN) return url.pathname.length > 1 && !url.search;
   return url.origin === STORAGE_ORIGIN && SHOP_MEDIA_PATH.test(url.pathname) && !/%2f/i.test(url.pathname);
 }
 
@@ -74,7 +80,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  if (request.method !== "GET" || !STORAGE_ORIGIN) return;
+  if (request.method !== "GET" || (!STORAGE_ORIGIN && !MEDIA_ORIGIN)) return;
   const kind = request.destination;
   if (kind !== "image" && kind !== "video") return;
   if (!isShopMedia(new URL(request.url))) return;
