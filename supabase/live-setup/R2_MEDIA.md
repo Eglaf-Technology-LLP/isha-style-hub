@@ -23,10 +23,20 @@ Do the steps in order.
 
 R2 needs a custom domain such as `media.allboutiqs.com`. The `r2.dev` address is rate-limited and is not meant for a live site.
 
-1. Cloudflare → **Add a domain** → `allboutiqs.com` → Free plan.
-2. Cloudflare copies the existing DNS records. Check that the website's records (pointing to Netlify) and the email records (Zoho MX, SPF, DKIM) are all there.
-3. Set the Netlify records to **DNS only** (grey cloud), so Netlify keeps serving the website and its SSL certificate as today.
-4. At the domain registrar, change the nameservers to the two Cloudflare gives you. Wait until Cloudflare shows the domain as **Active** (minutes to a few hours).
+`allboutiqs.com` is registered at **Namecheap**. Its DNS is on **Netlify DNS** (nameservers `dns1-4.p08.nsone.net`, checked 22 Nov 2026). Before changing anything, take a screenshot of every record in Netlify → Domains → allboutiqs.com.
+
+1. Cloudflare → **Add a domain** → `allboutiqs.com` → Quick scan → Free plan.
+2. In DNS → Records, delete the scanned **A** and **AAAA** records for `allboutiqs.com` and `www`. They are Netlify's internal addresses, which can change. Add these instead, both **DNS only** (grey cloud), so Netlify keeps serving the site and its SSL certificate:
+   - `CNAME @ → apex-loadbalancer.netlify.com`
+   - `CNAME www → <site name>.netlify.app`
+3. Check that the email records are all there and match Netlify's list:
+   - MX `mx.zoho.in` (10), `mx2.zoho.in` (20), `mx3.zoho.in` (50).
+   - TXT `v=spf1 include:zoho.in ~all`.
+   - TXT `zoho-verification=...` and `google-site-verification=...`.
+   - Any `..._domainkey` (DKIM) record. A quick scan doesn't find DKIM, so add it by hand.
+4. Namecheap → Domain List → allboutiqs.com → **Manage** → **Nameservers**: keep **Custom DNS** and replace the four nsone.net names with the two Cloudflare names. Save with the green tick. DNSSEC is off, so nothing else is needed. Wait until Cloudflare shows the domain as **Active**.
+5. Once the site and email work through Cloudflare, delete the old zone: Netlify → Domains → allboutiqs.com → **Delete DNS zone**. The domain stays on the site. Then go to Netlify → the site → Domain management → HTTPS and check that the certificate is fine.
+6. Don't turn on Cloudflare **Email Routing**, because it replaces the Zoho MX records.
 
 ## 3. The bucket
 
