@@ -59,7 +59,17 @@ const R2 = {
 
 const STORAGE_PREFIX = `https://${REF}.supabase.co/storage/v1/object/public/category-images/`;
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const URL_RE = new RegExp(`${escapeRe(STORAGE_PREFIX)}[^\\s"'<>()\\\\]+`, "g");
+const URL_RE = new RegExp(`${escapeRe(STORAGE_PREFIX)}[^\\s"'<>\\\\]+`, "g");
+
+// File names may hold brackets ("photo (1).jpg" - live has several), so
+// they are part of the url; only a trailing ")" with no "(" to match closes
+// something written around the url instead.
+function trimUrl(raw: string): string {
+  let url = raw;
+  const count = (s: string, c: string) => s.split(c).length - 1;
+  while (url.endsWith(")") && count(url, ")") > count(url, "(")) url = url.slice(0, -1);
+  return url;
+}
 // Same files as SHOP_MEDIA_PATH in public/media-sw.js.
 const SHOP_PATH = /^(?:(products|vendor-uploads|hero)\/)?([^/]+)$/;
 
@@ -162,14 +172,19 @@ async function findHits(): Promise<{ hits: Hit[]; skipped: string[] }> {
 }
 
 export function urlsIn(value: unknown, out: string[] = []): string[] {
-  if (typeof value === "string") out.push(...(value.match(URL_RE) ?? []));
+  if (typeof value === "string") out.push(...(value.match(URL_RE) ?? []).map(trimUrl));
   else if (Array.isArray(value)) value.forEach((v) => urlsIn(v, out));
   else if (value && typeof value === "object") Object.values(value).forEach((v) => urlsIn(v, out));
   return out;
 }
 
 export function replaceUrls(value: unknown, moved: Record<string, string>): unknown {
-  if (typeof value === "string") return value.replace(URL_RE, (u) => moved[u] ?? u);
+  if (typeof value === "string") {
+    return value.replace(URL_RE, (raw) => {
+      const url = trimUrl(raw);
+      return (moved[url] ?? url) + raw.slice(url.length);
+    });
+  }
   if (Array.isArray(value)) return value.map((v) => replaceUrls(v, moved));
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, replaceUrls(v, moved)]));
