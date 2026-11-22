@@ -18,13 +18,17 @@ export function getDltTemplate(event: SmsEvent, audience: SmsAudience): TwilioDl
   }
 }
 
+const DLT_VARIABLE_MAX = 30;
+
 export function renderDltBody(templateBody: string, variables: string[]): string {
   const placeholders = [...templateBody.matchAll(/\{\{(\d+)\}\}/g)].map((match) => Number(match[1]));
   const indexes = new Set(placeholders);
   if (indexes.size !== variables.length || variables.some((_, index) => !indexes.has(index + 1))) {
     throw new Error(`DLT template must contain placeholders {{1}} through {{${variables.length}}}`);
   }
-  return templateBody.replace(/\{\{(\d+)\}\}/g, (_match, index: string) => variables[Number(index) - 1]);
+  // DLT refuses a message whose {#var#} value is longer than 30 characters,
+  // and a product name easily is ("Hand Embroidered Silk Lehenga Set").
+  return templateBody.replace(/\{\{(\d+)\}\}/g, (_match, index: string) => variables[Number(index) - 1].trim().slice(0, DLT_VARIABLE_MAX).trimEnd());
 }
 
 export function normalizeIndianPhone(value: string | null | undefined): string | null {
