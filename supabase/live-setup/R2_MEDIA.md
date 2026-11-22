@@ -26,9 +26,10 @@ R2 needs a custom domain such as `media.allboutiqs.com`. The `r2.dev` address is
 `allboutiqs.com` is registered at **Namecheap**. Its DNS is on **Netlify DNS** (nameservers `dns1-4.p08.nsone.net`, checked 22 Nov 2026). Before changing anything, take a screenshot of every record in Netlify → Domains → allboutiqs.com.
 
 1. Cloudflare → **Add a domain** → `allboutiqs.com` → Quick scan → Free plan.
-2. In DNS → Records, delete the scanned **A** and **AAAA** records for `allboutiqs.com` and `www`. They are Netlify's internal addresses, which can change. Add these instead, both **DNS only** (grey cloud), so Netlify keeps serving the site and its SSL certificate:
+2. In DNS → Records, delete the scanned **A** and **AAAA** records for `allboutiqs.com`, `www` and `vendor`. They are Netlify's internal addresses, which can change. Add these instead, all **DNS only** (grey cloud), so Netlify keeps serving the sites and their SSL certificates:
    - `CNAME @ → apex-loadbalancer.netlify.com`
-   - `CNAME www → <site name>.netlify.app`
+   - `CNAME www → all-boutiques.netlify.app`
+   - `CNAME vendor → vendorall.netlify.app` (a second Netlify site)
 3. Check that the email records are all there and match Netlify's list:
    - MX `mx.zoho.in` (10), `mx2.zoho.in` (20), `mx3.zoho.in` (50).
    - TXT `v=spf1 include:zoho.in ~all`.
