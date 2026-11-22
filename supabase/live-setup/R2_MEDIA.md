@@ -48,7 +48,7 @@ R2 needs a custom domain such as `media.allboutiqs.com`. The `r2.dev` address is
 ```json
 [
   {
-    "AllowedOrigins": ["https://allboutiqs.com", "https://www.allboutiqs.com", "http://localhost:8080"],
+    "AllowedOrigins": ["https://allboutiqs.com", "https://www.allboutiqs.com", "https://vendor.allboutiqs.com", "http://localhost:8080"],
     "AllowedMethods": ["GET", "HEAD", "PUT"],
     "AllowedHeaders": ["*"],
     "ExposeHeaders": ["Content-Length", "Content-Range", "Content-Type", "ETag", "Accept-Ranges"],
@@ -56,6 +56,8 @@ R2 needs a custom domain such as `media.allboutiqs.com`. The `r2.dev` address is
   }
 ]
 ```
+
+Every site that uploads or shows shop media must be in **AllowedOrigins**: the shop, www, and the second Netlify site `vendor.allboutiqs.com` (the Live-Vendor branch, where Admin and the Seller Dashboard run). If a site is missing, R2 answers the upload's preflight (OPTIONS) with 403 and the page says "photo failed to upload" (23 Nov 2026). The R2 token in section 4 can't change CORS, so edit the policy in the dashboard.
 
 The policy needs these methods for two reasons:
 - **PUT** lets the browser upload.
