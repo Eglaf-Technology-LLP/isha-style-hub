@@ -1,6 +1,16 @@
 # Order SMS (Twilio + DLT) setup
 
-`send-order-sms` sends an SMS to the customer, the boutique and the AllBoutiqs admins when an order is placed, shipped, delivered, cancelled or returned. The database triggers have been live since 22 Nov 2026. Until the six secrets below are set, every attempt is logged as **failed** in Admin → Orders → Order Details → SMS Log. Orders themselves are never affected.
+`send-order-sms` sends an SMS to the customer, the boutique and the AllBoutiqs admins when an order is placed, shipped, delivered, cancelled or returned.
+
+> **SMS is switched off (22 Nov 2026).** The client wants order notices by email only for now. Migration `20261122100000_order_sms_off.sql` makes `queue_order_sms` do nothing, so no SMS is attempted and nothing is logged. The SMS Log panel is also removed from Admin → Orders → Order Details.
+>
+> To switch SMS on later:
+> 1. Finish the steps below and set the six secrets.
+> 2. Add a migration that restores `queue_order_sms` from `20261119100000_order_sms_notifications.sql`.
+> 3. Put `<OrderSmsLog orderId={selectedOrder.id} />` back in `src/components/admin/OrderManagement.tsx`.
+> 4. Deploy `send-order-sms`.
+>
+> Until the secrets are set, every attempt is logged as **failed**. Orders themselves are never affected.
 
 Indian law (TRAI DLT) requires three things before an SMS reaches a phone:
 - The sender (AllBoutiqs' company) is registered on a DLT portal.
