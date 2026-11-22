@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { uploadImageFile, type UploadFolder } from "@/hooks/useProducts";
+import { useUnsavedUploads } from "@/hooks/useUnsavedUploads";
 import { cn } from "@/lib/utils";
 import {
   PHOTO_ACCEPT,
@@ -114,6 +115,7 @@ export function MediaArranger({
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [fileOver, setFileOver] = useState(false);
   const [playing, setPlaying] = useState<string | null>(null);
+  const unsaved = useUnsavedUploads();
   const hasVideo = withVideo && !!value.videoUrl;
 
   const commit = (next: Item[]) => onChange(fromItems(next, withVideo));
@@ -126,7 +128,10 @@ export function MediaArranger({
     commit(next);
   };
 
-  const removeAt = (index: number) => commit(items.filter((_, i) => i !== index));
+  const removeAt = (index: number) => {
+    unsaved.removed([items[index]?.url]);
+    commit(items.filter((_, i) => i !== index));
+  };
 
   // HEIC becomes JPG and photos over 5 MB are compressed first; only an
   // unsupported format or a photo that still won't fit is refused.
@@ -151,7 +156,10 @@ export function MediaArranger({
     }
     setUploadingPhotos(0);
     if (failed) toast.error(`${failed} photo(s) failed to upload - please try again`);
-    if (urls.length) onChange({ ...value, images: [...value.images, ...urls] });
+    if (urls.length) {
+      unsaved.added(urls);
+      onChange({ ...value, images: [...value.images, ...urls] });
+    }
   };
 
   // MP4 or MOV; over 50 MB it is compressed to an MP4 first.
@@ -170,6 +178,8 @@ export function MediaArranger({
       }
       const url = await uploadImageFile(file, folder);
       if (!url) return toast.error("Video upload failed - please try again");
+      unsaved.added([url]);
+      unsaved.removed([value.videoUrl]);
       // A new video keeps the old one's place; the first video goes last.
       onChange({ ...value, videoUrl: url, videoPosition: value.videoUrl ? value.videoPosition ?? null : null });
     } finally {

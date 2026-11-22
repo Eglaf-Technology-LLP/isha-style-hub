@@ -23,18 +23,9 @@ import {
   type MediaFolder,
   type SizesFormat,
 } from "../_shared/r2.ts";
+import { r2Config } from "../_shared/r2Client.ts";
 
 const UPLOAD_LINK_SECONDS = 30 * 60;
-
-function r2Config() {
-  const accountId = Deno.env.get("R2_ACCOUNT_ID");
-  const accessKeyId = Deno.env.get("R2_ACCESS_KEY_ID");
-  const secretAccessKey = Deno.env.get("R2_SECRET_ACCESS_KEY");
-  const bucket = Deno.env.get("R2_BUCKET");
-  const publicBase = Deno.env.get("MEDIA_BASE_URL")?.replace(/\/+$/, "");
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket || !publicBase) return null;
-  return { endpoint: `https://${accountId}.r2.cloudflarestorage.com`, accessKeyId, secretAccessKey, bucket, publicBase };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

@@ -70,6 +70,18 @@ async function uploadToSupabase(file: File, folder: MediaFolder): Promise<string
   return supabase.storage.from("category-images").getPublicUrl(path).data.publicUrl;
 }
 
+// A photo or video removed (or replaced) in the form it was uploaded in,
+// before the form was saved: nothing links to it, so it is deleted from R2
+// straight away (client, 23 Nov 2026). The server checks again that no row
+// mentions it and that it is new; whatever it leaves is cleared out by the
+// nightly media-cleanup. Nothing waits on this.
+export function discardUnsavedMedia(url: string): void {
+  if (!isMediaUrl(url)) return;
+  void invokeEdgeFunction("media-delete", { url }).then(({ errorMessage }) => {
+    if (errorMessage) console.warn("media-delete:", errorMessage);
+  });
+}
+
 // One shop photo or video; its public url, or null if the upload failed.
 // folder: "products", "hero" and "categories" are admin-only;
 // "vendor-uploads" is for anything a boutique (or an admin for a boutique)

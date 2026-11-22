@@ -3,6 +3,7 @@ import { Loader2, Upload, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageFile, type UploadFolder } from "@/hooks/useProducts";
 import { PHOTO_ACCEPT, PHOTO_FORMATS, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
+import { useUnsavedUploads } from "@/hooks/useUnsavedUploads";
 
 interface ImageDropzoneProps {
   // "products" for admin uploads, "vendor-uploads" for anything a vendor
@@ -40,6 +41,7 @@ export function ImageDropzone({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const unsaved = useUnsavedUploads();
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -71,13 +73,19 @@ export function ImageDropzone({
         toast.error(uploaded.length ? `${failed} image(s) failed to upload` : "Upload failed - please try again");
       }
       if (uploaded.length === 0) return;
+      unsaved.added(uploaded);
+      // A single-image field's new photo takes the old one's place.
+      if (!multiple) unsaved.removed(value);
       onChange(multiple ? [...value, ...uploaded] : uploaded);
     } finally {
       setUploading(false);
     }
   };
 
-  const removeAt = (idx: number) => onChange(value.filter((_, i) => i !== idx));
+  const removeAt = (idx: number) => {
+    unsaved.removed([value[idx]]);
+    onChange(value.filter((_, i) => i !== idx));
+  };
 
   return (
     <div className={className}>

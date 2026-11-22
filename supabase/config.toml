@@ -64,6 +64,16 @@ verify_jwt = true
 [functions.media-upload-url]
 verify_jwt = true
 
+# Deletes a photo removed from a form before it was saved; checks admin or
+# boutique membership itself after the platform's JWT gate.
+[functions.media-delete]
+verify_jwt = true
+
+# Nightly clear-out of unused photos/videos on R2: cron (service role JWT)
+# or an admin.
+[functions.media-cleanup]
+verify_jwt = true
+
 [functions.razorpay-route-release]
 verify_jwt = true
 

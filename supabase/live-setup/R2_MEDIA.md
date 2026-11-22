@@ -124,3 +124,21 @@ The script saves `moved-files.json` (old url → new url) and the rows' old valu
 ## 7. Later: remove the old copies from Supabase
 
 The script deletes nothing. After a week or two of the shop working from R2, the old files in `category-images/products/`, `vendor-uploads/`, `hero/` and the bucket root can be deleted. That frees Supabase storage (1 GB on the Free plan). Check `moved-files.json` first.
+
+## 8. Unused files are cleared out of R2
+
+A photo goes up to R2 as soon as it is picked, before the form is saved. Without a clean-up, every photo removed with the cross, every replaced photo, every form closed without saving and every deleted product would leave files in the bucket. There are two parts (client, 23 Nov 2026):
+
+- **Straight away** (`media-delete`): the cross on a photo that was uploaded in the same form and not saved yet deletes it at once, with its smaller copies. A new photo or video put in place of an unsaved one does the same. The server deletes only when no row mentions the file and it is under 48 hours old.
+- **Every night at 03:00 India time** (`media-cleanup`, cron job `media-cleanup`): a file that no row mentions and that is over 48 hours old moves to `trash/<its path>`. That covers saved photos removed and then saved, deleted products, banners and logos, and forms that were closed. A file in `trash/` that a row mentions again moves back. Files in `trash/` for 7 days are deleted for good.
+
+"Mentions" means `<folder>/<id>` appears anywhere in any text, json or array column of any public table (`public.media_file_ids_in_use`), so a column added later is covered too. If a run would clear out more than half of the files (and at least 30), it stops, changes nothing and notifies the admins. The R2 token from step 4 is enough: it can list, copy and delete. No dashboard change is needed.
+
+Set it up:
+
+1. Apply `supabase/migrations/20261123100000_media_cleanup.sql` (the search functions).
+2. Deploy the functions: `npx supabase functions deploy media-delete media-cleanup --project-ref whycxtnjhdbewgyugfax`.
+3. Dry run as an admin, which changes nothing and lists the files it would move: call `media-cleanup` with `{"dryRun": true}`.
+4. When the list looks right, apply `20261123100100_media_cleanup_schedule.sql` (the nightly cron job).
+
+To put a file back by hand, copy `trash/<path>` back to `<path>`. The nightly run does this by itself when a row mentions the file again.
