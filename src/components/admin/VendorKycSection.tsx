@@ -104,6 +104,15 @@ export function PanCardButton({ vendorId }: { vendorId: string }) {
   );
 }
 
+// The Seller Terms are accepted with the application: the same time as
+// "Submitted" since 24 Nov 2026 (A17.1), a few seconds before it from 16 Nov.
+// An application from before the form had its tick box carries the time
+// they were accepted when the account was made - said as "at sign-up".
+const SIGN_UP_GAP_MS = 10 * 60_000;
+const acceptedAtSignUp = (kyc: Pick<Kyc, "submitted_at" | "terms_accepted_at">) =>
+  !!kyc.terms_accepted_at &&
+  new Date(kyc.submitted_at).getTime() - new Date(kyc.terms_accepted_at).getTime() > SIGN_UP_GAP_MS;
+
 // What the boutique submitted on the seller registration form: constitution,
 // identifiers, people, and the document checklist with each PDF openable
 // through a short-lived signed link (the bucket is private).
@@ -203,7 +212,7 @@ export function VendorKycSection({ vendorId, brandName }: { vendorId: string; br
           label="Privacy Policy & Seller Terms"
           value={
             kyc.terms_accepted_at
-              ? `Accepted ${formatDateTime(kyc.terms_accepted_at)}${kyc.terms_version ? ` (version ${formatDate(kyc.terms_version)})` : ""}`
+              ? `Accepted ${acceptedAtSignUp(kyc) ? "at sign-up, " : ""}${formatDateTime(kyc.terms_accepted_at)}${kyc.terms_version ? ` (version ${formatDate(kyc.terms_version)})` : ""}`
               : "Applied before sign-up asked for it"
           }
         />
