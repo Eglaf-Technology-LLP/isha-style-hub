@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRefundCharge, useWallet } from "@/hooks/useWallet";
 import { AccountSectionTitle } from "@/components/storefront/account/AccountKit";
 import { formatMoney } from "@/lib/format";
-import { formatDate } from "@/lib/dates";
+import { formatDateInWords } from "@/lib/dates";
 import { refundChargeLabel, WALLET_KIND_LABEL } from "@/lib/wallet";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +75,7 @@ export function WalletSection() {
               <div className="min-w-0">
                 <p className="font-medium">{WALLET_KIND_LABEL[t.kind] ?? "Wallet update"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(t.created_at)}
+                  {formatDateInWords(t.created_at)}
                   {t.order_id && ` · Order #${t.order_id.slice(0, 8).toUpperCase()}`}
                 </p>
                 {t.kind === "adjustment" && t.note && <p className="mt-0.5 text-xs text-muted-foreground">{t.note}</p>}

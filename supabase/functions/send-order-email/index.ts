@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
-import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
+import { formatDateInWords, formatDateInWordsWithDay } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
 import { paymentModeLine } from "../_shared/paidVia.ts";
 
@@ -239,7 +239,7 @@ const handler = async (req: Request): Promise<Response> => {
         : "";
     const trackingUrl = shipment?.awb_code ? `https://shiprocket.co/tracking/${encodeURIComponent(shipment.awb_code)}` : null;
     const eta = shipment?.estimated_delivery_date
-      ? formatDateWithDay(shipment.estimated_delivery_date)
+      ? formatDateInWordsWithDay(shipment.estimated_delivery_date)
       : null;
     const orderUrl = `https://allboutiqs.com/orders?focus=${order.id}`;
 
@@ -391,7 +391,7 @@ const handler = async (req: Request): Promise<Response> => {
       ${extraHtml}
       ${infoBox([
         ["Order", `#${orderNumber}`],
-        ["Placed on", formatDate(order.created_at)],
+        ["Placed on", formatDateInWords(order.created_at)],
         ...(paymentLine ? [["Payment", escapeHtml(paymentLine)] as [string, string]] : []),
         ...(isDeliveryStep && boutique ? [["Boutique", escapeHtml(boutique)] as [string, string]] : []),
       ])}

@@ -65,3 +65,40 @@ export function formatDateWithDay(value: DateInput): string {
   const d = toDate(value);
   return d ? `${istParts(d).weekday}, ${formatDate(d)}` : "";
 }
+
+// For customers: dates in words - "6 Jan 2027", never "06-01-2027", which
+// reads as 6 Jan or 1 Jun (client corrections Part 2). Staff emails keep the
+// numbers. Same as src/lib/dates.ts.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function istDay(value: DateInput): { y: number; m: number; d: number } | null {
+  if (typeof value === "string") {
+    const m = value.match(DATE_ONLY_RE);
+    if (m) return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+  }
+  const date = toDate(value);
+  if (!date) return null;
+  const p = istParts(date);
+  return { y: Number(p.year), m: Number(p.month), d: Number(p.day) };
+}
+
+// "6 Jan 2027"
+export function formatDateInWords(value: DateInput): string {
+  const p = istDay(value);
+  return p ? `${p.d} ${MONTHS[p.m - 1]} ${p.y}` : "";
+}
+
+// "Wed, 6 Jan 2027"
+export function formatDateInWordsWithDay(value: DateInput): string {
+  const p = istDay(value);
+  if (!p) return "";
+  const weekday = WEEKDAYS[new Date(Date.UTC(p.y, p.m - 1, p.d, 12)).getUTCDay()];
+  return `${weekday}, ${p.d} ${MONTHS[p.m - 1]} ${p.y}`;
+}
+
+// "17 Nov 2026, 10:13 PM IST"
+export function formatDateTimeInWords(value: DateInput): string {
+  const d = toDate(value);
+  return d ? `${formatDateInWords(d)}, ${formatTime(d)}` : "";
+}

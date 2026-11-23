@@ -1,4 +1,4 @@
-import { formatDateWithDay } from "@/lib/dates";
+import { formatDateInWordsWithDay } from "@/lib/dates";
 import { returnWindowAdjective } from "@/hooks/useReturnWindowHours";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export interface LineRules {
 }
 
 export function CheckoutLineRules({ rules, className }: { rules: LineRules; className?: string }) {
-  const shipsBy = rules.shipsBy ? `ships by ${formatDateWithDay(rules.shipsBy)}` : null;
+  const shipsBy = rules.shipsBy ? `ships by ${formatDateInWordsWithDay(rules.shipsBy)}` : null;
   const parts = [
     rules.soldOutMadeToOrder
       ? shipsBy && `${shipsBy[0].toUpperCase()}${shipsBy.slice(1)}`

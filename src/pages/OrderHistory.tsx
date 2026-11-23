@@ -907,7 +907,7 @@ export default function OrderHistory() {
                           {order.payment_status === "refunded" && (
                             <div className="space-y-2 border-t border-border pt-5">
                               <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Refunds</p>
-                              <RefundHistory orderId={order.id} />
+                              <RefundHistory orderId={order.id} inWords />
                             </div>
                           )}
 

@@ -4,7 +4,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Ornament } from "@/components/storefront/Ornament";
 import { COMPANY, telHref } from "@/lib/company";
-import { formatDate } from "@/lib/dates";
+import { formatDateInWords } from "@/lib/dates";
 import { LEGAL_UPDATED } from "@/lib/legal";
 
 export interface LegalSection {
@@ -45,7 +45,7 @@ export function LegalPage({
             <p className="eyebrow text-gold">{eyebrow}</p>
             <h1 className="mt-3 font-serif text-4xl text-balance md:text-5xl">{title}</h1>
             <Ornament className="mt-6" />
-            {updated && <p className="mt-5 text-sm text-muted-foreground">Last updated {formatDate(updated)}</p>}
+            {updated && <p className="mt-5 text-sm text-muted-foreground">Last updated {formatDateInWords(updated)}</p>}
           </div>
         </section>
 

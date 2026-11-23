@@ -46,6 +46,7 @@ import { StockNotificationButton } from "@/components/StockNotificationButton";
 import { VirtualTryOn } from "@/components/VirtualTryOn";
 import { AI_SIZE_FINDER_ENABLED, VIRTUAL_TRY_ON_ENABLED } from "@/lib/aiFeatures";
 import { DeliveryEstimate } from "@/components/DeliveryEstimate";
+import { daysUntil, useShipsBy } from "@/hooks/useShipsBy";
 import {
   MADE_TO_ORDER_MAX_QUANTITY,
   readSoldOutSetup,
@@ -319,6 +320,16 @@ export default function ProductDetail() {
   const sizeMadeToOrder = !!product && !listingMadeToOrder && currentStock <= 0 && takesSoldOutOrders(soldOutSetup);
   const soldOutTerms = sizeMadeToOrder ? soldOutTermsFor(soldOutSetup, currentPrice) : null;
   const madeToOrderExtra = soldOutTerms?.extra ?? 0;
+  // "Ships in N days" = the days to the "Ships by" date the Delivery date box
+  // shows (making + courier to our centre + quality check), so the page has
+  // one number (client corrections Part 2: "ships in 35 days" next to a ship
+  // date 47 days away). Nothing until the date is known.
+  const { data: shipsByDate } = useShipsBy(product?.vendor_id, product?.id, {
+    enabled: listingMadeToOrder || sizeMadeToOrder,
+    soldOutMadeToOrder: sizeMadeToOrder,
+  });
+  const shipsInDays = shipsByDate ? Math.max(daysUntil(shipsByDate), 0) : null;
+  const shipsInText = shipsInDays != null ? `ships in ${shipsInDays} days` : null;
   // Stock limits the quantity only for a piece that ships from stock.
   const maxQuantity = listingMadeToOrder || sizeMadeToOrder ? MADE_TO_ORDER_MAX_QUANTITY : currentStock;
   // Another size / colour with fewer pieces: the quantity can't stay above them.
@@ -514,9 +525,6 @@ export default function ProductDetail() {
   const off = discountPercent(currentPrice, product.compare_at_price);
   const soldOut = currentStock <= 0 && !listingMadeToOrder && !sizeMadeToOrder;
   const madeToOrder = listingMadeToOrder;
-  const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
-  // Dispatch days + the extra days to make a sold-out size.
-  const madeToOrderDays = soldOutTerms ? prepDays + soldOutTerms.days : prepDays;
   const piecePrice = currentPrice + madeToOrderExtra;
   const boutique = product.vendor_id ? boutiques.find((b) => b.id === product.vendor_id) : undefined;
 
@@ -683,7 +691,7 @@ export default function ProductDetail() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {(madeToOrder || sizeMadeToOrder) && (
                     <span className="inline-flex items-center gap-1.5 border border-gold/40 bg-ivory px-3 py-1.5 text-[11px] uppercase tracking-[0.16em]">
-                      <Scissors className="h-3.5 w-3.5 text-gold" /> Made to order · ships in {madeToOrderDays} days
+                      <Scissors className="h-3.5 w-3.5 text-gold" /> Made to order{shipsInText ? ` · ${shipsInText}` : ""}
                     </span>
                   )}
                   {soldOut && (
@@ -751,8 +759,10 @@ export default function ProductDetail() {
                         )}
                       </li>
                       <li>
-                        Ships from the boutique in {madeToOrderDays} days ({prepDays} + {soldOutTerms.days} days to make it). The
-                        delivery date below includes this.
+                        {shipsInText
+                          ? `Ships in ${shipsInDays} days, making and our quality check included.`
+                          : `${soldOutTerms.days} extra days to make it.`}{" "}
+                        The delivery date below includes this.
                       </li>
                       <li>Pay online - Cash on Delivery isn't available for made-to-order pieces.</li>
                       <li>
@@ -779,9 +789,12 @@ export default function ProductDetail() {
               </div>
 
               <div className={cn(CUSTOMISATION_ENABLED && "mt-7")}>
+                {/* No "Total N days" here: that counted only the making
+                    days, so it clashed with "ships in N days" (making +
+                    courier + quality check) - "Adds 3 extra days" stays. */}
                 <ProductCustomiser
                   setup={customisationSetup}
-                  baseDays={prepDays}
+                  baseDays={null}
                   basePrice={currentPrice}
                   value={customiser}
                   onChange={setCustomiser}
@@ -871,7 +884,7 @@ export default function ProductDetail() {
                     <DeliveryEstimate vendorId={product.vendor_id} productId={product.id} soldOutMadeToOrder={sizeMadeToOrder} />
                     <p className="mt-2.5 text-xs text-muted-foreground">
                       {madeToOrder || sizeMadeToOrder
-                        ? `Made for you after you order - these dates include the ${madeToOrderDays} days it takes to make and our quality check.`
+                        ? `Made for you after you order - these dates include making it and our quality check${shipsInText ? ` (${shipsInText})` : ""}.`
                         : "These dates include our quality check before it ships to you."}
                     </p>
                   </div>
@@ -927,9 +940,9 @@ export default function ProductDetail() {
                         <dd className="mt-0.5 text-sm">
                           {/* The chosen size / colour's own stock, not the whole product's. */}
                           {madeToOrder
-                            ? `Made to order - ships in ${prepDays} days`
+                            ? `Made to order${shipsInText ? ` - ${shipsInText}` : ""}`
                             : sizeMadeToOrder
-                              ? `Sold out${selectedSize ? ` in size ${selectedSize}` : ""} - made to order, ships in ${madeToOrderDays} days`
+                              ? `Sold out${selectedSize ? ` in size ${selectedSize}` : ""} - made to order${shipsInText ? `, ${shipsInText}` : ""}`
                               : currentStock > 0
                             ? `In stock (${currentStock} available${
                                 [selectedSize, selectedColor].some(Boolean)
@@ -958,7 +971,7 @@ export default function ProductDetail() {
                       {madeToOrder && (
                         <div>
                           <dt className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Made to order</dt>
-                          <dd className="mt-0.5 text-sm">Ships in {prepDays} days</dd>
+                          <dd className="mt-0.5 text-sm">{shipsInDays != null ? `Ships in ${shipsInDays} days` : "Made after you order"}</dd>
                         </div>
                       )}
                     </dl>
