@@ -8,6 +8,8 @@
 -- It compares the structure of this database (tables, columns, rules,
 -- functions, triggers, permissions, storage buckets, scheduled jobs,
 -- recorded migrations) with a fingerprint of the LIVE database
+-- (stage only differs in that the media-cleanup job is switched off; the
+-- fingerprint does not look at on/off)
 -- (whycxtnjhdbewgyugfax, taken 2026-11-23, 4879 objects). Settings and
 -- other data are not compared. It also checks the admin account and the
 -- Vault secrets. Line endings are ignored, so a copy-paste that turned
@@ -140,10 +142,19 @@ vault_rows AS (
               WHEN payload::jsonb ->> 'ref' IS DISTINCT FROM url_ref THEN 'WRONG - key is for project ' || coalesce(payload::jsonb ->> 'ref', '?') || ', not the project_url one, run STEP 3 again'
               ELSE 'OK' END
   FROM vault_claims
+),
+no_r2_rows AS (
+  -- Stage has no R2, so the nightly R2 clean-up job must be switched off.
+  SELECT 'Stage: media-cleanup job switched off (no R2)' AS what, NULL::bigint AS expected, NULL::bigint AS found,
+         CASE WHEN NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'media-cleanup') THEN 'MISSING - run STEP 1'
+              WHEN EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'media-cleanup' AND active) THEN 'ON - switch it off, README section A step 3'
+              ELSE 'OK' END AS result
 )
 SELECT what, expected, found, result FROM schema_rows
 UNION ALL
 SELECT what, expected, found, result FROM admin_rows
 UNION ALL
 SELECT what, expected, found, result FROM vault_rows
+UNION ALL
+SELECT what, expected, found, result FROM no_r2_rows
 ORDER BY 1;

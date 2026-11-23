@@ -80,12 +80,17 @@ if (-not $SkipSecrets) {
   if ($secrets['SHIPROCKET_SKIP_PICKUP'] -notin 'true', '1', 'yes') { Stop-Script "SHIPROCKET_SKIP_PICKUP must be true on stage, or stage bookings send real couriers." }
   if ($secrets['SMTP_PORT'] -ne '465') { Stop-Script "SMTP_PORT must be 465 (Supabase blocks 587)." }
 
+  # No R2 on stage: photos go to stage's own Supabase Storage. An R2 value here
+  # would also let stage's nightly media-cleanup work on a bucket.
   $r2 = 'R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET', 'MEDIA_BASE_URL'
   $r2Set = @($r2 | Where-Object { $secrets.Contains($_) -and $secrets[$_] -ne '' })
-  if ($r2Set.Count -gt 0 -and $r2Set.Count -lt $r2.Count) { Stop-Script "Fill in all five R2 values ($($r2 -join ', ')) or leave all five empty." }
-  if ($r2Set.Count -gt 0) {
-    if ($secrets['R2_BUCKET'] -eq 'allboutiqs-media') { Stop-Script "R2_BUCKET is live's bucket. Use the stage bucket." }
-    if ($secrets['MEDIA_BASE_URL'].TrimEnd('/') -eq 'https://media.allboutiqs.com') { Stop-Script "MEDIA_BASE_URL is live's address. Use the stage bucket's address." }
+  if ($r2Set.Count -gt 0) { Stop-Script "Stage does not use R2. Empty or remove these in ${SecretsFile}: $($r2Set -join ', ')" }
+
+  if ($secrets.Contains('SITE_URL') -and $secrets['SITE_URL'] -ne '') {
+    $site = $secrets['SITE_URL'].TrimEnd('/')
+    if ($site -notmatch '^https?://') { Stop-Script "SITE_URL must start with https:// (the stage website's address)." }
+    if ($site -match '^https?://(www\.)?allboutiqs\.com$') { Stop-Script "SITE_URL is the LIVE website. Use the stage website's address, or leave it empty." }
+    $secrets['SITE_URL'] = $site
   }
 
   foreach ($k in $verifyKeys) {
