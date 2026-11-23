@@ -58,7 +58,7 @@ The secret names are the same as in [../live-setup/README.md](../live-setup/READ
 ## D. Dashboard and frontend
 
 - **Authentication → URL Configuration:** set the stage site URL and redirect URLs.
-- **Authentication → Phone:** only if phone sign-in is needed on stage (Twilio Verify).
+- **Authentication → Phone:** fill in the three `TWILIO_VERIFY_` values in `.env.stage` and run `deploy-stage.ps1` (with the access token). It turns phone sign-in on with Twilio Verify. Leave them empty to keep phone sign-in off.
 - **Storage → `email-assets`:** upload [../email-assets/allboutiqs-logo-white.png](../email-assets/allboutiqs-logo-white.png).
 - **Stage frontend build:** set `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_SUPABASE_PROJECT_ID` to the stage project, and `VITE_MEDIA_BASE_URL` to the stage R2 bucket's public URL.
 

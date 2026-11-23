@@ -1,5 +1,6 @@
 # Deploys every edge function to the STAGE Supabase project and sets its
-# secrets from supabase/stage-setup/.env.stage (git-ignored).
+# secrets from supabase/stage-setup/.env.stage (git-ignored). If the three
+# TWILIO_VERIFY_ values are filled in, it also turns on phone sign-in.
 #
 # Run from anywhere in PowerShell:
 #   powershell -ExecutionPolicy Bypass -File supabase/stage-setup/deploy-stage.ps1
@@ -35,6 +36,10 @@ if ($StageRef -notmatch '^[a-z0-9]{20}$') { Stop-Script "'$StageRef' is not a Su
 
 # ---------------------------------------------------------------- secrets file
 $secrets = [ordered]@{}
+# Phone sign-in (Twilio Verify) is a Supabase Auth setting, not an edge
+# function secret, so these three are sent to the Auth config instead.
+$verifyKeys = 'TWILIO_VERIFY_ACCOUNT_SID', 'TWILIO_VERIFY_AUTH_TOKEN', 'TWILIO_VERIFY_SERVICE_SID'
+$verify = [ordered]@{}
 if (-not $SkipSecrets) {
   if (-not (Test-Path $SecretsFile)) {
     Copy-Item (Join-Path $PSScriptRoot 'stage-secrets.template') $SecretsFile
@@ -83,6 +88,18 @@ if (-not $SkipSecrets) {
     if ($secrets['MEDIA_BASE_URL'].TrimEnd('/') -eq 'https://media.allboutiqs.com') { Stop-Script "MEDIA_BASE_URL is live's address. Use the stage bucket's address." }
   }
 
+  foreach ($k in $verifyKeys) {
+    if ($secrets.Contains($k)) {
+      if ($secrets[$k] -ne '') { $verify[$k] = $secrets[$k] }
+      $secrets.Remove($k)
+    }
+  }
+  if ($verify.Count -gt 0 -and $verify.Count -lt $verifyKeys.Count) { Stop-Script "Fill in all three Twilio Verify values ($($verifyKeys -join ', ')) or leave all three empty." }
+  if ($verify.Count -gt 0) {
+    if ($verify['TWILIO_VERIFY_ACCOUNT_SID'] -notmatch '^AC[0-9a-f]{32}$') { Stop-Script "TWILIO_VERIFY_ACCOUNT_SID must be the Account SID (AC + 32 characters, Twilio Console -> Account Info)." }
+    if ($verify['TWILIO_VERIFY_SERVICE_SID'] -notmatch '^VA[0-9a-f]{32}$') { Stop-Script "TWILIO_VERIFY_SERVICE_SID must be the Verify Service SID (VA + 32 characters, Twilio Console -> Verify -> Services)." }
+  }
+
   if (-not $secrets.Contains('OTP_HASH_SECRET') -or $secrets['OTP_HASH_SECRET'] -eq '') {
     $bytes = New-Object byte[] 32
     [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
@@ -112,6 +129,9 @@ if (-not $hadToken) {
   }
   $token = $null
 }
+if ($verify.Count -gt 0 -and -not $env:SUPABASE_ACCESS_TOKEN) {
+  Stop-Script "Turning on phone sign-in needs the access token (the normal login cannot be used for it). Run again and paste the token, or empty the three TWILIO_VERIFY_ values."
+}
 
 $tempEnv = $null
 Push-Location $RepoRoot
@@ -135,6 +155,7 @@ try {
   Write-Host "Target: $StageRef ($($stage[0].name), $($stage[0].region))" -ForegroundColor Cyan
   if (-not $SkipFunctions) { Write-Host "  - deploy all $count edge functions from this folder" }
   if (-not $SkipSecrets) { Write-Host "  - set $($secrets.Count) secrets: $(@($secrets.Keys) -join ', ')" }
+  if ($verify.Count -gt 0) { Write-Host "  - turn on phone sign-in with Twilio Verify (Authentication -> Phone)" }
   if ($dirty) {
     Write-Host "  Note: these function files have uncommitted changes and would be deployed as they are now:" -ForegroundColor Yellow
     Write-Host $dirty -ForegroundColor Yellow
@@ -157,6 +178,27 @@ try {
     [IO.File]::WriteAllLines($tempEnv, $content, (New-Object Text.UTF8Encoding($false)))
     & npx --yes supabase@3.2.0 secrets set --remote=$StageRef --env-file $tempEnv --yes
     if ($LASTEXITCODE -ne 0) { throw "Setting secrets failed (exit $LASTEXITCODE)." }
+  }
+
+  if ($verify.Count -gt 0) {
+    Write-Host ""
+    Write-Host "Turning on phone sign-in (Twilio Verify)..." -ForegroundColor Cyan
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    $authUri = "https://api.supabase.com/v1/projects/$StageRef/config/auth"
+    $headers = @{ Authorization = "Bearer $env:SUPABASE_ACCESS_TOKEN" }
+    $body = @{
+      external_phone_enabled                = $true
+      sms_provider                          = 'twilio_verify'
+      sms_twilio_verify_account_sid         = $verify['TWILIO_VERIFY_ACCOUNT_SID']
+      sms_twilio_verify_auth_token          = $verify['TWILIO_VERIFY_AUTH_TOKEN']
+      sms_twilio_verify_message_service_sid = $verify['TWILIO_VERIFY_SERVICE_SID']
+    } | ConvertTo-Json
+    $null = Invoke-RestMethod -Method Patch -Uri $authUri -Headers $headers -ContentType 'application/json' -Body $body
+    $auth = Invoke-RestMethod -Method Get -Uri $authUri -Headers $headers
+    if (-not $auth.external_phone_enabled -or $auth.sms_provider -ne 'twilio_verify' -or $auth.sms_twilio_verify_account_sid -ne $verify['TWILIO_VERIFY_ACCOUNT_SID']) {
+      throw "Phone sign-in did not turn on. Check Authentication -> Sign In / Providers -> Phone in the dashboard."
+    }
+    Write-Host "Phone sign-in is on (Twilio Verify)."
   }
 
   Write-Host ""
