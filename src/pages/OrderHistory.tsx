@@ -84,6 +84,12 @@ interface VendorOrderInfo {
   // The moment returns close (24 hours after delivery by default).
   return_window_ends_at: string | null;
   delivered_at?: string | null;
+  // When the boutique accepted / the courier took it out for delivery
+  // (from migration 20261124110000), and when the boutique booked the
+  // courier to our centre (warehouse route).
+  confirmed_at?: string | null;
+  out_for_delivery_at?: string | null;
+  inbound_booked_at?: string | null;
 }
 
 interface Order {
@@ -287,8 +293,9 @@ export default function OrderHistory() {
             supabase.from("order_items").select("*").eq("order_id", order.id),
             supabase
               .from("vendor_orders")
+              // confirmed_at / out_for_delivery_at: migration 20261124110000.
               .select(
-                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, return_window_ends_at, delivered_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, return_window_ends_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
             // The warehouse's own parcels to the customer (warehouse route).
@@ -317,6 +324,11 @@ export default function OrderHistory() {
             })),
             vendor_orders: (vendorOrdersData || []).map((vo: any) => {
               const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
+              // The boutique's own booking to our centre (not an exchange's).
+              const inbound = (vo.shipments || [])
+                .filter((s: any) => s.shipment_type === "to_warehouse" && !s.return_request_id)
+                .map((s: any) => s.created_at as string)
+                .sort()[0] ?? null;
               const parcel = vo.dispatch_id ? parcelByDispatch.get(vo.dispatch_id) ?? null : null;
               return {
                 id: vo.id,
@@ -329,6 +341,9 @@ export default function OrderHistory() {
                 return_window_ends_on: vo.return_window_ends_on,
                 return_window_ends_at: vo.return_window_ends_at,
                 delivered_at: vo.delivered_at,
+                confirmed_at: vo.confirmed_at ?? null,
+                out_for_delivery_at: vo.out_for_delivery_at ?? null,
+                inbound_booked_at: inbound,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -492,19 +507,29 @@ export default function OrderHistory() {
                         updated_at: vo.updated_at,
                         arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
                         parcel: vo.parcel,
+                        confirmed_at: vo.confirmed_at,
+                        out_for_delivery_at: vo.out_for_delivery_at,
+                        delivered_at: vo.delivered_at,
+                        inbound_booked_at: vo.inbound_booked_at,
                       })),
                     })
                   : null;
                 const warehouseParcels = viaWarehouse
                   ? [...new Map(order.vendor_orders.filter((vo) => vo.parcel?.awb_code).map((vo) => [vo.parcel!.awb_code, vo.parcel!])).values()]
                   : [];
-                const headerStatusLabel = warehouseTimeline
-                  ? warehouseTimeline.kind === "progress"
-                    ? warehouseTimeline.stages.find((s) => s.state === "current")?.label ?? "Delivered"
-                    : warehouseTimeline.kind === "cancelled"
-                      ? "Cancelled"
-                      : "Delivery unsuccessful"
-                  : null;
+                // Direct route: each boutique part has its own timeline.
+                const partTimeline = (vo: VendorOrderInfo) =>
+                  buildOrderTimeline({
+                    vendorOrderStatus: vo.status,
+                    vendorOrderUpdatedAt: vo.updated_at,
+                    orderPlacedAt: order.created_at,
+                    shipment: vo.shipment,
+                    confirmedAt: vo.confirmed_at,
+                    outForDeliveryAt: vo.out_for_delivery_at,
+                    deliveredAt: vo.delivered_at,
+                  });
+                // "Waiting for boutique confirmation" until the boutique accepts.
+                const headerStatusLabel = warehouseTimeline?.currentLabel ?? null;
                 const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
 
                 const hasCancellableItems = order.vendor_orders.some(
@@ -545,8 +570,7 @@ export default function OrderHistory() {
                       )}
                       {!viaWarehouse && shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
                         <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
-                          {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
-                            shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                          {partTimeline(shipmentGroups[0].vendorOrder).currentLabel}
                         </StatusPill>
                       )}
                       <StatusPill className={paymentDisplay.className}>{paymentDisplay.label}</StatusPill>
@@ -657,14 +681,7 @@ export default function OrderHistory() {
                               )}
                               {group.vendorOrder && !viaWarehouse && (
                                 <div className="space-y-3 bg-ivory p-4">
-                                  <OrderStatusTimeline
-                                    timeline={buildOrderTimeline({
-                                      vendorOrderStatus: group.vendorOrder.status,
-                                      vendorOrderUpdatedAt: group.vendorOrder.updated_at,
-                                      orderPlacedAt: order.created_at,
-                                      shipment: group.vendorOrder.shipment,
-                                    })}
-                                  />
+                                  <OrderStatusTimeline timeline={partTimeline(group.vendorOrder)} />
                                   <div className="flex flex-wrap items-center justify-between gap-3">
                                     {group.vendorOrder.shipment?.awb_code ? (
                                       <a

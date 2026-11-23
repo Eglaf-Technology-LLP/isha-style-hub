@@ -16,7 +16,7 @@ import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orde
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
-import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { buildOrderTimeline, buildWarehouseOrderTimeline, OrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
@@ -59,6 +59,12 @@ interface VendorOrderInfo {
   status: string;
   updated_at: string;
   shipment: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
+  // Step times for the tracker (see src/lib/orderStatus.ts).
+  arrived_at_warehouse_at: string | null;
+  delivered_at: string | null;
+  confirmed_at: string | null;
+  out_for_delivery_at: string | null;
+  inbound_booked_at: string | null;
 }
 
 interface Order {
@@ -67,6 +73,7 @@ interface Order {
   order_status: string;
   payment_status: string;
   payment_method: string;
+  fulfilment_route?: string | null;
   // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
   paid_via?: string | null;
   subtotal: number;
@@ -159,8 +166,9 @@ export function OrdersSection() {
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
+              // confirmed_at / out_for_delivery_at: migration 20261124110000.
               .select(
-                "id, status, updated_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, arrived_at_warehouse_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
           ]);
@@ -181,6 +189,15 @@ export function OrdersSection() {
                 id: vo.id,
                 status: vo.status,
                 updated_at: vo.updated_at,
+                arrived_at_warehouse_at: vo.arrived_at_warehouse_at ?? null,
+                delivered_at: vo.delivered_at ?? null,
+                confirmed_at: vo.confirmed_at ?? null,
+                out_for_delivery_at: vo.out_for_delivery_at ?? null,
+                inbound_booked_at:
+                  (vo.shipments || [])
+                    .filter((s: any) => s.shipment_type === "to_warehouse" && !s.return_request_id)
+                    .map((s: any) => s.created_at as string)
+                    .sort()[0] ?? null,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -259,6 +276,36 @@ export function OrdersSection() {
               }))
               .filter((g) => g.vendorOrder);
             const showGroupLabels = shipmentGroups.length > 1;
+            // Warehouse route: one tracker for the whole order; otherwise one
+            // per boutique part. "Waiting for boutique confirmation" until
+            // the boutique accepts.
+            const viaWarehouse = order.fulfilment_route === "warehouse";
+            const warehouseTimeline: OrderTimeline | null = viaWarehouse
+              ? buildWarehouseOrderTimeline({
+                  orderPlacedAt: order.created_at,
+                  orderEstimatedDeliveryDate: null,
+                  parts: order.vendor_orders.map((vo) => ({
+                    status: vo.status,
+                    updated_at: vo.updated_at,
+                    arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
+                    parcel: null,
+                    confirmed_at: vo.confirmed_at,
+                    out_for_delivery_at: vo.out_for_delivery_at,
+                    delivered_at: vo.delivered_at,
+                    inbound_booked_at: vo.inbound_booked_at,
+                  })),
+                })
+              : null;
+            const partTimeline = (vo: VendorOrderInfo) =>
+              buildOrderTimeline({
+                vendorOrderStatus: vo.status,
+                vendorOrderUpdatedAt: vo.updated_at,
+                orderPlacedAt: order.created_at,
+                shipment: vo.shipment,
+                confirmedAt: vo.confirmed_at,
+                outForDeliveryAt: vo.out_for_delivery_at,
+                deliveredAt: vo.delivered_at,
+              });
 
             const hasCancellableItems = order.vendor_orders.some(
               (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
@@ -280,11 +327,17 @@ export function OrdersSection() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
-                    <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
-                      {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
-                        shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                  {warehouseTimeline ? (
+                    <StatusPill className={warehouseTimeline.kind === "progress" ? "bg-indigo-100 text-indigo-800" : "bg-muted"}>
+                      {warehouseTimeline.currentLabel}
                     </StatusPill>
+                  ) : (
+                    shipmentGroups.length === 1 &&
+                    shipmentGroups[0].vendorOrder && (
+                      <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
+                        {partTimeline(shipmentGroups[0].vendorOrder).currentLabel}
+                      </StatusPill>
+                    )
                   )}
                   {canCancel && (
                     <button
@@ -319,6 +372,7 @@ export function OrdersSection() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4">
+                      {warehouseTimeline && <OrderStatusTimeline compact timeline={warehouseTimeline} />}
                       {shipmentGroups.map((group, i) => (
                         <div key={group.vendorOrderId || i} className={showGroupLabels ? "space-y-3 border border-border p-3" : "space-y-3"}>
                           {showGroupLabels && (
@@ -345,15 +399,7 @@ export function OrdersSection() {
                           ))}
                           {group.vendorOrder && (
                             <>
-                              <OrderStatusTimeline
-                                compact
-                                timeline={buildOrderTimeline({
-                                  vendorOrderStatus: group.vendorOrder.status,
-                                  vendorOrderUpdatedAt: group.vendorOrder.updated_at,
-                                  orderPlacedAt: order.created_at,
-                                  shipment: group.vendorOrder.shipment,
-                                })}
-                              />
+                              {!warehouseTimeline && <OrderStatusTimeline compact timeline={partTimeline(group.vendorOrder)} />}
                               <InvoiceDownloadButton
                                 vendorOrderId={group.vendorOrderId}
                                 paymentStatus={order.payment_status}
