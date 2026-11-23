@@ -10,7 +10,7 @@ What you get: all tables, RLS rules, functions, triggers, permissions, the 7 sto
 
 | Branch | Supabase project | Config in the branch | R2 |
 |---|---|---|---|
-| `Stage-allboutiqs.com-Main` (this one) | stage `eytbtryvrerjayrrczjf` | `.env.development`, `.env.production`, `.env.example`, `netlify.toml` and `supabase/config.toml` point at stage | **Not used.** Photos and videos go to stage's own Supabase Storage |
+| `Stage-allboutiqs.com-Main` (this one), site https://stage-allboutiqs.netlify.app | stage `eytbtryvrerjayrrczjf` | `.env.development`, `.env.production`, `.env.example`, `netlify.toml` and `supabase/config.toml` point at stage | **Not used.** Photos and videos go to stage's own Supabase Storage |
 | `allboutiqs.com-Main` | live `whycxtnjhdbewgyugfax` | Live | Live's R2 bucket |
 
 How a change moves:
