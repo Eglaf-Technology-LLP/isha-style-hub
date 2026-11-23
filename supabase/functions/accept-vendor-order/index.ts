@@ -1,3 +1,4 @@
+import { SITE_URL } from "../_shared/urls.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -10,7 +11,7 @@ const htmlHeaders = {
 
 function page(title: string, message: string, status: number) {
   const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
-  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} | AllBoutiqs</title><body style="font-family:Arial,sans-serif;background:#f4efe9;color:#1a1a1a;margin:0;padding:32px"><main style="max-width:520px;margin:8vh auto;background:white;border-radius:12px;padding:32px;box-shadow:0 2px 10px #0001"><div style="color:#7a2e22;font-weight:bold;letter-spacing:.04em">ALLBOUTIQS</div><h1>${escape(title)}</h1><p style="line-height:1.6;color:#555">${escape(message)}</p><a href="https://allboutiqs.com/vendor" style="display:inline-block;background:#7a2e22;color:white;text-decoration:none;padding:12px 20px;border-radius:7px">Open Seller Dashboard</a></main></body></html>`, { status, headers: htmlHeaders });
+  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} | AllBoutiqs</title><body style="font-family:Arial,sans-serif;background:#f4efe9;color:#1a1a1a;margin:0;padding:32px"><main style="max-width:520px;margin:8vh auto;background:white;border-radius:12px;padding:32px;box-shadow:0 2px 10px #0001"><div style="color:#7a2e22;font-weight:bold;letter-spacing:.04em">ALLBOUTIQS</div><h1>${escape(title)}</h1><p style="line-height:1.6;color:#555">${escape(message)}</p><a href="${SITE_URL}/vendor" style="display:inline-block;background:#7a2e22;color:white;text-decoration:none;padding:12px 20px;border-radius:7px">Open Seller Dashboard</a></main></body></html>`, { status, headers: htmlHeaders });
 }
 
 serve(async (req) => {

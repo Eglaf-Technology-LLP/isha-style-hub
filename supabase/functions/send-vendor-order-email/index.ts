@@ -1,3 +1,4 @@
+import { SITE_URL, SUPABASE_URL } from "../_shared/urls.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -95,7 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
         used_at: null,
       }, { onConflict: "vendor_order_id" });
       if (error) throw error;
-      return `https://whycxtnjhdbewgyugfax.supabase.co/functions/v1/accept-vendor-order?token=${token}`;
+      return `${SUPABASE_URL}/functions/v1/accept-vendor-order?token=${token}`;
     };
 
     const itemsHtml = (list: { product_title: string; quantity: number; price: number; customisation?: unknown }[]) =>
@@ -109,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
         try {
           const vendorOrder = (vendorOrders ?? []).find((vo) => vo.vendor_id === v.id);
           const canAccept = vendorOrder?.status === "pending";
-          const ctaUrl = canAccept ? await makeAcceptanceUrl(vendorOrder.id) : "https://allboutiqs.com/vendor?tab=orders";
+          const ctaUrl = canAccept ? await makeAcceptanceUrl(vendorOrder.id) : `${SITE_URL}/vendor?tab=orders`;
           await sendEmail(
             v.contact_email!,
             `New order received - #${orderId.slice(0, 8)} | AllBoutiqs`,
@@ -153,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
           preheader: `Order #${orderId.slice(0, 8)} from ${order.customer_name}`,
           bodyHtml: `<p style="color:#5a5a5a;">Order #${orderId.slice(0, 8)} from <strong>${order.customer_name}</strong> — ${money(Number(order.total))} (${order.payment_method.toUpperCase()}).</p>`,
           ctaLabel: "View in Admin",
-          ctaUrl: "https://allboutiqs.com/admin",
+          ctaUrl: `${SITE_URL}/admin`,
         })
       ).catch((e) => console.error("send-vendor-order-email: admin email failed", email, e))
     );

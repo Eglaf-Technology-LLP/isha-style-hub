@@ -1,3 +1,4 @@
+import { SITE_URL } from "../_shared/urls.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 import { formatDateTime } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
@@ -16,7 +17,7 @@ type Supabase = ReturnType<typeof serviceClient>;
 const QUIET_MINUTES = 30;
 // Older checkouts are never reported late (e.g. after the cron was down).
 const LOOKBACK_HOURS = 48;
-const ADMIN_ORDERS_URL = "https://allboutiqs.com/admin?tab=orders";
+const ADMIN_ORDERS_URL = `${SITE_URL}/admin?tab=orders`;
 
 const escapeHtml = (s: unknown) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);

@@ -1,3 +1,4 @@
+import { SITE_URL } from "../_shared/urls.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
@@ -22,7 +23,7 @@ function isServiceRoleCall(req: Request): boolean {
   }
 }
 
-const PAYOUTS_URL = "https://allboutiqs.com/vendor?tab=payouts";
+const PAYOUTS_URL = `${SITE_URL}/vendor?tab=payouts`;
 const inr = (n: number) => `${money(Number(n))}`;
 const day = (d: string) => formatDate(d);
 const p = (html: string) => `<p style="color:#5a5a5a;">${html}</p>`;

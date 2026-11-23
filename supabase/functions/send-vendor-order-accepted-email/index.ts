@@ -1,3 +1,4 @@
+import { SITE_URL } from "../_shared/urls.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
@@ -40,7 +41,7 @@ serve(async (req) => {
       preheader: `${vendor.name} accepted order #${orderNumber}`,
       bodyHtml: `<p style="color:#5a5a5a;"><strong>${escapeHtml(vendor.name)}</strong> accepted order #${orderNumber} for ${escapeHtml(order.customer_name)} (${new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(Number(order.total))}).</p>`,
       ctaLabel: "View order in Admin",
-      ctaUrl: `https://allboutiqs.com/admin?tab=orders&focus=${vendorOrder.id}`,
+      ctaUrl: `${SITE_URL}/admin?tab=orders&focus=${vendorOrder.id}`,
     });
     const results = await Promise.all(adminEmails.map((email) => sendEmail(email, `Boutique accepted order #${orderNumber} | AllBoutiqs`, body)));
     return new Response(JSON.stringify({ success: true, sent: results.length }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
