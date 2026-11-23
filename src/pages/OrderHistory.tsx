@@ -22,8 +22,10 @@ import { OrderCancellationDialog, CancellableOrderItem } from "@/components/Orde
 import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { CreditNoteButton } from "@/components/CreditNoteButton";
+import { mayHaveCreditNote } from "@/lib/invoiceLine";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
-import { buildOrderTimeline, buildWarehouseOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { buildOrderTimeline, buildWarehouseOrderTimeline, inboundBookedAt, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { useFocusTarget } from "@/hooks/useDeepLink";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
@@ -324,11 +326,6 @@ export default function OrderHistory() {
             })),
             vendor_orders: (vendorOrdersData || []).map((vo: any) => {
               const forwardShipment = (vo.shipments || []).find((s: any) => s.shipment_type === "forward");
-              // The boutique's own booking to our centre (not an exchange's).
-              const inbound = (vo.shipments || [])
-                .filter((s: any) => s.shipment_type === "to_warehouse" && !s.return_request_id)
-                .map((s: any) => s.created_at as string)
-                .sort()[0] ?? null;
               const parcel = vo.dispatch_id ? parcelByDispatch.get(vo.dispatch_id) ?? null : null;
               return {
                 id: vo.id,
@@ -343,7 +340,7 @@ export default function OrderHistory() {
                 delivered_at: vo.delivered_at,
                 confirmed_at: vo.confirmed_at ?? null,
                 out_for_delivery_at: vo.out_for_delivery_at ?? null,
-                inbound_booked_at: inbound,
+                inbound_booked_at: inboundBookedAt(vo.shipments),
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -531,6 +528,8 @@ export default function OrderHistory() {
                 // "Waiting for boutique confirmation" until the boutique accepts.
                 const headerStatusLabel = warehouseTimeline?.currentLabel ?? null;
                 const showGroupLabels = !viaWarehouse && shipmentGroups.length > 1;
+                // A completed return has a credit note (on a part that stays delivered).
+                const hasCompletedReturn = (returnsByOrder[order.id] ?? []).some((rr) => rr.status === "completed");
 
                 const hasCancellableItems = order.vendor_orders.some(
                   // Warehouse route: a part already in the warehouse's booked
@@ -673,11 +672,16 @@ export default function OrderHistory() {
                                 </div>
                               ))}
                               {group.vendorOrder && viaWarehouse && (
-                                <InvoiceDownloadButton
-                                  vendorOrderId={group.vendorOrderId}
-                                  paymentStatus={order.payment_status}
-                                  vendorOrderStatus={group.vendorOrder.status}
-                                />
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <InvoiceDownloadButton
+                                    vendorOrderId={group.vendorOrderId}
+                                    paymentStatus={order.payment_status}
+                                    vendorOrderStatus={group.vendorOrder.status}
+                                  />
+                                  {mayHaveCreditNote(group.vendorOrder.status, hasCompletedReturn) && (
+                                    <CreditNoteButton vendorOrderId={group.vendorOrderId} />
+                                  )}
+                                </div>
                               )}
                               {group.vendorOrder && !viaWarehouse && (
                                 <div className="space-y-3 bg-ivory p-4">
@@ -704,11 +708,16 @@ export default function OrderHistory() {
                                         </span>
                                       )
                                     )}
-                                    <InvoiceDownloadButton
-                                      vendorOrderId={group.vendorOrderId}
-                                      paymentStatus={order.payment_status}
-                                      vendorOrderStatus={group.vendorOrder?.status}
-                                    />
+                                    <div className="flex flex-wrap items-center gap-1">
+                                      <InvoiceDownloadButton
+                                        vendorOrderId={group.vendorOrderId}
+                                        paymentStatus={order.payment_status}
+                                        vendorOrderStatus={group.vendorOrder?.status}
+                                      />
+                                      {mayHaveCreditNote(group.vendorOrder.status, hasCompletedReturn) && (
+                                        <CreditNoteButton vendorOrderId={group.vendorOrderId} />
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               )}

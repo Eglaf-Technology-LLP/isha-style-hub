@@ -19,6 +19,8 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
 import { ShipNowDialog } from "./ShipNowDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { CreditNoteButton } from "@/components/CreditNoteButton";
+import { mayHaveCreditNote } from "@/lib/invoiceLine";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { Link } from "react-router-dom";
 import { vendorOrderStatusLabel } from "@/lib/warehouse";
@@ -263,6 +265,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                   paymentStatus={order.payment_status}
                   vendorOrderStatus={status}
                 />
+                {/* Delivered parts too: a completed return has one. */}
+                {mayHaveCreditNote(status, status === "delivered") && <CreditNoteButton vendorOrderId={vendorOrderId} />}
               </div>
 
               {!shipment || shipment.status === "cancelled" ? (

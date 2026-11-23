@@ -15,8 +15,10 @@ import { OrderCancellationDialog, CancellableOrderItem } from "@/components/Orde
 import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { CreditNoteButton } from "@/components/CreditNoteButton";
+import { mayHaveCreditNote } from "@/lib/invoiceLine";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
-import { buildOrderTimeline, buildWarehouseOrderTimeline, OrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { buildOrderTimeline, buildWarehouseOrderTimeline, inboundBookedAt, OrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
@@ -193,11 +195,7 @@ export function OrdersSection() {
                 delivered_at: vo.delivered_at ?? null,
                 confirmed_at: vo.confirmed_at ?? null,
                 out_for_delivery_at: vo.out_for_delivery_at ?? null,
-                inbound_booked_at:
-                  (vo.shipments || [])
-                    .filter((s: any) => s.shipment_type === "to_warehouse" && !s.return_request_id)
-                    .map((s: any) => s.created_at as string)
-                    .sort()[0] ?? null,
+                inbound_booked_at: inboundBookedAt(vo.shipments),
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -400,11 +398,17 @@ export function OrdersSection() {
                           {group.vendorOrder && (
                             <>
                               {!warehouseTimeline && <OrderStatusTimeline compact timeline={partTimeline(group.vendorOrder)} />}
-                              <InvoiceDownloadButton
-                                vendorOrderId={group.vendorOrderId}
-                                paymentStatus={order.payment_status}
-                                vendorOrderStatus={group.vendorOrder?.status}
-                              />
+                              <div className="flex flex-wrap items-center gap-1">
+                                <InvoiceDownloadButton
+                                  vendorOrderId={group.vendorOrderId}
+                                  paymentStatus={order.payment_status}
+                                  vendorOrderStatus={group.vendorOrder?.status}
+                                />
+                                {mayHaveCreditNote(
+                                  group.vendorOrder.status,
+                                  (returnsByOrder[order.id] ?? []).some((rr) => rr.status === "completed"),
+                                ) && <CreditNoteButton vendorOrderId={group.vendorOrderId} />}
+                              </div>
                             </>
                           )}
                         </div>

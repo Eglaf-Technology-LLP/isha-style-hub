@@ -8,6 +8,7 @@ import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
 import { formatEwbNumber } from "@/lib/ewayBill";
+import { invoiceLineDescription } from "@/lib/invoiceLine";
 import { PlatformInvoiceView, type PlatformInvoice } from "@/components/PlatformInvoiceView";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
@@ -263,13 +264,8 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                     {lines.map((l) => (
                       <tr key={l.line_no} className="border-b border-border align-top">
                         <td className="py-1.5 pr-2">{l.line_no}</td>
-                        <td className="py-1.5 pr-2">
-                          {l.description}
-                          {/* New lines already read "Lehnga – XS – Black" (A10.2); colour only for an older line without it. */}
-                          {l.color && !l.description.includes(l.color) && (
-                            <span className="text-muted-foreground"> · {l.color}</span>
-                          )}
-                        </td>
+                        {/* "Lehnga – XS – Black": name, size, colour once each (A10.2). */}
+                        <td className="py-1.5 pr-2">{invoiceLineDescription(l.description, l.color)}</td>
                         <td className="py-1.5 pr-2 font-mono">{l.hsn_code ?? "—"}</td>
                         <td className="py-1.5 pr-2">{l.size ?? "—"}</td>
                         <td className="py-1.5 pr-2 text-right">{l.quantity}</td>

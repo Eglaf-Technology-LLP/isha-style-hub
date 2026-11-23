@@ -177,6 +177,19 @@ export interface WarehouseTimelinePart {
   inbound_booked_at?: string | null;
 }
 
+// When the boutique booked the courier to our centre (Ship Now): its own
+// shipment there, not an exchange replacement's.
+export function inboundBookedAt(
+  shipments: { shipment_type: string; return_request_id?: string | null; created_at: string | null }[] | null | undefined,
+): string | null {
+  return (
+    (shipments ?? [])
+      .filter((s) => s.shipment_type === "to_warehouse" && !s.return_request_id && s.created_at)
+      .map((s) => s.created_at as string)
+      .sort()[0] ?? null
+  );
+}
+
 // A confirmed part whose courier to our centre is booked is being prepared.
 function warehouseStageIndex(p: WarehouseTimelinePart): number {
   const index = WAREHOUSE_STATUS_TO_STAGE_INDEX[p.status] ?? 0;
