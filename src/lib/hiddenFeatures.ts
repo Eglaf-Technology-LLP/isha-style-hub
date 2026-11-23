@@ -62,10 +62,10 @@ export const WAREHOUSE_EXTRA_SETTINGS_ENABLED = true;
 // the product has; admins still set it in Vendors > Manage Catalogue.
 export const VENDOR_RETURNABLE_SWITCH_ENABLED = true;
 
-// Boutique's Store settings: the whole "Shipping & returns" box (flat
-// shipping, free over, return window, ready to ship in, return policy, Cash
-// on Delivery, accept returns). While false, saving the store leaves those
-// as they are.
+// Boutique's Store settings: the whole "Shipping & returns" box (now only
+// "Ready to ship in" - the store-level Cash on Delivery and returns switches
+// are admin-only since A19.2). While false, saving the store leaves it as it
+// is.
 export const STORE_SHIPPING_RETURNS_ENABLED = true;
 
 // Product customisation (client, 2026-11-13): the "Other customisations,
