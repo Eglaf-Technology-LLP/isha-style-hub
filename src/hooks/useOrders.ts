@@ -64,6 +64,16 @@ export interface Order {
   created_at: string;
   updated_at: string;
   order_items?: OrderItem[];
+  // Each boutique's part: its boutique and the date it must hand the parcel
+  // to the courier (Admin > Orders, client corrections Part 2, A13.1).
+  vendor_orders?: OrderVendorPart[];
+}
+
+export interface OrderVendorPart {
+  id: string;
+  status: string;
+  ready_by: string | null;
+  vendor: { name: string } | null;
 }
 
 // A real order: Cash on Delivery, or its online payment went through. An
@@ -88,7 +98,8 @@ export function useOrders(isAdmin: boolean = false) {
         .from('orders')
         .select(`
           *,
-          order_items (*)
+          order_items (*),
+          vendor_orders (id, status, ready_by, vendor:vendors(name))
         `)
         .order('created_at', { ascending: false });
 

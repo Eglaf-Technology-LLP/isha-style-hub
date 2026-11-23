@@ -60,6 +60,50 @@ interface OrderManagementProps {
   isAdmin: boolean;
 }
 
+interface OrderPartRow {
+  id: string;
+  boutique: string;
+  listingType: string;
+  shipBy: string | null;
+  cancelled: boolean;
+}
+
+// Each boutique part of an order for the Boutique / Listing type / Ship-by
+// date columns (client corrections Part 2, A13.1). Listing type is how its
+// pieces were ordered (order_items.made_to_order, set at order time);
+// Ship-by is the day the boutique must hand the parcel to the courier
+// (vendor_orders.ready_by - the "Hand to courier by" it sees).
+function orderParts(order: Order): OrderPartRow[] {
+  const all = (order.vendor_orders ?? []).map((vo) => {
+    const items = (order.order_items ?? []).filter((i) => i.vendor_order_id === vo.id);
+    const mto = items.some((i) => i.made_to_order);
+    const rts = items.some((i) => !i.made_to_order);
+    return {
+      id: vo.id,
+      boutique: vo.vendor?.name ?? "—",
+      listingType: mto && rts ? "Made to Order + Ready to Ship" : mto ? "Made to Order" : "Ready to Ship",
+      shipBy: vo.ready_by,
+      cancelled: vo.status === "cancelled",
+    };
+  });
+  // Cancelled parts only when nothing else is left.
+  const live = all.filter((p) => !p.cancelled);
+  return live.length ? live : all;
+}
+
+function PartLines({ parts, render }: { parts: OrderPartRow[]; render: (p: OrderPartRow) => string }) {
+  if (parts.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="space-y-1">
+      {parts.map((p) => (
+        <div key={p.id} className={p.cancelled ? "text-muted-foreground line-through" : ""}>
+          {render(p)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function OrderManagement({ isAdmin }: OrderManagementProps) {
   const { orders, unpaidOrders, loading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -296,7 +340,10 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                   <TableHead>Order ID</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
+                  <TableHead>Boutique</TableHead>
                   <TableHead>Items</TableHead>
+                  <TableHead>Listing type</TableHead>
+                  <TableHead>Ship-by date</TableHead>
                   <TableHead>Total</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Status</TableHead>
@@ -304,7 +351,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedItems.map((order, idx) => (
+                {paginatedItems.map((order, idx) => {
+                  const parts = orderParts(order);
+                  return (
                   <TableRow key={order.id} data-focus-id={order.id}>
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
                     <TableCell className="font-mono text-sm">
@@ -320,6 +369,10 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                           {order.customer_email}
                         </p>
                       </div>
+                    </TableCell>
+                    {/* One line per boutique part, the same order in all three columns (A13.1). */}
+                    <TableCell className="text-xs">
+                      <PartLines parts={parts} render={(p) => p.boutique} />
                     </TableCell>
                     <TableCell>
                       {order.order_items && order.order_items.length > 0 ? (
@@ -340,6 +393,12 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       ) : (
                         <span className="text-xs text-muted-foreground">No items</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <PartLines parts={parts} render={(p) => p.listingType} />
+                    </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      <PartLines parts={parts} render={(p) => (p.shipBy ? formatDate(p.shipBy) : "—")} />
                     </TableCell>
                     <TableCell className="font-medium">
                       {formatMoney(order.total)}
@@ -410,7 +469,8 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
