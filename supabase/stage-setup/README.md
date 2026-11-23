@@ -29,13 +29,17 @@ If the SQL Editor refuses `01_schema.sql` because of its size (874 KB) or times 
 psql "postgresql://postgres.<stage-ref>:<db-password>@<pooler-host>:5432/postgres" -v ON_ERROR_STOP=1 -f supabase/stage-setup/01_schema.sql
 ```
 
-## B. Edge functions
+## B. Edge functions and their secrets: one script
 
-```sh
-npx supabase functions deploy --remote=<stage-ref> --use-api --yes
+```powershell
+powershell -ExecutionPolicy Bypass -File supabase/stage-setup/deploy-stage.ps1
 ```
 
-The Supabase CLI login must be able to see the stage project (`npx supabase projects list`). Right now it only sees live, so create stage in the same Supabase account, or log in with the account that owns it.
+1. First run: it creates `supabase/stage-setup/.env.stage` (git-ignored) from [stage-secrets.template](stage-secrets.template) and stops. Fill in the values there.
+2. Second run: it checks the values. It refuses live's Razorpay key, live's R2 bucket, `SHIPROCKET_SKIP_PICKUP` other than `true`, and an SMTP port other than 465. Then it asks for an access token of the Supabase account that owns stage (supabase.com → Account → Access Tokens). The token is typed hidden, used for this run only, and never saved. Your normal CLI login stays on live.
+3. It shows what it will do. Type the stage ref to confirm. It deploys all edge functions and sets the secrets.
+
+Every command targets the stage ref only. The live ref is refused.
 
 [../config.toml](../config.toml) keeps `courier-tracking-webhook`, `razorpay-webhook`, `auth-email-otp`, `submit-complaint` and `accept-vendor-order` without the JWT check, the same as on live.
 
