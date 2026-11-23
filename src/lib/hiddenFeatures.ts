@@ -22,8 +22,10 @@ export const NEW_IN_AND_SALE_LINKS_ENABLED = false;
 // dates it had.
 export const BANNER_SCHEDULE_ENABLED = false;
 
-// Admin > Returns: the "Return settings" card.
-export const RETURN_SETTINGS_ENABLED = true;
+// Admin > Returns: the "Return settings" card (return window, photo
+// evidence, boutique response time, refund charge). Off since 2026-11-24
+// (client): only a super admin sees it; the saved values keep working.
+export const RETURN_SETTINGS_ENABLED = false;
 
 // Admin > E-way bills: the Settings tab.
 export const EWAY_BILL_SETTINGS_ENABLED = false;
