@@ -38,6 +38,11 @@ export interface CancellableOrderItem {
 interface OrderCancellationDialogProps {
   orderId: string;
   items: CancellableOrderItem[];
+  // What cancelling each boutique part refunds (partCancelRefund), by
+  // vendor_order id - shown before Confirm Cancellation.
+  partRefunds?: Record<string, number>;
+  // Cash on Delivery: nothing was paid, so nothing to refund.
+  isCashOnDelivery?: boolean;
   isPaidOnline: boolean;
   // Paid wholly from the AllBoutiqs wallet: the refund goes back there.
   isPaidFromWallet?: boolean;
@@ -60,6 +65,8 @@ const BLOCKED_STATUSES = ["delivered", "cancelled", "returned", "dispatched"];
 export function OrderCancellationDialog({
   orderId,
   items,
+  partRefunds,
+  isCashOnDelivery = false,
   isPaidOnline,
   isPaidFromWallet = false,
   open,
@@ -99,6 +106,12 @@ export function OrderCancellationDialog({
   };
 
   const hasSelection = Object.values(selectedGroupIds).some(Boolean);
+  // The refund for what's ticked - no cancellation fee (24 Nov 2026).
+  const selectedRefund = partRefunds
+    ? groups
+        .filter((g) => !g.blocked && selectedGroupIds[g.vendorOrderId])
+        .reduce((sum, g) => sum + Number(partRefunds[g.vendorOrderId] ?? 0), 0)
+    : null;
 
   const handleSubmit = async () => {
     if (!reason || !hasSelection) return;
@@ -245,7 +258,14 @@ export function OrderCancellationDialog({
               context="cancel"
               orderId={orderId}
               charge={refundCharge}
+              refundAmount={hasSelection ? selectedRefund : null}
             />
+          )}
+
+          {isCashOnDelivery && (
+            <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+              Cash on Delivery: you haven't paid for this order, so there is nothing to refund and no cancellation fee.
+            </p>
           )}
 
           <Button

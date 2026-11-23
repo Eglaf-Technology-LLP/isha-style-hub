@@ -19,7 +19,7 @@ import { REFUND_METHOD_LABEL } from "@/lib/wallet";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
-import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
+import { customerCancelDeadline, isWithinCustomerCancelWindow, partCancelRefund } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { CreditNoteButton } from "@/components/CreditNoteButton";
@@ -92,6 +92,9 @@ interface VendorOrderInfo {
   confirmed_at?: string | null;
   out_for_delivery_at?: string | null;
   inbound_booked_at?: string | null;
+  // The part's items and delivery charge - what a cancel refunds, less coupon.
+  subtotal?: number | null;
+  shipping_cost?: number | null;
 }
 
 interface Order {
@@ -297,7 +300,7 @@ export default function OrderHistory() {
               .from("vendor_orders")
               // confirmed_at / out_for_delivery_at: migration 20261124110000.
               .select(
-                "id, status, updated_at, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, return_window_ends_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, subtotal, shipping_cost, tracking_number, carrier, arrived_at_warehouse_at, dispatch_id, return_window_ends_on, return_window_ends_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
             // The warehouse's own parcels to the customer (warehouse route).
@@ -341,6 +344,8 @@ export default function OrderHistory() {
                 confirmed_at: vo.confirmed_at ?? null,
                 out_for_delivery_at: vo.out_for_delivery_at ?? null,
                 inbound_booked_at: inboundBookedAt(vo.shipments),
+                subtotal: vo.subtotal,
+                shipping_cost: vo.shipping_cost,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -985,6 +990,13 @@ export default function OrderHistory() {
               };
             })}
           orderId={cancellingOrder.id}
+          partRefunds={Object.fromEntries(
+            cancellingOrder.vendor_orders.map((vo) => [
+              vo.id,
+              partCancelRefund(vo, cancellingOrder.order_items.filter((i) => i.vendor_order_id === vo.id)),
+            ]),
+          )}
+          isCashOnDelivery={cancellingOrder.payment_method === "cod"}
           isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
           isPaidFromWallet={cancellingOrder.payment_method === "wallet" && cancellingOrder.payment_status === "paid"}
           open={!!cancellingOrder}

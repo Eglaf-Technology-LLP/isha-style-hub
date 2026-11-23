@@ -12,7 +12,7 @@ import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
-import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
+import { customerCancelDeadline, isWithinCustomerCancelWindow, partCancelRefund } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { CreditNoteButton } from "@/components/CreditNoteButton";
@@ -67,6 +67,9 @@ interface VendorOrderInfo {
   confirmed_at: string | null;
   out_for_delivery_at: string | null;
   inbound_booked_at: string | null;
+  // The part's items and delivery charge - what a cancel refunds, less coupon.
+  subtotal: number | null;
+  shipping_cost: number | null;
 }
 
 interface Order {
@@ -170,7 +173,7 @@ export function OrdersSection() {
               .from("vendor_orders")
               // confirmed_at / out_for_delivery_at: migration 20261124110000.
               .select(
-                "id, status, updated_at, arrived_at_warehouse_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, subtotal, shipping_cost, arrived_at_warehouse_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
           ]);
@@ -196,6 +199,8 @@ export function OrdersSection() {
                 confirmed_at: vo.confirmed_at ?? null,
                 out_for_delivery_at: vo.out_for_delivery_at ?? null,
                 inbound_booked_at: inboundBookedAt(vo.shipments),
+                subtotal: vo.subtotal ?? null,
+                shipping_cost: vo.shipping_cost ?? null,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -520,6 +525,13 @@ export function OrdersSection() {
             };
           })}
         orderId={cancellingOrder.id}
+        partRefunds={Object.fromEntries(
+          cancellingOrder.vendor_orders.map((vo) => [
+            vo.id,
+            partCancelRefund(vo, cancellingOrder.order_items.filter((i) => i.vendor_order_id === vo.id)),
+          ]),
+        )}
+        isCashOnDelivery={cancellingOrder.payment_method === "cod"}
         isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
         isPaidFromWallet={cancellingOrder.payment_method === "wallet" && cancellingOrder.payment_status === "paid"}
         open={!!cancellingOrder}
