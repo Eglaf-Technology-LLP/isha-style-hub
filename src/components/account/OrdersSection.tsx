@@ -23,6 +23,7 @@ import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { orderPaymentLine } from "@/lib/paymentMode";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -66,6 +67,8 @@ interface Order {
   order_status: string;
   payment_status: string;
   payment_method: string;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   subtotal: number;
   shipping_cost: number;
   total: number;
@@ -134,7 +137,8 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount, cod_charge, wallet_amount")
+        // "*": paid_via exists only from migration 20261124100000 on.
+        .select("*")
         .eq("user_id", user.id)
         // An online checkout that was never paid isn't an order.
         .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
@@ -388,6 +392,11 @@ export function OrdersSection() {
                         <span>{formatMoney(order.wallet_amount)}</span>
                       </div>
                     )}
+                    {/* How it was paid: "Paid by UPI", or "Pay ₹X in cash when it arrives". */}
+                    <div className="mt-3 flex justify-between gap-4 border-t border-border pt-3 text-xs">
+                      <span className="text-muted-foreground">Payment</span>
+                      <span className="text-right">{orderPaymentLine(order, order.vendor_orders)}</span>
+                    </div>
                     {/* Return/Exchange status */}
                     {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-border pt-3">

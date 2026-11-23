@@ -4,6 +4,7 @@ import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 import { links } from "../_shared/notify.ts";
 import { refundLateCapture } from "../_shared/lateCapture.ts";
+import { isMissingColumn, paidViaOf, withPaidVia } from "../_shared/paidVia.ts";
 
 // Public endpoint - Razorpay's own servers call this, not our frontend
 // (verify_jwt = false in supabase/config.toml, same exception pattern as
@@ -135,11 +136,12 @@ Deno.serve(async (req) => {
             resolvedOrderId = order.id;
             await refundLateCapture(supabase, order.id, paymentEntity);
           } else if (order && fromStatuses.includes(order.payment_status)) {
-            await supabase
-              .from("orders")
-              .update({ payment_status: newStatus, razorpay_payment_id: paymentEntity.id })
-              .eq("id", order.id)
-              .in("payment_status", fromStatuses);
+            // A capture also records how the customer paid (UPI, card, ...).
+            await withPaidVia(
+              { payment_status: newStatus, razorpay_payment_id: paymentEntity.id },
+              newStatus === "paid" ? paidViaOf(paymentEntity) : null,
+              (fields) => supabase.from("orders").update(fields).eq("id", order.id).in("payment_status", fromStatuses),
+            );
             await supabase
               .from("payments")
               .update({
@@ -156,6 +158,16 @@ Deno.serve(async (req) => {
                 console.error("createHeldTransfers (webhook) error", e),
               );
             }
+          } else if (order && newStatus === "paid" && order.payment_status === "paid" && paidViaOf(paymentEntity)) {
+            // Already marked paid by the checkout: fill in how the customer
+            // paid if that call couldn't read it from Razorpay. Best-effort.
+            const { error: viaErr } = await supabase
+              .from("orders")
+              .update({ paid_via: paidViaOf(paymentEntity) })
+              .eq("id", order.id)
+              .eq("razorpay_payment_id", paymentEntity.id)
+              .is("paid_via", null);
+            if (viaErr && !isMissingColumn(viaErr)) console.error("paid_via (webhook) error", viaErr);
           }
         }
         await logEvent(paymentEntity?.id);

@@ -52,6 +52,7 @@ import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { paymentModeName } from "@/lib/paymentMode";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
@@ -363,8 +364,8 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                         >
                           {order.payment_status}
                         </Badge>
-                        <span className="text-xs text-muted-foreground uppercase">
-                          {order.payment_method}
+                        <span className="text-xs text-muted-foreground">
+                          {paymentModeName(order)}
                         </span>
                       </div>
                     </TableCell>
@@ -457,8 +458,13 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Payment Method</p>
-                    <p className="font-medium uppercase">
-                      {selectedOrder.payment_method}
+                    <p className="font-medium">
+                      {paymentModeName(selectedOrder)}
+                      {Number(selectedOrder.wallet_amount) > 0 && selectedOrder.payment_method !== "wallet" && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          + {formatMoney(selectedOrder.wallet_amount)} from AllBoutiqs wallet
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

@@ -244,6 +244,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                     vendorName: group.vendorId ? vendorNames[group.vendorId] || "Vendor" : "Vendor",
                     status,
                     paymentMethod: order.payment_method,
+                    paidVia: order.paid_via ?? null,
                     paymentStatus: order.payment_status,
                     customerName: order.customer_name,
                     customerPhone: order.customer_phone,

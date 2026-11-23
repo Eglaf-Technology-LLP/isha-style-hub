@@ -24,6 +24,7 @@ import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { paymentModeName } from "@/lib/paymentMode";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 
@@ -56,6 +57,8 @@ export interface VendorOrderDetailsData {
   vendorName: string;
   status: string;
   paymentMethod: string;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paidVia?: string | null;
   paymentStatus: string;
   customerName: string;
   customerPhone?: string | null;
@@ -248,7 +251,7 @@ export function VendorOrderDetailsDialog({
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Field label="Order Placed" value={formatDateTime(new Date(data.createdAt))} />
-                <Field label="Payment Method" value={data.paymentMethod.toUpperCase()} />
+                <Field label="Payment Method" value={paymentModeName({ payment_method: data.paymentMethod, paid_via: data.paidVia })} />
                 <Field
                   label="Payment Status"
                   value={

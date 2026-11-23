@@ -12,7 +12,8 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
   const { data: vo, error } = await supabase
     .from("vendor_orders")
     .select(
-      "id, order_id, subtotal, shipping_cost, status, vendor:vendors(name), order:orders(created_at, payment_method, payment_status, customer_name, customer_phone, customer_email, shipping_address, subtotal, discount_code, discount_amount)"
+      // orders(*): paid_via exists only from migration 20261124100000 on.
+      "id, order_id, subtotal, shipping_cost, status, vendor:vendors(name), order:orders(*)"
     )
     .eq("id", vendorOrderId)
     .maybeSingle();
@@ -45,6 +46,7 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
     vendorName: vendor?.name || "Vendor",
     status: vo.status,
     paymentMethod: order.payment_method,
+    paidVia: (order as { paid_via?: string | null }).paid_via ?? null,
     paymentStatus: order.payment_status,
     customerName: order.customer_name,
     customerPhone: order.customer_phone,

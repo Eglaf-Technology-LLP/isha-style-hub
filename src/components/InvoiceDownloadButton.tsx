@@ -89,6 +89,8 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [ewayBills, setEwayBills] = useState<{ ewb_number: string; ewb_date: string | null }[]>([]);
   // AllBoutiqs' own invoice for the courier etc. (customers and admins only).
   const [platformInvoice, setPlatformInvoice] = useState<PlatformInvoice | null>(null);
+  // How the customer paid ("UPI", "Cash on Delivery") - from the server.
+  const [paymentMode, setPaymentMode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +102,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
       lines: InvoiceLine[];
       eway_bills?: { ewb_number: string; ewb_date: string | null }[];
       platform_invoice?: PlatformInvoice | null;
+      payment_mode?: string | null;
     }>(
       "generate-invoice",
       { vendor_order_id: vendorOrderId },
@@ -111,6 +114,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
           setLines(data.lines ?? []);
           setEwayBills(data.eway_bills ?? []);
           setPlatformInvoice(data.platform_invoice ?? null);
+          setPaymentMode(data.payment_mode ?? null);
         }
         setLoading(false);
       },
@@ -166,6 +170,12 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       <span className="text-muted-foreground">Order No: </span>
                       {invoice.order_number}
                       {invoice.order_date && ` · ${formatDate(new Date(invoice.order_date))}`}
+                    </p>
+                  )}
+                  {paymentMode && (
+                    <p>
+                      <span className="text-muted-foreground">Payment: </span>
+                      {paymentMode}
                     </p>
                   )}
                   {ewayBills.map((b) => (

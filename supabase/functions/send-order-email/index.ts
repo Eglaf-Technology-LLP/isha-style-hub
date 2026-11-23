@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
+import { paymentModeLine } from "../_shared/paidVia.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -374,6 +375,16 @@ const handler = async (req: Request): Promise<Response> => {
     const showTotal = !isDeliveryStep || !multiBoutique;
     const shippingAddress = order.shipping_address as any;
 
+    // How the customer paid: "Paid by UPI", or "Pay ₹X in cash when it
+    // arrives" - with the amount only when the courier collects the whole
+    // order total (one parcel, nothing cancelled). Left out once a Cash on
+    // Delivery order is cancelled in full - there is nothing to pay.
+    const anyCancelled = (vendorOrders ?? []).some((v: any) => v.status === "cancelled");
+    const codCancelled = order.payment_method === "cod" && (order.order_status === "cancelled" || liveVendorOrders.length === 0);
+    const paymentLine = codCancelled
+      ? null
+      : paymentModeLine(order, money, !anyCancelled && (type === "confirmation" || !multiBoutique) ? Number(order.total) : null);
+
     const bodyHtml = `
       <p style="color:#5a5a5a; margin:0 0 4px;">${message}</p>
       ${tracker}
@@ -381,6 +392,7 @@ const handler = async (req: Request): Promise<Response> => {
       ${infoBox([
         ["Order", `#${orderNumber}`],
         ["Placed on", formatDate(order.created_at)],
+        ...(paymentLine ? [["Payment", escapeHtml(paymentLine)] as [string, string]] : []),
         ...(isDeliveryStep && boutique ? [["Boutique", escapeHtml(boutique)] as [string, string]] : []),
       ])}
       ${partNote}

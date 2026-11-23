@@ -8,6 +8,7 @@ import {
   errorMessage,
 } from "../_shared/auth.ts";
 import { ensureInvoice, findInvoice, findPlatformInvoice, InvoiceError } from "../_shared/invoice.ts";
+import { paymentModeName } from "../_shared/paidVia.ts";
 
 // The customer's GST tax invoice for one boutique part of an order - see
 // _shared/invoice.ts for how it's made. Normally issued when the boutique
@@ -55,7 +56,8 @@ Deno.serve(async (req) => {
 
     const { data: order, error: orderErr } = await supabase
       .from("orders")
-      .select("id, user_id, payment_method, payment_status")
+      // "*": paid_via exists only from migration 20261124100000 on.
+      .select("*")
       .eq("id", vendorOrder.order_id)
       .maybeSingle();
     if (orderErr) throw orderErr;
@@ -75,7 +77,9 @@ Deno.serve(async (req) => {
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     const existing = await findInvoice(supabase, vendor_order_id);
-    if (existing) return jsonResponse(await withEwayBills(supabase, existing, showPlatformInvoice));
+    // How the customer paid, printed on the invoice ("UPI", "Cash on Delivery").
+    const payment_mode = paymentModeName(order);
+    if (existing) return jsonResponse({ ...(await withEwayBills(supabase, existing, showPlatformInvoice)), payment_mode });
 
     if (vendorOrder.status === "cancelled" || vendorOrder.status === "qc_failed" || vendorOrder.qc_status === "failed") {
       return jsonResponse({ error: "This item was cancelled - no invoice applies" }, 400);
@@ -99,7 +103,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    return jsonResponse(await withEwayBills(supabase, await ensureInvoice(supabase, vendor_order_id), showPlatformInvoice));
+    return jsonResponse({ ...(await withEwayBills(supabase, await ensureInvoice(supabase, vendor_order_id), showPlatformInvoice)), payment_mode });
   } catch (e) {
     console.error("generate-invoice error", e);
     if (e instanceof InvoiceError) return jsonResponse({ error: e.message }, e.status);

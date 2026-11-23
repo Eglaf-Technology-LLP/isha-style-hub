@@ -32,6 +32,7 @@ import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { orderPaymentLine, paymentModeLine } from "@/lib/paymentMode";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -91,6 +92,8 @@ interface Order {
   order_status: string;
   payment_status: string;
   payment_method: string;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   subtotal: number;
   shipping_cost: number;
   total: number;
@@ -142,9 +145,12 @@ const paymentStatusColors: Record<string, string> = {
 // fulfilled - and "Payment: Paid" reads as if nothing happened, even
 // while a real refund is (or should be) in progress. Neither is wrong
 // data, just a confusing label for a cancelled order specifically.
+// Otherwise it says how the order was paid (client, 24 Nov 2026): "Paid
+// by UPI", or "Cash on Delivery" until the courier collects the cash.
 function paymentStatusDisplay(order: {
   payment_status: string;
   payment_method: string;
+  paid_via?: string | null;
   order_status: string;
 }): { label: string; className: string } {
   if (order.order_status === "cancelled" && order.payment_status !== "refunded") {
@@ -154,6 +160,12 @@ function paymentStatusDisplay(order: {
     if (order.payment_status === "paid") {
       return { label: "Payment: Refund Processing", className: "bg-amber-100 text-amber-800" };
     }
+  }
+  if (order.payment_method === "cod" && order.payment_status === "pending") {
+    return { label: "Cash on Delivery", className: "bg-yellow-100 text-yellow-800" };
+  }
+  if (order.payment_status === "paid") {
+    return { label: paymentModeLine(order, null), className: "bg-green-100 text-green-800" };
   }
   return {
     label: `Payment: ${order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}`,
@@ -755,6 +767,11 @@ export default function OrderHistory() {
                                   <dd>{formatMoney(order.wallet_amount)}</dd>
                                 </div>
                               )}
+                              {/* How it was paid: "Paid by UPI", or "Pay ₹X in cash when it arrives". */}
+                              <div className="flex justify-between gap-4 text-muted-foreground">
+                                <dt>Payment</dt>
+                                <dd className="text-right text-foreground">{orderPaymentLine(order, order.vendor_orders)}</dd>
+                              </div>
                             </dl>
                           </div>
 

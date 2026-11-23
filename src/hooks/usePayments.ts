@@ -24,6 +24,8 @@ export interface Payment {
     customer_email: string;
     total: number;
     order_status: string;
+    // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+    paid_via?: string | null;
     order_items?: { vendor_id: string | null; vendor_order_id: string | null }[];
   };
   // Every distinct vendor_order_id this payment's order touches - almost
@@ -56,9 +58,10 @@ export function usePayments(isAdmin: boolean = false) {
     try {
       const { data, error } = await supabase
         .from("payments")
+        // orders(*): paid_via exists only from migration 20261124100000 on.
         .select(`
           *,
-          order:orders(id, customer_name, customer_email, total, order_status, order_items(vendor_id, vendor_order_id))
+          order:orders(*, order_items(vendor_id, vendor_order_id))
         `)
         .order("created_at", { ascending: false });
 

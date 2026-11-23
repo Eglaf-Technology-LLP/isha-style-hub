@@ -43,8 +43,10 @@ export interface Order {
   customer_email: string;
   customer_phone: string;
   shipping_address: ShippingAddress;
-  payment_method: 'cod' | 'stripe' | 'razorpay';
+  payment_method: 'cod' | 'stripe' | 'razorpay' | 'wallet';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded';
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   order_status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
   subtotal: number;
   shipping_cost: number;
