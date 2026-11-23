@@ -39,12 +39,12 @@ export default function StorePage() {
   // One return window for every boutique, set by AllBoutiqs.
   const windowHours = useReturnWindowHours();
   const [loading, setLoading] = useState(true);
-  const { data: allProducts = [], isLoading: productsLoading } = useStoreProducts();
+  const { data: allProducts = [], isLoading: productsLoading, isSuccess: productsLoaded } = useStoreProducts();
   const { data: categories = [] } = useStoreCategories();
   const { data: boutiques = [] } = useStoreBoutiques();
   // A boutique ("View my store") or an admin sees the page to look at only:
   // no shop header, footer or shopping buttons (see staffMode.ts).
-  const { role } = useStaffRole();
+  const { role, loading: roleLoading } = useStaffRole();
   const viewOnly = isStaffProductView(role);
 
   useEffect(() => {
@@ -72,6 +72,10 @@ export default function StorePage() {
   }, [slug]);
 
   const products = vendor ? allProducts.filter((p) => p.vendor_id === vendor.id) : [];
+  // A boutique with no live product isn't shown to shoppers (client, 24 Nov
+  // 2026) - an old link lands here. Admins and the boutique itself ("View my
+  // store") still see the page.
+  const noLivePieces = !!vendor && !roleLoading && !viewOnly && productsLoaded && products.length === 0;
 
   if (loading) {
     return (
@@ -85,14 +89,16 @@ export default function StorePage() {
     );
   }
 
-  if (!vendor) {
+  if (!vendor || noLivePieces) {
     return (
       <div className="min-h-screen bg-background">
         {!viewOnly && <Header />}
         <div className="store-container py-28 text-center">
           <p className="eyebrow text-gold">Boutique</p>
-          <h1 className="mt-3 font-serif text-4xl">Boutique not found</h1>
-          <p className="mt-3 text-muted-foreground">This boutique may be inactive or awaiting approval.</p>
+          <h1 className="mt-3 font-serif text-4xl">{vendor ? "Not open right now" : "Boutique not found"}</h1>
+          <p className="mt-3 text-muted-foreground">
+            {vendor ? "This boutique has no pieces on sale at the moment." : "This boutique may be inactive or awaiting approval."}
+          </p>
           {!viewOnly && (
             <Link
               to="/boutiques"
