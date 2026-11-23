@@ -147,8 +147,9 @@ const Spinner = () => (
 );
 
 // Admin > E-way bills. AllBoutiqs is the transporter on every e-way bill:
-//   1. requests arrive by email / notification when an order is placed (and
-//      for warehouse parcels, send-backs and returns);
+//   1. requests arrive by email / notification when a boutique packs an
+//      order - Ship Now, with its tax invoice (A16.1) - and for warehouse
+//      parcels, send-backs and returns;
 //   2. download them as one JSON file and upload it on the portal
 //      (e-Waybill > Generate Bulk);
 //   3. enter the numbers in bulk and attach the PDFs - each boutique is

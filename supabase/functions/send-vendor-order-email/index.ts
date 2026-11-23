@@ -3,8 +3,6 @@ import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { money } from "../_shared/money.ts";
-import { serviceClient } from "../_shared/auth.ts";
-import { raiseOrderEwayBills } from "../_shared/ewayBill.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -160,15 +158,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     await Promise.all([...vendorSends, ...adminSends]);
 
-    // Boutique parts over the e-way bill limit: AllBoutiqs is asked to make
-    // their e-way bills now (one email to the admins for the whole order), so
-    // they're ready by the time the boutiques pack. Runs once per order (the
-    // claim above); the e-way bill watcher catches any that fail here.
-    try {
-      await raiseOrderEwayBills(serviceClient(), orderId);
-    } catch (e) {
-      console.error("send-vendor-order-email: e-way bill requests failed", e);
-    }
+    // No e-way bill request here: it is asked for when the boutique packs the
+    // order (Ship Now), with its tax invoice - a Made to Order piece can ship
+    // weeks after the order (client corrections Part 2, A16.1).
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
