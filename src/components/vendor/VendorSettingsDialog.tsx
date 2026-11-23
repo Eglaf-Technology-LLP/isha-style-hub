@@ -189,7 +189,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                     ? null
                     : Math.min(60, Math.max(0, Math.round(Number(form.default_prep_days) || 0))),
                 // No store-level Cash on Delivery / returns switches here
-                // (client corrections Part 2, A19.2): both are set per
+                // (client corrections Part 2, A20.2): both are set per
                 // product, and only AllBoutiqs changes the store-level ones
                 // (Admin > Vendors). Not sent, so they stay as they are.
               }
@@ -355,7 +355,7 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   AllBoutiqs sets one for every boutique (Admin > Returns >
                   Return settings, 24 hours). No Cash on Delivery / returns
                   switches: set per product; the store-level ones are
-                  AllBoutiqs' (A19.2). */}
+                  AllBoutiqs' (A20.2). */}
               <div className="space-y-2">
                 <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
                 <Input

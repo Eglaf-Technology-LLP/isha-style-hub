@@ -49,6 +49,7 @@ import {
   normalizeWebsite,
   BANK_PROOF_TYPES,
   CONSTITUTIONS,
+  DEFAULT_DESIGNATION,
   DOCUMENTS_BY_CONSTITUTION,
   EMAIL_RE,
   GSTIN_RE,
@@ -363,9 +364,10 @@ export default function SellWithUs() {
     // Drop files that don't belong to the new checklist.
     const keep = new Set<DocumentType>([...DOCUMENTS_BY_CONSTITUTION[value].map((d) => d.type), "bank_proof"]);
     setFiles((f) => Object.fromEntries(Object.entries(f).filter(([t]) => keep.has(t as DocumentType))));
-    const defaultDesignation = { proprietorship: "Proprietor", huf: "Karta" }[value as string];
-    if (defaultDesignation && (!authorized.designation || ["Proprietor", "Karta"].includes(authorized.designation))) {
-      setAuthorized((a) => ({ ...a, designation: defaultDesignation }));
+    // A new business type gets its own designation (Proprietor / Partner /
+    // Designated Partner / Director / Karta) - the old one's doesn't stay.
+    if (value !== constitution || !authorized.designation.trim()) {
+      setAuthorized((a) => ({ ...a, designation: DEFAULT_DESIGNATION[value] }));
     }
   };
 
@@ -993,11 +995,9 @@ export default function SellWithUs() {
                       type={type}
                       placeholder={
                         key === "designation"
-                          ? constitution === "proprietorship"
-                            ? "Proprietor"
-                            : constitution === "huf"
-                              ? "Karta"
-                              : "e.g. Partner, Director"
+                          ? constitution
+                            ? DEFAULT_DESIGNATION[constitution]
+                            : "e.g. Partner, Director"
                           : key === "mobile"
                             ? "10-digit mobile"
                             : undefined
