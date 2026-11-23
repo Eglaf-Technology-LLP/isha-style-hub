@@ -11,10 +11,12 @@ import { getWarehouse } from "./warehouse.ts";
 // the eway_bills migrations. AllBoutiqs is enrolled as a transporter on the
 // portal and makes every boutique's e-way bills itself:
 //
-//   boutique packs    Ship Now (shiprocket-create-shipment) asks for the
-//                     boutique leg with its tax invoice - not when the order
-//                     is placed: a Made to Order piece can ship weeks later
-//                     (client corrections Part 2, A16.1)
+//   boutique packs    "Get e-way bill ready" on the Seller Dashboard
+//                     (eway-bill-actions "request") asks for the boutique leg
+//                     with its tax invoice; the admins and super admins get
+//                     the email. Not when the order is placed: a Made to
+//                     Order piece can ship weeks later (client corrections
+//                     Part 2, A16.1). Ship Now asks too if nobody has.
 //   any booking       requestEwayBill: the courier can't be booked until the
 //                     number is in (asks for one if nothing asked yet)
 //   admin             downloads the requests as the portal's bulk JSON,
@@ -645,11 +647,12 @@ export async function raiseReturnEwayBills(supabase: SupabaseClient, returnReque
 
 // ---------- telling people ----------
 
+// Admins and super admins (both get the e-way bill emails).
 async function adminEmails(supabase: SupabaseClient): Promise<string[]> {
-  const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+  const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["admin", "super_admin"]);
   const emails = await Promise.all(
-    (roles ?? []).map(async (r) => {
-      const { data } = await supabase.auth.admin.getUserById(r.user_id);
+    [...new Set<string>((roles ?? []).map((r: { user_id: string }) => r.user_id))].map(async (userId) => {
+      const { data } = await supabase.auth.admin.getUserById(userId);
       return data?.user?.email ?? null;
     }),
   );
@@ -749,7 +752,7 @@ export async function announceRequests(supabase: SupabaseClient, bills: EwayBill
       await notifyVendorMembers(supabase, b.vendor_id, {
         type: "eway_bill_needed",
         title: "E-way bill being made",
-        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. Pack the order meanwhile; we'll tell you when you can ship.`,
+        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. We'll tell you when you can ship.`,
         link: links.vendorOrder(b.vendor_order_id),
       });
     }

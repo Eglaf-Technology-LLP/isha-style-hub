@@ -4,6 +4,7 @@ import {
   serviceClient,
   getCallerUserId,
   isAdmin,
+  isVendorMember,
   errorMessage,
 } from "../_shared/auth.ts";
 import { InvoiceError } from "../_shared/invoice.ts";
@@ -31,6 +32,9 @@ import {
 //   mark_exported   these went into a bulk JSON download
 //   create          a request by hand (a return, a send-back, anything the
 //                   automatic ones missed)
+//   request         the boutique's "Get e-way bill ready" (Seller Dashboard)
+//                   once it has packed the order - no courier involved; the
+//                   admins and super admins get the email (A16.1)
 //   watch           the watcher (cron / database triggers, or an admin)
 
 class ActionError extends Error {
@@ -136,6 +140,30 @@ Deno.serve(async (req) => {
 
     const userId = await getCallerUserId(req);
     if (!userId) return jsonResponse({ error: "Unauthorized" }, 401);
+
+    // The boutique asks for its own part's e-way bill when it has packed the
+    // order (client corrections Part 2, A16.1) - a button, not the courier
+    // booking. Its tax invoice is issued now too (A10.1).
+    if (body.action === "request") {
+      const vendorOrderId = String(body.vendor_order_id ?? "");
+      const { data: vo } = await supabase
+        .from("vendor_orders")
+        .select("id, vendor_id, status, orders(fulfilment_route, warehouse_id)")
+        .eq("id", vendorOrderId)
+        .maybeSingle();
+      if (!vo) throw new ActionError("Order not found", 404);
+      if (!(await isVendorMember(supabase, userId, vo.vendor_id)) && !(await isAdmin(supabase, userId))) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      if (vo.status === "pending") throw new ActionError("Accept the order first, then ask for its e-way bill once it's packed");
+      if (!["confirmed", "processing"].includes(vo.status)) throw new ActionError("This order has already left the boutique");
+      const o = (vo as any).orders;
+      const leg: EwayBillLeg = o?.fulfilment_route === "warehouse" && o?.warehouse_id ? "boutique_to_warehouse" : "boutique_to_customer";
+      const check = await requestEwayBill(supabase, await movementFor(supabase, vo.id, leg, { requestedBy: userId }));
+      if (!check.required) throw new ActionError("This order is under the e-way bill limit - it doesn't need one");
+      return jsonResponse({ eway_bill: check.bill, created: check.created });
+    }
+
     if (!(await isAdmin(supabase, userId))) return jsonResponse({ error: "Only an admin can do this" }, 403);
 
     switch (body.action) {

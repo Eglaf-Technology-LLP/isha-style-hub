@@ -1482,7 +1482,13 @@ export default function VendorDashboard() {
                                             shipNow={shipNowAndTrack}
                                             triggerLabel={o.via_warehouse ? "Ship to warehouse" : "Ship Now"}
                                           />
-                                          <EwayBillStatusLine value={ewayBillValue.get(o.id)} bill={openForwardBill(o.id)} />
+                                          <EwayBillStatusLine
+                                            value={ewayBillValue.get(o.id)}
+                                            bill={openForwardBill(o.id)}
+                                            vendorOrderId={o.id}
+                                            orderStatus={o.status}
+                                            onRequested={refetchEwayBills}
+                                          />
                                           {o.via_warehouse && o.ready_by && (
                                             <div className="text-[11px] text-muted-foreground whitespace-nowrap">
                                               Hand to courier by {formatShortDate(o.ready_by)}
