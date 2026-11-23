@@ -1,3 +1,4 @@
+import { SITE_URL, SUPABASE_URL } from "./urls.ts";
 import nodemailer from "npm:nodemailer@^9";
 import { COMPANY } from "./company.ts";
 
@@ -56,7 +57,7 @@ export async function sendEmail(
 // scaled down - see supabase/email-assets/), hosted in the public
 // email-assets bucket so it doesn't depend on a site deploy.
 const LOGO_URL =
-  "https://whycxtnjhdbewgyugfax.supabase.co/storage/v1/object/public/email-assets/allboutiqs-logo-white.png";
+  `${SUPABASE_URL}/storage/v1/object/public/email-assets/allboutiqs-logo-white.png`;
 
 // Shared visual wrapper so every email in the app looks like it came from
 // the same place - the AllBoutiqs logo on the site's own maroon accent
@@ -78,7 +79,7 @@ export function emailTemplate({
   ctaLabel?: string;
   ctaUrl?: string;
 }): string {
-  const siteUrl = "https://allboutiqs.com";
+  const siteUrl = SITE_URL;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

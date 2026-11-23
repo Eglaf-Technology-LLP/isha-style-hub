@@ -1,3 +1,4 @@
+import { SITE_URL } from "./urls.ts";
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { ensureInvoice, InvoiceError } from "./invoice.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
@@ -49,7 +50,7 @@ const INWARD_LEGS: EwayBillLeg[] = ["customer_to_warehouse", "customer_to_boutiq
 // What the boutique is told to expect.
 export const TURNAROUND = "1-2 hours";
 
-const ADMIN_EWAY_URL = "https://allboutiqs.com/admin?tab=eway-bills";
+const ADMIN_EWAY_URL = `${SITE_URL}/admin?tab=eway-bills`;
 
 export interface Party {
   name: string;
@@ -830,7 +831,7 @@ export async function announceReady(supabase: SupabaseClient, bill: EwayBill) {
             <li>Press <strong>Ship Now</strong> - the e-way bill number goes to the courier with the booking.</li>
           </ol>`,
           ctaLabel: "Open the order",
-          ctaUrl: `https://allboutiqs.com${link}`,
+          ctaUrl: `${SITE_URL}${link}`,
         }),
       );
     }

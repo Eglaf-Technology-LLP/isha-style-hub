@@ -1,3 +1,4 @@
+import { SITE_URL } from "../_shared/urls.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -240,7 +241,7 @@ const handler = async (req: Request): Promise<Response> => {
     const eta = shipment?.estimated_delivery_date
       ? formatDateWithDay(shipment.estimated_delivery_date)
       : null;
-    const orderUrl = `https://allboutiqs.com/orders?focus=${order.id}`;
+    const orderUrl = `${SITE_URL}/orders?focus=${order.id}`;
 
     let subject: string;
     let heading: string;
