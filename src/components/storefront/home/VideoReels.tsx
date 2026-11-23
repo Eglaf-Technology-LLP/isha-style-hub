@@ -1,14 +1,23 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useStoreProducts } from "@/hooks/useStorefront";
+import { shuffleArray } from "@/lib/shuffleArray";
 import { SectionHeading } from "../SectionHeading";
 import { Rail } from "../Rail";
 import { formatINR } from "@/lib/format";
 
-// "Watch & shop": product videos as vertical reels. Hidden until products
-// have approved videos.
+// At most this many reels, picked at random on each visit (client, 24 Nov 2026).
+const MAX_REELS = 10;
+
+// "Watch & shop": product videos as vertical reels - up to 10, a random pick
+// of the approved ones. Hidden until products have approved videos.
 export function VideoReels() {
   const { data: products = [] } = useStoreProducts();
-  const withVideo = products.filter((p) => p.video_url && p.video_status === "approved");
+  const allWithVideo = products.filter((p) => p.video_url && p.video_status === "approved");
+  // Picked once per list, so the reels don't reshuffle while the page is open.
+  const videoKey = allWithVideo.map((p) => p.id).join(",");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const withVideo = useMemo(() => shuffleArray(allWithVideo).slice(0, MAX_REELS), [videoKey]);
   if (withVideo.length === 0) return null;
 
   return (
