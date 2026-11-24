@@ -335,6 +335,9 @@ async function ratesFor(supabase: Db, plan: ParcelPlan) {
     deliveryPincode: plan.consignee.address.pincode ?? "",
     cod: plan.cod,
     weightKg: plan.weightKg,
+    // The parcel's value as the booking sends it: Shiprocket's coverage
+    // charge is a share of it, so the courier picker shows the real fare.
+    declaredValue: plan.subTotal,
   });
 }
 
@@ -371,6 +374,7 @@ async function bookFromWarehouse(
     cod: plan.cod,
     weightKg: plan.weightKg,
     courierId: booking.courierId,
+    declaredValue: plan.subTotal,
   });
   const { data: shipment, error } = await supabase
     .from("shipments")

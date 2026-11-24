@@ -387,8 +387,15 @@ export interface CourierOption {
   // Full breakdown, all straight from Shiprocket's own response - a vendor
   // pulling up Shiprocket's own rate calculator for the same route should
   // see these exact same component numbers, not just a single total that
-  // can't be cross-checked. freightCharge + codCharges + serviceFee = rate.
+  // can't be cross-checked.
+  // freightCharge + coverageCharge + codCharges + serviceFee = rate.
   freightCharge: number;
+  // Shiprocket's charge on the parcel's value (their `coverage_charges`,
+  // shipment cover), taken from the wallet with the freight when the AWB is
+  // assigned. Only quoted when the value is sent (declared_value) - without
+  // it the quote showed ₹49.72 + ₹5 while ₹421.42 was taken for a ₹23,600
+  // parcel (₹371.70 of it coverage), 24 Nov 2026.
+  coverageCharge: number;
   codCharges: number;
   // Shiprocket's own dashboard shows this as a separate "Smart Order" line
   // (their real per-shipment SMS/tracking-update service) on top of
@@ -434,8 +441,10 @@ function courierDays(c: any): number | null {
 // as a separate flag rather than dictating the display order).
 export async function checkCourierServiceability(
   supabase: SupabaseClient,
-  // declaredValue: the parcel's value - a courier's COD charge is usually a
-  // share of the amount collected, so it's needed for a true COD rate.
+  // declaredValue: the parcel's value, the same amount the booking sends as
+  // sub_total - Shiprocket's coverage charge and a courier's COD charge are
+  // shares of it, so without it the rate is understated. Send it wherever a
+  // rate is shown or recorded.
   params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; declaredValue?: number },
 ): Promise<CourierOption[]> {
   const result = await shiprocketRequest(
@@ -451,15 +460,17 @@ export async function checkCourierServiceability(
     .filter((c: any) => !c.blocked)
     .map((c: any, index: number) => {
       const freightCharge = Number(c.freight_charge ?? 0);
+      const coverageCharge = Number(c.coverage_charges ?? 0) || 0;
       const codCharges = Number(c.cod_charges ?? 0);
       const serviceFee = Number(c.whatsapp_charges ?? 0);
       return {
         courierId: c.courier_company_id,
         courierName: c.courier_name,
         freightCharge,
+        coverageCharge,
         codCharges,
         serviceFee,
-        rate: freightCharge + codCharges + serviceFee,
+        rate: Math.round((freightCharge + coverageCharge + codCharges + serviceFee) * 100) / 100,
         rating: typeof c.rating === "number" ? c.rating : null,
         recommended: index === 0,
         etd: c.etd ?? null,
@@ -479,11 +490,20 @@ export function routeTransitDays(couriers: CourierOption[]): number | null {
   return known.length ? Math.min(...known) : null;
 }
 
-// The fare of the courier actually booked, for the shipment's cost record.
+// The fare of the courier actually booked, for the shipment's cost record -
+// with declaredValue (the booking's sub_total) it includes Shiprocket's
+// coverage charge, so it matches what the wallet is charged.
 // Best-effort: a failed lookup never blocks a booking.
 export async function bookedCourierCost(
   supabase: SupabaseClient,
-  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; courierId: number | null },
+  params: {
+    pickupPincode: string;
+    deliveryPincode: string;
+    cod: boolean;
+    weightKg: number;
+    courierId: number | null;
+    declaredValue?: number;
+  },
 ): Promise<number | null> {
   if (!params.courierId || !params.pickupPincode || !params.deliveryPincode) return null;
   try {
