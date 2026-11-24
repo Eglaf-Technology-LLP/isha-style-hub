@@ -21,7 +21,8 @@ import {
   LegalDocKey,
   Segment,
 } from '@/content/legal';
-import { refundChargeLabel, shortDate, useRefundCharge } from '@/lib/orders';
+import { formatDateInWords } from '@/lib/dates';
+import { refundChargeLabel, useRefundCharge } from '@/lib/orders';
 import { returnWindowSpan, useReturnWindowHours } from '@/lib/settings';
 import { LEGAL_DOC_BY_PATH, useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -206,7 +207,7 @@ export function LegalView({
         <Serif style={styles.title}>{page.title}</Serif>
         {page.updated ? (
           <Text style={styles.updated}>
-            Last updated {shortDate(page.updated)}
+            Last updated {formatDateInWords(page.updated)}
           </Text>
         ) : (
           <View style={styles.noDate} />
