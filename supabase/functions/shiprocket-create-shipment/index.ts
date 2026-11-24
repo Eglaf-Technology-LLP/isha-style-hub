@@ -17,7 +17,14 @@ import {
 } from "../_shared/shiprocket.ts";
 import { getWarehouse, PARCEL_DEFAULTS, toShiprocketItems, warehouseConsignee } from "../_shared/warehouse.ts";
 import { ensureInvoice, InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, EwayBillLeg, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed } from "../_shared/ewayBill.ts";
+import {
+  EwayBill,
+  EwayBillLeg,
+  ewayBillForBooking,
+  ewayBillForShiprocket,
+  ewayBillPreview,
+  markEwayBillsUsed,
+} from "../_shared/ewayBill.ts";
 
 // The "Ship Now" action: the boutique has packed the order, this call
 // creates the real Shiprocket order, assigns a courier, and books the
@@ -32,8 +39,9 @@ import { EwayBill, EwayBillLeg, ewayBillForBooking, ewayBillPreview, markEwayBil
 //
 // The goods leave on the boutique's tax invoice, issued here. A part worth
 // more than the e-way bill limit isn't booked until its e-way bill number is
-// in (eway_bill_pending): AllBoutiqs asked for it when the order was placed
-// (a press before then asks for it). AllBoutiqs is the transporter on it, so
+// in (eway_bill_pending): the first press asks AllBoutiqs for it, with the
+// tax invoice - not when the order was placed (client corrections Part 2,
+// A16.1). AllBoutiqs is the transporter on it, so
 // any courier can be booked; the number goes to Shiprocket with the booking.
 // An exchange replacement over the limit travels on its own delivery challan
 // and e-way bill.
@@ -243,6 +251,8 @@ Deno.serve(async (req) => {
       returnRequestId: isReplacement ? (return_request_id as string) : null,
       items: movedItems,
       requestedBy: userId,
+      // The courier picked in Ship Now: its transporter ID goes on the e-way bill.
+      courier: { id: courier_id ?? null, name: courier_name ?? null },
     };
     let ewayBill: EwayBill | null = null;
     const check = await ewayBillForBooking(supabase, movement);
@@ -254,6 +264,8 @@ Deno.serve(async (req) => {
       });
     }
     if (check.required) ewayBill = check.bill;
+    // Before anything is booked: its PDF link and document for Shiprocket.
+    const shiprocketEwayBill = ewayBill ? await ewayBillForShiprocket(supabase, [ewayBill]) : null;
 
     // Shiprocket treats this as an idempotency key on their side, not just
     // our own reference - confirmed live: reusing the bare vendor_order_id
@@ -282,7 +294,7 @@ Deno.serve(async (req) => {
       breadthCm: PARCEL_DEFAULTS.breadthCm,
       heightCm: PARCEL_DEFAULTS.heightCm,
       courierId: courier_id ?? null,
-      ewaybillNumbers: ewayBill?.ewb_number ? [ewayBill.ewb_number] : [],
+      ewayBill: shiprocketEwayBill,
     });
 
     const courierCost = await bookedCourierCost(supabase, {

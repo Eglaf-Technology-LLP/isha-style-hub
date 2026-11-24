@@ -59,6 +59,21 @@ verify_jwt = true
 [functions.razorpay-route-onboard]
 verify_jwt = true
 
+# Signs R2 upload links for shop photos/videos; checks admin or boutique
+# membership itself after the platform's JWT gate.
+[functions.media-upload-url]
+verify_jwt = true
+
+# Deletes a photo removed from a form before it was saved; checks admin or
+# boutique membership itself after the platform's JWT gate.
+[functions.media-delete]
+verify_jwt = true
+
+# Nightly clear-out of unused photos/videos on R2: cron (service role JWT)
+# or an admin.
+[functions.media-cleanup]
+verify_jwt = true
+
 [functions.razorpay-route-release]
 verify_jwt = true
 
@@ -84,4 +99,9 @@ verify_jwt = true
 # Complaint form (footer / Contact us): anyone can send one, signed in or
 # not, so there's no user JWT to check. Abuse limits are in the function.
 [functions.submit-complaint]
+verify_jwt = false
+
+# The email link carries a hashed-on-use, single-use token that is checked
+# against vendor_order_acceptance_tokens before any status change.
+[functions.accept-vendor-order]
 verify_jwt = false

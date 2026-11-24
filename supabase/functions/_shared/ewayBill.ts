@@ -11,9 +11,12 @@ import { getWarehouse } from "./warehouse.ts";
 // the eway_bills migrations. AllBoutiqs is enrolled as a transporter on the
 // portal and makes every boutique's e-way bills itself:
 //
-//   order placed      raiseOrderEwayBills: one request per boutique part
-//                     over the limit (tax invoice issued now), one email to
-//                     the admins, a "being made" note to each boutique
+//   boutique packs    "Get e-way bill ready" on the Seller Dashboard
+//                     (eway-bill-actions "request") asks for the boutique leg
+//                     with its tax invoice; the admins and super admins get
+//                     the email. Not when the order is placed: a Made to
+//                     Order piece can ship weeks later (client corrections
+//                     Part 2, A16.1). Ship Now asks too if nobody has.
 //   any booking       requestEwayBill: the courier can't be booked until the
 //                     number is in (asks for one if nothing asked yet)
 //   admin             downloads the requests as the portal's bulk JSON,
@@ -84,8 +87,12 @@ export interface EwayBill {
   from_address: Record<string, string>;
   to_name: string;
   to_address: Record<string, string>;
+  // The courier chosen for it (Shiprocket's) and that courier partner's GST
+  // transporter ID (Admin > E-way bills > Settings).
   courier_id: number | null;
   courier_name: string | null;
+  transporter_id: string | null;
+  transporter_name: string | null;
   status: "pending" | "active" | "cancelled";
   ewb_number: string | null;
   ewb_date: string | null;
@@ -144,6 +151,9 @@ export interface Movement {
   // How it is filed when the leg's default doesn't fit.
   subSupply?: { type: number; desc: string | null } | null;
   requestedBy: string | null;
+  // The courier picked for it (booking dialogs): its partner's transporter
+  // ID is saved on the e-way bill.
+  courier?: { id: number | null; name: string | null } | null;
 }
 
 type MovementKey = Pick<Movement, "vendorOrderId" | "leg" | "returnRequestId" | "sendBackId" | "items">;
@@ -266,12 +276,18 @@ export async function requestEwayBill(
   const estimate = await estimateValue(supabase, m);
   if (estimate == null || estimate <= settings.threshold) return { required: false };
 
-  const open = await findOpenEwayBill(supabase, m);
-  if (open) {
+  // The courier picked for it, if any: its partner's transporter ID (refused
+  // before anything is saved when there's none).
+  const courier = await courierFor(supabase, m.courier);
+
+  const found = await findOpenEwayBill(supabase, m);
+  if (found) {
+    let open = found;
     if (m.dispatchId && !open.dispatch_id) {
       await supabase.from("eway_bills").update({ dispatch_id: m.dispatchId }).eq("id", open.id);
       open.dispatch_id = m.dispatchId;
     }
+    if (courier) open = await chooseCourier(supabase, open, courier);
     return { required: true, ready: open.status === "active", bill: open, created: false };
   }
 
@@ -356,6 +372,15 @@ export async function requestEwayBill(
       sgst_amount: goods.sgst_amount,
       igst_amount: goods.igst_amount,
       requested_by: m.requestedBy,
+      ...(courier
+        ? {
+            courier_id: courier.courierId,
+            courier_name: courier.courierName,
+            transporter_id: courier.transporterId,
+            transporter_name: courier.partner,
+            courier_chosen_at: new Date().toISOString(),
+          }
+        : {}),
     })
     .select("*")
     .single();
@@ -376,6 +401,43 @@ export async function requestEwayBill(
 
 // The booking functions' name for it.
 export const ewayBillForBooking = requestEwayBill;
+
+// The e-way bill a booking sends to Shiprocket: the first of these with a
+// number, its PDF as a signed link (the bucket is private; 30 days covers the
+// pickup and the journey) and the document it was made on. Shiprocket won't
+// take the number without the PDF, so a bill without one stops the booking
+// with a message, and the admins are told to attach it.
+const SHIPROCKET_PDF_LINK_SECONDS = 30 * 86_400;
+
+export async function ewayBillForShiprocket(
+  supabase: SupabaseClient,
+  bills: EwayBill[],
+): Promise<{ number: string; url: string; invoice: string } | null> {
+  const bill = bills.find((b) => b.ewb_number);
+  if (!bill?.ewb_number) return null;
+  if (!bill.pdf_path) {
+    try {
+      await notifyAllAdmins(supabase, {
+        type: "eway_bill_problem",
+        title: "E-way bill PDF needed to ship",
+        body: `Order ${orderRef(bill.order_id)} can't be booked: e-way bill ${bill.ewb_number} has no PDF attached, and the courier needs it. Attach it in E-way bills.`,
+        link: links.adminEwayBill(bill.id),
+        category: "order",
+      });
+    } catch (e) {
+      console.error("eway bill: telling admins about the missing PDF failed", errorMessage(e));
+    }
+    throw new InvoiceError(
+      `E-way bill ${bill.ewb_number} has no PDF attached yet, and the courier needs it with the number. AllBoutiqs has been told - book again once it's attached.`,
+      409,
+    );
+  }
+  const { data, error } = await supabase.storage.from("eway-bills").createSignedUrl(bill.pdf_path, SHIPROCKET_PDF_LINK_SECONDS);
+  if (error || !data?.signedUrl) {
+    throw new InvoiceError(`Couldn't link the e-way bill PDF for the courier: ${error?.message ?? "no link"}`, 500);
+  }
+  return { number: bill.ewb_number, url: data.signedUrl, invoice: bill.document_number };
+}
 
 // The booking that used it - a later booking of this movement needs a new one.
 export async function markEwayBillsUsed(supabase: SupabaseClient, billIds: string[], shipmentId: string) {
@@ -403,7 +465,106 @@ export function ewayBillSummary(bill: EwayBill) {
     valid_until: bill.valid_until,
     pdf_path: bill.pdf_path,
     requested_at: bill.created_at,
+    courier_id: bill.courier_id,
+    courier_name: bill.courier_name,
+    transporter_id: bill.transporter_id,
+    transporter_name: bill.transporter_name,
   };
+}
+
+// ---------- courier partners' transporter IDs ----------
+
+export interface CourierTransporter {
+  courierId: number | null;
+  courierName: string;
+  partner: string;
+  transporterId: string;
+}
+
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+// A Shiprocket courier's partner and transporter ID: the first partner (by
+// sort order) one of whose match_names begins a word of the courier's name,
+// spaces and punctuation ignored ("Blue Dart Air" -> Bluedart). Null when no
+// partner matches.
+export async function courierTransporter(
+  supabase: SupabaseClient,
+  courierName: string,
+): Promise<{ partner: string; transporterId: string } | null> {
+  const { data, error } = await supabase
+    .from("courier_partner_transporters")
+    .select("partner, match_names, transporter_id")
+    .order("sort_order")
+    .order("partner");
+  if (error) throw error;
+  // Matched from the start of a word: "Blue Dart Air" -> "bluedart", but
+  // "Navigati" isn't Gati.
+  const words = courierName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const starts = words.map((_, i) => words.slice(i).join(""));
+  for (const row of data ?? []) {
+    const names = String(row.match_names ?? "")
+      .split(",")
+      .map(squash)
+      .filter(Boolean);
+    if (names.some((w) => starts.some((s) => s.startsWith(w)))) {
+      return { partner: row.partner, transporterId: row.transporter_id };
+    }
+  }
+  return null;
+}
+
+// The picked courier with its transporter ID, or null when none was picked.
+// A courier without one can't carry a parcel on an e-way bill: refused with
+// what to do.
+async function courierFor(
+  supabase: SupabaseClient,
+  courier: Movement["courier"],
+): Promise<CourierTransporter | null> {
+  const courierName = courier?.name?.trim();
+  if (!courierName) return null;
+  const found = await courierTransporter(supabase, courierName);
+  if (!found) {
+    throw new InvoiceError(
+      `No GST transporter ID is saved for ${courierName}, and this parcel needs an e-way bill naming its courier. Pick another courier, or ask AllBoutiqs to add ${courierName} in E-way bills > Settings.`,
+      409,
+    );
+  }
+  return { courierId: courier?.id ?? null, courierName, partner: found.partner, transporterId: found.transporterId };
+}
+
+// Saves the courier on the e-way bill. One already made names AllBoutiqs on
+// the portal (it makes them as their transporter), so the admins are told to
+// update its transporter to this courier there.
+async function chooseCourier(supabase: SupabaseClient, bill: EwayBill, c: CourierTransporter): Promise<EwayBill> {
+  if (bill.courier_name === c.courierName && bill.transporter_id === c.transporterId) return bill;
+  const { data, error } = await supabase
+    .from("eway_bills")
+    .update({
+      courier_id: c.courierId,
+      courier_name: c.courierName,
+      transporter_id: c.transporterId,
+      transporter_name: c.partner,
+      courier_chosen_at: new Date().toISOString(),
+    })
+    .eq("id", bill.id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  const saved = data as EwayBill;
+  if (saved.status === "active" && bill.transporter_id !== c.transporterId) {
+    try {
+      await notifyAllAdmins(supabase, {
+        type: "eway_bill_transporter",
+        title: "Update the e-way bill's transporter",
+        body: `Order ${orderRef(saved.order_id)} is going with ${c.courierName}: on the portal, update the transporter of e-way bill ${saved.ewb_number} to ${c.partner} (${c.transporterId}).`,
+        link: links.adminEwayBill(saved.id),
+        category: "order",
+      });
+    } catch (e) {
+      console.error("eway bill: telling admins about the courier failed", errorMessage(e));
+    }
+  }
+  return saved;
 }
 
 // ---------- the usual parties for an order part ----------
@@ -440,35 +601,6 @@ export async function movementFor(
   };
   const [from, to] = parties[leg];
   return { vendorOrderId, leg, from, to, requestedBy: null, ...extra };
-}
-
-// ---------- order placed ----------
-
-// Every boutique part of a placed order that's over the limit gets its
-// request now - one email for the order, so a three-boutique order is one
-// message. Problems (no GSTIN, no HSN) are in the same email.
-export async function raiseOrderEwayBills(supabase: SupabaseClient, orderId: string): Promise<EwayBill[]> {
-  const [{ data: order }, { data: parts }] = await Promise.all([
-    supabase.from("orders").select("id, fulfilment_route, warehouse_id").eq("id", orderId).maybeSingle(),
-    supabase.from("vendor_orders").select("id, vendors(name)").eq("order_id", orderId).neq("status", "cancelled"),
-  ]);
-  if (!order || !parts?.length) return [];
-  const leg: EwayBillLeg =
-    order.fulfilment_route === "warehouse" && order.warehouse_id ? "boutique_to_warehouse" : "boutique_to_customer";
-  const created: EwayBill[] = [];
-  const problems: string[] = [];
-  for (const part of parts) {
-    try {
-      const check = await requestEwayBill(supabase, await movementFor(supabase, part.id, leg), { announce: false });
-      if (check.required && check.created) created.push(check.bill);
-    } catch (e) {
-      const boutique = (part as any).vendors?.name ?? "A boutique";
-      problems.push(`${boutique} - order ${orderRef(orderId)}: ${errorMessage(e)}`);
-      console.error("raiseOrderEwayBills failed", part.id, errorMessage(e));
-    }
-  }
-  await announceRequests(supabase, created, problems);
-  return created;
 }
 
 // A return / exchange pickup from the customer: the courier collects it, so
@@ -515,11 +647,12 @@ export async function raiseReturnEwayBills(supabase: SupabaseClient, returnReque
 
 // ---------- telling people ----------
 
+// Admins and super admins (both get the e-way bill emails).
 async function adminEmails(supabase: SupabaseClient): Promise<string[]> {
-  const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+  const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["admin", "super_admin"]);
   const emails = await Promise.all(
-    (roles ?? []).map(async (r) => {
-      const { data } = await supabase.auth.admin.getUserById(r.user_id);
+    [...new Set<string>((roles ?? []).map((r: { user_id: string }) => r.user_id))].map(async (userId) => {
+      const { data } = await supabase.auth.admin.getUserById(userId);
       return data?.user?.email ?? null;
     }),
   );
@@ -619,7 +752,7 @@ export async function announceRequests(supabase: SupabaseClient, bills: EwayBill
       await notifyVendorMembers(supabase, b.vendor_id, {
         type: "eway_bill_needed",
         title: "E-way bill being made",
-        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. Pack the order meanwhile; we'll tell you when you can ship.`,
+        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. We'll tell you when you can ship.`,
         link: links.vendorOrder(b.vendor_order_id),
       });
     }
@@ -715,9 +848,9 @@ const HOUR = 3_600_000;
 export async function watchEwayBills(supabase: SupabaseClient) {
   const result = { raised: 0, reminded: 0, toCancel: 0, expiring: 0, problems: 0 };
 
-  // 1. Requests that should exist but don't (order-time raise failed, part
-  //    passed inspection at the warehouse). Problems were already reported
-  //    when the order was placed, so they're only logged here.
+  // 1. Requests that should exist but don't (a part passed inspection at the
+  //    warehouse). A boutique leg is asked for by Ship Now itself. Problems
+  //    are only logged here.
   const { data: missing, error: missErr } = await supabase.rpc("eway_bill_missing_requests");
   if (missErr) console.error("eway watch: missing requests", missErr);
   const raised: EwayBill[] = [];

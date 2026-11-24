@@ -17,6 +17,7 @@ import {
   ForwardBookingItem,
   WarehouseRow,
   PICKUP_SKIPPED_NOTE,
+  ShiprocketEwayBill,
 } from "../_shared/shiprocket.ts";
 import { addWorkingDays, getWarehouse, istToday, loadHolidays, loadWarehouseSettings, PARCEL_DEFAULTS, toShiprocketItems } from "../_shared/warehouse.ts";
 import {
@@ -32,7 +33,14 @@ import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
 import { InvoiceError } from "../_shared/invoice.ts";
-import { EwayBill, ewayBillForBooking, ewayBillPreview, markEwayBillsUsed, Movement } from "../_shared/ewayBill.ts";
+import {
+  EwayBill,
+  ewayBillForBooking,
+  ewayBillForShiprocket,
+  ewayBillPreview,
+  markEwayBillsUsed,
+  Movement,
+} from "../_shared/ewayBill.ts";
 
 // The warehouse's own steps that need the courier or the payment gateway
 // (receiving, inspecting boutique parcels and packing are plain database RPCs
@@ -232,11 +240,17 @@ async function movementEwayBills(supabase: Db, movements: Movement[]) {
 
 // Ask for (or find) each movement's e-way bill: the ready ones, and whether
 // any is still being made.
-async function ewayBillsForParcel(supabase: Db, movements: Movement[], userId: string) {
+async function ewayBillsForParcel(
+  supabase: Db,
+  movements: Movement[],
+  userId: string,
+  // The courier picked: its transporter ID goes on each e-way bill.
+  courier: Movement["courier"] = null,
+) {
   const ready: EwayBill[] = [];
   let waiting = false;
   for (const m of movements) {
-    const check = await ewayBillForBooking(supabase, { ...m, requestedBy: userId });
+    const check = await ewayBillForBooking(supabase, { ...m, requestedBy: userId, courier });
     if (!check.required) continue;
     if (check.ready) ready.push(check.bill);
     else waiting = true;
@@ -330,7 +344,7 @@ async function bookFromWarehouse(
   channelPrefix: string,
   courierId: number | null,
   row: Record<string, unknown>,
-  ewaybillNumbers: string[] = [],
+  ewayBill: ShiprocketEwayBill | null = null,
 ) {
   const pickup = await ensureWarehousePickupLocation(supabase, plan.warehouse);
   const channelOrderId = `${channelPrefix}-${Date.now()}`;
@@ -349,7 +363,7 @@ async function bookFromWarehouse(
     breadthCm: plan.breadthCm,
     heightCm: plan.heightCm,
     courierId,
-    ewaybillNumbers,
+    ewayBill,
   });
   const courierCost = await bookedCourierCost(supabase, {
     pickupPincode: plan.warehouse.address.pincode ?? "",
@@ -613,7 +627,10 @@ Deno.serve(async (req) => {
         // Each boutique part over the limit travels on its own e-way bill (on
         // a delivery challan from here); the parcel waits until all are in.
         // AllBoutiqs is the transporter on them, so any courier can carry it.
-        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId, {
+          id: body.courier_id ?? null,
+          name: body.courier_name ?? null,
+        });
         if (waiting) {
           return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
         }
@@ -631,7 +648,7 @@ Deno.serve(async (req) => {
             vendor_order_id: leadVendorOrderId,
             estimated_delivery_date: etd,
           },
-          ewayBills.map((b) => b.ewb_number).filter((n): n is string => !!n),
+          await ewayBillForShiprocket(supabase, ewayBills),
         );
         await markEwayBillsUsed(supabase, ewayBills.map((b) => b.id), shipment.id);
         await supabase.from("warehouse_dispatches").update({ status: "booked" }).eq("id", dispatch.id);
@@ -664,7 +681,10 @@ Deno.serve(async (req) => {
         if (existing?.awb_code) return jsonResponse({ shipment: existing, already_booked: true });
         // Over the limit it waits for its e-way bill, like a parcel to a customer.
         const movements = movement ? [movement] : [];
-        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId);
+        const { ready: ewayBills, waiting } = await ewayBillsForParcel(supabase, movements, userId, {
+          id: body.courier_id ?? null,
+          name: body.courier_name ?? null,
+        });
         if (waiting) {
           return jsonResponse({ eway_bill_pending: true, eway_bills: await movementEwayBills(supabase, movements) });
         }
@@ -680,7 +700,7 @@ Deno.serve(async (req) => {
             send_back_id: sendBack.id,
             estimated_delivery_date: parseEtd(body.courier_etd),
           },
-          ewayBills.map((b) => b.ewb_number).filter((n): n is string => !!n),
+          await ewayBillForShiprocket(supabase, ewayBills),
         );
         await markEwayBillsUsed(supabase, ewayBills.map((b) => b.id), shipment.id);
         await supabase.from("boutique_send_backs").update({ status: "booked" }).eq("id", sendBack.id);

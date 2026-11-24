@@ -168,11 +168,19 @@ export async function ensureInvoice(
       igst: Number(a.igst),
       total: Number(a.line_total),
     };
+    // "Lehnga – XS – Black": name, size, colour once each (client corrections
+    // Part 2, A10.2). variant_title only when the line has no size or colour.
+    // A part the product name already has ("Kurta Set – Mustard") isn't
+    // repeated (client, 24 Nov 2026: "– Mustard – L – Mustard").
+    const sizeColour = [item.size, item.color].filter(Boolean) as string[];
+    const variantParts = (
+      sizeColour.length ? sizeColour : item.variant_title && item.variant_title !== "Default" ? [item.variant_title] : []
+    ).filter((part) => !hasWord(item.product_title, part));
     lines.push({
       line_no: idx + 1,
       order_item_id: item.id,
       description:
-        (item.variant_title ? `${item.product_title} (${item.variant_title})` : item.product_title) +
+        [item.product_title, ...variantParts].join(" – ") +
         (item.customisation ? ` - Customised: ${customisationSummary(item.customisation)}` : ""),
       hsn_code: hsn.code,
       size: item.size,
@@ -284,4 +292,10 @@ export async function findPlatformInvoice(supabase: SupabaseClient, vendorOrderI
   const { data, error } = await supabase.from("platform_invoices").select("*").eq("vendor_order_id", vendorOrderId).maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// "Lehnga – XS" has "XS" as a word of its own; "Lehnga" doesn't have "L".
+function hasWord(text: string, word: string): boolean {
+  const escaped = word.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return !!escaped && new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}($|[^\\p{L}\\p{N}])`, "iu").test(text);
 }

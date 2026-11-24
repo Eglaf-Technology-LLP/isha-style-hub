@@ -139,11 +139,13 @@ export async function cancelOneVendorOrder(
   // already-shipped item is only restored on a genuine RTO, handled
   // separately via the courier webhook, not here. Best-effort: a stock-sync
   // problem must not block the cancellation/refund the customer is owed.
+  // A line made to order never took stock, so none comes back for it.
   if (!wasAlreadyShipped) {
     const { data: cancelledItems, error: itemsErr } = await supabase
       .from("order_items")
       .select("product_id, variant_id, quantity")
-      .eq("vendor_order_id", vendorOrder.id);
+      .eq("vendor_order_id", vendorOrder.id)
+      .eq("made_to_order", false);
     if (itemsErr) {
       console.error("cancelOneVendorOrder: failed to fetch order_items for stock restore", errorMessage(itemsErr));
     } else {

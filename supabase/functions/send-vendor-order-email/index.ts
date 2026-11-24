@@ -3,8 +3,6 @@ import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
 import { money } from "../_shared/money.ts";
-import { serviceClient } from "../_shared/auth.ts";
-import { raiseOrderEwayBills } from "../_shared/ewayBill.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +75,27 @@ const handler = async (req: Request): Promise<Response> => {
       ? await supabase.from("vendors").select("id, name, contact_email").in("id", vendorIds)
       : { data: [] as { id: string; name: string; contact_email: string | null }[] };
 
+    const { data: vendorOrders } = await supabase
+      .from("vendor_orders")
+      .select("id, vendor_id, status")
+      .eq("order_id", orderId);
+
+    const makeAcceptanceUrl = async (vendorOrderId: string) => {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+      const tokenHash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { error } = await supabase.from("vendor_order_acceptance_tokens").upsert({
+        vendor_order_id: vendorOrderId,
+        token_hash: tokenHash,
+        expires_at: expiresAt,
+        used_at: null,
+      }, { onConflict: "vendor_order_id" });
+      if (error) throw error;
+      return `https://whycxtnjhdbewgyugfax.supabase.co/functions/v1/accept-vendor-order?token=${token}`;
+    };
+
     const itemsHtml = (list: { product_title: string; quantity: number; price: number; customisation?: unknown }[]) =>
       `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${list
         .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ${money((i.price * i.quantity))}${customisationHtml(i.customisation)}</li>`)
@@ -84,23 +103,30 @@ const handler = async (req: Request): Promise<Response> => {
 
     const vendorSends = (vendors ?? [])
       .filter((v) => v.contact_email)
-      .map((v) =>
-        sendEmail(
-          v.contact_email!,
-          `New order received - #${orderId.slice(0, 8)} | AllBoutiqs`,
-          emailTemplate({
-            heading: "You've got a new order!",
-            preheader: `A new order from ${order.customer_name} is waiting to be confirmed.`,
-            bodyHtml: `
-              <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
-              ${itemsHtml(byVendor.get(v.id) ?? [])}
-              <p style="color:#5a5a5a; margin-top:20px;">Log in to your vendor dashboard to confirm and ship it.</p>
-            `,
-            ctaLabel: "Confirm Order",
-            ctaUrl: "https://allboutiqs.com/vendor",
-          })
-        ).catch((e) => console.error("send-vendor-order-email: vendor email failed", v.contact_email, e))
-      );
+      .map(async (v) => {
+        try {
+          const vendorOrder = (vendorOrders ?? []).find((vo) => vo.vendor_id === v.id);
+          const canAccept = vendorOrder?.status === "pending";
+          const ctaUrl = canAccept ? await makeAcceptanceUrl(vendorOrder.id) : "https://allboutiqs.com/vendor?tab=orders";
+          await sendEmail(
+            v.contact_email!,
+            `New order received - #${orderId.slice(0, 8)} | AllBoutiqs`,
+            emailTemplate({
+              heading: "You've got a new order!",
+              preheader: `A new order from ${order.customer_name} is waiting to be confirmed.`,
+              bodyHtml: `
+                <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
+                ${itemsHtml(byVendor.get(v.id) ?? [])}
+                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Accept this order with one tap. The link expires in 7 days and can only be used once.</p>' : ""}
+              `,
+              ctaLabel: canAccept ? "Accept order" : "View orders",
+              ctaUrl,
+            })
+          );
+        } catch (e) {
+          console.error("send-vendor-order-email: vendor email failed", v.contact_email, e);
+        }
+      });
 
     // No email column anywhere in `public` schema - admin addresses come
     // from the Auth Admin API per user_roles row, same resolution already
@@ -132,15 +158,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     await Promise.all([...vendorSends, ...adminSends]);
 
-    // Boutique parts over the e-way bill limit: AllBoutiqs is asked to make
-    // their e-way bills now (one email to the admins for the whole order), so
-    // they're ready by the time the boutiques pack. Runs once per order (the
-    // claim above); the e-way bill watcher catches any that fail here.
-    try {
-      await raiseOrderEwayBills(serviceClient(), orderId);
-    } catch (e) {
-      console.error("send-vendor-order-email: e-way bill requests failed", e);
-    }
+    // No e-way bill request here: it is asked for when the boutique packs the
+    // order (Ship Now), with its tax invoice - a Made to Order piece can ship
+    // weeks after the order (client corrections Part 2, A16.1).
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

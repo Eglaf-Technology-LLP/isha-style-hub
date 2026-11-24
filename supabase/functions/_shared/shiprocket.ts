@@ -507,6 +507,17 @@ export interface ForwardBookingItem {
   selling_price: number;
 }
 
+// An e-way bill as Shiprocket takes it with a booking: with ewaybill_no it
+// refuses the order (422) unless ewaybill_url and ewaybill_invoice come too
+// ("The ewaybill url field is required when ewaybill no is present." - live,
+// 18 Nov 2026). url: a link to the portal's PDF; invoice: the number of the
+// document the e-way bill was made on (tax invoice or delivery challan).
+export interface ShiprocketEwayBill {
+  number: string;
+  url: string;
+  invoice: string;
+}
+
 export interface ForwardBookingResult {
   orderId: number | null;
   shipmentId: number | null;
@@ -541,10 +552,10 @@ export async function bookForwardShipment(
     heightCm: number;
     courierId?: number | null;
     // Parcels over the e-way bill limit: Shiprocket prints it on the label
-    // and passes it to the courier with the pickup. Its field takes one
-    // number; a warehouse parcel holding several boutiques' parts sends the
-    // first (all printed copies go in the parcel - see the packing slip).
-    ewaybillNumbers?: string[];
+    // and passes it to the courier with the pickup. It takes one; a
+    // warehouse parcel holding several boutiques' parts sends the first (all
+    // printed copies go in the parcel - see the packing slip).
+    ewayBill?: ShiprocketEwayBill | null;
   },
 ): Promise<ForwardBookingResult> {
   const a = params.consignee.address;
@@ -589,13 +600,30 @@ export async function bookForwardShipment(
       breadth: params.breadthCm,
       height: params.heightCm,
       ...(params.courierId ? { courier_id: params.courierId } : {}),
-      ...(params.ewaybillNumbers?.length ? { ewaybill_no: params.ewaybillNumbers[0] } : {}),
+      ...(params.ewayBill
+        ? {
+            ewaybill_no: params.ewayBill.number,
+            ewaybill_url: params.ewayBill.url,
+            ewaybill_invoice: params.ewayBill.invoice,
+          }
+        : {}),
     },
   });
 
   // HTTP 200 even for a logical failure - status:1 is the real success signal.
   if (result.status !== 1) {
-    throw new Error(result.payload?.error_message || "Shiprocket rejected the shipment request");
+    // The whole answer, to see why (its error_message alone can be as vague
+    // as "Save Eway Bill Detail Error").
+    console.error("Shiprocket forward-shipment refused", params.channelOrderId, JSON.stringify(result));
+    // The wrapper may have made the order before failing (e.g. at the e-way
+    // bill step) - cancel it so a retry doesn't leave a stray NEW order.
+    await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(result.payload?.order_id ?? result.order_id));
+    const reason = result.payload?.error_message || result.message || "Shiprocket rejected the shipment request";
+    throw new Error(
+      params.ewayBill && /eway/i.test(String(reason))
+        ? `${reason}: Shiprocket couldn't take e-way bill ${params.ewayBill.number}. Usually the number isn't on the government e-way bill portal yet, or the e-way bill's transporter isn't the courier - AllBoutiqs needs to check the e-way bill.`
+        : reason,
+    );
   }
   const p = result.payload;
   const shipmentId = toIntOrNull(p.shipment_id);

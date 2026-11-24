@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { createHeldTransfers } from "../_shared/razorpayRoute.ts";
 import { refundLateCapture } from "../_shared/lateCapture.ts";
+import { paidViaOf, withPaidVia } from "../_shared/paidVia.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,13 +127,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: order, error: orderErr } = await supabase
-      .from("orders")
-      .update({ payment_status: "paid", razorpay_payment_id })
-      .eq("id", orderId)
-      .eq("razorpay_order_id", razorpay_order_id)
-      .select("id")
-      .maybeSingle();
+    // With how the customer paid (UPI, card, ...), in the same write that
+    // marks it paid - the order-placed email goes out from that change.
+    const { data: order, error: orderErr } = await withPaidVia(
+      { payment_status: "paid", razorpay_payment_id },
+      details?.id === razorpay_payment_id ? paidViaOf(details) : null,
+      (fields) =>
+        supabase
+          .from("orders")
+          .update(fields)
+          .eq("id", orderId)
+          .eq("razorpay_order_id", razorpay_order_id)
+          .select("id")
+          .maybeSingle(),
+    );
 
     if (orderErr) throw orderErr;
     if (!order) {
