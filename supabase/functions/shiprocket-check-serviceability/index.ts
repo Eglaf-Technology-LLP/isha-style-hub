@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
     const { data: vendorOrder, error: voErr } = await supabase
       .from("vendor_orders")
-      .select("id, order_id, vendor_id")
+      .select("id, order_id, vendor_id, subtotal")
       .eq("id", vendor_order_id)
       .maybeSingle();
     if (voErr) throw voErr;
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
           .select("shipping_address, payment_method, fulfilment_route, warehouse_id")
           .eq("id", vendorOrder.order_id)
           .single(),
-        supabase.from("order_items").select("id, product_id, quantity").eq("vendor_order_id", vendor_order_id),
+        supabase.from("order_items").select("id, product_id, quantity, price").eq("vendor_order_id", vendor_order_id),
         supabase.from("vendors").select("address").eq("id", vendorOrder.vendor_id).single(),
       ]);
     if (orderErr) throw orderErr;
@@ -85,11 +85,20 @@ Deno.serve(async (req) => {
 
     const isCod = !warehouse && order.payment_method === "cod";
     const weightKg = await computeTotalWeightKg(supabase, parcelItems);
+    // The parcel's value, as the booking sends it (shiprocket-create-shipment's
+    // subTotal): Shiprocket's coverage charge is a share of it.
+    const declaredValue = return_request_id
+      ? items.reduce(
+          (sum, i) => sum + (movedItems?.find((m) => m.order_item_id === i.id)?.quantity ?? 0) * Number(i.price ?? 0),
+          0,
+        )
+      : Number(vendorOrder.subtotal ?? 0);
     const couriers = await checkCourierServiceability(supabase, {
       pickupPincode,
       deliveryPincode,
       cod: isCod,
       weightKg,
+      declaredValue,
     });
 
     if (couriers.length === 0) {

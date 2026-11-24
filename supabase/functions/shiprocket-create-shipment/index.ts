@@ -303,6 +303,8 @@ Deno.serve(async (req) => {
       cod: isCod,
       weightKg,
       courierId: booking.courierId,
+      // The booking's sub_total: the cost then includes Shiprocket's coverage.
+      declaredValue: subTotal,
     });
 
     const { data: shipment, error: insertErr } = await supabase

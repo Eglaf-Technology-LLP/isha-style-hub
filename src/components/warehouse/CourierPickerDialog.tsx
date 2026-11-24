@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Star, Truck } from "lucide-react";
 import { CourierOption } from "@/hooks/useShipments";
+import { CourierFareBreakdown } from "@/components/CourierFareBreakdown";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
 import { EwayBillPreview, awaitingPdf, chosenCourier, firstMadeBill, picksCourier } from "@/lib/ewayBill";
@@ -141,6 +142,7 @@ export function CourierPickerDialog({ triggerLabel, title, description, disabled
                         )}
                       </div>
                       {c.etd && <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>}
+                      <CourierFareBreakdown courier={c} className="mt-1" />
                     </div>
                   </div>
                   <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>
