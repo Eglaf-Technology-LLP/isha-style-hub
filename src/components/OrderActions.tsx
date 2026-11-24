@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { formatDateTimeInWords } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
 import { tap } from '@/lib/haptics';
 import {
@@ -21,13 +22,13 @@ import {
   isPaidOnline,
   Order,
   orderNumber,
+  partCancelRefund,
   RefundCharge,
   refundChargeLabel,
   RefundMethod,
   REFUND_METHOD_LABEL,
   refundOptions,
   ReorderLine,
-  shortDate,
   useRefundCharge,
   useRefunds,
 } from '@/lib/orders';
@@ -48,6 +49,7 @@ export function RefundPicker({
   context,
   orderId,
   charge,
+  refundAmount,
 }: {
   options: RefundMethod[];
   value: RefundMethod | null;
@@ -55,19 +57,32 @@ export function RefundPicker({
   context: 'return' | 'cancel';
   orderId: string;
   charge: RefundCharge | null;
+  // A cancel: what the selected items refund, shown on every option -
+  // "Refund ₹X (no cancellation fee)" (client, 24 Nov 2026).
+  refundAmount?: number | null;
 }) {
   const when =
     context === 'return'
       ? 'as soon as your items pass our quality check'
       : 'as soon as you cancel';
+  // A cancel never has a fee: the same amount whichever way it goes.
+  const cancelRefund =
+    context === 'cancel' && refundAmount != null
+      ? `Refund ${formatINR(refundAmount)} (no cancellation fee)`
+      : null;
   if (options.length === 1 && options[0] === 'wallet') {
     return (
       <View style={styles.note}>
         <Wallet size={16} color={colors.mutedForeground} />
-        <Sans style={styles.flex}>
-          This order was paid from your AllBoutiqs wallet, so the refund goes
-          back to your wallet {when}.
-        </Sans>
+        <View style={styles.flex}>
+          {cancelRefund ? (
+            <Text style={styles.refundAmount}>{cancelRefund}</Text>
+          ) : null}
+          <Sans style={styles.muted}>
+            This order was paid from your AllBoutiqs wallet, so the refund goes
+            back to your wallet {when}.
+          </Sans>
+        </View>
       </View>
     );
   }
@@ -77,12 +92,17 @@ export function RefundPicker({
     ? ` A refund charge of ${refundChargeLabel(charge)} is deducted.`
     : ' No refund charge on this one.';
   const text: Record<RefundMethod, string> = {
-    wallet: `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
+    wallet: cancelRefund
+      ? `Added to your wallet ${when}. Spend it on your next order.`
+      : `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
+    // "The full amount - no refund charge" is not said on a cancel: only the
+    // customer cancels here, and a full refund is only when the boutique or
+    // AllBoutiqs cancels (client corrections Part 2, A11.2).
     original:
-      (context === 'return'
-        ? 'Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days.'
-        : 'Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.') +
-      ' The full amount - no refund charge.',
+      context === 'return'
+        ? 'Back to the card, UPI or netbanking you paid with, after the quality check. Banks usually take 5-7 working days.' +
+          ' The full amount - no refund charge.'
+        : 'Back to the card, UPI or netbanking you paid with. Banks usually take 5-7 working days.',
     bank: `Email us your bank details. We transfer the refund within ${BANK_REFUND_DAYS} working days after the quality check.${chargeText}`,
   };
   const icon = { wallet: Wallet, original: RotateCcw, bank: Landmark };
@@ -108,6 +128,9 @@ export function RefundPicker({
                 <Icon size={15} color={colors.foreground} />
                 <Text style={styles.methodTitle}>{REFUND_METHOD_LABEL[m]}</Text>
               </View>
+              {cancelRefund ? (
+                <Sans style={styles.refundLine}>{cancelRefund}</Sans>
+              ) : null}
               <Sans style={styles.small}>{text[m]}</Sans>
             </View>
           </Touch>
@@ -177,6 +200,12 @@ export function CancelSheet({
   const chosen = parts
     .filter(p => !p.blocked && picked[p.part.id])
     .map(p => p.part.id);
+  // The refund for what's ticked - no cancellation fee (24 Nov 2026): each
+  // part's items and delivery charge less its coupon share, as the server.
+  const selectedRefund = parts
+    .filter(p => chosen.includes(p.part.id))
+    .reduce((sum, p) => sum + partCancelRefund(p.part, p.items), 0);
+  const isCashOnDelivery = order.payment_method === 'cod';
 
   const submit = async () => {
     if (!chosen.length) return setError('Choose what to cancel.');
@@ -294,8 +323,16 @@ export function CancelSheet({
             context="cancel"
             orderId={order.id}
             charge={charge ?? null}
+            refundAmount={chosen.length ? selectedRefund : null}
           />
         </View>
+      ) : null}
+
+      {isCashOnDelivery ? (
+        <Sans style={[styles.note, styles.codNote]}>
+          Cash on Delivery: you haven't paid for this order, so there is nothing
+          to refund and no cancellation fee.
+        </Sans>
       ) : null}
     </Sheet>
   );
@@ -421,7 +458,7 @@ export function RefundHistory({ orderId }: { orderId: string }) {
           <View style={styles.flex}>
             <Text style={styles.itemLine}>{formatINR(r.amount)}</Text>
             <Sans style={styles.small}>
-              {shortDate(r.initiated_at)}
+              {formatDateTimeInWords(r.initiated_at)}
               {r.reason ? ` · ${r.reason}` : ''}
             </Sans>
             {r.status === 'failed' && r.failure_reason ? (
@@ -468,6 +505,20 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   bad: { color: colors.destructive },
+  muted: { fontSize: 14, color: colors.mutedForeground, lineHeight: 20 },
+  refundAmount: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    color: colors.foreground,
+    marginBottom: 2,
+  },
+  refundLine: { fontSize: 14, color: colors.foreground, marginTop: 3 },
+  codNote: {
+    marginTop: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.mutedForeground,
+  },
   error: {
     fontFamily: fonts.sansMedium,
     color: colors.destructive,

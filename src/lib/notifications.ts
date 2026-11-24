@@ -34,6 +34,17 @@ export function useNotifications() {
   });
 }
 
+// Where a notice opens. Every customer order notice (order placed,
+// confirmed, shipped, delivered, cancelled, refunds - including the wallet
+// refund, migration 20261124120000) links to the website's
+// "/orders?focus=<order id>", which opens My orders on that order; the app
+// opens that order's own screen.
+export function notificationPath(link: string | null): string | null {
+  if (!link) return null;
+  const m = link.match(/^\/orders\?(?:.*&)?focus=([0-9a-f-]{36})/i);
+  return m ? `/order/${m[1]}` : link;
+}
+
 export function useUnreadCount() {
   const { data = [] } = useNotifications();
   return data.filter(n => !n.read_at).length;

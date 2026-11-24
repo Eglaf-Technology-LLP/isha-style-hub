@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from './auth';
 import type { CustomisationChoice } from './customisation';
+import { formatDateInWords, formatDateTimeInWords } from './dates';
+import {
+  AWAITING_CONFIRMATION_LABEL,
+  buildOrderTimeline,
+  buildWarehouseOrderTimeline,
+  inboundBookedAt,
+  OrderTimeline,
+  ShipmentTimestamps,
+} from './orderStatus';
 import { supabase } from './supabase';
 
 // The signed-in customer's orders - the same rules as the website's
@@ -25,8 +34,24 @@ export interface OrderItem {
   color: string | null;
   quantity: number;
   price: number;
+  // This line's coupon share, and its customisation charge per piece (in price).
+  discount_amount: number | null;
+  customisation_price: number | null;
+  // Made after the order (no stock taken); sold_out_terms when it's a
+  // sold-out size made to order (src/lib/soldOutMadeToOrder.ts).
+  made_to_order: boolean | null;
+  sold_out_terms: unknown;
+  // The product's category, for its GST rule; undefined when the product
+  // can't be read any more (taken down).
+  category_id?: string | null;
   image: string | null;
 }
+
+// A courier booking with its step times and tracking number (shipments).
+export type CourierShipment = ShipmentTimestamps & {
+  awb_code: string | null;
+  courier_name: string | null;
+};
 
 export interface Shipment {
   id: string;
@@ -41,6 +66,20 @@ export interface Shipment {
   delivered_at: string | null;
   tracking_number: string | null;
   carrier: string | null;
+  // The part's items and delivery charge - what a cancel refunds, less coupon.
+  subtotal: number | null;
+  shipping_cost: number | null;
+  // Step times for the tracker (src/lib/orderStatus.ts): reached our centre,
+  // boutique accepted and courier out for delivery (migration
+  // 20261124110000), boutique booked the courier to our centre.
+  arrived_at_warehouse_at: string | null;
+  confirmed_at: string | null;
+  out_for_delivery_at: string | null;
+  inbound_booked_at: string | null;
+  // Direct route: the boutique's courier to the customer.
+  forward: CourierShipment | null;
+  // Warehouse route: the warehouse's parcel to the customer carrying it.
+  parcel: CourierShipment | null;
 }
 
 export interface Order {
@@ -49,9 +88,12 @@ export interface Order {
   order_status: string;
   payment_method: string;
   payment_status: string;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   subtotal: number;
   shipping_cost: number;
   discount_amount: number;
+  discount_code: string | null;
   cod_charge: number;
   wallet_amount: number;
   total: number;
@@ -69,6 +111,19 @@ export interface Order {
   items: OrderItem[];
   shipments: Shipment[];
 }
+
+// A courier booking's step times and tracking number, as the tracker reads them.
+const COURIER_FIELDS =
+  'awb_code, courier_name, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date';
+const courier = (x: any): CourierShipment => ({
+  awb_code: x.awb_code ?? null,
+  courier_name: x.courier_name ?? null,
+  created_at: x.created_at ?? null,
+  pickup_scheduled_at: x.pickup_scheduled_at ?? null,
+  picked_up_at: x.picked_up_at ?? null,
+  delivered_at: x.delivered_at ?? null,
+  estimated_delivery_date: x.estimated_delivery_date ?? null,
+});
 
 export function useMyOrders() {
   const userId = useSession(st => st.user?.id ?? null);
@@ -89,26 +144,29 @@ export function useMyOrders() {
         supabase.from('order_items').select('*').in('order_id', ids),
         supabase
           .from('vendor_orders')
+          // confirmed_at / out_for_delivery_at: migration 20261124110000.
           .select(
-            'id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on, return_window_ends_at',
+            `id, order_id, status, updated_at, delivered_at, tracking_number, carrier, dispatch_id, return_window_ends_on, return_window_ends_at, subtotal, shipping_cost, arrived_at_warehouse_at, confirmed_at, out_for_delivery_at, shipments(${COURIER_FIELDS}, shipment_type, return_request_id)`,
           )
           .in('order_id', ids),
       ]);
-      // Warehouse route: parcels already booked to the customer.
+      // Warehouse route: the warehouse's own parcels to the customer.
       const warehouseIds = (orders ?? [])
         .filter((o: any) => o.fulfilment_route === 'warehouse')
         .map((o: any) => o.id as string);
       const { data: parcels } = warehouseIds.length
         ? await supabase
             .from('shipments')
-            .select('dispatch_id')
+            .select(`dispatch_id, ${COURIER_FIELDS}`)
             .in('order_id', warehouseIds)
             .eq('shipment_type', 'warehouse_to_customer')
             .neq('status', 'cancelled')
+            .order('created_at', { ascending: true })
         : { data: [] as any[] };
-      const booked = new Set(
-        (parcels ?? []).map((x: any) => x.dispatch_id).filter(Boolean),
-      );
+      const parcelByDispatch = new Map<string, CourierShipment>();
+      for (const x of (parcels ?? []) as any[])
+        if (x.dispatch_id && !parcelByDispatch.has(x.dispatch_id))
+          parcelByDispatch.set(x.dispatch_id, courier(x));
       // A boutique can switch returns off for its whole store.
       const vendorIds = [
         ...new Set((items ?? []).map((i: any) => i.vendor_id).filter(Boolean)),
@@ -129,11 +187,14 @@ export function useMyOrders() {
       const { data: products } = productIds.length
         ? await supabase
             .from('products')
-            .select('id, images, product_variants(id, image_url)')
+            .select('id, images, category_id, product_variants(id, image_url)')
             .in('id', productIds)
         : { data: [] as any[] };
+      const productById = new Map(
+        (products ?? []).map((p: any) => [p.id as string, p]),
+      );
       const photo = (productId: string, variantId: string | null) => {
-        const p = (products ?? []).find((x: any) => x.id === productId) as any;
+        const p = productById.get(productId) as any;
         const v = p?.product_variants?.find((x: any) => x.id === variantId);
         return (
           (v?.image_url as string | null) ||
@@ -148,108 +209,134 @@ export function useMyOrders() {
           .map((i: any) => ({
             ...i,
             image: photo(i.product_id, i.variant_id),
+            // Unknown (undefined) when the product can't be read any more.
+            category_id: productById.has(i.product_id)
+              ? (productById.get(i.product_id) as any).category_id ?? null
+              : undefined,
             is_returnable:
               !!i.is_returnable &&
               (i.vendor_id ? returnsOn.get(i.vendor_id) !== false : true),
           })),
         shipments: (vos ?? [])
           .filter((v: any) => v.order_id === o.id)
-          .map((v: any) => ({
-            ...v,
-            inParcel: !!v.dispatch_id && booked.has(v.dispatch_id),
-          })),
+          .map((v: any) => {
+            const { shipments, ...part } = v;
+            const forward = (shipments ?? []).find(
+              (x: any) => x.shipment_type === 'forward',
+            );
+            const parcel = v.dispatch_id
+              ? parcelByDispatch.get(v.dispatch_id) ?? null
+              : null;
+            return {
+              ...part,
+              inParcel: !!parcel,
+              inbound_booked_at: inboundBookedAt(shipments),
+              forward: forward ? courier(forward) : null,
+              parcel,
+            };
+          }),
       }));
     },
   });
 }
 
-// ---------- customer-facing status (src/lib/orderStatus.ts on the website) ----------
+// ---------- customer-facing status (src/lib/orderStatus.ts) ----------
 
-export const STAGES = [
-  'Order placed',
-  'Confirmed',
-  'Shipped',
-  'Out for delivery',
-  'Delivered',
-] as const;
+export type Tone = 'done' | 'progress' | 'stopped';
 
-const STATUS_TO_STAGE: Record<string, number> = {
-  pending: 0,
-  confirmed: 1,
-  processing: 1,
-  shipped: 2,
-  out_for_delivery: 3,
-  ndr: 3,
-  delivered: 4,
-};
-
-// The stage the whole order has reached: the least advanced live shipment.
-export function orderStage(o: Order): number {
-  const live = o.shipments.filter(s => s.status in STATUS_TO_STAGE);
-  if (!live.length) return 0;
-  return Math.min(...live.map(s => STATUS_TO_STAGE[s.status]));
+// The order's tracker(s), as the website's My orders builds them: the
+// warehouse route has one for the whole order (the customer gets AllBoutiqs'
+// own parcel), the direct route one per boutique part.
+export interface OrderTracking {
+  // Warehouse route, or the direct route's only part: the order's tracker.
+  single: OrderTimeline | null;
+  // Direct route: each boutique part's tracker, by vendor_orders id.
+  parts: Map<string, OrderTimeline>;
 }
 
-export function orderLabel(o: Order): {
-  text: string;
-  tone: 'done' | 'progress' | 'stopped';
-} {
+export const isViaWarehouse = (o: Order) => o.fulfilment_route === 'warehouse';
+
+export function orderTracking(o: Order): OrderTracking {
+  if (isViaWarehouse(o)) {
+    return {
+      single: o.shipments.length
+        ? buildWarehouseOrderTimeline({
+            orderPlacedAt: o.created_at,
+            orderEstimatedDeliveryDate: o.estimated_delivery_date,
+            parts: o.shipments.map(s => ({
+              status: s.status,
+              updated_at: s.updated_at,
+              arrived_at_warehouse_at: s.arrived_at_warehouse_at,
+              parcel: s.parcel,
+              confirmed_at: s.confirmed_at,
+              out_for_delivery_at: s.out_for_delivery_at,
+              delivered_at: s.delivered_at,
+              inbound_booked_at: s.inbound_booked_at,
+            })),
+          })
+        : null,
+      parts: new Map(),
+    };
+  }
+  const parts = new Map(
+    o.shipments.map(s => [
+      s.id,
+      buildOrderTimeline({
+        vendorOrderStatus: s.status,
+        vendorOrderUpdatedAt: s.updated_at,
+        orderPlacedAt: o.created_at,
+        shipment: s.forward,
+        confirmedAt: s.confirmed_at,
+        outForDeliveryAt: s.out_for_delivery_at,
+        deliveredAt: s.delivered_at,
+      }),
+    ]),
+  );
+  return {
+    single: o.shipments.length === 1 ? parts.get(o.shipments[0].id)! : null,
+    parts,
+  };
+}
+
+const timelineTone = (t: OrderTimeline): Tone =>
+  t.kind !== 'progress'
+    ? 'stopped'
+    : t.stages.every(st => st.state === 'complete')
+    ? 'done'
+    : 'progress';
+
+// How far a tracker has got (steps reached).
+const reached = (t: OrderTimeline) =>
+  t.stages.filter(st => st.state !== 'upcoming').length +
+  (t.stages.every(st => st.state === 'complete') ? 1 : 0);
+
+// The status pill: "Waiting for boutique confirmation" until the boutique
+// accepts, then the tracker's step. With several boutique parts (the
+// website shows no pill then) the least advanced part's step.
+export function orderStatus(
+  o: Order,
+  tracking: OrderTracking = orderTracking(o),
+): { text: string; tone: Tone } {
   if (o.order_status === 'cancelled')
     return { text: 'Cancelled', tone: 'stopped' };
-  if (o.shipments.length && o.shipments.every(s => s.status === 'cancelled'))
-    return { text: 'Cancelled', tone: 'stopped' };
-  if (o.shipments.some(s => /return/.test(s.status)))
-    return { text: 'Return in progress', tone: 'progress' };
-  const stage = orderStage(o);
-  return { text: STAGES[stage], tone: stage === 4 ? 'done' : 'progress' };
+  const t =
+    tracking.single ??
+    [...tracking.parts.values()]
+      .filter(x => x.kind === 'progress')
+      .sort((x, y) => reached(x) - reached(y))[0] ??
+    [...tracking.parts.values()].find(x => x.kind === 'returned') ??
+    [...tracking.parts.values()][0];
+  if (!t) return { text: AWAITING_CONFIRMATION_LABEL, tone: 'progress' };
+  return { text: t.currentLabel, tone: timelineTone(t) };
 }
 
 export const orderNumber = (id: string) => `#${id.slice(0, 8).toUpperCase()}`;
 
-export const paymentLabel = (o: Order) =>
-  o.payment_method === 'cod'
-    ? 'Cash on delivery'
-    : o.payment_status === 'refunded'
-    ? 'Paid online (refunded)'
-    : 'Paid online';
-
-export function shortDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const m = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ][d.getMonth()];
-  return `${d.getDate()} ${m} ${d.getFullYear()}`;
-}
-
-// "19 Oct 2026, 5:33 PM IST" - a moment, always in India time (for
-// deadlines like the cancel and return windows).
-export function shortDateTime(when: string | number | Date | null): string {
-  if (when == null || when === '') return '';
-  const ms = new Date(when).getTime();
-  if (!Number.isFinite(ms)) return '';
-  const ist = new Date(ms + 5.5 * 3600_000);
-  const h = ist.getUTCHours();
-  const min = String(ist.getUTCMinutes()).padStart(2, '0');
-  const day = shortDate(
-    `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(
-      2,
-      '0',
-    )}-${String(ist.getUTCDate()).padStart(2, '0')}T12:00:00`,
-  );
-  return `${day}, ${h % 12 || 12}:${min} ${h < 12 ? 'AM' : 'PM'} IST`;
-}
+// "6 Jan 2027" and "19 Oct 2026, 5:33 PM IST", in India time - kept for the
+// screens that still use these names (src/lib/dates.ts does the work).
+export const shortDate = (iso: string | null): string => formatDateInWords(iso);
+export const shortDateTime = (when: string | number | Date | null): string =>
+  formatDateTimeInWords(when);
 
 // ---------- cancel (cancel-order-items) ----------
 
@@ -272,6 +359,26 @@ export const isWithinCustomerCancelWindow = (
 const NOT_CANCELLABLE = ['delivered', 'cancelled', 'returned'];
 export const cancellableParts = (o: Order) =>
   o.shipments.filter(s => !NOT_CANCELLABLE.includes(s.status) && !s.inParcel);
+
+// What cancelling one boutique part refunds - the same sum cancel-order-items
+// refunds (supabase/functions/_shared/cancellation.ts): its items and
+// delivery charge, less their share of any coupon. There is no cancellation
+// fee (24 Nov 2026; website src/lib/orderCancel.ts partCancelRefund).
+export function partCancelRefund(
+  part: { subtotal?: number | null; shipping_cost?: number | null },
+  items: { discount_amount?: number | null }[],
+): number {
+  const coupon = items.reduce(
+    (sum, i) => sum + Number(i.discount_amount ?? 0),
+    0,
+  );
+  return (
+    Math.round(
+      (Number(part.subtotal ?? 0) + Number(part.shipping_cost ?? 0) - coupon) *
+        100,
+    ) / 100
+  );
+}
 
 export const CANCEL_REASONS = [
   'Changed my mind',

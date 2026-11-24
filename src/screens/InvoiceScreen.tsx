@@ -8,7 +8,10 @@ import {
 } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Eyebrow, Sans, Serif } from '@/components/ui';
-import { amountInWords, shortDate } from '@/lib/orders';
+import { COMPANY } from '@/content/company';
+import { formatDateInWords } from '@/lib/dates';
+import { invoiceLineDescription } from '@/lib/invoiceLine';
+import { amountInWords } from '@/lib/orders';
 import { supabase } from '@/lib/supabase';
 import { useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -87,6 +90,8 @@ export default function InvoiceScreen() {
   const [ewb, setEwb] = useState<
     { ewb_number: string; ewb_date: string | null }[]
   >([]);
+  // How the customer paid ("UPI", "Cash on Delivery") - from the server.
+  const [paymentMode, setPaymentMode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -105,6 +110,7 @@ export default function InvoiceScreen() {
         setInvoice(data.invoice);
         setLines(data.lines ?? []);
         setEwb(data.eway_bills ?? []);
+        setPaymentMode(data.payment_mode ?? null);
       });
   }, [id]);
 
@@ -122,13 +128,20 @@ export default function InvoiceScreen() {
           <View style={styles.card}>
             <Serif style={styles.title}>Tax Invoice</Serif>
             <Row label="Invoice no." value={invoice.invoice_number} />
-            <Row label="Invoice date" value={shortDate(invoice.issued_at)} />
+            <Row
+              label="Invoice date"
+              value={formatDateInWords(invoice.issued_at)}
+            />
             {invoice.order_number ? (
               <Row label="Order" value={invoice.order_number} />
             ) : null}
             {invoice.order_date ? (
-              <Row label="Order date" value={shortDate(invoice.order_date)} />
+              <Row
+                label="Order date"
+                value={formatDateInWords(invoice.order_date)}
+              />
             ) : null}
+            {paymentMode ? <Row label="Payment" value={paymentMode} /> : null}
             {ewb.map(b => (
               <Row key={b.ewb_number} label="E-way bill" value={b.ewb_number} />
             ))}
@@ -162,11 +175,13 @@ export default function InvoiceScreen() {
             <Eyebrow style={styles.head}>Items</Eyebrow>
             {lines.map(l => (
               <View key={l.line_no} style={styles.line}>
-                <Text style={styles.strong}>{l.description}</Text>
+                {/* "Lehnga – XS – Black": name, size, colour once each (A10.2). */}
+                <Text style={styles.strong}>
+                  {invoiceLineDescription(l.description, l.color)}
+                </Text>
                 <Sans style={styles.text}>
-                  {[l.size, l.color].filter(Boolean).join(' / ')}
-                  {l.hsn_code ? ` · HSN ${l.hsn_code}` : ''} · Qty {l.quantity}{' '}
-                  × {money(l.unit_price)}
+                  {l.hsn_code ? `HSN ${l.hsn_code} · ` : ''}Qty {l.quantity} ×{' '}
+                  {money(l.unit_price)}
                 </Sans>
                 {l.discount > 0 ? (
                   <Row label="Discount" value={`- ${money(l.discount)}`} />
@@ -221,6 +236,28 @@ export default function InvoiceScreen() {
             <View style={styles.rule} />
             <Row label="Total" value={money(invoice.total)} strong />
             <Sans style={styles.words}>{amountInWords(invoice.total)}</Sans>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.footStrong}>
+              Sold through {COMPANY.legalName}, GSTIN {COMPANY.gstin}
+            </Text>
+            <Sans style={styles.footText}>
+              Returns as per the AllBoutiqs Return & Refund Policy
+              (allboutiqs.com).
+            </Sans>
+            <Sans style={styles.footText}>
+              Customer care: {COMPANY.supportEmail} · {COMPANY.supportPhone} ·
+              WhatsApp {COMPANY.whatsapp}
+            </Sans>
+            <Sans style={styles.footText}>
+              Subject to {COMPANY.jurisdiction} jurisdiction.
+            </Sans>
+            {/* CA-approved wording, exactly (client corrections Part 2, A10.4). */}
+            <Sans style={styles.footText}>
+              This is a computer-generated invoice issued electronically on
+              behalf of the seller by AllBoutiqs Private Limited (e-commerce
+              operator). No signature is required.
+            </Sans>
           </View>
           <Sans style={styles.foot}>
             To print or save as PDF, open My orders on the AllBoutiqs website.
@@ -285,6 +322,18 @@ const styles = StyleSheet.create({
     color: colors.mutedForeground,
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  footStrong: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 12,
+    color: colors.foreground,
+    marginBottom: 4,
+  },
+  footText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.mutedForeground,
+    marginTop: 2,
   },
   foot: {
     fontSize: 12,

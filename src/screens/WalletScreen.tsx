@@ -10,12 +10,12 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { Eyebrow, Sans, Serif, Touch } from '@/components/ui';
 import { useWallet, WALLET_KIND_LABEL } from '@/lib/account';
+import { formatDateInWords } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
 import {
   DEFAULT_REFUND_CHARGE,
   orderNumber,
   refundChargeLabel,
-  shortDate,
   useRefundCharge,
 } from '@/lib/orders';
 import { useGo } from '@/navigation';
@@ -100,7 +100,7 @@ export default function WalletScreen() {
                 {WALLET_KIND_LABEL[e.kind] ?? e.kind}
               </Text>
               <Sans style={styles.meta}>
-                {shortDate(e.created_at)}
+                {formatDateInWords(e.created_at)}
                 {e.order_id ? ` · Order ${orderNumber(e.order_id)}` : ''}
               </Sans>
               {e.note ? <Sans style={styles.meta}>{e.note}</Sans> : null}

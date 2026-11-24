@@ -18,6 +18,7 @@ import {
   View,
 } from 'react-native';
 import { CONFIG } from '@/config';
+import { formatDateInWords } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
 import {
   CHARGE_FREE_RETURN_REASONS,
@@ -27,7 +28,6 @@ import {
   RefundMethod,
   REFUND_METHOD_LABEL,
   refundOptions,
-  shortDate,
   useRefundCharge,
 } from '@/lib/orders';
 import {
@@ -526,7 +526,7 @@ export function ReturnRequests({ orderId }: { orderId: string }) {
               </Text>
             </View>
             <Sans style={styles.small}>
-              {shortDate(r.created_at)} · {r.reason}
+              {formatDateInWords(r.created_at)} · {r.reason}
             </Sans>
             {(r.items ?? []).map((it, n) => (
               <Sans key={n} style={styles.small}>

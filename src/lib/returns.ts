@@ -6,13 +6,8 @@ import {
   Asset,
 } from 'react-native-image-picker';
 import { useSession } from './auth';
-import {
-  Order,
-  OrderItem,
-  RefundMethod,
-  Shipment,
-  shortDateTime,
-} from './orders';
+import { formatDateTimeInWords } from './dates';
+import { Order, OrderItem, RefundMethod, Shipment } from './orders';
 import { friendly } from './errors';
 import { supabase } from './supabase';
 
@@ -114,10 +109,10 @@ export function returnWindow(o: Order): {
     deadlines.length === 0
       ? null
       : deadlines.length === 1
-      ? `Available until ${shortDateTime(deadlines[0])}`
-      : `Available until ${shortDateTime(
+      ? `Available until ${formatDateTimeInWords(deadlines[0])}`
+      : `Available until ${formatDateTimeInWords(
           deadlines[0],
-        )} for some items, ${shortDateTime(
+        )} for some items, ${formatDateTimeInWords(
           deadlines[deadlines.length - 1],
         )} for others`;
   // (A customised piece never had a return window to close.)

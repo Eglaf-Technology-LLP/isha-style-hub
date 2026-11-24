@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { Sans, Serif, Touch } from '@/components/ui';
 import {
   AppNotification,
+  notificationPath,
   useNotificationActions,
   useNotifications,
 } from '@/lib/notifications';
@@ -30,7 +31,8 @@ export default function NotificationsScreen() {
 
   const open = (n: AppNotification) => {
     if (!n.read_at) markRead([n.id]);
-    if (n.link_url) go(n.link_url);
+    const path = notificationPath(n.link_url);
+    if (path) go(path);
   };
 
   return (

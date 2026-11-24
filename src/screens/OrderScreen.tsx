@@ -4,6 +4,8 @@ import {
   MessageCircle,
   RefreshCw,
   RotateCcw,
+  Scissors,
+  Truck,
 } from 'lucide-react-native';
 import { useState } from 'react';
 import {
@@ -17,39 +19,53 @@ import {
 } from 'react-native';
 import { CustomisationDetails } from '@/components/Customiser';
 import { AppHeader } from '@/components/AppHeader';
+import { CreditNoteLink } from '@/components/CreditNoteSheet';
 import {
   CancelSheet,
   RefundHistory,
   ReorderSheet,
 } from '@/components/OrderActions';
+import { OrderStatusTimeline } from '@/components/OrderStatusTimeline';
 import { ReturnRequests, ReturnSheet } from '@/components/ReturnSheet';
-import { returnWindow } from '@/lib/returns';
+import { returnWindow, useReturnRequests } from '@/lib/returns';
 import { Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { CONFIG } from '@/config';
+import { formatDateInWordsWithDay, formatDateTimeInWords } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
+import { mayHaveCreditNote } from '@/lib/invoiceLine';
+import { goodsSplitRows, useGoodsSplitter } from '@/lib/orderAmounts';
 import {
-  orderLabel,
+  CourierShipment,
+  isViaWarehouse,
+  Order,
+  OrderItem,
   orderNumber,
-  orderStage,
-  paymentLabel,
-  shortDate,
-  STAGES,
+  orderStatus,
+  orderTracking,
+  Shipment,
   useMyOrders,
   cancellableParts,
   customerCancelDeadline,
   invoiceState,
   isWithinCustomerCancelWindow,
-  shortDateTime,
 } from '@/lib/orders';
+import { OrderTimeline } from '@/lib/orderStatus';
+import { orderPaymentLine, paymentPill } from '@/lib/paymentMode';
+import { madeToOrderOrderNote } from '@/lib/soldOutMadeToOrder';
 import { useGo, useParams } from '@/navigation';
 import { colors, fonts } from '@/theme';
 import { TONE } from './OrdersScreen';
 
-// One order: progress, pieces, delivery address and the bill.
+// One order: where it is, its pieces by boutique part (each with its tracker
+// on the direct route), delivery address and the bill - the website's My
+// orders card, opened.
 export default function OrderScreen() {
   const { id } = useParams<'Order'>();
   const go = useGo();
   const { data: orders, isLoading } = useMyOrders();
+  const { data: returns = [] } = useReturnRequests(id);
+  // Product value / customisation / GST, as checkout showed them.
+  const splitGoods = useGoodsSplitter(true);
   const o = orders?.find(x => x.id === id);
   const [sheet, setSheet] = useState<'cancel' | 'reorder' | 'return' | null>(
     null,
@@ -68,15 +84,34 @@ export default function OrderScreen() {
     );
   }
 
-  const label = orderLabel(o);
-  const stopped = label.tone === 'stopped';
-  const stage = orderStage(o);
+  const tracking = orderTracking(o);
+  const status = orderStatus(o, tracking);
+  const pay = paymentPill(o);
+  // Warehouse route, or a single boutique part: one tracker, at the top.
+  // Otherwise each part's tracker sits under its pieces.
+  const single = tracking.single;
+  const viaWarehouse = isViaWarehouse(o);
+  const groups = partGroups(o);
+  const showPartLabels = !viaWarehouse && groups.length > 1;
+  const trackers = [single, ...tracking.parts.values()].filter(
+    (t): t is OrderTimeline => !!t,
+  );
+  // The order's own estimate, while no tracker shows a date yet.
+  const expectedBy =
+    o.estimated_delivery_date &&
+    status.tone === 'progress' &&
+    !trackers.some(t => t.estimatedDeliveryDate)
+      ? o.estimated_delivery_date
+      : null;
+  // A completed return has a credit note (on a part that stays delivered).
+  const hasCompletedReturn = returns.some(r => r.status === 'completed');
   const a = o.shipping_address ?? {};
   // The customer's own cancel closes 24 hours after ordering.
   const canCancel =
     cancellableParts(o).length > 0 &&
     isWithinCustomerCancelWindow(o.created_at);
   const returnWin = returnWindow(o);
+  const split = splitGoods(o.items, o);
   const help = `Hi AllBoutiqs, I need help with my order ${orderNumber(o.id)}.`;
 
   return (
@@ -84,38 +119,46 @@ export default function OrderScreen() {
       <AppHeader back title={`Order ${orderNumber(o.id)}`} />
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.block}>
-          <Text
-            style={[
-              styles.badge,
-              {
-                backgroundColor: TONE[label.tone].bg,
-                color: TONE[label.tone].fg,
-              },
-            ]}
-          >
-            {label.text}
-          </Text>
-          <Sans style={styles.meta}>Placed on {shortDate(o.created_at)}</Sans>
-          {o.estimated_delivery_date && stage < 4 && !stopped ? (
+          <View style={styles.pills}>
+            <Text
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: TONE[status.tone].bg,
+                  color: TONE[status.tone].fg,
+                },
+              ]}
+            >
+              {status.text}
+            </Text>
+            <Text
+              style={[
+                styles.badge,
+                {
+                  backgroundColor: TONE[pay.tone].bg,
+                  color: TONE[pay.tone].fg,
+                },
+              ]}
+            >
+              {pay.text}
+            </Text>
+          </View>
+          <Sans style={styles.meta}>
+            Placed on {formatDateTimeInWords(o.created_at)}
+          </Sans>
+          {expectedBy ? (
             <Sans style={styles.meta}>
-              Expected by {shortDate(o.estimated_delivery_date)}
+              Expected by {formatDateInWordsWithDay(expectedBy)}
             </Sans>
           ) : null}
-          {!stopped ? (
-            <View style={styles.timeline}>
-              {STAGES.map((s, i) => (
-                <View key={s} style={styles.step}>
-                  <View style={[styles.dot, i <= stage && styles.dotOn]} />
-                  {i < STAGES.length - 1 ? (
-                    <View style={[styles.line, i < stage && styles.lineOn]} />
-                  ) : null}
-                  <Text
-                    style={[styles.stepText, i <= stage && styles.stepTextOn]}
-                  >
-                    {s}
-                  </Text>
-                </View>
-              ))}
+          {single ? (
+            <View style={styles.tracker}>
+              <OrderStatusTimeline timeline={single} />
+              {viaWarehouse ? (
+                <ParcelLinks parts={o.shipments} />
+              ) : (
+                <TrackLink part={o.shipments[0]} />
+              )}
             </View>
           ) : null}
           <View style={styles.actions}>
@@ -147,79 +190,62 @@ export default function OrderScreen() {
           ) : !returnWin.items.length && returnWin.closedAt ? (
             <Sans style={styles.meta}>
               Return / exchange window closed on{' '}
-              {shortDateTime(returnWin.closedAt)}
+              {formatDateTimeInWords(returnWin.closedAt)}
             </Sans>
           ) : null}
           {canCancel ? (
             <Sans style={styles.meta}>
               You can cancel until{' '}
-              {shortDateTime(customerCancelDeadline(o.created_at))}
+              {formatDateTimeInWords(customerCancelDeadline(o.created_at))}
             </Sans>
           ) : null}
         </View>
 
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Items</Eyebrow>
-          {o.items.map(it => (
-            <Touch
-              key={it.id}
-              style={styles.item}
-              onPress={() => go(`/product/${it.product_id}`)}
-            >
-              <View style={styles.thumb}>
-                {it.image ? (
-                  <Image
-                    source={{ uri: it.image }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Placeholder label={it.product_title.charAt(0)} />
-                )}
-              </View>
-              <View style={styles.itemInfo}>
-                <Text style={styles.name} numberOfLines={2}>
-                  {it.product_title}
-                </Text>
-                <Text style={styles.small}>
-                  {[it.size, it.color].filter(Boolean).join(' / ') ||
-                    it.variant_title ||
-                    ''}
-                  {` · Qty ${it.quantity}`}
-                </Text>
-                <CustomisationDetails customisation={it.customisation} />
-                <Text style={styles.price}>
-                  {formatINR(it.price * it.quantity)}
-                </Text>
-              </View>
-            </Touch>
-          ))}
-          {o.shipments.map((part, n) => {
-            const inv = invoiceState(o.payment_status, part.status);
-            if (inv === 'none') return null;
+          {groups.map(({ part, items }, n) => {
+            const partTracker =
+              part && !single ? tracking.parts.get(part.id) : null;
             return (
-              <Touch
-                key={part.id}
-                disabled={inv !== 'ready'}
-                style={styles.invoice}
-                onPress={() => go(`/invoice/${part.id}`)}
+              <View
+                key={part?.id ?? 'other'}
+                style={showPartLabels ? styles.group : undefined}
               >
-                <FileText
-                  size={15}
-                  color={
-                    inv === 'ready' ? colors.primary : colors.mutedForeground
-                  }
-                />
-                <Text
-                  style={[styles.invoiceText, inv !== 'ready' && styles.muted]}
-                >
-                  {inv === 'ready'
-                    ? `Tax invoice${
-                        o.shipments.length > 1 ? ` (part ${n + 1})` : ''
-                      }`
-                    : 'Invoice available once shipped'}
-                </Text>
-              </Touch>
+                {showPartLabels ? (
+                  <Text style={styles.partLabel}>
+                    Part {n + 1} of {groups.length}
+                  </Text>
+                ) : null}
+                {items.map(it => (
+                  <ItemRow
+                    key={it.id}
+                    item={it}
+                    onPress={() => go(`/product/${it.product_id}`)}
+                  />
+                ))}
+                {part && partTracker ? (
+                  <View style={styles.partTracker}>
+                    <OrderStatusTimeline timeline={partTracker} />
+                    <TrackLink part={part} />
+                  </View>
+                ) : null}
+                {part ? (
+                  <PartPapers
+                    order={o}
+                    part={part}
+                    label={
+                      o.shipments.length > 1 && !showPartLabels
+                        ? ` (part ${o.shipments.indexOf(part) + 1})`
+                        : ''
+                    }
+                    creditNote={mayHaveCreditNote(
+                      part.status,
+                      hasCompletedReturn,
+                    )}
+                    onInvoice={() => go(`/invoice/${part.id}`)}
+                  />
+                ) : null}
+              </View>
             );
           })}
         </View>
@@ -247,7 +273,15 @@ export default function OrderScreen() {
 
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Payment</Eyebrow>
-          <Row label="Items" value={formatINR(o.subtotal)} />
+          {/* The items' price as product value, customisation charge and
+              GST; the plain total when a product can't be read. */}
+          {split ? (
+            goodsSplitRows(split).map(([label, amount]) => (
+              <Row key={label} label={label} value={formatINR(amount)} />
+            ))
+          ) : (
+            <Row label="Subtotal" value={formatINR(o.subtotal)} />
+          )}
           {o.discount_amount > 0 ? (
             <Row label="Discount" value={`- ${formatINR(o.discount_amount)}`} />
           ) : null}
@@ -269,7 +303,9 @@ export default function OrderScreen() {
           ) : null}
           <View style={styles.rule} />
           <Row label="Total" value={formatINR(o.total)} strong />
-          <Sans style={styles.small}>{paymentLabel(o)}</Sans>
+          {/* How it was paid: "Paid by UPI", or "Pay ₹X in cash when it
+              arrives". */}
+          <Row label="Payment" value={orderPaymentLine(o, o.shipments)} />
         </View>
 
         <Touch
@@ -304,6 +340,177 @@ export default function OrderScreen() {
   );
 }
 
+// The pieces of each boutique part, in the order they were bought; pieces
+// without a part come last, with no tracker.
+function partGroups(o: Order): { part: Shipment | null; items: OrderItem[] }[] {
+  const groups = new Map<
+    string,
+    { part: Shipment | null; items: OrderItem[] }
+  >();
+  for (const item of o.items) {
+    const part = o.shipments.find(s => s.id === item.vendor_order_id) ?? null;
+    const key = part?.id ?? '';
+    const g = groups.get(key) ?? { part, items: [] };
+    g.items.push(item);
+    groups.set(key, g);
+  }
+  return [...groups.values()].sort(
+    (x, y) => (x.part ? 0 : 1) - (y.part ? 0 : 1),
+  );
+}
+
+function ItemRow({
+  item: it,
+  onPress,
+}: {
+  item: OrderItem;
+  onPress: () => void;
+}) {
+  return (
+    <Touch style={styles.item} onPress={onPress}>
+      <View style={styles.thumb}>
+        {it.image ? (
+          <Image
+            source={{ uri: it.image }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <Placeholder label={it.product_title.charAt(0)} />
+        )}
+      </View>
+      <View style={styles.itemInfo}>
+        <Text style={styles.name} numberOfLines={2}>
+          {it.product_title}
+        </Text>
+        <Text style={styles.small}>
+          {[it.size, it.color].filter(Boolean).join(' / ') ||
+            it.variant_title ||
+            ''}
+          {` · Qty ${it.quantity}`}
+        </Text>
+        <MadeToOrderBadge item={it} />
+        <CustomisationDetails customisation={it.customisation} />
+        <Text style={styles.price}>{formatINR(it.price * it.quantity)}</Text>
+      </View>
+    </Touch>
+  );
+}
+
+// An order line made after the order (the website's MadeToOrderBadge, for
+// the customer): a Made to Order listing, or a sold-out size made to order
+// with its charge and extra days.
+function MadeToOrderBadge({ item }: { item: OrderItem }) {
+  const note = madeToOrderOrderNote(item.made_to_order, item.sold_out_terms);
+  if (!note) return null;
+  return (
+    <View style={styles.mto}>
+      <View style={styles.mtoBadge}>
+        <Scissors size={11} color={colors.foreground} strokeWidth={1.8} />
+        <Text style={styles.mtoBadgeText}>Made to order</Text>
+      </View>
+      <Text style={styles.mtoText}>{note}</Text>
+    </View>
+  );
+}
+
+const trackingUrl = (awb: string) => `https://shiprocket.co/tracking/${awb}`;
+
+// Direct route: the courier's tracking page, or the tracking number.
+function TrackLink({ part }: { part: Shipment | undefined }) {
+  if (!part) return null;
+  const awb = part.forward?.awb_code;
+  if (awb) {
+    return (
+      <Touch
+        style={styles.track}
+        onPress={() => Linking.openURL(trackingUrl(awb))}
+      >
+        <Truck size={14} color={colors.primary} />
+        <Text style={styles.trackText}>
+          {part.forward?.courier_name ? `${part.forward.courier_name} • ` : ''}
+          Track shipment
+        </Text>
+      </Touch>
+    );
+  }
+  if (!part.tracking_number) return null;
+  return (
+    <Sans style={[styles.small, styles.trackNumber]}>
+      {part.carrier ? `${part.carrier} • ` : ''}
+      {part.tracking_number}
+    </Sans>
+  );
+}
+
+// Warehouse route: AllBoutiqs' own parcel(s) to the customer.
+function ParcelLinks({ parts }: { parts: Shipment[] }) {
+  const parcels = [
+    ...new Map(
+      parts
+        .map(p => p.parcel)
+        .filter((x): x is CourierShipment => !!x?.awb_code)
+        .map(x => [x.awb_code as string, x]),
+    ).values(),
+  ];
+  return (
+    <>
+      {parcels.map(x => (
+        <Touch
+          key={x.awb_code}
+          style={styles.track}
+          onPress={() => Linking.openURL(trackingUrl(x.awb_code as string))}
+        >
+          <Truck size={14} color={colors.primary} />
+          <Text style={styles.trackText}>
+            {x.courier_name ? `${x.courier_name} • ` : ''}
+            Track {parcels.length > 1 ? 'parcel' : 'shipment'}
+          </Text>
+        </Touch>
+      ))}
+    </>
+  );
+}
+
+// A part's tax invoice and, once one is issued, its credit note.
+function PartPapers({
+  order,
+  part,
+  label,
+  creditNote,
+  onInvoice,
+}: {
+  order: Order;
+  part: Shipment;
+  label: string;
+  creditNote: boolean;
+  onInvoice: () => void;
+}) {
+  const inv = invoiceState(order.payment_status, part.status);
+  return (
+    <>
+      {inv !== 'none' ? (
+        <Touch
+          disabled={inv !== 'ready'}
+          style={styles.invoice}
+          onPress={onInvoice}
+        >
+          <FileText
+            size={15}
+            color={inv === 'ready' ? colors.primary : colors.mutedForeground}
+          />
+          <Text style={[styles.invoiceText, inv !== 'ready' && styles.muted]}>
+            {inv === 'ready'
+              ? `Tax invoice${label}`
+              : 'Invoice available once shipped'}
+          </Text>
+        </Touch>
+      ) : null}
+      {creditNote ? <CreditNoteLink vendorOrderId={part.id} /> : null}
+    </>
+  );
+}
+
 // Refunds for this order, if any (the block hides itself when empty).
 function RefundBlock({ orderId }: { orderId: string }) {
   return (
@@ -325,7 +532,7 @@ function Row({
   return (
     <View style={styles.row}>
       <Sans style={strong ? styles.strong : undefined}>{label}</Sans>
-      <Sans style={strong ? styles.strong : undefined}>{value}</Sans>
+      <Sans style={[styles.rowValue, strong && styles.strong]}>{value}</Sans>
     </View>
   );
 }
@@ -373,6 +580,7 @@ const styles = StyleSheet.create({
   },
   muted: { color: colors.mutedForeground },
   head: { color: colors.foreground, marginBottom: 12 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -384,35 +592,40 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   meta: { color: colors.mutedForeground, marginTop: 6 },
-  timeline: { flexDirection: 'row', marginTop: 18 },
-  step: { flex: 1, alignItems: 'center' },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.5,
+  tracker: { marginTop: 16 },
+  group: {
+    borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.ivory,
-    zIndex: 1,
+    padding: 12,
+    marginBottom: 12,
   },
-  dotOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  line: {
-    position: 'absolute',
-    top: 5,
-    left: '50%',
-    width: '100%',
-    height: 2,
-    backgroundColor: colors.border,
-  },
-  lineOn: { backgroundColor: colors.primary },
-  stepText: {
-    fontFamily: fonts.sans,
+  partLabel: {
+    fontFamily: fonts.sansMedium,
     fontSize: 10,
+    letterSpacing: 1.6,
+    textTransform: 'uppercase',
     color: colors.mutedForeground,
-    marginTop: 6,
-    textAlign: 'center',
+    marginBottom: 10,
   },
-  stepTextOn: { color: colors.foreground, fontFamily: fonts.sansMedium },
+  partTracker: {
+    backgroundColor: colors.background,
+    padding: 12,
+    marginBottom: 4,
+  },
+  track: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingTop: 8,
+  },
+  trackText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 11,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: colors.primary,
+  },
+  trackNumber: { marginTop: 8 },
   item: { flexDirection: 'row', gap: 12, marginBottom: 12 },
   thumb: {
     width: 64,
@@ -431,13 +644,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.mutedForeground,
   },
+  mto: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  mtoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(181,138,74,0.15)',
+  },
+  mtoBadgeText: {
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.foreground,
+  },
+  mtoText: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    color: colors.mutedForeground,
+    flexShrink: 1,
+  },
   price: { fontFamily: fonts.sansSemi, fontSize: 14, color: colors.foreground },
   address: { lineHeight: 21, marginVertical: 4 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: 16,
     paddingVertical: 3,
   },
+  rowValue: { flexShrink: 1, textAlign: 'right' },
   strong: { fontFamily: fonts.sansSemi },
   rule: {
     height: StyleSheet.hairlineWidth,

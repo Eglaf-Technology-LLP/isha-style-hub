@@ -11,8 +11,10 @@ import {
 import { AppHeader } from '@/components/AppHeader';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
 import { useSession } from '@/lib/auth';
+import { formatDateInWords } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
-import { orderLabel, orderNumber, shortDate, useMyOrders } from '@/lib/orders';
+import { orderNumber, orderStatus, useMyOrders } from '@/lib/orders';
+import { paymentPill } from '@/lib/paymentMode';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
 
@@ -81,7 +83,10 @@ export default function OrdersScreen() {
           )
         }
         renderItem={({ item: o }) => {
-          const label = orderLabel(o);
+          // Where it is ("Waiting for boutique confirmation" until the
+          // boutique accepts) and how it was paid ("Paid by UPI").
+          const label = orderStatus(o);
+          const pay = paymentPill(o);
           const first = o.items[0];
           return (
             <Touch style={styles.card} onPress={() => go(`/order/${o.id}`)}>
@@ -99,23 +104,28 @@ export default function OrdersScreen() {
                 )}
               </View>
               <View style={styles.info}>
-                <Text
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: TONE[label.tone].bg,
-                      color: TONE[label.tone].fg,
-                    },
-                  ]}
-                >
-                  {label.text}
-                </Text>
+                <View style={styles.pills}>
+                  {[label, pay].map((p, k) => (
+                    <Text
+                      key={k}
+                      style={[
+                        styles.badge,
+                        {
+                          backgroundColor: TONE[p.tone].bg,
+                          color: TONE[p.tone].fg,
+                        },
+                      ]}
+                    >
+                      {p.text}
+                    </Text>
+                  ))}
+                </View>
                 <Text style={styles.name} numberOfLines={1}>
                   {first?.product_title}
                   {o.items.length > 1 ? ` + ${o.items.length - 1} more` : ''}
                 </Text>
                 <Text style={styles.meta}>
-                  {orderNumber(o.id)} · {shortDate(o.created_at)}
+                  {orderNumber(o.id)} · {formatDateInWords(o.created_at)}
                 </Text>
                 <Text style={styles.total}>{formatINR(o.total)}</Text>
               </View>
@@ -145,6 +155,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   info: { flex: 1, gap: 4 },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   badge: {
     alignSelf: 'flex-start',
     paddingHorizontal: 8,
