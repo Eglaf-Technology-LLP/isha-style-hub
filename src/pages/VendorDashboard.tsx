@@ -1519,7 +1519,15 @@ export default function VendorDashboard() {
                                 }
                                 return (
                                   <div className="text-xs space-y-1">
-                                    <div className="font-medium">{shipment.courier_name || "Courier assigned"}</div>
+                                    {shipment.courier_name || shipment.awb_code ? (
+                                      <div className="font-medium">{shipment.courier_name || "Courier assigned"}</div>
+                                    ) : (
+                                      // A booking from before 24 Nov 2026 that Shiprocket made
+                                      // without a courier (empty wallet): it will never move.
+                                      <div className="text-amber-600 max-w-[220px]">
+                                        Shiprocket didn't assign a courier - press Cancel, then ship again
+                                      </div>
+                                    )}
                                     {shipment.awb_code && (
                                       <div className="font-mono text-muted-foreground">AWB {shipment.awb_code}</div>
                                     )}

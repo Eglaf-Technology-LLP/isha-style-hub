@@ -298,7 +298,15 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 )
               ) : (
                 <div className="flex items-center gap-3 text-xs flex-wrap">
-                  <span className="font-medium">{shipment.courier_name || "Courier assigned"}</span>
+                  {shipment.courier_name || shipment.awb_code ? (
+                    <span className="font-medium">{shipment.courier_name || "Courier assigned"}</span>
+                  ) : (
+                    // A booking from before 24 Nov 2026 that Shiprocket made
+                    // without a courier (empty wallet): it will never move.
+                    <span className="text-amber-600">
+                      Shiprocket didn't assign a courier - use Change Courier to book again
+                    </span>
+                  )}
                   {shipment.awb_code && (
                     <>
                       <span className="font-mono text-muted-foreground">AWB {shipment.awb_code}</span>

@@ -272,7 +272,10 @@ export function VendorOrderDetailsDialog({
               </h4>
               {data.shipment ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <Field label="Courier" value={data.shipment.courier_name || "Assigned"} />
+                  <Field
+                    label="Courier"
+                    value={data.shipment.courier_name || (data.shipment.awb_code ? "Assigned" : "None - Shiprocket didn't assign one")}
+                  />
                   <Field label="AWB No." value={data.shipment.awb_code ? <span className="font-mono">{data.shipment.awb_code}</span> : "Not yet assigned"} />
                   <Field label="Status" value={<span className="capitalize">{data.shipment.status.replace(/_/g, " ")}</span>} />
                   {data.shipment.pickup_scheduled_at && (

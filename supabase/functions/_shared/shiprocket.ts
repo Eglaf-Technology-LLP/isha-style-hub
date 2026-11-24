@@ -1,5 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage, serviceClient, getCallerUserId, isAdmin, isVendorMember, corsHeaders, jsonResponse } from "./auth.ts";
+import { money } from "./money.ts";
+import { notifyAllAdmins } from "./notify.ts";
 
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 
@@ -633,8 +635,19 @@ export async function bookForwardShipment(
   const p = result.payload;
   const shipmentId = toIntOrNull(p.shipment_id);
   const awbCode = p.awb_code || null;
+  if (!awbCode) {
+    // status:1 also comes back when Shiprocket made the order but assigned no
+    // courier - seen 24 Nov 2026 with ₹88.99 left in the wallet (freight is
+    // taken from it when the AWB is assigned). Such an order never moves, and
+    // recording it showed "Courier assigned" with nothing booked. Cancel it
+    // and say why instead, so Ship Now can simply be pressed again.
+    console.error("Shiprocket forward-shipment assigned no courier", params.channelOrderId, JSON.stringify(result));
+    await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(p.order_id));
+    throw new Error(await noCourierReason(supabase, p));
+  }
   // The wrapper can come back with the AWB but no label - ask for it directly.
-  const labelUrl = p.label_url || (awbCode && shipmentId ? await generateLabel(supabase, shipmentId) : null);
+  const labelUrl = p.label_url || (shipmentId ? await generateLabel(supabase, shipmentId) : null);
+  await warnIfWalletLow(supabase);
   return {
     orderId: toIntOrNull(p.order_id),
     shipmentId,
@@ -645,6 +658,79 @@ export async function bookForwardShipment(
     manifestUrl: p.manifest_url || null,
     pickupRequested: requestPickup,
   };
+}
+
+// Freight comes out of the Shiprocket wallet when a courier (AWB) is
+// assigned; a booking the wallet can't cover gets no courier. Live and stage
+// share the one account, so either can empty it. What it was seen to take
+// (24 Nov 2026: ₹421-542 for a 0.5 kg parcel in one city, against a ₹49.72
+// quote) is far above the serviceability rate, so the alert line sits well
+// above one parcel. SHIPROCKET_WALLET_ALERT_BELOW overrides it.
+function walletAlertBelow(): number {
+  const v = Number(Deno.env.get("SHIPROCKET_WALLET_ALERT_BELOW"));
+  return Number.isFinite(v) && v > 0 ? v : 2000;
+}
+
+// Best-effort: null when Shiprocket doesn't answer - never fails a booking.
+export async function shiprocketWalletBalance(supabase: SupabaseClient): Promise<number | null> {
+  try {
+    const result = await shiprocketRequest(supabase, "/account/details/wallet-balance");
+    const balance = Number(result?.data?.balance_amount);
+    return Number.isFinite(balance) ? balance : null;
+  } catch (e) {
+    console.error("shiprocketWalletBalance failed", errorMessage(e));
+    return null;
+  }
+}
+
+// One alert per kind every 6 hours, however many bookings run into it.
+async function alertAdminsWallet(supabase: SupabaseClient, balance: number, bookingFailed: boolean) {
+  const type = bookingFailed ? "shiprocket_wallet_empty" : "shiprocket_wallet_low";
+  try {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("notifications")
+      .select("id")
+      .eq("type", type)
+      .gte("created_at", since)
+      .limit(1);
+    if (recent?.length) return;
+    await notifyAllAdmins(supabase, {
+      type,
+      title: bookingFailed ? "Shiprocket wallet too low - bookings are failing" : "Shiprocket wallet running low",
+      body:
+        `The Shiprocket wallet has ${money(balance)} left. ` +
+        (bookingFailed
+          ? "A booking just got no courier because the freight couldn't be taken from it. "
+          : "Freight is taken from it when a courier is assigned, and a booking it can't cover gets no courier. ") +
+        "Recharge it in Shiprocket (live and stage share this account).",
+      link: "/admin?tab=orders",
+    });
+  } catch (e) {
+    console.error("alertAdminsWallet failed", errorMessage(e));
+  }
+}
+
+async function warnIfWalletLow(supabase: SupabaseClient) {
+  const balance = await shiprocketWalletBalance(supabase);
+  if (balance !== null && balance < walletAlertBelow()) await alertAdminsWallet(supabase, balance, false);
+}
+
+// What the person pressing Ship Now is told when Shiprocket assigned no courier.
+async function noCourierReason(
+  supabase: SupabaseClient,
+  payload: { awb_assign_error?: string; error_message?: string } | undefined,
+): Promise<string> {
+  const balance = await shiprocketWalletBalance(supabase);
+  if (balance !== null && balance < walletAlertBelow()) {
+    await alertAdminsWallet(supabase, balance, true);
+    return (
+      `Shiprocket didn't assign a courier: its wallet has ${money(balance)} left, not enough for the freight. ` +
+      "AllBoutiqs has been told to recharge it. Nothing was booked - press Ship Now again once that's done."
+    );
+  }
+  const reason = payload?.awb_assign_error || payload?.error_message || "";
+  return `Shiprocket didn't assign a courier to this parcel${reason ? ` (${reason})` : ""}. Nothing was booked - try again, or pick another courier.`;
 }
 
 // A Shiprocket order exists but we failed to record it - cancel it back out
