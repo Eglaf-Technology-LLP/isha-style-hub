@@ -323,7 +323,7 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
               <thead className="sticky top-0 z-[1] bg-muted text-xs text-muted-foreground">
                 <tr>
                   <th className="px-2 py-2 text-left font-medium">Variant</th>
-                  <th className="px-2 py-2 text-left font-medium">SKU</th>
+                  <th className="px-2 py-2 text-left font-medium">SKU *</th>
                   <th className="px-2 py-2 text-left font-medium">Value excl. GST (₹)</th>
                   <th className="px-2 py-2 text-left font-medium">Stock</th>
                   <th className="w-9" />
@@ -356,6 +356,8 @@ export function VariantManager({ variants, onChange, basePrice, mrpFor, uploadFo
                         <Input
                           placeholder="SKU"
                           aria-label={`SKU for ${variant.name}`}
+                          aria-required
+                          aria-invalid={!(variant.sku ?? "").trim()}
                           value={variant.sku ?? ""}
                           onChange={(e) => updateVariant(variant.id, "sku", e.target.value)}
                           className="h-8 w-28 text-xs"
