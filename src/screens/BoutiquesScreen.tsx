@@ -8,27 +8,41 @@ import { Eyebrow, Placeholder, Sans, Serif, Touch } from '@/components/ui';
 import { useBoutiques, useProducts } from '@/lib/catalog';
 import { colors, fonts } from '@/theme';
 
-// Every approved boutique with a cover photo and its live piece count,
-// busiest first - the website's /boutiques page.
+// Every approved boutique with at least one live product, with a cover photo
+// and its live piece count, busiest first - the website's /boutiques page.
+// No "0 pieces" cards: they make the shop look empty (client, 24 Nov 2026).
+// Nothing until both lists have loaded.
 export default function Boutiques() {
   const go = useGo();
-  const { data: boutiques = [], isLoading } = useBoutiques();
-  const { data: products = [] } = useProducts();
+  const {
+    data: boutiques = [],
+    isLoading,
+    isSuccess: boutiquesLoaded,
+  } = useBoutiques();
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+    isSuccess: productsLoaded,
+  } = useProducts();
+  const ready = boutiquesLoaded && productsLoaded;
 
   const cards = useMemo(
     () =>
-      boutiques
-        .map(b => ({
-          b,
-          pieces: products.filter(p => p.vendor_id === b.id).length,
-          cover:
-            b.banner_url ||
-            products.find(p => p.vendor_id === b.id && p.images[0])
-              ?.images[0] ||
-            null,
-        }))
-        .sort((x, y) => y.pieces - x.pieces),
-    [boutiques, products],
+      !ready
+        ? []
+        : boutiques
+            .map(b => ({
+              b,
+              pieces: products.filter(p => p.vendor_id === b.id).length,
+              cover:
+                b.banner_url ||
+                products.find(p => p.vendor_id === b.id && p.images[0])
+                  ?.images[0] ||
+                null,
+            }))
+            .filter(c => c.pieces > 0)
+            .sort((x, y) => y.pieces - x.pieces),
+    [ready, boutiques, products],
   );
 
   return (
@@ -52,7 +66,7 @@ export default function Boutiques() {
           </View>
         }
         ListEmptyComponent={
-          isLoading ? undefined : (
+          isLoading || productsLoading ? undefined : (
             <Sans
               style={{ textAlign: 'center', color: colors.mutedForeground }}
             >

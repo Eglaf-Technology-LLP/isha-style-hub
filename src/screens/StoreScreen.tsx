@@ -1,11 +1,11 @@
-import { useParams } from '@/navigation';
+import { useGo, useParams } from '@/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'react-native';
 import { BadgeCheck, RotateCcw, ShieldCheck, Truck } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 import { AppHeader } from '@/components/AppHeader';
 import { Listing } from '@/components/Listing';
-import { Eyebrow, Placeholder, Sans, Serif } from '@/components/ui';
+import { Button, Eyebrow, Placeholder, Sans, Serif } from '@/components/ui';
 import { useBoutiques, useCategories, useProducts } from '@/lib/catalog';
 import { formatINR } from '@/lib/format';
 import { emptyFilters } from '@/lib/listing';
@@ -55,6 +55,10 @@ export default function StoreScreen() {
   const ownCategories = categories.filter(c =>
     own.some(p => p.category_id === c.id),
   );
+  // A boutique with no live product isn't shown to shoppers (client, 24 Nov
+  // 2026) - an old link or a shared one lands here.
+  const noLivePieces = !!b && products.isSuccess && own.length === 0;
+  const go = useGo();
 
   // The website's store promises. No "Free shipping on every order" line and
   // no boutique return note (client corrections, 15 Nov 2026): returns are set
@@ -83,6 +87,27 @@ export default function StoreScreen() {
       text: 'Quality-checked by AllBoutiqs before it ships',
     },
   ];
+
+  if (noLivePieces) {
+    return (
+      <View style={{ flex: 1 }}>
+        <AppHeader back title={b.name} />
+        <View style={styles.closed}>
+          <Eyebrow>Boutique</Eyebrow>
+          <Serif style={styles.closedTitle}>Not open right now</Serif>
+          <Sans style={styles.closedText}>
+            This boutique has no pieces on sale at the moment.
+          </Sans>
+          <Button
+            label="See all boutiques"
+            variant="outline"
+            onPress={() => go('/boutiques')}
+            style={{ marginTop: 24 }}
+          />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -173,6 +198,18 @@ export default function StoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  closed: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  closedTitle: { fontSize: 28, marginTop: 10, textAlign: 'center' },
+  closedText: {
+    marginTop: 10,
+    textAlign: 'center',
+    color: colors.mutedForeground,
+  },
   banner: { height: 150, overflow: 'hidden' },
   intro: {
     alignItems: 'center',
