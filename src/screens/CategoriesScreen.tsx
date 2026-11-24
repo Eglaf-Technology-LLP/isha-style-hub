@@ -37,7 +37,7 @@ export default function Categories() {
 
   return (
     <View style={{ flex: 1 }}>
-      <AppHeader searchBar />
+      <AppHeader />
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
         <View style={styles.quick}>
           {QUICK.map(({ href, label, icon: Icon }) => (

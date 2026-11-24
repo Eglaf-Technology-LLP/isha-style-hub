@@ -111,6 +111,16 @@ const TAB_PATHS: Record<string, keyof TabParams> = {
   '/profile': 'Profile',
 };
 
+// The screens the header opens from every page (bag, notifications, search)
+// are kept once in the stack: tapping the icon again on that screen does
+// nothing, and from a screen above it goes back to it instead of stacking
+// another copy - so one Back always closes it.
+const SINGLE_SCREENS: ReadonlySet<keyof RootParams> = new Set([
+  'Bag',
+  'Notifications',
+  'Search',
+]);
+
 // go("/category/all?sale=1") - open a screen by its website path, so screens
 // can keep using the same links as the website. { replace: true } swaps the
 // current screen instead of stacking a new one. Returns false when the app
@@ -172,6 +182,19 @@ export function useGo() {
       else if (section === 'password')
         [name, routeParams] = ['Password', params];
       if (!name) return false;
+      if (!opts.replace && SINGLE_SCREENS.has(name)) {
+        // The root stack: from a tab screen, useNavigation gives the tabs.
+        const stack =
+          navigation.getState()?.type === 'stack'
+            ? navigation
+            : navigation.getParent();
+        const routes = stack?.getState()?.routes ?? [];
+        if (stack && routes.some(r => r.name === name)) {
+          if (routes[routes.length - 1].name !== name)
+            stack.dispatch(StackActions.popTo(name, routeParams));
+          return true;
+        }
+      }
       navigation.dispatch(
         opts.replace
           ? StackActions.replace(name, routeParams)

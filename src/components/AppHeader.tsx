@@ -15,16 +15,15 @@ import { cartCount, useCart } from '@/lib/stores';
 import { colors, fonts } from '@/theme';
 import { Serif, Touch } from './ui';
 
-// The app bar, Myntra-style: [back] logo (or a title) .... search, wishlist,
-// bag. `searchBar` adds the full-width Ajio-style search field underneath.
+// The app bar, Myntra-style: [back] logo (or a title) .... search,
+// notifications, wishlist, bag. Search lives only here (the header's icon),
+// not as a second search field on the page.
 export function AppHeader({
   back: showBack,
   title,
-  searchBar,
 }: {
   back?: boolean;
   title?: string;
-  searchBar?: boolean;
 }) {
   const go = useGo();
   const back = useBack();
@@ -106,18 +105,6 @@ export function AppHeader({
           ) : null}
         </Touch>
       </View>
-      {searchBar ? (
-        <Touch
-          style={styles.search}
-          onPress={() => go('/search')}
-          accessibilityRole="search"
-        >
-          <Search size={17} color={colors.primary} strokeWidth={1.8} />
-          <Text style={styles.searchText}>
-            Search sarees, lehengas, boutiques
-          </Text>
-        </Touch>
-      ) : null}
     </View>
   );
 }
@@ -158,22 +145,5 @@ const styles = StyleSheet.create({
     color: colors.primaryForeground,
     fontSize: 10,
     fontFamily: fonts.sansMedium,
-  },
-  search: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    height: 42,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-  },
-  searchText: {
-    fontFamily: fonts.sans,
-    fontSize: 14,
-    color: colors.mutedForeground,
   },
 });

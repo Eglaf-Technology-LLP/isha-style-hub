@@ -57,7 +57,7 @@ export default function Home() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <AppHeader searchBar />
+      <AppHeader />
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
