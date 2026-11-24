@@ -276,7 +276,12 @@ async function registerPickupLocation(
 
   const existing = await shiprocketRequest(supabase, "/settings/company/pickup");
   const existingLocations: any[] = existing?.data?.shipping_address ?? [];
-  const baseName = entity.baseName;
+  // Stage shares live's Shiprocket account, so its locations carry a prefix
+  // (SHIPROCKET_LOCATION_PREFIX=stage-) and never reuse or shadow a live
+  // one with the same name (both have a warehouse coded DEESA). Unset on
+  // live, so live's names don't change.
+  const prefix = (Deno.env.get("SHIPROCKET_LOCATION_PREFIX") ?? "").trim();
+  const baseName = `${prefix}${entity.baseName}`;
   const sameName = existingLocations.find((p) => p.pickup_location === baseName);
 
   // Shiprocket has no "update pickup address" API at all (confirmed

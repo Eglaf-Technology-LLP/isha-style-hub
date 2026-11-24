@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Trash2, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { DIRECT_ROUTE_ENABLED, formatShortDate } from "@/lib/warehouse";
 import { WarehouseInfo } from "./shared";
 import { WAREHOUSE_EXTRA_SETTINGS_ENABLED } from "@/lib/hiddenFeatures";
@@ -114,9 +115,29 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
         },
       })
       .eq("id", warehouse.id);
+    if (error) {
+      setSaving(null);
+      return toast.error(error.message);
+    }
+    // Register the address with Shiprocket as a pickup location right away
+    // (24 Nov 2026), not at the first booking. A changed address gets a new
+    // registration; an unchanged one keeps its own.
+    const { data: pickup, errorMessage } = await invokeEdgeFunction<{ pickup_location: string; already_registered: boolean }>(
+      "warehouse-actions",
+      { action: "register_pickup", warehouse_id: warehouse.id },
+    );
     setSaving(null);
-    if (error) return toast.error(error.message);
-    toast.success("Warehouse saved - a changed address is registered with the courier on the next booking");
+    if (errorMessage || !pickup?.pickup_location) {
+      toast.error(
+        `Warehouse saved, but not registered with Shiprocket yet: ${errorMessage ?? "no pickup location came back"}. Check the address and save again - the first booking also tries again.`,
+      );
+    } else {
+      toast.success(
+        pickup.already_registered
+          ? `Warehouse saved - registered with Shiprocket as "${pickup.pickup_location}"`
+          : `Warehouse saved and registered with Shiprocket as "${pickup.pickup_location}"`,
+      );
+    }
     onSaved();
   };
 
@@ -185,6 +206,15 @@ export function WarehouseSettingsTab({ warehouse, settings, holidays, onSaved }:
         <CardHeader>
           <CardTitle>Warehouse</CardTitle>
           <CardDescription>The courier collects from and delivers to this address. Phone is what couriers call.</CardDescription>
+          {warehouse && (
+            <p className="text-xs text-muted-foreground">
+              {warehouse.shiprocket_pickup_location
+                ? `Registered with Shiprocket as "${warehouse.shiprocket_pickup_location}"${
+                    warehouse.shiprocket_pickup_registered_at ? ` on ${formatShortDate(warehouse.shiprocket_pickup_registered_at)}` : ""
+                  }`
+                : "Not registered with Shiprocket yet - saving registers it"}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           {[

@@ -777,8 +777,13 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     }
 
     // Each size gets its own SKU: <row SKU>-<size> (EX-0981-M); a colour
-    // without sizes keeps the row's SKU.
-    const variantSku = (sku: string, size: string) => `${sku}-${size.replace(/\s+/g, "").toUpperCase()}`;
+    // without sizes keeps the row's SKU - except the main row's colour,
+    // whose row SKU is the product's own SKU, which a variant may not share
+    // (24 Nov 2026): it gets <row SKU>-<colour> (EX-0981-RED).
+    const variantSku = (sku: string, part: string) => `${sku}-${part.replace(/\s+/g, "").toUpperCase()}`;
+    const productSkuKey = skuKey(skuOf(main));
+    const colourOnlySku = (p: { sku: string; colour: string }) =>
+      skuKey(p.sku) === productSkuKey ? variantSku(p.sku, p.colour) : p.sku;
     for (const p of planned) {
       if (!p.sku) continue;
       for (const s of p.sizes) {
@@ -786,6 +791,13 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
         const key = skuKey(made);
         if (ctx.existingSkus.has(key) || madeSkus.has(key) || (skuRows.has(key) && key !== skuKey(p.sku))) {
           problem(p.row, `SKU ${made} (made for size ${s.size}) is already used - change this row's SKU`);
+        }
+      }
+      if (p.sizes.length === 0 && skuKey(p.sku) === productSkuKey) {
+        const made = colourOnlySku(p);
+        const key = skuKey(made);
+        if (ctx.existingSkus.has(key) || madeSkus.has(key) || skuRows.has(key)) {
+          problem(p.row, `SKU ${made} (made for colour ${p.colour}) is already used - change this row's SKU`);
         }
       }
     }
@@ -811,12 +823,14 @@ export function parseListingWorkbook(workbook: WorkBook, ctx: ListingParseContex
     for (const p of planned) {
       const productValue = p.value ?? mainValue!;
       if (p.sizes.length === 0) {
+        const sku = colourOnlySku(p);
+        madeSkus.add(skuKey(sku));
         variants.push({
           id: crypto.randomUUID(),
           name: p.colour,
           price: 0,
           product_value: productValue,
-          sku: p.sku,
+          sku,
           stock: 0,
           options: { Color: p.colour },
           image_url: null,

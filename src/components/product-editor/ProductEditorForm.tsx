@@ -36,6 +36,7 @@ import {
   fetchProductWithVariants,
 } from "@/hooks/useProducts";
 import { VariantManager } from "@/components/admin/VariantManager";
+import { boutiqueSkuClash, variantSkuProblem } from "@/lib/skuRules";
 import { ProductSpecificationsEditor } from "@/components/admin/ProductSpecificationsEditor";
 import { ProductVendorSelect } from "@/components/admin/ProductVendorSelect";
 import { AiDeclarationField } from "@/components/AiDeclarationField";
@@ -429,6 +430,10 @@ export function ProductEditorForm({
     // (the database checks it too - enforce_product_sku).
     const sku = form.sku.trim();
     if (!sku) return toast.error("Enter the SKU - your own code for this product");
+    // 24 Nov 2026: every size/colour needs its own SKU too, never repeated
+    // in the boutique (the database checks it too - enforce_variant_sku).
+    const variantProblem = variantSkuProblem(sku, variants);
+    if (variantProblem) return toast.error(variantProblem);
     if (!form.description.trim()) return toast.error("Add a description");
     const productValue = Number(form.product_value);
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
@@ -475,17 +480,16 @@ export function ProductEditorForm({
     setSaving(true);
     try {
       if (vendorId) {
-        const { data: clash } = await supabase
-          .from("products")
-          .select("id, name")
-          .eq("vendor_id", vendorId)
-          // Same code in any case; % and _ taken literally.
-          .ilike("sku", sku.replace(/[\\%_]/g, (c) => `\\${c}`))
-          .neq("id", product?.id ?? "00000000-0000-0000-0000-000000000000")
-          .limit(1)
-          .maybeSingle();
+        // The product's SKU and its sizes'/colours' SKUs against every other
+        // product of the boutique and their sizes/colours.
+        const clash = await boutiqueSkuClash(
+          vendorId,
+          product?.id,
+          sku,
+          variants.map((v) => v.sku ?? ""),
+        );
         if (clash) {
-          toast.error(`SKU ${sku} is already used by "${clash.name}" - every product needs its own SKU`);
+          toast.error(clash);
           return;
         }
       }
