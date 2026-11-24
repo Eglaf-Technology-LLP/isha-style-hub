@@ -16,6 +16,9 @@ import { Loader2, CheckCircle2, XCircle, Ban, ShieldCheck, Eye, Truck, BadgeChec
 import { VerifiedBoutiqueBadge } from "@/components/VerifiedBoutiqueBadge";
 import { FoundingBoutiqueBadge } from "@/components/FoundingBoutiqueBadge";
 import { FoundingBoutiqueDialog } from "./FoundingBoutiqueDialog";
+import { useFoundingPeriod } from "@/hooks/useFoundingPeriod";
+import { formatDate } from "@/lib/dates";
+import { todayIst } from "@/lib/payoutDates";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { RAZORPAY_ROUTE_ENABLED } from "@/lib/payoutRail";
@@ -36,6 +39,8 @@ export function VendorManagement() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [viewVendor, setViewVendor] = useState<AdminVendor | null>(null);
   const [foundingVendor, setFoundingVendor] = useState<AdminVendor | null>(null);
+  const { period: foundingPeriod } = useFoundingPeriod();
+  const today = todayIst();
   const [gradeByVendor, setGradeByVendor] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -229,9 +234,12 @@ export function VendorManagement() {
                     </TableCell>
                     <TableCell>
                       {v.commission_rate != null ? `${v.commission_rate}%` : "Platform"}
-                      {v.is_founding && v.founding_until && (
+                      {/* The same founding dates for every Founding Boutique (A15.1). */}
+                      {v.is_founding && foundingPeriod && today <= foundingPeriod.until && (
                         <div className="text-[10px] text-amber-700 dark:text-amber-400 whitespace-nowrap">
-                          0% until {v.founding_until}
+                          {today < foundingPeriod.from
+                            ? `0% from ${formatDate(foundingPeriod.from)} to ${formatDate(foundingPeriod.until)}`
+                            : `0% until ${formatDate(foundingPeriod.until)}`}
                         </div>
                       )}
                     </TableCell>

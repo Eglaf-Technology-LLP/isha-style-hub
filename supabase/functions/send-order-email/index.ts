@@ -3,8 +3,9 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
-import { formatDate, formatDateWithDay } from "../_shared/dates.ts";
+import { formatDateInWords, formatDateInWordsWithDay } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
+import { paymentModeLine } from "../_shared/paidVia.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -239,7 +240,7 @@ const handler = async (req: Request): Promise<Response> => {
         : "";
     const trackingUrl = shipment?.awb_code ? `https://shiprocket.co/tracking/${encodeURIComponent(shipment.awb_code)}` : null;
     const eta = shipment?.estimated_delivery_date
-      ? formatDateWithDay(shipment.estimated_delivery_date)
+      ? formatDateInWordsWithDay(shipment.estimated_delivery_date)
       : null;
     const orderUrl = `${SITE_URL}/orders?focus=${order.id}`;
 
@@ -375,13 +376,24 @@ const handler = async (req: Request): Promise<Response> => {
     const showTotal = !isDeliveryStep || !multiBoutique;
     const shippingAddress = order.shipping_address as any;
 
+    // How the customer paid: "Paid by UPI", or "Pay ₹X in cash when it
+    // arrives" - with the amount only when the courier collects the whole
+    // order total (one parcel, nothing cancelled). Left out once a Cash on
+    // Delivery order is cancelled in full - there is nothing to pay.
+    const anyCancelled = (vendorOrders ?? []).some((v: any) => v.status === "cancelled");
+    const codCancelled = order.payment_method === "cod" && (order.order_status === "cancelled" || liveVendorOrders.length === 0);
+    const paymentLine = codCancelled
+      ? null
+      : paymentModeLine(order, money, !anyCancelled && (type === "confirmation" || !multiBoutique) ? Number(order.total) : null);
+
     const bodyHtml = `
       <p style="color:#5a5a5a; margin:0 0 4px;">${message}</p>
       ${tracker}
       ${extraHtml}
       ${infoBox([
         ["Order", `#${orderNumber}`],
-        ["Placed on", formatDate(order.created_at)],
+        ["Placed on", formatDateInWords(order.created_at)],
+        ...(paymentLine ? [["Payment", escapeHtml(paymentLine)] as [string, string]] : []),
         ...(isDeliveryStep && boutique ? [["Boutique", escapeHtml(boutique)] as [string, string]] : []),
       ])}
       ${partNote}

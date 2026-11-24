@@ -59,6 +59,8 @@ import { VariantStockDialog } from "@/components/admin/VariantStockDialog";
 import { VendorAnalyticsSection } from "@/components/vendor/VendorAnalyticsSection";
 import { VendorEarningsBreakdown } from "@/components/vendor/VendorEarningsBreakdown";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { CreditNoteButton } from "@/components/CreditNoteButton";
+import { mayHaveCreditNote } from "@/lib/invoiceLine";
 import { useLowStockAlerts } from "@/hooks/useLowStockAlerts";
 import { useShipments } from "@/hooks/useShipments";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
@@ -1480,7 +1482,13 @@ export default function VendorDashboard() {
                                             shipNow={shipNowAndTrack}
                                             triggerLabel={o.via_warehouse ? "Ship to warehouse" : "Ship Now"}
                                           />
-                                          <EwayBillStatusLine value={ewayBillValue.get(o.id)} bill={openForwardBill(o.id)} />
+                                          <EwayBillStatusLine
+                                            value={ewayBillValue.get(o.id)}
+                                            bill={openForwardBill(o.id)}
+                                            vendorOrderId={o.id}
+                                            orderStatus={o.status}
+                                            onRequested={refetchEwayBills}
+                                          />
                                           {o.via_warehouse && o.ready_by && (
                                             <div className="text-[11px] text-muted-foreground whitespace-nowrap">
                                               Hand to courier by {formatShortDate(o.ready_by)}
@@ -1580,6 +1588,7 @@ export default function VendorDashboard() {
                                 paymentStatus={o.payment_status ?? "pending"}
                                 vendorOrderStatus={o.status}
                               />
+                              {mayHaveCreditNote(o.status) && <CreditNoteButton vendorOrderId={o.id} />}
                             </TableCell>
                           </TableRow>
                         ))}

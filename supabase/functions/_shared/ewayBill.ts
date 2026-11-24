@@ -12,9 +12,12 @@ import { getWarehouse } from "./warehouse.ts";
 // the eway_bills migrations. AllBoutiqs is enrolled as a transporter on the
 // portal and makes every boutique's e-way bills itself:
 //
-//   order placed      raiseOrderEwayBills: one request per boutique part
-//                     over the limit (tax invoice issued now), one email to
-//                     the admins, a "being made" note to each boutique
+//   boutique packs    "Get e-way bill ready" on the Seller Dashboard
+//                     (eway-bill-actions "request") asks for the boutique leg
+//                     with its tax invoice; the admins and super admins get
+//                     the email. Not when the order is placed: a Made to
+//                     Order piece can ship weeks later (client corrections
+//                     Part 2, A16.1). Ship Now asks too if nobody has.
 //   any booking       requestEwayBill: the courier can't be booked until the
 //                     number is in (asks for one if nothing asked yet)
 //   admin             downloads the requests as the portal's bulk JSON,
@@ -601,35 +604,6 @@ export async function movementFor(
   return { vendorOrderId, leg, from, to, requestedBy: null, ...extra };
 }
 
-// ---------- order placed ----------
-
-// Every boutique part of a placed order that's over the limit gets its
-// request now - one email for the order, so a three-boutique order is one
-// message. Problems (no GSTIN, no HSN) are in the same email.
-export async function raiseOrderEwayBills(supabase: SupabaseClient, orderId: string): Promise<EwayBill[]> {
-  const [{ data: order }, { data: parts }] = await Promise.all([
-    supabase.from("orders").select("id, fulfilment_route, warehouse_id").eq("id", orderId).maybeSingle(),
-    supabase.from("vendor_orders").select("id, vendors(name)").eq("order_id", orderId).neq("status", "cancelled"),
-  ]);
-  if (!order || !parts?.length) return [];
-  const leg: EwayBillLeg =
-    order.fulfilment_route === "warehouse" && order.warehouse_id ? "boutique_to_warehouse" : "boutique_to_customer";
-  const created: EwayBill[] = [];
-  const problems: string[] = [];
-  for (const part of parts) {
-    try {
-      const check = await requestEwayBill(supabase, await movementFor(supabase, part.id, leg), { announce: false });
-      if (check.required && check.created) created.push(check.bill);
-    } catch (e) {
-      const boutique = (part as any).vendors?.name ?? "A boutique";
-      problems.push(`${boutique} - order ${orderRef(orderId)}: ${errorMessage(e)}`);
-      console.error("raiseOrderEwayBills failed", part.id, errorMessage(e));
-    }
-  }
-  await announceRequests(supabase, created, problems);
-  return created;
-}
-
 // A return / exchange pickup from the customer: the courier collects it, so
 // nothing waits on it - AllBoutiqs makes the e-way bill (one per boutique
 // part over the limit) before the courier comes.
@@ -674,11 +648,12 @@ export async function raiseReturnEwayBills(supabase: SupabaseClient, returnReque
 
 // ---------- telling people ----------
 
+// Admins and super admins (both get the e-way bill emails).
 async function adminEmails(supabase: SupabaseClient): Promise<string[]> {
-  const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
+  const { data: roles } = await supabase.from("user_roles").select("user_id").in("role", ["admin", "super_admin"]);
   const emails = await Promise.all(
-    (roles ?? []).map(async (r) => {
-      const { data } = await supabase.auth.admin.getUserById(r.user_id);
+    [...new Set<string>((roles ?? []).map((r: { user_id: string }) => r.user_id))].map(async (userId) => {
+      const { data } = await supabase.auth.admin.getUserById(userId);
       return data?.user?.email ?? null;
     }),
   );
@@ -778,7 +753,7 @@ export async function announceRequests(supabase: SupabaseClient, bills: EwayBill
       await notifyVendorMembers(supabase, b.vendor_id, {
         type: "eway_bill_needed",
         title: "E-way bill being made",
-        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. Pack the order meanwhile; we'll tell you when you can ship.`,
+        body: `Order ${orderRef(b.order_id)} is over ${money(settings.threshold)}, so it needs an e-way bill. AllBoutiqs is making it - usually ready within ${TURNAROUND}. We'll tell you when you can ship.`,
         link: links.vendorOrder(b.vendor_order_id),
       });
     }
@@ -874,9 +849,9 @@ const HOUR = 3_600_000;
 export async function watchEwayBills(supabase: SupabaseClient) {
   const result = { raised: 0, reminded: 0, toCancel: 0, expiring: 0, problems: 0 };
 
-  // 1. Requests that should exist but don't (order-time raise failed, part
-  //    passed inspection at the warehouse). Problems were already reported
-  //    when the order was placed, so they're only logged here.
+  // 1. Requests that should exist but don't (a part passed inspection at the
+  //    warehouse). A boutique leg is asked for by Ship Now itself. Problems
+  //    are only logged here.
   const { data: missing, error: missErr } = await supabase.rpc("eway_bill_missing_requests");
   if (missErr) console.error("eway watch: missing requests", missErr);
   const raised: EwayBill[] = [];

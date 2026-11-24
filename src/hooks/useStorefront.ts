@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { mapDbVariant, Product, ProductSpecification, ProductVariant } from "@/hooks/useProducts";
@@ -105,6 +106,38 @@ export function useStoreBoutiques() {
       return (data || []) as StoreBoutique[];
     },
   });
+}
+
+export interface LiveBoutique {
+  boutique: StoreBoutique;
+  pieces: number;
+  cover: string | null;
+}
+
+// Boutiques shown to shoppers (Boutiques page, home page): only ones with at
+// least one live product - a "0 pieces" boutique makes the shop look empty
+// (client, 24 Nov 2026). Most pieces first; the cover is a product photo for
+// boutiques without a banner. Nothing until both lists have loaded. Admins
+// still see every boutique in the admin panel.
+export function useLiveBoutiques() {
+  const boutiques = useStoreBoutiques();
+  const products = useStoreProducts();
+  const ready = boutiques.isSuccess && products.isSuccess;
+  const data = useMemo((): LiveBoutique[] => {
+    if (!ready) return [];
+    const pieces = new Map<string, number>();
+    const covers = new Map<string, string>();
+    for (const p of products.data ?? []) {
+      if (!p.vendor_id) continue;
+      pieces.set(p.vendor_id, (pieces.get(p.vendor_id) ?? 0) + 1);
+      if (!covers.has(p.vendor_id) && p.images?.[0]) covers.set(p.vendor_id, p.images[0]);
+    }
+    return (boutiques.data ?? [])
+      .filter((b) => (pieces.get(b.id) ?? 0) > 0)
+      .map((b) => ({ boutique: b, pieces: pieces.get(b.id)!, cover: covers.get(b.id) ?? null }))
+      .sort((a, b) => b.pieces - a.pieces);
+  }, [ready, boutiques.data, products.data]);
+  return { data, ready, isLoading: boutiques.isLoading || products.isLoading };
 }
 
 // ---------- product helpers shared by cards, filters and pages ----------

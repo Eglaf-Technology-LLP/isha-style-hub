@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
 import { useMembership, MEMBERSHIP_PLANS, INSIDER_BENEFITS, type MembershipPlan } from "@/hooks/useMembership";
-import { formatDate } from "@/lib/dates";
+import { formatDateInWords } from "@/lib/dates";
 import { formatINR } from "@/lib/format";
 
 export default function Membership() {
@@ -170,7 +170,7 @@ function ActiveMembershipCard({
           <Badge variant="secondary" className="capitalize">{membership.plan}</Badge>
         </div>
         <CardDescription className="text-primary-foreground/90">
-          Renews on {formatDate(new Date(membership.expires_at))}
+          Renews on {formatDateInWords(new Date(membership.expires_at))}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">

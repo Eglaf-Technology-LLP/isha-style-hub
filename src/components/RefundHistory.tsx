@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { useRefunds } from "@/hooks/useRefunds";
 import { RefundReceiptDialog } from "@/components/RefundReceiptDialog";
-import { formatDateTime } from "@/lib/dates";
+import { formatDateTime, formatDateTimeInWords } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
 
 export const refundStatusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -18,7 +18,10 @@ export const refundStatusConfig: Record<string, { label: string; variant: "defau
 // history. Deliberately doesn't claim to know when the bank actually
 // credited the customer - "processed by gateway" is the honest limit of
 // what Razorpay's webhook tells us; the bank-side credit can lag further.
-export function RefundHistory({ orderId }: { orderId: string }) {
+// inWords: the customer's My Orders shows dates in words ("4 Jan 2027"); admin
+// and boutique screens keep the numbers.
+export function RefundHistory({ orderId, inWords = false }: { orderId: string; inWords?: boolean }) {
+  const when = inWords ? formatDateTimeInWords : formatDateTime;
   const { refunds, loading } = useRefunds(orderId);
 
   if (loading) {
@@ -44,14 +47,14 @@ export function RefundHistory({ orderId }: { orderId: string }) {
             <p className="text-muted-foreground">{refund.reason}</p>
             <p className="text-xs text-muted-foreground">
               {refund.initiated_by ? "Initiated by admin" : "Issued directly in Razorpay dashboard"} on{" "}
-              {formatDateTime(new Date(refund.initiated_at))}
+              {when(new Date(refund.initiated_at))}
             </p>
             {refund.razorpay_refund_id && (
               <p className="text-xs text-muted-foreground font-mono">Razorpay refund #{refund.razorpay_refund_id}</p>
             )}
             {refund.status === "processed" && refund.gateway_processed_at && (
               <p className="text-xs text-green-700">
-                Processed by gateway on {formatDateTime(new Date(refund.gateway_processed_at))} -
+                Processed by gateway on {when(new Date(refund.gateway_processed_at))} -
                 bank credit can take a few more days to reflect.
               </p>
             )}

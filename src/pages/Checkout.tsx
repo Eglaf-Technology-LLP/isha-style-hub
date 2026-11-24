@@ -56,6 +56,8 @@ import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
+import { CheckoutLineRules } from "@/components/storefront/checkout/CheckoutLineRules";
+import { useReturnWindowHours } from "@/hooks/useReturnWindowHours";
 import { useWallet } from "@/hooks/useWallet";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -193,6 +195,13 @@ export default function Checkout() {
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("razorpay");
   const paymentMethod: "cod" | "razorpay" = paymentChoice === "cod" ? "cod" : "razorpay";
   const [codOffProducts, setCodOffProducts] = useState<string[]>([]);
+  // Each product's rules for the order summary (A23.2): Made to Order,
+  // returnable, Cash on Delivery - and when a made-to-order line ships.
+  const [productRules, setProductRules] = useState<
+    Record<string, { made_to_order: boolean; is_returnable: boolean; cod_available: boolean }>
+  >({});
+  const [shipsByForLine, setShipsByForLine] = useState<Record<string, string | null>>({});
+  const returnHours = useReturnWindowHours();
   const [emiMethods, setEmiMethods] = useState<{
     card: boolean;
     cardless: boolean;
@@ -302,16 +311,18 @@ export default function Checkout() {
   // vendor (legacy/platform-owned products) fall back to a flat default.
   const [vendorInfo, setVendorInfo] = useState<Record<string, VendorShippingInfo>>({});
 
-  // Products whose listing has Cash on Delivery switched off.
+  // Products whose listing has Cash on Delivery switched off, and each
+  // product's rules for the order summary.
   useEffect(() => {
     const productIds = [...new Set(items.map((i) => i.productId))];
     if (productIds.length === 0) {
       setCodOffProducts([]);
+      setProductRules({});
       return;
     }
     supabase
       .from("products")
-      .select("id, name, cod_available")
+      .select("id, name, cod_available, is_returnable, made_to_order")
       .in("id", productIds)
       .then(({ data, error }) => {
         if (error) {
@@ -319,8 +330,49 @@ export default function Checkout() {
           return;
         }
         setCodOffProducts((data || []).filter((p) => p.cod_available === false).map((p) => p.name));
+        setProductRules(
+          Object.fromEntries(
+            (data || []).map((p) => [
+              p.id,
+              { made_to_order: !!p.made_to_order, is_returnable: p.is_returnable !== false, cod_available: p.cod_available !== false },
+            ]),
+          ),
+        );
       });
   }, [items]);
+
+  // "Ships by" for each made-to-order line (a Made to Order listing or a
+  // sold-out size made to order): the same server estimate as the product
+  // page's, without a PIN code - when it leaves for the customer.
+  const shipsByKey = (i: CartItem) => `${i.productId}|${!!i.soldOutTerms}|${!!i.customisation}`;
+  const madeToOrderLinesKey = items
+    .filter((i) => i.vendorId && (productRules[i.productId]?.made_to_order || i.soldOutTerms))
+    .map((i) => `${i.vendorId}|${shipsByKey(i)}`)
+    .sort()
+    .join(",");
+  useEffect(() => {
+    if (!madeToOrderLinesKey) return;
+    let cancelled = false;
+    for (const line of [...new Set(madeToOrderLinesKey.split(","))]) {
+      const [vendorId, productId, soldOut, customised] = line.split("|");
+      invokeEdgeFunction<{ ships_by_date?: string | null }>("shiprocket-estimate-delivery", {
+        vendor_id: vendorId,
+        items: [
+          {
+            product_id: productId,
+            quantity: 1,
+            customised: customised === "true",
+            ...(soldOut === "true" ? { sold_out_made_to_order: true } : {}),
+          },
+        ],
+      }).then(({ data }) => {
+        if (!cancelled) setShipsByForLine((m) => ({ ...m, [`${productId}|${soldOut}|${customised}`]: data?.ships_by_date ?? null }));
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [madeToOrderLinesKey]);
 
   // EMI is offered only once it's switched on for our Razorpay account.
   useEffect(() => {
@@ -1817,6 +1869,25 @@ export default function Checkout() {
                         {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="my-1.5" />}
                         {item.customisation && (
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
+                        )}
+                        {productRules[item.productId] && (
+                          <CheckoutLineRules
+                            className="mt-1"
+                            rules={{
+                              madeToOrder: productRules[item.productId].made_to_order,
+                              soldOutMadeToOrder: !!item.soldOutTerms,
+                              shipsBy: shipsByForLine[shipsByKey(item)],
+                              // A customised piece isn't returnable (only if it arrives damaged or wrong).
+                              returnable:
+                                productRules[item.productId].is_returnable &&
+                                !item.customisation &&
+                                (!item.vendorId || vendorInfo[item.vendorId]?.returns_enabled !== false),
+                              returnHours,
+                              codAvailable:
+                                productRules[item.productId].cod_available &&
+                                (!item.vendorId || vendorInfo[item.vendorId]?.cod_enabled !== false),
+                            }}
+                          />
                         )}
                         <p className="mt-1 text-sm font-medium">
                           {formatINR(parseFloat(item.price.amount) * item.quantity)}

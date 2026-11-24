@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, BadgeCheck } from "lucide-react";
-import { StoreBoutique, useStoreBoutiques, useStoreProducts } from "@/hooks/useStorefront";
+import { StoreBoutique, useLiveBoutiques } from "@/hooks/useStorefront";
 import { SectionHeading } from "../SectionHeading";
 import { SmartImage } from "../SmartImage";
 import { BrandPlaceholder } from "../BrandPlaceholder";
@@ -50,16 +50,8 @@ export function BoutiqueCard({ boutique, pieces, cover }: { boutique: StoreBouti
 // "Meet the boutiques": the marketplace's independent labels, each with its
 // banner (or a product photo), logo and live piece count.
 export function BoutiqueSpotlight() {
-  const { data: boutiques = [] } = useStoreBoutiques();
-  const { data: products = [] } = useStoreProducts();
-  const live = boutiques
-    .map((b) => ({
-      boutique: b,
-      pieces: products.filter((p) => p.vendor_id === b.id).length,
-      cover: products.find((p) => p.vendor_id === b.id && p.images?.[0])?.images[0] ?? null,
-    }))
-    .filter((b) => b.pieces > 0)
-    .sort((a, b) => b.pieces - a.pieces);
+  // Only boutiques with at least one live product.
+  const { data: live } = useLiveBoutiques();
   if (live.length === 0) return null;
 
   const heading = (

@@ -22,8 +22,10 @@ export const NEW_IN_AND_SALE_LINKS_ENABLED = false;
 // dates it had.
 export const BANNER_SCHEDULE_ENABLED = false;
 
-// Admin > Returns: the "Return settings" card.
-export const RETURN_SETTINGS_ENABLED = true;
+// Admin > Returns: the "Return settings" card (return window, photo
+// evidence, boutique response time, refund charge). Off since 2026-11-24
+// (client): only a super admin sees it; the saved values keep working.
+export const RETURN_SETTINGS_ENABLED = false;
 
 // Admin > E-way bills: the Settings tab.
 export const EWAY_BILL_SETTINGS_ENABLED = false;
@@ -60,10 +62,10 @@ export const WAREHOUSE_EXTRA_SETTINGS_ENABLED = true;
 // the product has; admins still set it in Vendors > Manage Catalogue.
 export const VENDOR_RETURNABLE_SWITCH_ENABLED = true;
 
-// Boutique's Store settings: the whole "Shipping & returns" box (flat
-// shipping, free over, return window, ready to ship in, return policy, Cash
-// on Delivery, accept returns). While false, saving the store leaves those
-// as they are.
+// Boutique's Store settings: the whole "Shipping & returns" box (now only
+// "Ready to ship in" - the store-level Cash on Delivery and returns switches
+// are admin-only since A20.2). While false, saving the store leaves it as it
+// is.
 export const STORE_SHIPPING_RETURNS_ENABLED = true;
 
 // Product customisation (client, 2026-11-13): the "Other customisations,

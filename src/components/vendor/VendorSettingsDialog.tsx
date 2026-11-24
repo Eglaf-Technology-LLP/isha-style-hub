@@ -15,7 +15,6 @@ import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from "@/lib/addressLine1";
 import { pickupAddressErrors, reportPickupAddressErrors, type PickupAddressField } from "@/lib/pickupAddress";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -53,8 +52,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
     return_window_days: "7",
     default_prep_days: "",
   });
-  const [codEnabled, setCodEnabled] = useState(true);
-  const [returnsEnabled, setReturnsEnabled] = useState(true);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -76,8 +73,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
       return_window_days: String(vendor.return_window_days ?? 7),
       default_prep_days: vendor.default_prep_days != null ? String(vendor.default_prep_days) : "",
     });
-    setCodEnabled(vendor.cod_enabled);
-    setReturnsEnabled(vendor.returns_enabled);
     setLogoUrl(vendor.logo_url);
     setBannerUrl(vendor.banner_url);
     setTaken({});
@@ -193,8 +188,10 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   form.default_prep_days.trim() === ""
                     ? null
                     : Math.min(60, Math.max(0, Math.round(Number(form.default_prep_days) || 0))),
-                cod_enabled: codEnabled,
-                returns_enabled: returnsEnabled,
+                // No store-level Cash on Delivery / returns switches here
+                // (client corrections Part 2, A20.2): both are set per
+                // product, and only AllBoutiqs changes the store-level ones
+                // (Admin > Vendors). Not sent, so they stay as they are.
               }
             : {}),
           logo_url: logoUrl,
@@ -351,12 +348,14 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
           {/* Hidden for now (src/lib/hiddenFeatures.ts). */}
           {STORE_SHIPPING_RETURNS_ENABLED && (
             <div className="rounded-lg border border-border p-4 space-y-4 bg-muted/30">
-              <h4 className="font-semibold">Shipping &amp; returns</h4>
+              <h4 className="font-semibold">Shipping</h4>
               {/* No flat shipping / free-over here: delivery is free for
                   customers and the boutique pays the fixed courier charge per
                   piece (client, 13 Nov 2026). No return window either:
                   AllBoutiqs sets one for every boutique (Admin > Returns >
-                  Return settings, 24 hours). */}
+                  Return settings, 24 hours). No Cash on Delivery / returns
+                  switches: set per product; the store-level ones are
+                  AllBoutiqs' (A20.2). */}
               <div className="space-y-2">
                 <Label htmlFor="vs-prep">Ready to ship in (days)</Label>
                 <Input
@@ -373,22 +372,6 @@ export function VendorSettingsDialog({ open, onOpenChange, vendor, onSaved }: Pr
                   How many working days you need to pack an order before handing it to the courier. Used in the
                   delivery date customers see. Leave empty for 2 days; set a longer time on made-to-order products.
                 </p>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-                <div>
-                  <Label htmlFor="vs-cod">Offer Cash on Delivery</Label>
-                  <p className="text-xs text-muted-foreground">Off hides COD at checkout for your products.</p>
-                </div>
-                <Switch id="vs-cod" checked={codEnabled} onCheckedChange={setCodEnabled} />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
-                <div>
-                  <Label htmlFor="vs-returns">Accept returns</Label>
-                  <p className="text-xs text-muted-foreground">
-                    Off hides the return option for your products, even for items you've marked returnable.
-                  </p>
-                </div>
-                <Switch id="vs-returns" checked={returnsEnabled} onCheckedChange={setReturnsEnabled} />
               </div>
             </div>
           )}

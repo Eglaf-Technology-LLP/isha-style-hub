@@ -8,7 +8,7 @@ import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { CartItem } from "@/stores/cartStore";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
-import { formatDateWithDay } from "@/lib/dates";
+import { formatDateInWordsWithDay } from "@/lib/dates";
 import { formatINR } from "@/lib/format";
 
 interface VendorShippingGroup {
@@ -47,8 +47,9 @@ export async function fetchCartDeliveryDate(
   return data.estimated_delivery_date;
 }
 
+// "Mon, 4 Jan 2027" - customers see dates in words.
 export function deliveryDateLabel(isoDate: string): string {
-  return formatDateWithDay(isoDate);
+  return formatDateInWordsWithDay(isoDate);
 }
 
 // Cart never grouped items by vendor before (a single order/cart can span

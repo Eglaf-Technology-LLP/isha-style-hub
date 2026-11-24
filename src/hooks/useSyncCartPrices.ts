@@ -27,9 +27,17 @@ const lineName = (i: CartItem) => {
 // on the line), and one back in stock goes back to a normal line - the
 // customer is told either way, before checkout. The server applies the same
 // rule when the order is placed (sold_out_made_to_order_trigger).
+//
+// A piece that is no longer for sale - deleted, switched off, not approved,
+// its boutique not approved, or its size gone - leaves the cart with "1 item
+// is no longer available and was removed." (client corrections Part 2,
+// A23.3: a deleted product stayed in the cart with its old name, price and a
+// blank photo). Shoppers can only read live products, so a line whose
+// product doesn't come back is one of these.
 export function useSyncCartPrices(enabled = true) {
   const items = useCartStore((s) => s.items);
   const setPrices = useCartStore((s) => s.setPrices);
+  const removeItem = useCartStore((s) => s.removeItem);
   // Re-check when lines, their sizes or quantities change (a quantity above
   // the stock left makes a line made to order).
   const linesKey = items.map((i) => `${cartLineKey(i)}:${i.variantId}:${i.quantity}`).join(",");
@@ -40,20 +48,37 @@ export function useSyncCartPrices(enabled = true) {
     (async () => {
       const productIds = [...new Set(items.map((i) => i.productId))];
       const variantIds = [...new Set(items.map((i) => i.variantId).filter((id) => UUID_RE.test(id)))];
-      const [{ data: products }, { data: variants }] = await Promise.all([
+      const [{ data: products, error: productsError }, { data: variants, error: variantsError }] = await Promise.all([
         supabase
           .from("products")
           .select(
-            "id, price, stock_quantity, made_to_order, sold_out_action, sold_out_extra_amount, sold_out_extra_pct, sold_out_extra_days",
+            "id, price, stock_quantity, is_active, approval_status, made_to_order, sold_out_action, sold_out_extra_amount, sold_out_extra_pct, sold_out_extra_days",
           )
           .in("id", productIds),
         variantIds.length
           ? supabase.from("product_variants").select("id, price, stock").in("id", variantIds)
-          : Promise.resolve({ data: [] as { id: string; price: number | null; stock: number }[] }),
+          : Promise.resolve({ data: [] as { id: string; price: number | null; stock: number }[], error: null }),
       ]);
-      if (!alive || !products) return;
+      // Only a lookup that worked can say a piece is gone.
+      if (!alive || !products || productsError || variantsError) return;
       const productById = new Map(products.map((p) => [p.id, p]));
       const variantById = new Map((variants ?? []).map((v) => [v.id, v]));
+
+      const unavailable = items.filter((item) => {
+        const product = productById.get(item.productId);
+        if (!product || product.is_active === false || product.approval_status !== "approved") return true;
+        return UUID_RE.test(item.variantId) && !variantById.has(item.variantId);
+      });
+      if (unavailable.length) {
+        unavailable.forEach((item) => removeItem(cartLineKey(item)));
+        const n = unavailable.length;
+        toast.info(`${n} ${n === 1 ? "item is" : "items are"} no longer available and ${n === 1 ? "was" : "were"} removed.`, {
+          description: unavailable.map((i) => i.productName).join(", "),
+          duration: 8000,
+        });
+        // The cart changed: this runs again for what's left.
+        return;
+      }
 
       const updates: Record<string, LinePrice> = {};
       let priceMoved = false;

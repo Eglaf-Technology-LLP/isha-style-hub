@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Truck, CircleX, MapPin, PackageCheck } from "lucide-react";
 import { useSavedAddresses } from "@/hooks/useSavedAddresses";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
-import { formatDate, formatDateWithDay } from "@/lib/dates";
+import { formatDateInWordsWithDay } from "@/lib/dates";
 
 interface CourierOption {
   courierName: string;
@@ -17,8 +17,9 @@ interface DeliveryEstimateProps {
   soldOutMadeToOrder?: boolean;
 }
 
+// For customers: in words - "Mon, 4 Jan 2027", never "04-01-2027".
 function dateLabel(isoDate: string): string {
-  return formatDateWithDay(isoDate);
+  return formatDateInWordsWithDay(isoDate);
 }
 
 function earliestEtaLabel(couriers: CourierOption[]): string | null {
@@ -27,7 +28,7 @@ function earliestEtaLabel(couriers: CourierOption[]): string | null {
     .filter((d): d is Date => !!d && !isNaN(d.getTime()));
   if (dates.length === 0) return null;
   const earliest = new Date(Math.min(...dates.map((d) => d.getTime())));
-  return formatDate(earliest);
+  return formatDateInWordsWithDay(earliest);
 }
 
 // The last PIN code checked on this device, so a shopper without a saved

@@ -39,8 +39,9 @@ import {
 //
 // The goods leave on the boutique's tax invoice, issued here. A part worth
 // more than the e-way bill limit isn't booked until its e-way bill number is
-// in (eway_bill_pending): AllBoutiqs asked for it when the order was placed
-// (a press before then asks for it). AllBoutiqs is the transporter on it, so
+// in (eway_bill_pending): the first press asks AllBoutiqs for it, with the
+// tax invoice - not when the order was placed (client corrections Part 2,
+// A16.1). AllBoutiqs is the transporter on it, so
 // any courier can be booked; the number goes to Shiprocket with the booking.
 // An exchange replacement over the limit travels on its own delivery challan
 // and e-way bill.

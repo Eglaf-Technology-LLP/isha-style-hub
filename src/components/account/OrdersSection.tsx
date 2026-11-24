@@ -12,17 +12,20 @@ import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { useAuth } from "@/hooks/useAuth";
 import { useReturnRequests, ReturnRequest } from "@/hooks/useReturnRequests";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
-import { customerCancelDeadline, isWithinCustomerCancelWindow } from "@/lib/orderCancel";
+import { customerCancelDeadline, isWithinCustomerCancelWindow, partCancelRefund } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
+import { CreditNoteButton } from "@/components/CreditNoteButton";
+import { mayHaveCreditNote } from "@/lib/invoiceLine";
 import { OrderStatusTimeline } from "@/components/OrderStatusTimeline";
-import { buildOrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
+import { buildOrderTimeline, buildWarehouseOrderTimeline, inboundBookedAt, OrderTimeline, ShipmentTimestamps } from "@/lib/orderStatus";
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
 import { formatINR, formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { orderPaymentLine } from "@/lib/paymentMode";
 
 // Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
 // purely to decide whether to show the Cancel action at all; the edge
@@ -58,6 +61,15 @@ interface VendorOrderInfo {
   status: string;
   updated_at: string;
   shipment: (ShipmentTimestamps & { awb_code: string | null; courier_name: string | null }) | null;
+  // Step times for the tracker (see src/lib/orderStatus.ts).
+  arrived_at_warehouse_at: string | null;
+  delivered_at: string | null;
+  confirmed_at: string | null;
+  out_for_delivery_at: string | null;
+  inbound_booked_at: string | null;
+  // The part's items and delivery charge - what a cancel refunds, less coupon.
+  subtotal: number | null;
+  shipping_cost: number | null;
 }
 
 interface Order {
@@ -66,6 +78,9 @@ interface Order {
   order_status: string;
   payment_status: string;
   payment_method: string;
+  fulfilment_route?: string | null;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   subtotal: number;
   shipping_cost: number;
   total: number;
@@ -134,7 +149,8 @@ export function OrdersSection() {
     try {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select("id, created_at, order_status, payment_status, payment_method, subtotal, shipping_cost, total, discount_code, discount_amount, cod_charge, wallet_amount")
+        // "*": paid_via exists only from migration 20261124100000 on.
+        .select("*")
         .eq("user_id", user.id)
         // An online checkout that was never paid isn't an order.
         .or("payment_method.eq.cod,payment_status.in.(paid,refunded)")
@@ -155,8 +171,9 @@ export function OrdersSection() {
               .eq("order_id", order.id),
             supabase
               .from("vendor_orders")
+              // confirmed_at / out_for_delivery_at: migration 20261124110000.
               .select(
-                "id, status, updated_at, shipments(awb_code, courier_name, shipment_type, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
+                "id, status, updated_at, subtotal, shipping_cost, arrived_at_warehouse_at, delivered_at, confirmed_at, out_for_delivery_at, shipments(awb_code, courier_name, shipment_type, return_request_id, created_at, pickup_scheduled_at, picked_up_at, delivered_at, estimated_delivery_date)"
               )
               .eq("order_id", order.id),
           ]);
@@ -177,6 +194,13 @@ export function OrdersSection() {
                 id: vo.id,
                 status: vo.status,
                 updated_at: vo.updated_at,
+                arrived_at_warehouse_at: vo.arrived_at_warehouse_at ?? null,
+                delivered_at: vo.delivered_at ?? null,
+                confirmed_at: vo.confirmed_at ?? null,
+                out_for_delivery_at: vo.out_for_delivery_at ?? null,
+                inbound_booked_at: inboundBookedAt(vo.shipments),
+                subtotal: vo.subtotal ?? null,
+                shipping_cost: vo.shipping_cost ?? null,
                 shipment: forwardShipment
                   ? {
                       awb_code: forwardShipment.awb_code,
@@ -255,6 +279,36 @@ export function OrdersSection() {
               }))
               .filter((g) => g.vendorOrder);
             const showGroupLabels = shipmentGroups.length > 1;
+            // Warehouse route: one tracker for the whole order; otherwise one
+            // per boutique part. "Waiting for boutique confirmation" until
+            // the boutique accepts.
+            const viaWarehouse = order.fulfilment_route === "warehouse";
+            const warehouseTimeline: OrderTimeline | null = viaWarehouse
+              ? buildWarehouseOrderTimeline({
+                  orderPlacedAt: order.created_at,
+                  orderEstimatedDeliveryDate: null,
+                  parts: order.vendor_orders.map((vo) => ({
+                    status: vo.status,
+                    updated_at: vo.updated_at,
+                    arrived_at_warehouse_at: vo.arrived_at_warehouse_at,
+                    parcel: null,
+                    confirmed_at: vo.confirmed_at,
+                    out_for_delivery_at: vo.out_for_delivery_at,
+                    delivered_at: vo.delivered_at,
+                    inbound_booked_at: vo.inbound_booked_at,
+                  })),
+                })
+              : null;
+            const partTimeline = (vo: VendorOrderInfo) =>
+              buildOrderTimeline({
+                vendorOrderStatus: vo.status,
+                vendorOrderUpdatedAt: vo.updated_at,
+                orderPlacedAt: order.created_at,
+                shipment: vo.shipment,
+                confirmedAt: vo.confirmed_at,
+                outForDeliveryAt: vo.out_for_delivery_at,
+                deliveredAt: vo.delivered_at,
+              });
 
             const hasCancellableItems = order.vendor_orders.some(
               (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status),
@@ -276,11 +330,17 @@ export function OrdersSection() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {shipmentGroups.length === 1 && shipmentGroups[0].vendorOrder && (
-                    <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
-                      {shipmentGroups[0].vendorOrder.status.charAt(0).toUpperCase() +
-                        shipmentGroups[0].vendorOrder.status.slice(1).replace(/_/g, " ")}
+                  {warehouseTimeline ? (
+                    <StatusPill className={warehouseTimeline.kind === "progress" ? "bg-indigo-100 text-indigo-800" : "bg-muted"}>
+                      {warehouseTimeline.currentLabel}
                     </StatusPill>
+                  ) : (
+                    shipmentGroups.length === 1 &&
+                    shipmentGroups[0].vendorOrder && (
+                      <StatusPill className={shipmentStatusColors[shipmentGroups[0].vendorOrder.status]}>
+                        {partTimeline(shipmentGroups[0].vendorOrder).currentLabel}
+                      </StatusPill>
+                    )
                   )}
                   {canCancel && (
                     <button
@@ -315,6 +375,7 @@ export function OrdersSection() {
                   </AccordionTrigger>
                   <AccordionContent>
                     <div className="space-y-4">
+                      {warehouseTimeline && <OrderStatusTimeline compact timeline={warehouseTimeline} />}
                       {shipmentGroups.map((group, i) => (
                         <div key={group.vendorOrderId || i} className={showGroupLabels ? "space-y-3 border border-border p-3" : "space-y-3"}>
                           {showGroupLabels && (
@@ -341,20 +402,18 @@ export function OrdersSection() {
                           ))}
                           {group.vendorOrder && (
                             <>
-                              <OrderStatusTimeline
-                                compact
-                                timeline={buildOrderTimeline({
-                                  vendorOrderStatus: group.vendorOrder.status,
-                                  vendorOrderUpdatedAt: group.vendorOrder.updated_at,
-                                  orderPlacedAt: order.created_at,
-                                  shipment: group.vendorOrder.shipment,
-                                })}
-                              />
-                              <InvoiceDownloadButton
-                                vendorOrderId={group.vendorOrderId}
-                                paymentStatus={order.payment_status}
-                                vendorOrderStatus={group.vendorOrder?.status}
-                              />
+                              {!warehouseTimeline && <OrderStatusTimeline compact timeline={partTimeline(group.vendorOrder)} />}
+                              <div className="flex flex-wrap items-center gap-1">
+                                <InvoiceDownloadButton
+                                  vendorOrderId={group.vendorOrderId}
+                                  paymentStatus={order.payment_status}
+                                  vendorOrderStatus={group.vendorOrder?.status}
+                                />
+                                {mayHaveCreditNote(
+                                  group.vendorOrder.status,
+                                  (returnsByOrder[order.id] ?? []).some((rr) => rr.status === "completed"),
+                                ) && <CreditNoteButton vendorOrderId={group.vendorOrderId} />}
+                              </div>
                             </>
                           )}
                         </div>
@@ -388,6 +447,11 @@ export function OrdersSection() {
                         <span>{formatMoney(order.wallet_amount)}</span>
                       </div>
                     )}
+                    {/* How it was paid: "Paid by UPI", or "Pay ₹X in cash when it arrives". */}
+                    <div className="mt-3 flex justify-between gap-4 border-t border-border pt-3 text-xs">
+                      <span className="text-muted-foreground">Payment</span>
+                      <span className="text-right">{orderPaymentLine(order, order.vendor_orders)}</span>
+                    </div>
                     {/* Return/Exchange status */}
                     {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                       <div className="mt-3 space-y-2 border-t border-border pt-3">
@@ -461,6 +525,13 @@ export function OrdersSection() {
             };
           })}
         orderId={cancellingOrder.id}
+        partRefunds={Object.fromEntries(
+          cancellingOrder.vendor_orders.map((vo) => [
+            vo.id,
+            partCancelRefund(vo, cancellingOrder.order_items.filter((i) => i.vendor_order_id === vo.id)),
+          ]),
+        )}
+        isCashOnDelivery={cancellingOrder.payment_method === "cod"}
         isPaidOnline={cancellingOrder.payment_method === "razorpay" && cancellingOrder.payment_status === "paid"}
         isPaidFromWallet={cancellingOrder.payment_method === "wallet" && cancellingOrder.payment_status === "paid"}
         open={!!cancellingOrder}

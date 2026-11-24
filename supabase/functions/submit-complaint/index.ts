@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, errorMessage, getCallerUserId, jsonResponse, serviceClient } from "../_shared/auth.ts";
 import { COMPANY } from "../_shared/company.ts";
-import { formatDateTime } from "../_shared/dates.ts";
+import { formatDateTimeInWords } from "../_shared/dates.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 
 // Complaint form (client list 2.11.2), from the site footer and Contact us.
@@ -282,7 +282,8 @@ Deno.serve(async (req) => {
     const account = await signedIn(req, supabase);
     const saved = await saveComplaint(supabase, c, account?.id ?? null, ipHash);
     const ticket = saved.ticket;
-    const submittedAt = formatDateTime(saved.created_at);
+    // In words: the customer gets it too.
+    const submittedAt = formatDateTimeInWords(saved.created_at);
 
     // 2. The full complaint to the admins only.
     const recipients = [...new Set((await adminEmails(supabase)).map((e) => e.toLowerCase()))];

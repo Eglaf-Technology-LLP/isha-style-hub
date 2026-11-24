@@ -44,7 +44,9 @@ const MSME: DocumentRequirement = { type: "msme_certificate", label: "MSME / Udy
 // Business documents per business type, as listed in Developer Corrections
 // Part 7 (bank proof is asked for in the bank section, for every type).
 // The Aadhaar card is optional for every type (client, 13 Nov 2026; the
-// server's lists: migration 20261113160000).
+// server's lists: migration 20261113160000), and so is the MSME / Udyam
+// certificate - any business type can have Udyam (client corrections Part
+// 2, A21.2; migration 20261124180000).
 export const DOCUMENTS_BY_CONSTITUTION: Record<BusinessConstitution, DocumentRequirement[]> = {
   proprietorship: [
     GST,
@@ -58,18 +60,21 @@ export const DOCUMENTS_BY_CONSTITUTION: Record<BusinessConstitution, DocumentReq
     { type: "aadhaar_card", label: "Authorised Partner Aadhaar Card", optional: true },
     { type: "partnership_deed", label: "Partnership Deed" },
     { type: "rof_certificate", label: "Registration of Firm (ROF) Certificate", optional: true },
+    MSME,
   ],
   llp: [
     GST,
     { type: "pan_card", label: "LLP PAN Card" },
     { type: "aadhaar_card", label: "Designated Partner Aadhaar Card", optional: true },
     { type: "llp_incorporation", label: "Certificate of Incorporation" },
+    MSME,
   ],
   private_limited: [
     GST,
     { type: "pan_card", label: "Company PAN Card" },
     { type: "aadhaar_card", label: "Authorised Director Aadhaar Card", optional: true },
     { type: "company_incorporation", label: "Certificate of Incorporation" },
+    MSME,
   ],
   huf: [
     { type: "pan_card", label: "HUF PAN Card" },
@@ -77,6 +82,17 @@ export const DOCUMENTS_BY_CONSTITUTION: Record<BusinessConstitution, DocumentReq
     { type: "aadhaar_card", label: "Authorised Person (Karta) Aadhaar Card", optional: true },
     MSME,
   ],
+};
+
+// The authorised person's usual designation for each business type, filled
+// in when the type is chosen or changed (client corrections Part 2, A21.1:
+// switching HUF -> Private Limited kept "Karta").
+export const DEFAULT_DESIGNATION: Record<BusinessConstitution, string> = {
+  proprietorship: "Proprietor",
+  partnership: "Partner",
+  llp: "Designated Partner",
+  private_limited: "Director",
+  huf: "Karta",
 };
 
 export const BANK_PROOF_TYPES = [

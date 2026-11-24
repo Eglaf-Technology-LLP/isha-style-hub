@@ -45,6 +45,7 @@ import { RefundHistory } from "@/components/RefundHistory";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { formatDate, formatTime } from "@/lib/dates";
 import { formatMoney } from "@/lib/format";
+import { paymentModeName } from "@/lib/paymentMode";
 
 interface PaymentManagementProps {
   isAdmin: boolean;
@@ -351,8 +352,8 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="uppercase text-xs">
-                        {payment.payment_method}
+                      <TableCell className="text-xs">
+                        {paymentModeName({ payment_method: payment.payment_method, paid_via: payment.order?.paid_via })}
                       </TableCell>
                       <TableCell>
                         <div>

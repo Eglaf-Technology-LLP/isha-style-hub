@@ -1816,6 +1816,7 @@ export type Database = {
           id: string
           notes: string | null
           order_status: string
+          paid_via: string | null
           payment_method: string
           payment_status: string
           razorpay_order_id: string | null
@@ -1845,6 +1846,7 @@ export type Database = {
           id?: string
           notes?: string | null
           order_status?: string
+          paid_via?: string | null
           payment_method: string
           payment_status?: string
           razorpay_order_id?: string | null
@@ -1874,6 +1876,7 @@ export type Database = {
           id?: string
           notes?: string | null
           order_status?: string
+          paid_via?: string | null
           payment_method?: string
           payment_status?: string
           razorpay_order_id?: string | null

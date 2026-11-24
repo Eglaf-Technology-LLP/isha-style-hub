@@ -1,22 +1,15 @@
 import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { useStoreBoutiques, useStoreProducts } from "@/hooks/useStorefront";
+import { useLiveBoutiques } from "@/hooks/useStorefront";
 import { BoutiqueCard } from "@/components/storefront/home/BoutiqueSpotlight";
 import { Ornament } from "@/components/storefront/Ornament";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Every approved boutique, with its banner/logo and live piece count.
+// Every approved boutique with at least one live product, with its
+// banner/logo and live piece count (no "0 pieces" cards).
 export default function Boutiques() {
-  const { data: boutiques = [], isLoading } = useStoreBoutiques();
-  const { data: products = [] } = useStoreProducts();
-  const cards = boutiques
-    .map((b) => ({
-      boutique: b,
-      pieces: products.filter((p) => p.vendor_id === b.id).length,
-      cover: products.find((p) => p.vendor_id === b.id && p.images?.[0])?.images[0] ?? null,
-    }))
-    .sort((a, b) => b.pieces - a.pieces);
+  const { data: cards, isLoading } = useLiveBoutiques();
 
   return (
     <div className="min-h-screen bg-background">

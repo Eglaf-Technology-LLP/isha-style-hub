@@ -8,6 +8,7 @@ import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
 import { formatEwbNumber } from "@/lib/ewayBill";
+import { invoiceLineDescription } from "@/lib/invoiceLine";
 import { PlatformInvoiceView, type PlatformInvoice } from "@/components/PlatformInvoiceView";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
@@ -89,6 +90,8 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [ewayBills, setEwayBills] = useState<{ ewb_number: string; ewb_date: string | null }[]>([]);
   // AllBoutiqs' own invoice for the courier etc. (customers and admins only).
   const [platformInvoice, setPlatformInvoice] = useState<PlatformInvoice | null>(null);
+  // How the customer paid ("UPI", "Cash on Delivery") - from the server.
+  const [paymentMode, setPaymentMode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +103,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
       lines: InvoiceLine[];
       eway_bills?: { ewb_number: string; ewb_date: string | null }[];
       platform_invoice?: PlatformInvoice | null;
+      payment_mode?: string | null;
     }>(
       "generate-invoice",
       { vendor_order_id: vendorOrderId },
@@ -111,6 +115,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
           setLines(data.lines ?? []);
           setEwayBills(data.eway_bills ?? []);
           setPlatformInvoice(data.platform_invoice ?? null);
+          setPaymentMode(data.payment_mode ?? null);
         }
         setLoading(false);
       },
@@ -166,6 +171,12 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       <span className="text-muted-foreground">Order No: </span>
                       {invoice.order_number}
                       {invoice.order_date && ` · ${formatDate(new Date(invoice.order_date))}`}
+                    </p>
+                  )}
+                  {paymentMode && (
+                    <p>
+                      <span className="text-muted-foreground">Payment: </span>
+                      {paymentMode}
                     </p>
                   )}
                   {ewayBills.map((b) => (
@@ -253,13 +264,8 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                     {lines.map((l) => (
                       <tr key={l.line_no} className="border-b border-border align-top">
                         <td className="py-1.5 pr-2">{l.line_no}</td>
-                        <td className="py-1.5 pr-2">
-                          {l.description}
-                          {/* New lines already read "Lehnga – XS – Black" (A10.2); colour only for an older line without it. */}
-                          {l.color && !l.description.includes(l.color) && (
-                            <span className="text-muted-foreground"> · {l.color}</span>
-                          )}
-                        </td>
+                        {/* "Lehnga – XS – Black": name, size, colour once each (A10.2). */}
+                        <td className="py-1.5 pr-2">{invoiceLineDescription(l.description, l.color)}</td>
                         <td className="py-1.5 pr-2 font-mono">{l.hsn_code ?? "—"}</td>
                         <td className="py-1.5 pr-2">{l.size ?? "—"}</td>
                         <td className="py-1.5 pr-2 text-right">{l.quantity}</td>

@@ -40,7 +40,7 @@ interface ShipNowDialogProps {
 // let them pick one, then book with exactly that choice.
 //
 // Over the e-way bill limit the booking waits until AllBoutiqs has made the
-// e-way bill (asked for when the order was placed). AllBoutiqs is the
+// e-way bill (asked for on the first Ship Now, with the tax invoice). AllBoutiqs is the
 // transporter on it, so any courier can be picked.
 export function ShipNowDialog({
   vendorOrderId,

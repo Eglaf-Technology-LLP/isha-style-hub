@@ -2,6 +2,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Landmark, RotateCcw, Wallet } from "lucide-react";
 import { COMPANY } from "@/lib/company";
+import { formatMoney } from "@/lib/format";
 import {
   BANK_DETAILS_FIELDS,
   BANK_REFUND_DAYS,
@@ -22,19 +23,28 @@ interface RefundMethodPickerProps {
   // The refund charge on the bank-transfer option (Cash on Delivery orders); null when
   // there's none (e.g. a damaged or wrong item). The wallet is always free.
   charge: RefundCharge | null;
+  // A cancel: what the selected items refund, shown on every option -
+  // "Refund ₹X (no cancellation fee)" (client, 24 Nov 2026).
+  refundAmount?: number | null;
 }
 
 // The customer chooses where their refund goes. Nothing is picked for them -
 // each option says plainly how long it takes.
-export function RefundMethodPicker({ options, value, onChange, context, orderId, charge }: RefundMethodPickerProps) {
+export function RefundMethodPicker({ options, value, onChange, context, orderId, charge, refundAmount }: RefundMethodPickerProps) {
   const orderRef = `#${orderId.slice(0, 8).toUpperCase()}`;
   const when = context === "return" ? "as soon as your items pass our quality check" : "as soon as you cancel";
+  // A cancel never has a fee: the same amount whichever way it goes.
+  const cancelRefund =
+    context === "cancel" && refundAmount != null ? `Refund ${formatMoney(refundAmount)} (no cancellation fee)` : null;
 
   if (options.length === 1 && options[0] === "wallet") {
     return (
       <p className="flex gap-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
         <Wallet className="mt-0.5 h-4 w-4 shrink-0" />
-        This order was paid from your AllBoutiqs wallet, so the refund goes back to your wallet {when}.
+        <span>
+          {cancelRefund && <span className="block font-medium text-foreground">{cancelRefund}</span>}
+          This order was paid from your AllBoutiqs wallet, so the refund goes back to your wallet {when}.
+        </span>
       </p>
     );
   }
@@ -45,7 +55,9 @@ export function RefundMethodPicker({ options, value, onChange, context, orderId,
     ? ` A refund charge of ${refundChargeLabel(charge)} is deducted.`
     : " No refund charge on this one.";
   const text: Record<RefundMethod, string> = {
-    wallet: `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
+    wallet: cancelRefund
+      ? `Added to your wallet ${when}. Spend it on your next order.`
+      : `Instant and free - added to your wallet ${when}. Use the full amount on your next order.`,
     // "The full amount - no refund charge" is not said on a cancel: only the
     // customer cancels here, and a full refund is only when the boutique or
     // AllBoutiqs cancels (client corrections Part 2, A11.2).
@@ -78,6 +90,7 @@ export function RefundMethodPicker({ options, value, onChange, context, orderId,
                   <Icon className="h-4 w-4" />
                   {REFUND_METHOD_LABEL[method]}
                 </span>
+                {cancelRefund && <span className="block text-sm">{cancelRefund}</span>}
                 <span className="block text-xs text-muted-foreground">{text[method]}</span>
               </span>
             </label>

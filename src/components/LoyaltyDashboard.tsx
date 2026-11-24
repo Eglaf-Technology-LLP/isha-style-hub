@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useLoyaltyPoints } from "@/hooks/useLoyaltyPoints";
 import { useReferrals } from "@/hooks/useReferrals";
 import { useAuth } from "@/hooks/useAuth";
-import { formatDate } from "@/lib/dates";
+import { formatDateInWords } from "@/lib/dates";
 import { formatINR } from "@/lib/format";
 
 const tierColors = {
@@ -184,7 +184,7 @@ export function LoyaltyDashboard() {
                   <div>
                     <p className="font-medium capitalize">{tx.transaction_type}</p>
                     <p className="text-sm text-muted-foreground">
-                      {tx.description || formatDate(new Date(tx.created_at))}
+                      {tx.description || formatDateInWords(new Date(tx.created_at))}
                     </p>
                   </div>
                   <span className={`font-semibold ${tx.points > 0 ? 'text-green-600' : 'text-red-600'}`}>

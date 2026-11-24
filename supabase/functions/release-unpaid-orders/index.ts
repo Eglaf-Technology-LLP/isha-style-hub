@@ -1,6 +1,7 @@
 import { corsHeaders, errorMessage, getCallerUserId, isAdmin, jsonResponse, serviceClient } from "../_shared/auth.ts";
 import { createHeldTransfers, rzp } from "../_shared/razorpayRoute.ts";
 import { alertAdminsOfUnpaidCheckouts } from "./unpaidAlert.ts";
+import { paidViaOf, withPaidVia } from "../_shared/paidVia.ts";
 
 // Online checkouts whose payment never went through. Checkout saves the
 // order (and takes the stock) before Razorpay opens; if the payment fails or
@@ -50,11 +51,9 @@ async function settle(supabase: ReturnType<typeof serviceClient>, order: any): P
 
   const captured = payments.find((p) => p.status === "captured");
   if (captured) {
-    await supabase
-      .from("orders")
-      .update({ payment_status: "paid", razorpay_payment_id: captured.id })
-      .eq("id", order.id)
-      .in("payment_status", ["pending", "failed"]);
+    await withPaidVia({ payment_status: "paid", razorpay_payment_id: captured.id }, paidViaOf(captured), (fields) =>
+      supabase.from("orders").update(fields).eq("id", order.id).in("payment_status", ["pending", "failed"]),
+    );
     await supabase
       .from("payments")
       .update({

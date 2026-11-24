@@ -6,11 +6,14 @@ import { formatINR } from "@/lib/format";
 import { formatDateInWordsWithDay } from "@/lib/dates";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { paymentModeLine } from "@/lib/paymentMode";
 
 interface PlacedOrder {
   id: string;
   payment_method: string;
   payment_status: string;
+  // How it was paid online (UPI, card, ...) - see src/lib/paymentMode.ts.
+  paid_via?: string | null;
   subtotal: number;
   shipping_cost: number;
   discount_amount: number;
@@ -50,8 +53,9 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
     let cancelled = false;
     supabase
       .from("orders")
+      // "*": paid_via exists only from migration 20261124100000 on.
       .select(
-        "id, payment_method, payment_status, subtotal, shipping_cost, discount_amount, discount_code, cod_charge, total, wallet_amount, customer_name, shipping_address, estimated_delivery_date, order_items(id, product_id, product_title, variant_title, quantity, price, discount_amount, customisation_price)",
+        "*, order_items(id, product_id, product_title, variant_title, quantity, price, discount_amount, customisation_price)",
       )
       .eq("id", orderId)
       .maybeSingle()
@@ -86,11 +90,9 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
           Your order is <em className="font-normal text-primary">placed</em>
         </h1>
         <p className="mt-4 text-muted-foreground">
-          {order.payment_method === "cod"
-            ? `Pay ${formatINR(order.total)} in cash when it arrives. We've emailed you the details.`
-            : order.payment_method === "wallet"
-              ? "Paid from your AllBoutiqs wallet. We've emailed you the details."
-              : "Your payment went through. We've emailed you the details."}
+          {/* How it was paid: "Paid by UPI", or "Pay ₹X in cash when it arrives"
+              for Cash on Delivery (client, 24 Nov 2026). */}
+          {paymentModeLine(order, Number(order.total), formatINR)}. We've emailed you the details.
         </p>
         <p className="mt-6 inline-flex items-center gap-2 border border-border bg-ivory px-4 py-2 text-sm">
           Order <span className="font-mono font-medium">#{order.id.slice(0, 8).toUpperCase()}</span>
