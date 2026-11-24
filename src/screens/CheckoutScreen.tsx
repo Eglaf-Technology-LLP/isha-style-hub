@@ -167,8 +167,10 @@ export default function CheckoutScreen() {
     ? `Not available below ${formatINR(MIN_ONLINE_PAYMENT_AMOUNT)}`
     : `Not available above ${formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order`;
 
-  // COD only when every boutique and piece allows it, a courier collects
-  // cash at this PIN, and the wallet isn't used (the website's rules).
+  // COD only when every boutique and piece allows it and a courier collects
+  // cash at this PIN (the website's rules). The wallet no longer hides it
+  // (24 Nov 2026: every valid way to pay stays on screen); COD and the
+  // wallet still don't mix, so picking COD switches the wallet off.
   const codOffVendors = groups.filter(
     g => g.vendorId && data?.vendors.get(g.vendorId)?.cod_enabled === false,
   );
@@ -184,12 +186,9 @@ export default function CheckoutScreen() {
     codOffVendors.length > 0 ||
     codOffProducts.length > 0 ||
     codOffMadeToOrder.length > 0 ||
-    cod.status === 'unavailable' ||
-    walletOn;
+    cod.status === 'unavailable';
   const codReason = codDisabled
     ? [
-        walletOn &&
-          "Can't be combined with your wallet balance - untick the wallet to pay on delivery",
         codOffMadeToOrder.length > 0 &&
           `Isn't available for made-to-order pieces (${codOffMadeToOrder
             .map(n => `"${n}"`)
@@ -211,11 +210,17 @@ export default function CheckoutScreen() {
   useEffect(() => {
     if (codDisabled && method === 'cod') setMethod('razorpay');
   }, [codDisabled, method]);
-  // Online payment not possible for this amount: Cash on Delivery instead.
+  // Online payment not possible for this amount: Cash on Delivery instead -
+  // not while the wallet is on (COD would switch it off; the customer
+  // picks that themselves).
   useEffect(() => {
-    if (onlineUnavailable && method === 'razorpay' && !codDisabled)
+    if (onlineUnavailable && method === 'razorpay' && !codDisabled && !walletOn)
       setMethod('cod');
-  }, [onlineUnavailable, method, codDisabled]);
+  }, [onlineUnavailable, method, codDisabled, walletOn]);
+  // The wallet was switched on with COD picked: the rest is paid online.
+  useEffect(() => {
+    if (walletOn && method === 'cod') setMethod('razorpay');
+  }, [walletOn, method]);
 
   // ---- COD quote and delivery date for this PIN ----
   const pin = address?.pincode ?? '';
@@ -580,39 +585,57 @@ export default function CheckoutScreen() {
           </Touch>
         ) : null}
 
-        {!paidByWallet ? (
-          <View style={styles.block}>
-            <Eyebrow style={styles.head}>Payment</Eyebrow>
-            <PayOption
-              on={method === 'razorpay'}
-              disabled={onlineUnavailable}
-              onPress={() => setMethod('razorpay')}
-              icon={
-                <CreditCard
-                  size={18}
-                  color={colors.foreground}
-                  strokeWidth={1.6}
-                />
-              }
-              title="Pay online"
-              note={
-                onlineUnavailable
-                  ? `${onlineUnavailableText}${
-                      codDisabled ? '' : ' - use Cash on Delivery'
-                    }`
-                  : 'UPI, cards, netbanking and wallets - secured by Razorpay'
-              }
-            />
-            <PayOption
-              on={method === 'cod'}
-              disabled={codDisabled}
-              onPress={() => setMethod('cod')}
-              icon={
-                <Truck size={18} color={colors.foreground} strokeWidth={1.6} />
-              }
-              title="Cash on Delivery"
-              note={
-                codReason ??
+        {/* Every valid way to pay stays on screen, wallet or not. While the
+            wallet pays the whole order none is picked; picking one pays the
+            order that way instead and keeps the balance. COD never mixes
+            with the wallet, so picking it switches the wallet off. */}
+        <View style={styles.block}>
+          <Eyebrow style={styles.head}>Payment</Eyebrow>
+          {paidByWallet ? (
+            <Sans style={styles.small}>
+              Your wallet pays for this whole order. Or pay another way - pick
+              one below and your wallet balance stays for later.
+            </Sans>
+          ) : null}
+          <PayOption
+            on={!paidByWallet && method === 'razorpay'}
+            disabled={onlineUnavailable}
+            onPress={() => {
+              if (paidByWallet) setWalletOn(false);
+              setMethod('razorpay');
+            }}
+            icon={
+              <CreditCard
+                size={18}
+                color={colors.foreground}
+                strokeWidth={1.6}
+              />
+            }
+            title="Pay online"
+            note={
+              onlineUnavailable
+                ? `${onlineUnavailableText}${
+                    codDisabled ? '' : ' - use Cash on Delivery'
+                  }`
+                : 'UPI, cards, netbanking and wallets - secured by Razorpay'
+            }
+          />
+          <PayOption
+            on={!paidByWallet && method === 'cod'}
+            disabled={codDisabled}
+            onPress={() => {
+              setWalletOn(false);
+              setMethod('cod');
+            }}
+            icon={
+              <Truck size={18} color={colors.foreground} strokeWidth={1.6} />
+            }
+            title="Cash on Delivery"
+            note={
+              codReason ??
+              (walletOn && !paidByWallet
+                ? "Pays the whole order - your wallet isn't used with Cash on Delivery · "
+                : '') +
                 (cod.status === 'ready'
                   ? `Pay when your order arrives · COD fee ${formatINR(
                       cod.amount,
@@ -622,28 +645,27 @@ export default function CheckoutScreen() {
                   : cod.status === 'error'
                   ? "Pay when your order arrives · couldn't work out the COD fee - check the PIN code"
                   : 'Pay when your order arrives · the COD fee shows once you enter your PIN code')
-              }
-            />
-            {codDisabled && onlineUnavailable ? (
-              <Text style={styles.error}>
-                {belowOnlineMinimum
-                  ? `This order is also below the ${formatINR(
-                      MIN_ONLINE_PAYMENT_AMOUNT,
-                    )} minimum for online payment - add another item to check out.`
-                  : `This order is also above the ${formatINR(
-                      MAX_ONLINE_PAYMENT_AMOUNT,
-                    )} limit for one online payment - remove an item and place it as a separate order.`}
-              </Text>
-            ) : null}
-            {aboveOnlineMaximum && !codDisabled ? (
-              <Sans style={styles.small}>
-                Online payment is limited to{' '}
-                {formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order. Pay by Cash on
-                Delivery, or split the cart into smaller orders.
-              </Sans>
-            ) : null}
-          </View>
-        ) : null}
+            }
+          />
+          {codDisabled && onlineUnavailable ? (
+            <Text style={styles.error}>
+              {belowOnlineMinimum
+                ? `This order is also below the ${formatINR(
+                    MIN_ONLINE_PAYMENT_AMOUNT,
+                  )} minimum for online payment - add another item to check out.`
+                : `This order is also above the ${formatINR(
+                    MAX_ONLINE_PAYMENT_AMOUNT,
+                  )} limit for one online payment - remove an item and place it as a separate order.`}
+            </Text>
+          ) : null}
+          {aboveOnlineMaximum && !codDisabled ? (
+            <Sans style={styles.small}>
+              Online payment is limited to{' '}
+              {formatINR(MAX_ONLINE_PAYMENT_AMOUNT)} per order. Pay by Cash on
+              Delivery, or split the cart into smaller orders.
+            </Sans>
+          ) : null}
+        </View>
 
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Price details</Eyebrow>
