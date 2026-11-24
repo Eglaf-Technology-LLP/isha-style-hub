@@ -14,6 +14,9 @@ export interface WarehouseInfo {
   contact_phone: string;
   contact_email: string;
   address: Record<string, string>;
+  // Its Shiprocket pickup location (cleared when the address changes).
+  shiprocket_pickup_location?: string | null;
+  shiprocket_pickup_registered_at?: string | null;
 }
 
 export interface WarehouseViewProps {
