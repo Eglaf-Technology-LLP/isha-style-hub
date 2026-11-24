@@ -1,5 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage, serviceClient, getCallerUserId, isAdmin, isVendorMember, corsHeaders, jsonResponse } from "./auth.ts";
+import { money } from "./money.ts";
+import { notifyAllAdmins } from "./notify.ts";
 
 const BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 
@@ -276,7 +278,12 @@ async function registerPickupLocation(
 
   const existing = await shiprocketRequest(supabase, "/settings/company/pickup");
   const existingLocations: any[] = existing?.data?.shipping_address ?? [];
-  const baseName = entity.baseName;
+  // Stage shares live's Shiprocket account, so its locations carry a prefix
+  // (SHIPROCKET_LOCATION_PREFIX=stage-) and never reuse or shadow a live
+  // one with the same name (both have a warehouse coded DEESA). Unset on
+  // live, so live's names don't change.
+  const prefix = (Deno.env.get("SHIPROCKET_LOCATION_PREFIX") ?? "").trim();
+  const baseName = `${prefix}${entity.baseName}`;
   const sameName = existingLocations.find((p) => p.pickup_location === baseName);
 
   // Shiprocket has no "update pickup address" API at all (confirmed
@@ -385,8 +392,15 @@ export interface CourierOption {
   // Full breakdown, all straight from Shiprocket's own response - a vendor
   // pulling up Shiprocket's own rate calculator for the same route should
   // see these exact same component numbers, not just a single total that
-  // can't be cross-checked. freightCharge + codCharges + serviceFee = rate.
+  // can't be cross-checked.
+  // freightCharge + coverageCharge + codCharges + serviceFee = rate.
   freightCharge: number;
+  // Shiprocket's charge on the parcel's value (their `coverage_charges`,
+  // shipment cover), taken from the wallet with the freight when the AWB is
+  // assigned. Only quoted when the value is sent (declared_value) - without
+  // it the quote showed ₹49.72 + ₹5 while ₹421.42 was taken for a ₹23,600
+  // parcel (₹371.70 of it coverage), 24 Nov 2026.
+  coverageCharge: number;
   codCharges: number;
   // Shiprocket's own dashboard shows this as a separate "Smart Order" line
   // (their real per-shipment SMS/tracking-update service) on top of
@@ -432,8 +446,10 @@ function courierDays(c: any): number | null {
 // as a separate flag rather than dictating the display order).
 export async function checkCourierServiceability(
   supabase: SupabaseClient,
-  // declaredValue: the parcel's value - a courier's COD charge is usually a
-  // share of the amount collected, so it's needed for a true COD rate.
+  // declaredValue: the parcel's value, the same amount the booking sends as
+  // sub_total - Shiprocket's coverage charge and a courier's COD charge are
+  // shares of it, so without it the rate is understated. Send it wherever a
+  // rate is shown or recorded.
   params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; declaredValue?: number },
 ): Promise<CourierOption[]> {
   const result = await shiprocketRequest(
@@ -449,15 +465,17 @@ export async function checkCourierServiceability(
     .filter((c: any) => !c.blocked)
     .map((c: any, index: number) => {
       const freightCharge = Number(c.freight_charge ?? 0);
+      const coverageCharge = Number(c.coverage_charges ?? 0) || 0;
       const codCharges = Number(c.cod_charges ?? 0);
       const serviceFee = Number(c.whatsapp_charges ?? 0);
       return {
         courierId: c.courier_company_id,
         courierName: c.courier_name,
         freightCharge,
+        coverageCharge,
         codCharges,
         serviceFee,
-        rate: freightCharge + codCharges + serviceFee,
+        rate: Math.round((freightCharge + coverageCharge + codCharges + serviceFee) * 100) / 100,
         rating: typeof c.rating === "number" ? c.rating : null,
         recommended: index === 0,
         etd: c.etd ?? null,
@@ -477,11 +495,20 @@ export function routeTransitDays(couriers: CourierOption[]): number | null {
   return known.length ? Math.min(...known) : null;
 }
 
-// The fare of the courier actually booked, for the shipment's cost record.
+// The fare of the courier actually booked, for the shipment's cost record -
+// with declaredValue (the booking's sub_total) it includes Shiprocket's
+// coverage charge, so it matches what the wallet is charged.
 // Best-effort: a failed lookup never blocks a booking.
 export async function bookedCourierCost(
   supabase: SupabaseClient,
-  params: { pickupPincode: string; deliveryPincode: string; cod: boolean; weightKg: number; courierId: number | null },
+  params: {
+    pickupPincode: string;
+    deliveryPincode: string;
+    cod: boolean;
+    weightKg: number;
+    courierId: number | null;
+    declaredValue?: number;
+  },
 ): Promise<number | null> {
   if (!params.courierId || !params.pickupPincode || !params.deliveryPincode) return null;
   try {
@@ -628,8 +655,19 @@ export async function bookForwardShipment(
   const p = result.payload;
   const shipmentId = toIntOrNull(p.shipment_id);
   const awbCode = p.awb_code || null;
+  if (!awbCode) {
+    // status:1 also comes back when Shiprocket made the order but assigned no
+    // courier - seen 24 Nov 2026 with ₹88.99 left in the wallet (freight is
+    // taken from it when the AWB is assigned). Such an order never moves, and
+    // recording it showed "Courier assigned" with nothing booked. Cancel it
+    // and say why instead, so Ship Now can simply be pressed again.
+    console.error("Shiprocket forward-shipment assigned no courier", params.channelOrderId, JSON.stringify(result));
+    await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(p.order_id));
+    throw new Error(await noCourierReason(supabase, p));
+  }
   // The wrapper can come back with the AWB but no label - ask for it directly.
-  const labelUrl = p.label_url || (awbCode && shipmentId ? await generateLabel(supabase, shipmentId) : null);
+  const labelUrl = p.label_url || (shipmentId ? await generateLabel(supabase, shipmentId) : null);
+  await warnIfWalletLow(supabase);
   return {
     orderId: toIntOrNull(p.order_id),
     shipmentId,
@@ -640,6 +678,79 @@ export async function bookForwardShipment(
     manifestUrl: p.manifest_url || null,
     pickupRequested: requestPickup,
   };
+}
+
+// Freight comes out of the Shiprocket wallet when a courier (AWB) is
+// assigned; a booking the wallet can't cover gets no courier. Live and stage
+// share the one account, so either can empty it. What it was seen to take
+// (24 Nov 2026: ₹421-542 for a 0.5 kg parcel in one city, against a ₹49.72
+// quote) is far above the serviceability rate, so the alert line sits well
+// above one parcel. SHIPROCKET_WALLET_ALERT_BELOW overrides it.
+function walletAlertBelow(): number {
+  const v = Number(Deno.env.get("SHIPROCKET_WALLET_ALERT_BELOW"));
+  return Number.isFinite(v) && v > 0 ? v : 2000;
+}
+
+// Best-effort: null when Shiprocket doesn't answer - never fails a booking.
+export async function shiprocketWalletBalance(supabase: SupabaseClient): Promise<number | null> {
+  try {
+    const result = await shiprocketRequest(supabase, "/account/details/wallet-balance");
+    const balance = Number(result?.data?.balance_amount);
+    return Number.isFinite(balance) ? balance : null;
+  } catch (e) {
+    console.error("shiprocketWalletBalance failed", errorMessage(e));
+    return null;
+  }
+}
+
+// One alert per kind every 6 hours, however many bookings run into it.
+async function alertAdminsWallet(supabase: SupabaseClient, balance: number, bookingFailed: boolean) {
+  const type = bookingFailed ? "shiprocket_wallet_empty" : "shiprocket_wallet_low";
+  try {
+    const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from("notifications")
+      .select("id")
+      .eq("type", type)
+      .gte("created_at", since)
+      .limit(1);
+    if (recent?.length) return;
+    await notifyAllAdmins(supabase, {
+      type,
+      title: bookingFailed ? "Shiprocket wallet too low - bookings are failing" : "Shiprocket wallet running low",
+      body:
+        `The Shiprocket wallet has ${money(balance)} left. ` +
+        (bookingFailed
+          ? "A booking just got no courier because the freight couldn't be taken from it. "
+          : "Freight is taken from it when a courier is assigned, and a booking it can't cover gets no courier. ") +
+        "Recharge it in Shiprocket (live and stage share this account).",
+      link: "/admin?tab=orders",
+    });
+  } catch (e) {
+    console.error("alertAdminsWallet failed", errorMessage(e));
+  }
+}
+
+async function warnIfWalletLow(supabase: SupabaseClient) {
+  const balance = await shiprocketWalletBalance(supabase);
+  if (balance !== null && balance < walletAlertBelow()) await alertAdminsWallet(supabase, balance, false);
+}
+
+// What the person pressing Ship Now is told when Shiprocket assigned no courier.
+async function noCourierReason(
+  supabase: SupabaseClient,
+  payload: { awb_assign_error?: string; error_message?: string } | undefined,
+): Promise<string> {
+  const balance = await shiprocketWalletBalance(supabase);
+  if (balance !== null && balance < walletAlertBelow()) {
+    await alertAdminsWallet(supabase, balance, true);
+    return (
+      `Shiprocket didn't assign a courier: its wallet has ${money(balance)} left, not enough for the freight. ` +
+      "AllBoutiqs has been told to recharge it. Nothing was booked - press Ship Now again once that's done."
+    );
+  }
+  const reason = payload?.awb_assign_error || payload?.error_message || "";
+  return `Shiprocket didn't assign a courier to this parcel${reason ? ` (${reason})` : ""}. Nothing was booked - try again, or pick another courier.`;
 }
 
 // A Shiprocket order exists but we failed to record it - cancel it back out

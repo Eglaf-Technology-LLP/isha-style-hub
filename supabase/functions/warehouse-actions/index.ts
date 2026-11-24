@@ -335,6 +335,9 @@ async function ratesFor(supabase: Db, plan: ParcelPlan) {
     deliveryPincode: plan.consignee.address.pincode ?? "",
     cod: plan.cod,
     weightKg: plan.weightKg,
+    // The parcel's value as the booking sends it: Shiprocket's coverage
+    // charge is a share of it, so the courier picker shows the real fare.
+    declaredValue: plan.subTotal,
   });
 }
 
@@ -371,6 +374,7 @@ async function bookFromWarehouse(
     cod: plan.cod,
     weightKg: plan.weightKg,
     courierId: booking.courierId,
+    declaredValue: plan.subTotal,
   });
   const { data: shipment, error } = await supabase
     .from("shipments")
@@ -604,6 +608,32 @@ Deno.serve(async (req) => {
     };
 
     switch (action) {
+      // Admin > Warehouse settings, right after saving the warehouse: register
+      // its address with Shiprocket as a pickup location now (user, 24 Nov
+      // 2026), not at the first booking. Saving a changed address, phone or
+      // contact name clears the old registration
+      // (reset_warehouse_pickup_registration), so this adds the new one; an
+      // unchanged one is returned as it is.
+      case "register_pickup": {
+        requireAdmin();
+        const { data: row, error } = await supabase
+          .from("warehouses")
+          .select("id")
+          .eq(body.warehouse_id ? "id" : "is_default", body.warehouse_id ?? true)
+          .maybeSingle();
+        if (error) throw error;
+        if (!row) throw new ActionError("No warehouse found", 404);
+        const warehouse = await getWarehouse(supabase, row.id);
+        const alreadyRegistered = !!warehouse.shiprocket_pickup_location;
+        let pickup;
+        try {
+          pickup = await ensureWarehousePickupLocation(supabase, warehouse);
+        } catch (e) {
+          throw new ActionError(`Shiprocket didn't register the warehouse: ${errorMessage(e)}`, 502);
+        }
+        return jsonResponse({ pickup_location: pickup.name, pickup_id: pickup.id, already_registered: alreadyRegistered });
+      }
+
       case "parcel_rates": {
         const dispatchPlan = body.dispatch_id ? await loadDispatchPlan(supabase, body.dispatch_id) : null;
         const sendBackPlan = !dispatchPlan && body.send_back_id ? await loadSendBackPlan(supabase, body.send_back_id) : null;

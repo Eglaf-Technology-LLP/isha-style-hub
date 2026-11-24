@@ -80,7 +80,7 @@ The app is for shoppers. A boutique (vendor) or admin account that signs in is s
 
 ## Keeping up with the website
 
-Shopper-side changes on `Live-Vendor` are ported here by hand (the website is React for the browser, the app React Native). Last brought up to date with `Live-Vendor` **a4e8e67 (24 Nov 2026)**: to find what's new since, run `git log a4e8e67..origin/Live-Vendor` and port what a shopper sees (seller, admin, warehouse and GST-report changes don't apply). Copy `supabase/` over at the same time.
+Shopper-side changes on `Live-Vendor` are ported here by hand (the website is React for the browser, the app React Native). Last brought up to date with `Live-Vendor` **4783174 (24 Nov 2026)**: to find what's new since, run `git log 4783174..origin/Live-Vendor` and port what a shopper sees (seller, admin, warehouse and GST-report changes don't apply). Copy `supabase/` over at the same time.
 
 ## Backend (`supabase/`)
 
