@@ -15,6 +15,7 @@ import { Loader2, Truck, Star } from "lucide-react";
 import { CourierOption, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
+import { CourierFareBreakdown } from "@/components/CourierFareBreakdown";
 import { EwayBillPreview, awaitingPdf, picksCourier } from "@/lib/ewayBill";
 import { EwayBillNotice } from "@/components/EwayBillNotice";
 
@@ -191,14 +192,10 @@ export function ShipNowDialog({
                           <span className="text-xs text-muted-foreground">Delivery by {c.etd}</span>
                         )}
                         {/* Same line items Shiprocket's own rate calculator shows
-                            (Freight charges / Smart Order / COD) - so a vendor
-                            checking there sees the exact same numbers, not a
-                            single total with no way to verify it. */}
-                        <div className="text-xs text-muted-foreground mt-1">
-                          Freight: {formatMoney(c.freightCharge)}
-                          {c.serviceFee > 0 && <> · Service fee: {formatMoney(c.serviceFee)}</>}
-                          {c.codCharges > 0 && <> · COD charge: {formatMoney(c.codCharges)}</>}
-                        </div>
+                            (Freight charges / Coverage / Smart Order / COD) - so
+                            a vendor checking there sees the exact same numbers,
+                            and the total is what the booking takes. */}
+                        <CourierFareBreakdown courier={c} className="mt-1" />
                       </div>
                     </div>
                     <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>

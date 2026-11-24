@@ -180,6 +180,8 @@ export async function bookReversePickup(supabase: SupabaseClient, returnRequestI
         cod: false,
         weightKg,
         courierId,
+        // As the booking's sub_total, so the cost includes Shiprocket's coverage.
+        declaredValue: returnRequest.refund_amount || subTotal,
       });
       await supabase
         .from("shipments")

@@ -8,8 +8,11 @@ export interface CourierOption {
   courierId: number;
   courierName: string;
   freightCharge: number;
+  // Shiprocket's charge on the parcel's value (missing from older quotes).
+  coverageCharge?: number;
   codCharges: number;
   serviceFee: number;
+  // freightCharge + coverageCharge + codCharges + serviceFee: what booking costs.
   rate: number;
   rating: number | null;
   recommended: boolean;
