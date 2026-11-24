@@ -630,16 +630,18 @@ export default function Checkout() {
     .map((g) => g.vendorName ?? "A boutique");
   // No courier collects cash at this PIN code.
   const codOffAtPin = codQuote.status === "unavailable";
-  // The courier can't collect "the rest" of a part-wallet order, so the
-  // wallet and Cash on Delivery don't mix (apply_wallet_to_order agrees).
   // A sold-out size the boutique makes to order is paid online (the database
   // refuses it on Cash on Delivery too).
+  // The wallet doesn't hide Cash on Delivery any more (user, 24 Nov 2026:
+  // every valid way to pay stays on screen). The courier still can't collect
+  // "the rest" of a part-wallet order (apply_wallet_to_order agrees), so
+  // picking Cash on Delivery switches the wallet off, and switching the
+  // wallet on moves Cash on Delivery to online payment.
   const codOffMadeToOrder = [...new Set(items.filter((i) => i.soldOutTerms).map((i) => i.productName))];
   const codDisabled =
-    codOffVendors.length > 0 || codOffProducts.length > 0 || codOffMadeToOrder.length > 0 || codOffAtPin || walletOn;
+    codOffVendors.length > 0 || codOffProducts.length > 0 || codOffMadeToOrder.length > 0 || codOffAtPin;
   const codUnavailableReason = codDisabled
     ? [
-        walletOn && "Cash on Delivery can't be combined with your wallet balance - untick the wallet to pay on delivery",
         codOffMadeToOrder.length > 0 &&
           `Cash on Delivery isn't available for made-to-order pieces (${codOffMadeToOrder.map((n) => `"${n}"`).join(", ")}) - please pay online`,
         codOffAtPin && "Cash on Delivery isn't available for this PIN code",
@@ -663,11 +665,19 @@ export default function Checkout() {
   // A discount applied after "Pay Online" was already selected can drop the
   // total below Razorpay's minimum - switch back to COD automatically
   // rather than letting the customer hit the payment failure at submit time.
+  // Not while the wallet is on: Cash on Delivery would switch it off, so the
+  // customer picks that themselves.
   useEffect(() => {
-    if (onlineUnavailable && paymentMethod === "razorpay" && !codDisabled) {
+    if (onlineUnavailable && paymentMethod === "razorpay" && !codDisabled && !walletOn) {
       setPaymentChoice("cod");
     }
-  }, [onlineUnavailable, paymentMethod, codDisabled]);
+  }, [onlineUnavailable, paymentMethod, codDisabled, walletOn]);
+
+  // The wallet was switched on with Cash on Delivery picked: the rest is
+  // paid online instead (the two don't mix).
+  useEffect(() => {
+    if (walletOn && paymentChoice === "cod") setPaymentChoice("razorpay");
+  }, [walletOn, paymentChoice]);
 
   // EMI no longer offered (e.g. a discount took the total below the EMI
   // minimum) - fall back to the regular online payment.
@@ -1732,20 +1742,34 @@ export default function Checkout() {
                   </span>
                 </label>
               )}
-              {!paidByWallet && (
+              {/* Every valid way to pay stays on screen, wallet or not (user,
+                  24 Nov 2026). While the wallet pays the whole order none is
+                  picked; picking one pays the order that way instead and
+                  keeps the balance. Cash on Delivery never mixes with the
+                  wallet, so picking it switches the wallet off. */}
+              {paidByWallet && (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Or pay another way - pick one below and your wallet balance stays for later.
+                </p>
+              )}
               <RadioGroup
-                value={paymentChoice}
-                onValueChange={(value) => setPaymentChoice(value as "cod" | "razorpay" | "emi")}
+                value={paidByWallet ? "" : paymentChoice}
+                onValueChange={(value) => {
+                  const choice = value as "cod" | "razorpay" | "emi";
+                  if (paidByWallet || choice === "cod") setPayFromWallet(false);
+                  setPaymentChoice(choice);
+                }}
                 className="space-y-3"
               >
                 {!codDisabled && (
                   <PaymentOption
                     value="cod"
-                    selected={paymentChoice === "cod"}
+                    selected={!paidByWallet && paymentChoice === "cod"}
                     icon={Banknote}
                     title="Cash on Delivery"
                     text={
-                      codQuote.status === "ready"
+                      (walletOn && !paidByWallet ? "Pays the whole order - your wallet isn't used with Cash on Delivery · " : "") +
+                      (codQuote.status === "ready"
                         ? `Pay when your order arrives · COD fee ${formatINR(codQuote.amount)}${
                             codQuote.pct != null ? ` (${codQuote.pct}% + GST)` : ""
                           }`
@@ -1753,7 +1777,7 @@ export default function Checkout() {
                           ? "Pay when your order arrives · working out the COD fee..."
                           : codQuote.status === "error"
                             ? "Pay when your order arrives · couldn't work out the COD fee - check the PIN code"
-                            : "Pay when your order arrives · the COD fee shows once you enter your PIN code"
+                            : "Pay when your order arrives · the COD fee shows once you enter your PIN code")
                     }
                   />
                 )}
@@ -1774,7 +1798,7 @@ export default function Checkout() {
                 )}
                 <PaymentOption
                   value="razorpay"
-                  selected={paymentChoice === "razorpay"}
+                  selected={!paidByWallet && paymentChoice === "razorpay"}
                   disabled={onlineUnavailable}
                   icon={CreditCard}
                   title="Pay online"
@@ -1798,7 +1822,7 @@ export default function Checkout() {
                 {emiAvailable && (
                   <PaymentOption
                     value="emi"
-                    selected={paymentChoice === "emi"}
+                    selected={!paidByWallet && paymentChoice === "emi"}
                     icon={CalendarClock}
                     title="Pay in EMI"
                     text={`${[
@@ -1811,7 +1835,6 @@ export default function Checkout() {
                   />
                 )}
               </RadioGroup>
-              )}
             </CheckoutSection>
 
             {/* Order Notes */}
