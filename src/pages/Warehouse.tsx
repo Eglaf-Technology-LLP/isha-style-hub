@@ -60,7 +60,9 @@ export default function Warehouse() {
     const [{ data: w }, { data: s }, { data: h }] = await Promise.all([
       supabase
         .from("warehouses")
-        .select("id, name, contact_name, contact_phone, contact_email, address")
+        .select(
+          "id, name, contact_name, contact_phone, contact_email, address, shiprocket_pickup_location, shiprocket_pickup_registered_at",
+        )
         .eq("is_default", true)
         .maybeSingle(),
       supabase
