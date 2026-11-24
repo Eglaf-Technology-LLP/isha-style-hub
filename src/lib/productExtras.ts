@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from './auth';
+import { formatDateInWordsWithDay } from './dates';
 import { friendly } from './errors';
 import { supabase } from './supabase';
 
@@ -334,27 +335,9 @@ export function useSizeChart(
 
 // ---------- delivery date by pincode (shiprocket-estimate-delivery) ----------
 
-const MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const dateLabel = (iso: string) => {
-  // A plain "2026-11-20" is that calendar day, never shifted by time zones.
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(iso);
-  return `${DAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-};
+// For customers: in words, India time - "Mon, 4 Jan 2027", never
+// "04-01-2027" (website a4e8e67). A plain "2027-01-04" is that day as-is.
+const dateLabel = (value: string | Date) => formatDateInWordsWithDay(value);
 
 export const isPin = (pin: string | null | undefined): pin is string =>
   !!pin && /^\d{6}$/.test(pin);
@@ -373,10 +356,13 @@ export interface DeliveryEstimate {
 // DeliveryEstimate: the server adds up the boutique's preparation time,
 // courier to the warehouse, the quality check (3 working days) and courier
 // to this PIN code. Without a PIN code only "Ships by" comes back.
+// soldOutMadeToOrder: the chosen size is sold out and made to order, so its
+// extra days count.
 export async function estimateDelivery(
   vendorId: string,
   productId: string,
   pincode: string | null,
+  soldOutMadeToOrder = false,
 ): Promise<DeliveryEstimate> {
   const { data, error } = await supabase.functions.invoke(
     'shiprocket-estimate-delivery',
@@ -384,7 +370,13 @@ export async function estimateDelivery(
       body: {
         vendor_id: vendorId,
         ...(pincode ? { delivery_pincode: pincode } : {}),
-        items: [{ product_id: productId, quantity: 1 }],
+        items: [
+          {
+            product_id: productId,
+            quantity: 1,
+            ...(soldOutMadeToOrder ? { sold_out_made_to_order: true } : {}),
+          },
+        ],
       },
     },
   );
@@ -414,9 +406,7 @@ export async function estimateDelivery(
     pin: pincode,
     available: true,
     shipsBy,
-    deliveryBy: dates.length
-      ? dateLabel(new Date(Math.min(...dates)).toISOString())
-      : null,
+    deliveryBy: dates.length ? dateLabel(new Date(Math.min(...dates))) : null,
   };
 }
 

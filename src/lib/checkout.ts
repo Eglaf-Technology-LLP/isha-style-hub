@@ -48,6 +48,8 @@ interface VendorInfo {
   free_shipping_threshold: number | null;
   commission_rate: number | null;
   cod_enabled: boolean | null;
+  // The store-wide returns switch (for each line's rules).
+  returns_enabled: boolean | null;
 }
 
 export function useCheckoutData(items: CartItem[]) {
@@ -65,13 +67,15 @@ export function useCheckoutData(items: CartItem[]) {
           ? supabase
               .from('vendors')
               .select(
-                'id, name, shipping_flat_rate, free_shipping_threshold, commission_rate, cod_enabled',
+                'id, name, shipping_flat_rate, free_shipping_threshold, commission_rate, cod_enabled, returns_enabled',
               )
               .in('id', vendorIds)
           : Promise.resolve({ data: [] as VendorInfo[] }),
         supabase
           .from('products')
-          .select('id, name, cod_available, category_id, is_returnable, sku')
+          .select(
+            'id, name, cod_available, category_id, is_returnable, sku, made_to_order',
+          )
           .in('id', productIds),
         supabase
           .from('platform_settings')
@@ -99,6 +103,7 @@ export function useCheckoutData(items: CartItem[]) {
               category_id: string | null;
               is_returnable: boolean | null;
               sku: string | null;
+              made_to_order: boolean | null;
             },
           ]),
         ),
@@ -165,65 +170,6 @@ export function vendorGroups(
       subtotal,
       shippingCost: shipping,
     };
-  });
-}
-
-// ---------- GST inside the prices (src/lib/gst.ts on the website) ----------
-
-// A category's GST rule (its HSN code): the rate, and a higher rate above a
-// price limit (e.g. clothing: 5% up to Rs 2,500 a piece, 18% above).
-export interface GstRule {
-  gst_rate: number;
-  price_limit: number | null;
-  gst_rate_above_limit: number | null;
-}
-
-// GST rate for one piece sold at a GST-inclusive price, as the database's
-// gst_rate_for: the band is decided on the value before GST at the lower rate.
-function gstRateForInclusive(rule: GstRule | null, unitPrice: number): number {
-  if (!rule) return 0;
-  const rate = Number(rule.gst_rate);
-  if (
-    rule.price_limit == null ||
-    unitPrice / (1 + rate / 100) <= Number(rule.price_limit)
-  )
-    return rate;
-  return Number(rule.gst_rate_above_limit ?? rate);
-}
-
-// The GST inside a GST-inclusive line total, split the way the tax invoice
-// splits it (invoice_line_amounts): taxable = round(total / (1 + rate)), GST
-// = the rest.
-export function gstInsideLine(
-  rule: GstRule | null,
-  lineTotal: number,
-  quantity: number,
-): number {
-  if (!Number.isFinite(lineTotal) || lineTotal <= 0) return 0;
-  const rate = gstRateForInclusive(rule, lineTotal / Math.max(quantity, 1));
-  const taxable =
-    Math.round(Number(((lineTotal * 100) / (1 + rate / 100)).toFixed(4))) / 100;
-  return round2(lineTotal - taxable);
-}
-
-// Each category's GST rule (null = no HSN code set for it yet).
-export function useGstRules() {
-  return useQuery({
-    queryKey: ['gst-rules'],
-    staleTime: 30 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, hsn_codes(gst_rate, price_limit, gst_rate_above_limit)');
-      if (error) throw error;
-      const map = new Map<string, GstRule | null>();
-      for (const c of (data ?? []) as any[])
-        map.set(
-          c.id as string,
-          (Array.isArray(c.hsn_codes) ? c.hsn_codes[0] : c.hsn_codes) ?? null,
-        );
-      return map;
-    },
   });
 }
 
@@ -370,7 +316,12 @@ export async function checkCoupon(
 const groupsFor = (items: CartItem[]) => {
   const map = new Map<
     string,
-    { product_id: string; quantity: number; customised: boolean }[]
+    {
+      product_id: string;
+      quantity: number;
+      customised: boolean;
+      sold_out_made_to_order?: boolean;
+    }[]
   >();
   for (const i of items) {
     if (!i.vendorId) continue;
@@ -380,6 +331,7 @@ const groupsFor = (items: CartItem[]) => {
         product_id: i.productId,
         quantity: i.quantity,
         customised: !!i.customisation,
+        ...(i.soldOutTerms ? { sold_out_made_to_order: true } : {}),
       },
     ]);
   }
@@ -470,7 +422,8 @@ export async function cartDeliveryDate(
   pincode: string,
   items: CartItem[],
 ): Promise<string | null> {
-  // A customised piece takes its extra making days (customised: true).
+  // A customised piece takes its extra making days (customised: true), and
+  // so does a sold-out size made to order (sold_out_made_to_order).
   const groups = groupsFor(items);
   if (!groups.length) return null;
   const { data } = await supabase.functions.invoke(
@@ -679,13 +632,24 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
       vendor_id: i.vendorId,
       vendor_order_id: i.vendorId ? partByVendor[i.vendorId] ?? null : null,
       is_returnable: input.products.get(i.productId)?.is_returnable ?? true,
+      // A sold-out size made to order, as the bag shows it - the server
+      // works out its charge and days again and refuses the order if the
+      // stock has moved since (sold_out_made_to_order_trigger).
+      sold_out_terms: i.soldOutTerms
+        ? {
+            extra: i.soldOutTerms.extra,
+            days: i.soldOutTerms.days,
+            pct: i.soldOutTerms.pct,
+          }
+        : null,
       // Re-priced from the product by the server; a customised piece isn't
       // returnable (enforce_order_item_customisation).
       customisation: customisationForOrder(i.customisation),
     }));
-    const { error: itemsError } = await supabase
+    const { data: savedItems, error: itemsError } = await supabase
       .from('order_items')
-      .insert(lines);
+      .insert(lines)
+      .select('product_id, variant_id, quantity, made_to_order');
     if (itemsError) {
       await cancelPending(orderId);
       throw itemsError;
@@ -710,7 +674,29 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
       };
     }
 
-    for (const i of items) {
+    // A line made to order (a Made to Order listing, or a sold-out size the
+    // boutique makes) takes no stock - the database marked it.
+    const stockLines =
+      savedItems && savedItems.length === lines.length
+        ? (
+            savedItems as {
+              product_id: string;
+              variant_id: string;
+              quantity: number;
+              made_to_order: boolean | null;
+            }[]
+          )
+            .filter(row => !row.made_to_order)
+            .map(row => ({
+              productId: row.product_id,
+              variantId: row.variant_id,
+              quantity: row.quantity,
+              productName:
+                items.find(i => i.productId === row.product_id)?.productName ??
+                'This piece',
+            }))
+        : items.filter(i => !i.soldOutTerms);
+    for (const i of stockLines) {
       const { error: stockError } = await supabase.rpc('adjust_stock', {
         _product_id: i.productId,
         _variant_id: UUID_RE.test(i.variantId) ? i.variantId : null,
@@ -796,9 +782,10 @@ export async function placeOrder(input: PlaceInput): Promise<PlaceResult> {
     if (unpaidOnline) await releaseUnpaid(unpaidOnline);
     const raw = String(e?.message ?? '');
     // The database's own reasons are written for shoppers (price_order,
-    // price_order_item); anything else gets a plain sentence.
+    // price_order_item, sold_out_made_to_order_trigger); anything else gets
+    // a plain sentence.
     const shopperReason =
-      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|Address line 1 needs at least|choose a quantity|choose again|try again/i.test(
+      /no longer available|can't be used any more|isn't for any item|minimum order|Cash on Delivery (charge|fee) has changed|Address line 1 needs at least|choose a quantity|choose again|try again|place the order again|made-to-order pieces/i.test(
         raw,
       );
     console.warn('[AllBoutiqs] place order', raw);

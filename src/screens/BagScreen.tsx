@@ -1,3 +1,4 @@
+import { useIsFocused } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
 import { Image } from 'react-native';
 import { useGo } from '@/navigation';
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
 import { CustomisationDetails } from '@/components/Customiser';
 import { Sheet } from '@/components/Listing';
+import { MadeToOrderLineNote } from '@/components/MadeToOrderNote';
 import { Button, Placeholder, Sans, Serif, Touch } from '@/components/ui';
 import { useSession } from '@/lib/auth';
 import {
@@ -32,8 +34,9 @@ import {
   useCartVariants,
 } from '@/lib/cartVariants';
 import { cartDeliveryDate } from '@/lib/checkout';
+import { formatDateInWordsWithDay } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
-import { shortDate } from '@/lib/orders';
+import { MADE_TO_ORDER_MAX_QUANTITY } from '@/lib/soldOutMadeToOrder';
 import {
   CartItem,
   cartCount,
@@ -41,6 +44,7 @@ import {
   cartTotal,
   useCart,
 } from '@/lib/stores';
+import { useSyncCartPrices } from '@/lib/syncCartPrices';
 import { toast } from '@/lib/toast';
 import { colors, fonts } from '@/theme';
 
@@ -50,7 +54,14 @@ export default function Bag() {
   const { items, setQuantity, removeItem, changeVariant } = useCart();
   const count = cartCount(items);
   const total = cartTotal(items);
-  // Each piece's sizes (to change a line's size here) and its SKU.
+  // Opening the bag pulls today's prices and stock: lines turn made to
+  // order (or back to stock), pieces no longer for sale leave the bag
+  // (website c9475fd, 968958f). Only while the bag is on screen - checkout
+  // does the same for itself.
+  const focused = useIsFocused();
+  useSyncCartPrices(focused);
+  // Each piece's sizes (to change a line's size here), its SKU and which
+  // products make a sold-out size to order.
   const { data: pieces } = useCartVariants(items.map(i => i.productId));
   const [sizeSheet, setSizeSheet] = useState<{
     item: CartItem;
@@ -60,8 +71,12 @@ export default function Bag() {
   const changeSize = (item: CartItem, choice: SizeChoice) => {
     setSizeSheet(null);
     const size = choice.size;
-    if (choice.soldOut || size === lineSize(item)) return;
-    const stock = choice.variant.stock;
+    if ((choice.soldOut && !choice.madeToOrder) || size === lineSize(item))
+      return;
+    // A size made to order isn't limited by stock.
+    const stock = choice.madeToOrder
+      ? MADE_TO_ORDER_MAX_QUANTITY
+      : choice.variant.stock;
     // A line already in the bag in that size takes this one in.
     const twin = item.lineId
       ? undefined
@@ -69,9 +84,15 @@ export default function Bag() {
           i => i !== item && !i.lineId && i.variantId === choice.variant.id,
         );
     const wanted = item.quantity + (twin?.quantity ?? 0);
-    changeVariant(cartLineKey(item), lineAsSize(item, choice), stock);
+    changeVariant(
+      cartLineKey(item),
+      lineAsSize(item, choice, pieces?.soldOutSetups.get(item.productId)),
+      stock,
+    );
     toast(
-      wanted > stock
+      choice.madeToOrder
+        ? `Size changed to ${size} - made to order. Check the extra charge and delivery time below.`
+        : wanted > stock
         ? `Size changed to ${size}. Only ${stock} left in this size, so the quantity is now ${stock}.`
         : twin
         ? `Size changed to ${size} and added to the ${size} already in your cart`
@@ -148,6 +169,7 @@ export default function Bag() {
               const choices = sizeChoices(
                 item,
                 pieces?.variants.get(item.productId),
+                pieces?.soldOutSetups.get(item.productId),
               );
               const sku = item.sku || pieces?.skus.get(item.productId);
               // Size (a picker when the piece comes in other sizes in this
@@ -199,6 +221,7 @@ export default function Bag() {
                     {details ? (
                       <Text style={styles.variant}>{details}</Text>
                     ) : null}
+                    <MadeToOrderLineNote terms={item.soldOutTerms} />
                     <CustomisationDetails customisation={item.customisation} />
                     <Text style={styles.price}>
                       {formatINR(Number(item.price.amount) * item.quantity)}
@@ -253,7 +276,8 @@ export default function Bag() {
           >
             {sizeSheet?.choices.map(c => {
               const on = c.size === lineSize(sizeSheet.item);
-              const off = c.soldOut && !on;
+              // A sold-out size made to order can still be picked.
+              const off = c.soldOut && !c.madeToOrder && !on;
               return (
                 <Touch
                   key={c.size}
@@ -265,7 +289,11 @@ export default function Bag() {
                 >
                   <Text style={[styles.sizeOptionText, on && styles.sizeOn]}>
                     {c.size}
-                    {c.soldOut ? ' (sold out)' : ''}
+                    {c.madeToOrder
+                      ? ' (made to order)'
+                      : c.soldOut
+                      ? ' (sold out)'
+                      : ''}
                   </Text>
                   {on ? <Check size={17} color={colors.primary} /> : null}
                 </Touch>
@@ -319,7 +347,13 @@ function DeliveryDate({
   const [eta, setEta] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const pin = pincode ?? checkedPin;
-  const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  // Customised pieces and sold-out sizes made to order take their extra days.
+  const itemsKey = items
+    .map(
+      i =>
+        `${i.productId}:${i.quantity}:${!!i.customisation}:${!!i.soldOutTerms}`,
+    )
+    .join(',');
   useEffect(() => {
     setEta(null);
     if (!pin || !/^\d{6}$/.test(pin) || !items.length) return;
@@ -367,7 +401,7 @@ function DeliveryDate({
         <View style={styles.etaRow}>
           <Truck size={15} color={colors.success} />
           <Text style={styles.etaText}>
-            Estimated delivery by {shortDate(eta)}
+            Estimated delivery by {formatDateInWordsWithDay(eta)}
           </Text>
         </View>
       ) : null}

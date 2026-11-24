@@ -4,8 +4,8 @@ import { Heart, Star } from 'lucide-react-native';
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
+  canBeOrdered,
   displayPrice,
-  inStock,
   isNewArrival,
   Product,
   useRatings,
@@ -32,7 +32,9 @@ export const ProductCard = memo(function ProductCard({
   // The price of the variant the product page opens with.
   const price = displayPrice(product);
   const off = discountPercent(price, product.compare_at_price);
-  const soldOut = !product.made_to_order && !inStock(product);
+  // Made to order counts as available (a Made to Order listing, or sold-out
+  // sizes the boutique makes to order): no "Sold out" on the card.
+  const soldOut = !canBeOrdered(product);
   const rating = useRatings().data?.get(product.id);
 
   return (

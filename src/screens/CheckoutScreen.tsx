@@ -21,12 +21,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/components/AppHeader';
+import {
+  CheckoutLineRules,
+  CheckoutTermsNote,
+} from '@/components/CheckoutNotes';
 import { CustomisationDetails } from '@/components/Customiser';
 import {
   DeliverTo,
   useDeliverTo,
   useDeliveryAddress,
 } from '@/components/DeliverTo';
+import { MadeToOrderLineNote } from '@/components/MadeToOrderNote';
 import { Button, Eyebrow, Placeholder, Sans, Touch } from '@/components/ui';
 import { useWallet } from '@/lib/account';
 import { ADDRESS_LINE1_LOCKED, addressLine1Ok } from '@/lib/addressLine1';
@@ -42,7 +47,6 @@ import {
   Coupon,
   MAX_ONLINE_PAYMENT_AMOUNT,
   MIN_ONLINE_PAYMENT_AMOUNT,
-  gstInsideLine,
   LATE_PAYMENT_MESSAGE,
   NO_COD_QUOTE,
   PAYMENT_NOT_COMPLETED,
@@ -51,13 +55,17 @@ import {
   splitCoupon,
   useBuyNow,
   useCheckoutData,
-  useGstRules,
   vendorGroups,
 } from '@/lib/checkout';
+import { customisationPrice } from '@/lib/customisation';
+import { formatDateInWordsWithDay } from '@/lib/dates';
 import { formatINR } from '@/lib/format';
+import { useCategoryGstRules } from '@/lib/gst';
 import { tap } from '@/lib/haptics';
-import { shortDate } from '@/lib/orders';
-import { cartLineKey, useCart } from '@/lib/stores';
+import { goodsSplitRows, splitGoods } from '@/lib/orderAmounts';
+import { useReturnWindowHours } from '@/lib/settings';
+import { CartItem, cartLineKey, useCart } from '@/lib/stores';
+import { useSyncCartPrices } from '@/lib/syncCartPrices';
 import { toast } from '@/lib/toast';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -86,8 +94,14 @@ export default function CheckoutScreen() {
   // (an address saved before the rule can be shorter).
   const line1Locked = !!address && !addressLine1Ok(address.address_line_1);
   const { data, isLoading } = useCheckoutData(items);
-  const { data: gstRules } = useGstRules();
+  const { data: gstRules } = useCategoryGstRules();
   const { data: wallet } = useWallet();
+  // Today's prices and stock for the bag's lines (not for Buy now), as the
+  // bag does: made to order or back to stock, pieces no longer for sale
+  // removed (website c9475fd, 968958f).
+  useSyncCartPrices(!buyNowMode);
+  // The return window, for each line's rules (A23.2).
+  const returnHours = useReturnWindowHours();
 
   const [email, setEmail] = useState(user?.email ?? '');
   const [couponCode, setCouponCode] = useState('');
@@ -115,22 +129,26 @@ export default function CheckoutScreen() {
   const split = coupon ? splitCoupon(coupon, items, categoryOf) : null;
   const discount = split?.total ?? 0;
   const goodsDue = round2(subtotal - discount + shipping);
-  // Product value and GST on separate lines (website 2.9.2). Prices include
-  // GST; the GST is what the tax invoice will charge on each line after its
-  // coupon share, in whole rupees. Product value is the rest of the items'
-  // price, so product value + GST - coupon is exactly what the items cost.
+  // Product value and GST on separate lines (website 2.9.2), and any
+  // customisation charge on its own, before GST (website 87776a5). Prices
+  // include GST; the GST is what the tax invoice will charge on each line
+  // after its coupon share, in whole rupees. Product value is the rest, so
+  // product value + customisation + GST - coupon is exactly what the items
+  // cost.
   const gstReady = !!gstRules && !!data;
-  const gstAmount = Math.round(
-    items.reduce((sum, i) => {
-      const line =
-        parseFloat(i.price.amount) * i.quantity -
-        (split?.perLine.get(cartLineKey(i)) ?? 0);
+  const goods = splitGoods(
+    items.map(i => {
       const categoryId = categoryOf(i.productId);
-      const rule = categoryId ? gstRules?.get(categoryId) ?? null : null;
-      return sum + gstInsideLine(rule, line, i.quantity);
-    }, 0),
+      return {
+        price: parseFloat(i.price.amount),
+        quantity: i.quantity,
+        discount: split?.perLine.get(cartLineKey(i)) ?? 0,
+        customisation: customisationPrice(i.customisation),
+        rule: categoryId ? gstRules?.get(categoryId) ?? null : null,
+      };
+    }),
+    true,
   );
-  const productValue = round2(subtotal - gstAmount);
   // Cash on Delivery fee: 3% of each boutique part + 18% GST on it, quoted
   // by the server for this PIN code (see codQuote).
   const codFeeLabel = `Cash on Delivery fee${
@@ -157,15 +175,25 @@ export default function CheckoutScreen() {
   const codOffProducts = items.filter(
     i => data?.products.get(i.productId)?.cod_available === false,
   );
+  // A sold-out size the boutique makes to order is paid online (the
+  // database refuses it on Cash on Delivery too).
+  const codOffMadeToOrder = [
+    ...new Set(items.filter(i => i.soldOutTerms).map(i => i.productName)),
+  ];
   const codDisabled =
     codOffVendors.length > 0 ||
     codOffProducts.length > 0 ||
+    codOffMadeToOrder.length > 0 ||
     cod.status === 'unavailable' ||
     walletOn;
   const codReason = codDisabled
     ? [
         walletOn &&
           "Can't be combined with your wallet balance - untick the wallet to pay on delivery",
+        codOffMadeToOrder.length > 0 &&
+          `Isn't available for made-to-order pieces (${codOffMadeToOrder
+            .map(n => `"${n}"`)
+            .join(', ')}) - please pay online`,
         cod.status === 'unavailable' && "Isn't available for this PIN code",
         codOffProducts.length > 0 &&
           `Not available for ${codOffProducts
@@ -191,7 +219,13 @@ export default function CheckoutScreen() {
 
   // ---- COD quote and delivery date for this PIN ----
   const pin = address?.pincode ?? '';
-  const itemsKey = items.map(i => `${i.productId}:${i.quantity}`).join(',');
+  // Customised pieces and sold-out sizes made to order take their extra days.
+  const itemsKey = items
+    .map(
+      i =>
+        `${i.productId}:${i.quantity}:${!!i.customisation}:${!!i.soldOutTerms}`,
+    )
+    .join(',');
   // One entry per boutique part, as a stable key for the quote below.
   const codGroupsKey = useMemo(
     () => JSON.stringify(codGroups(groups, split?.perLine ?? new Map())),
@@ -344,6 +378,31 @@ export default function CheckoutScreen() {
     toast(PAYMENT_NOT_COMPLETED, { important: true });
   };
 
+  // Each piece's rules under it, before paying (website c63b3b7, A23.2):
+  // from the product and its boutique's store-wide switches; a customised
+  // piece isn't returnable (only if it arrives damaged or wrong).
+  const lineRules = (i: CartItem) => {
+    const product = data?.products.get(i.productId);
+    if (!product) return null;
+    const vendor = i.vendorId ? data?.vendors.get(i.vendorId) : undefined;
+    return (
+      <CheckoutLineRules
+        item={i}
+        rules={{
+          madeToOrder: !!product.made_to_order,
+          soldOutMadeToOrder: !!i.soldOutTerms,
+          returnable:
+            product.is_returnable !== false &&
+            !i.customisation &&
+            vendor?.returns_enabled !== false,
+          returnHours,
+          codAvailable:
+            product.cod_available !== false && vendor?.cod_enabled !== false,
+        }}
+      />
+    );
+  };
+
   if (!items.length) {
     return (
       <View style={styles.flex}>
@@ -387,7 +446,8 @@ export default function CheckoutScreen() {
         ))}
       </View>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
+        // Room for the bottom bar: total + button, and the terms line (A23.1).
+        contentContainerStyle={{ paddingBottom: 160 + insets.bottom }}
         keyboardShouldPersistTaps="handled"
       >
         <DeliverTo />
@@ -433,7 +493,9 @@ export default function CheckoutScreen() {
                   {i.variantTitle !== 'Default' ? `${i.variantTitle} · ` : ''}
                   Qty {i.quantity}
                 </Sans>
+                <MadeToOrderLineNote terms={i.soldOutTerms} />
                 <CustomisationDetails customisation={i.customisation} />
+                {lineRules(i)}
               </View>
               <Text style={styles.itemPrice}>
                 {formatINR(parseFloat(i.price.amount) * i.quantity)}
@@ -444,7 +506,7 @@ export default function CheckoutScreen() {
             <View style={styles.eta}>
               <Truck size={15} color={colors.success} />
               <Sans style={styles.etaText}>
-                Estimated delivery by {shortDate(eta)}
+                Estimated delivery by {formatDateInWordsWithDay(eta)}
               </Sans>
             </View>
           ) : null}
@@ -586,11 +648,13 @@ export default function CheckoutScreen() {
         <View style={styles.block}>
           <Eyebrow style={styles.head}>Price details</Eyebrow>
           {!ready ? <ActivityIndicator color={colors.primary} /> : null}
-          <Row
-            label="Product value"
-            value={gstReady ? formatINR(productValue) : '…'}
-          />
-          <Row label="GST" value={gstReady ? formatINR(gstAmount) : '…'} />
+          {goodsSplitRows(goods).map(([label, amount]) => (
+            <Row
+              key={label}
+              label={label}
+              value={gstReady ? formatINR(amount) : '…'}
+            />
+          ))}
           {/* Free delivery is one line, not one per boutique. */}
           {groups.every(g => g.shippingCost === 0) ? (
             <Row label="Delivery" value="Free Delivery" good />
@@ -643,6 +707,12 @@ export default function CheckoutScreen() {
             placed.
           </Sans>
         </View>
+
+        {/* What the customer agrees to and the cancellation rule, above the
+            Pay / Place order button (website bc2026e, 9e42410). */}
+        <View style={styles.block}>
+          <CheckoutTermsNote />
+        </View>
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: 10 + insets.bottom }]}>
@@ -658,6 +728,9 @@ export default function CheckoutScreen() {
             </Text>
           </Touch>
         ) : null}
+        <View style={styles.barTerms}>
+          <CheckoutTermsNote compact />
+        </View>
         <View>
           <Text style={styles.barTotal}>{formatINR(payNow)}</Text>
           <Sans style={styles.small}>
@@ -933,6 +1006,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   lockedRow: { width: '100%' },
+  barTerms: { width: '100%' },
   locked: {
     fontFamily: fonts.sans,
     fontSize: 12,

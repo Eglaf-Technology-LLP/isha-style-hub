@@ -1,4 +1,5 @@
 import {
+  canBeOrdered,
   colorOf,
   displayPrice,
   inStock,
@@ -211,10 +212,11 @@ function sortProducts(products: Product[], sort: SortKey): Product[] {
     case 'discount':
       return arr.sort((a, b) => discount(b) - discount(a));
     default:
-      // Featured: available pieces with photos first, then newest.
+      // Featured: pieces that can be ordered (in stock or made to order)
+      // with photos first, then newest.
       return arr.sort(
         (a, b) =>
-          Number(inStock(b)) - Number(inStock(a)) ||
+          Number(canBeOrdered(b)) - Number(canBeOrdered(a)) ||
           Number(!!b.images[0]) - Number(!!a.images[0]) ||
           +new Date(b.created_at) - +new Date(a.created_at),
       );

@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { useSession } from './auth';
 import type { CustomisationChoice } from './customisation';
+import type { SoldOutTerms } from './soldOutMadeToOrder';
 import { supabase } from './supabase';
 
 // Bag and wishlist, kept on the phone. The bag line has exactly the website's
@@ -28,6 +29,11 @@ export interface CartItem {
   lineId?: string;
   customisation?: CustomisationChoice | null;
   basePrice?: string;
+  // A sold-out size the boutique makes to order: its extra charge (already
+  // in price.amount; basePrice is the piece's own price) and extra days.
+  // The server works them out again when the order is placed. Lines saved
+  // before it was kept have none.
+  soldOutTerms?: SoldOutTerms | null;
 }
 
 // The id the bag's actions use for a line.
@@ -48,7 +54,17 @@ export type VariantChange = Pick<
   | 'productImage'
   | 'basePrice'
   | 'customisation'
+  | 'soldOutTerms'
 >;
+// A line's new price; a % customisation charge moves with it (see
+// rechargeAt). soldOutTerms: set = now made to order, null = from stock
+// again, left out = unchanged.
+export type LinePrice = {
+  amount: string;
+  basePrice?: string;
+  customisation?: CustomisationChoice | null;
+  soldOutTerms?: SoldOutTerms | null;
+};
 
 interface CartState {
   items: CartItem[];
@@ -60,6 +76,9 @@ interface CartState {
     next: VariantChange,
     maxQuantity?: number,
   ) => void;
+  // Today's prices / stock terms for some lines, by line key (the
+  // website's setPrices - see syncCartPrices.ts).
+  setPrices: (updates: Record<string, LinePrice>) => void;
   removeItem: (lineKey: string) => void;
   clear: () => void;
 }
@@ -124,6 +143,22 @@ export const useCart = create<CartState>()(
               ),
         });
       },
+      setPrices: updates =>
+        set({
+          items: get().items.map(item => {
+            const p = updates[cartLineKey(item)];
+            if (!p) return item;
+            return {
+              ...item,
+              price: { ...item.price, amount: p.amount },
+              ...(p.basePrice ? { basePrice: p.basePrice } : {}),
+              ...(p.customisation ? { customisation: p.customisation } : {}),
+              ...(p.soldOutTerms !== undefined
+                ? { soldOutTerms: p.soldOutTerms }
+                : {}),
+            };
+          }),
+        }),
       removeItem: lineKey =>
         set({ items: get().items.filter(i => cartLineKey(i) !== lineKey) }),
       clear: () => set({ items: [] }),

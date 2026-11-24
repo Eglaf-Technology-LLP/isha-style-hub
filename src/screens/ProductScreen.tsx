@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Heart,
   RotateCcw,
+  Scissors,
   Share2,
   ShieldCheck,
   ShoppingBag,
@@ -70,6 +71,7 @@ import {
   variantPrice,
 } from '@/lib/catalog';
 import { colourCodes } from '@/lib/colors';
+import { daysUntil } from '@/lib/dates';
 import { discountPercent, formatINR } from '@/lib/format';
 import { success, tap } from '@/lib/haptics';
 import { CartItem, newLineId, useCart, useWishlist } from '@/lib/stores';
@@ -81,6 +83,12 @@ import {
 } from '@/lib/customisation';
 import { toast } from '@/lib/toast';
 import { useBuyNow } from '@/lib/checkout';
+import { useShipsBy } from '@/lib/shipsBy';
+import {
+  readSoldOutSetup,
+  soldOutTermsFor,
+  takesSoldOutOrders,
+} from '@/lib/soldOutMadeToOrder';
 import { useSession } from '@/lib/auth';
 import { SITE_URL } from '@/lib/supabase';
 import { colors, fonts } from '@/theme';
@@ -183,6 +191,40 @@ export default function ProductScreen() {
   // One return window for every boutique, set by AllBoutiqs (24 hours).
   const windowHours = useReturnWindowHours();
 
+  // The chosen size / colour's own price and stock, not the whole product's
+  // (website 7a1decb).
+  const price = product ? variantPrice(product, variant) : 0;
+  const stock = product
+    ? variant
+      ? variant.stock
+      : product.stock_quantity
+    : 0;
+  // "When a size sells out" (Ready to Ship): sold-out sizes made to order,
+  // or left off the page - src/lib/soldOutMadeToOrder.ts (website c9475fd).
+  const soldOutSetup = readSoldOutSetup(product);
+  // A Made to Order listing has no stock: it's made after every order.
+  const listingMadeToOrder = !!product?.made_to_order;
+  // This size has none left, but the boutique makes it to order.
+  const sizeMadeToOrder =
+    !!product &&
+    !listingMadeToOrder &&
+    stock <= 0 &&
+    takesSoldOutOrders(soldOutSetup);
+  const soldOutTerms = sizeMadeToOrder
+    ? soldOutTermsFor(soldOutSetup, price)
+    : null;
+  const madeToOrderExtra = soldOutTerms?.extra ?? 0;
+  // "Ships in N days" = the days to the "Ships by" date the Delivery date box
+  // shows (making + courier to our centre + quality check), so the page has
+  // one number (website a4e8e67). Nothing until the date is known.
+  const { data: shipsByDate } = useShipsBy(product?.vendor_id, product?.id, {
+    enabled: listingMadeToOrder || sizeMadeToOrder,
+    soldOutMadeToOrder: sizeMadeToOrder,
+  });
+  const shipsInDays = shipsByDate ? Math.max(daysUntil(shipsByDate), 0) : null;
+  const shipsInText =
+    shipsInDays != null ? `ships in ${shipsInDays} days` : null;
+
   if (isLoading) {
     return (
       <View style={{ flex: 1 }}>
@@ -209,14 +251,11 @@ export default function ProductScreen() {
     );
   }
 
-  const price = variantPrice(product, variant);
   const off = discountPercent(price, product.compare_at_price);
-  const stock = variant ? variant.stock : product.stock_quantity;
-  const soldOut =
-    !product.made_to_order &&
-    (product.variants.length
-      ? product.variants.every(v => v.stock <= 0)
-      : stock <= 0);
+  // The chosen size / colour has none left (and isn't made to order).
+  const soldOut = stock <= 0 && !listingMadeToOrder && !sizeMadeToOrder;
+  // One piece with the made-to-order charge.
+  const piecePrice = price + madeToOrderExtra;
   // A variant with its own photos (every size of a colour shares them)
   // replaces the product's photos while selected; otherwise the product's
   // own photos show (as on the website).
@@ -242,15 +281,16 @@ export default function ProductScreen() {
   }
   const photoBoxes = Object.keys(thumbnails).length > 0;
   const swatches = colourCodes(product.variants);
+  // Nothing is unavailable on a piece made to order (a Made to Order
+  // listing, or sold-out sizes made to order).
+  const anyMadeToOrder = listingMadeToOrder || takesSoldOutOrders(soldOutSetup);
   const unavailableColours = new Set(
-    product.made_to_order
+    anyMadeToOrder
       ? []
       : colours.filter(
           c => !product.variants.some(v => colorOf(v) === c && v.stock > 0),
         ),
   );
-  // Same rules as the website's product page.
-  const prepDays = product.prep_days ?? vendorInfo?.default_prep_days ?? 2;
   // Customisation: the boutique's % of the chosen piece's price, on top.
   const customisationSetup = readSetup(
     product as unknown as Record<string, unknown>,
@@ -282,8 +322,14 @@ export default function ProductScreen() {
   // A size is greyed out only when no colour has it in stock - picking it
   // switches the colour to one that does (chooseSize).
   const sizeAvailable = (sz: string) =>
-    !!product.made_to_order ||
+    anyMadeToOrder ||
     product.variants.some(v => sizeOf(v) === sz && v.stock > 0);
+  // "Hide that size": sold-out sizes are left off (the chosen one stays,
+  // shown sold out). When every size is sold out they all show, sold out.
+  const sizeOptions =
+    soldOutSetup.action === 'hide' && sizes.some(sizeAvailable)
+      ? sizes.filter(sz => sizeAvailable(sz) || sz === size)
+      : sizes;
 
   // The chosen piece as a bag line - or, when a size / colour is still
   // missing, the picker slides up (and remembers which button was pressed).
@@ -329,13 +375,18 @@ export default function ProductScreen() {
       variantTitle: [size, color].filter(Boolean).join(' / ') || 'Default',
       price: {
         amount: String(
-          price + (customisation ? customisationPrice(customisation) : 0),
+          price +
+            (customisation ? customisationPrice(customisation) : 0) +
+            madeToOrderExtra,
         ),
         currencyCode: 'INR',
       },
       quantity: 1,
       selectedOptions: options,
       sku: product.sku ?? null,
+      // A sold-out size made to order: its extra charge and days (the
+      // server checks them again when the order is placed).
+      ...(soldOutTerms ? { soldOutTerms, basePrice: String(price) } : {}),
       // A customised piece is its own bag line, priced with its
       // customisation (as on the website).
       ...(customisation
@@ -363,6 +414,51 @@ export default function ProductScreen() {
       <Text style={styles.stylistText}>Speak to a stylist</Text>
     </Touch>
   );
+
+  // A sold-out size the boutique makes to order: the charge, the days,
+  // online-only payment and the 24-hour cancel spelled out (website
+  // c9475fd, a4e8e67).
+  const madeToOrderNote = soldOutTerms ? (
+    <View style={styles.mtoNote} accessibilityRole="summary">
+      <View style={styles.mtoHead}>
+        <Scissors size={16} color={colors.gold} strokeWidth={1.7} />
+        <Text style={styles.mtoTitle}>
+          {size ? `Size ${size} is sold out` : 'This piece is sold out'} - the
+          boutique will make it for you
+        </Text>
+      </View>
+      <Bullet>
+        {madeToOrderExtra > 0 ? (
+          <>
+            Price: {formatINR(price)} + {formatINR(madeToOrderExtra)}{' '}
+            made-to-order charge
+            {soldOutTerms.pct ? ` (${soldOutTerms.pct}%)` : ''} ={' '}
+            <Text style={styles.mtoStrong}>{formatINR(piecePrice)}</Text> per
+            piece, GST included.
+          </>
+        ) : (
+          `Price: ${formatINR(
+            price,
+          )} per piece - no extra charge for making it.`
+        )}
+      </Bullet>
+      <Bullet>
+        {shipsInText
+          ? `Ships in ${shipsInDays} days, making and our quality check included.`
+          : `${soldOutTerms.days} extra days to make it.`}{' '}
+        The delivery date below includes this.
+      </Bullet>
+      <Bullet>
+        Pay online - Cash on Delivery isn't available for made-to-order pieces.
+      </Bullet>
+      <Bullet>
+        You can cancel within 24 hours of ordering.{' '}
+        {returnable
+          ? 'Returns as usual for this piece.'
+          : "This piece isn't returnable."}
+      </Bullet>
+    </View>
+  ) : null;
 
   const addToBag = () => {
     if (added) return go('/bag');
@@ -484,6 +580,13 @@ export default function ProductScreen() {
               </>
             ) : null}
           </View>
+          {soldOutTerms && madeToOrderExtra > 0 ? (
+            <Sans style={styles.tax}>
+              + {formatINR(madeToOrderExtra)} made-to-order charge
+              {soldOutTerms.pct ? ` (${soldOutTerms.pct}%)` : ''} ={' '}
+              <Text style={styles.customTotal}>{formatINR(piecePrice)}</Text>
+            </Sans>
+          ) : null}
           {customisationExtra > 0 ? (
             <Sans style={styles.tax}>
               + {formatINR(customisationExtra)} customisation
@@ -492,18 +595,24 @@ export default function ProductScreen() {
                 : ''}{' '}
               ={' '}
               <Text style={styles.customTotal}>
-                {formatINR(price + customisationExtra)}
+                {formatINR(piecePrice + customisationExtra)}
               </Text>
             </Sans>
           ) : null}
-          <Sans style={styles.tax}>Inclusive of all taxes</Sans>
+          {/* "EMI available" under the price (website bc2026e, client
+              corrections Part 2, A4.1). */}
+          <Sans style={styles.tax}>Inclusive of all taxes · EMI available</Sans>
           {soldOut ? <Text style={styles.soldOut}>Out of stock</Text> : null}
-          {product.made_to_order ? (
+          {listingMadeToOrder || sizeMadeToOrder ? (
             <Text style={styles.madeToOrder}>
-              Made to order · ships in {prepDays} days
+              Made to order{shipsInText ? ` · ${shipsInText}` : ''}
             </Text>
           ) : null}
-          {!soldOut && !product.made_to_order && stock > 0 && stock <= 5 ? (
+          {!soldOut &&
+          !listingMadeToOrder &&
+          !sizeMadeToOrder &&
+          stock > 0 &&
+          stock <= 5 ? (
             <Text style={styles.low}>Only {stock} left</Text>
           ) : null}
         </View>
@@ -571,7 +680,7 @@ export default function ProductScreen() {
               />
             </View>
             <View style={styles.options}>
-              {sizes.map(sz => {
+              {sizeOptions.map(sz => {
                 const ok = sizeAvailable(sz);
                 return (
                   <Touch
@@ -606,18 +715,25 @@ export default function ProductScreen() {
                 );
               })}
             </View>
+            {madeToOrderNote}
             {stylist}
           </View>
         ) : (
-          <View style={[styles.block, styles.noTop]}>{stylist}</View>
+          <View style={[styles.block, styles.noTop]}>
+            {madeToOrderNote}
+            {stylist}
+          </View>
         )}
         {missing ? <Text style={styles.missing}>{missing}</Text> : null}
 
         {customisationSetup.customisable ? (
           <View style={styles.block}>
+            {/* No "Total N days" here: that counted only the making days, so
+                it clashed with "ships in N days" (making + courier + quality
+                check) - "Adds 3 extra days" stays (website a4e8e67). */}
             <Customiser
               setup={customisationSetup}
-              baseDays={prepDays}
+              baseDays={null}
               basePrice={price}
               value={customiser}
               onChange={setCustomiser}
@@ -645,9 +761,17 @@ export default function ProductScreen() {
           <Info
             icon={<Banknote size={18} color={colors.gold} strokeWidth={1.6} />}
             text={
-              codAvailable ? 'Cash on Delivery available' : 'Cash on Delivery'
+              codAvailable && !sizeMadeToOrder
+                ? 'Cash on Delivery available'
+                : 'Cash on Delivery'
             }
-            sub={codAvailable ? '+ COD fee 3% + GST' : 'Not available'}
+            sub={
+              sizeMadeToOrder
+                ? 'Not available for made-to-order sizes - pay online'
+                : codAvailable
+                ? '+ COD fee 3% + GST'
+                : 'Not available'
+            }
           />
           <Info
             icon={<Earth size={18} color={colors.gold} strokeWidth={1.6} />}
@@ -677,34 +801,55 @@ export default function ProductScreen() {
             <DeliveryCheck
               vendorId={product.vendor_id}
               productId={product.id}
+              soldOutMadeToOrder={sizeMadeToOrder}
             />
             <Sans style={styles.datesNote}>
-              {product.made_to_order
-                ? `Made for you after you order - these dates include the ${prepDays} days it takes to make and our quality check.`
+              {listingMadeToOrder || sizeMadeToOrder
+                ? `Made for you after you order - these dates include making it and our quality check${
+                    shipsInText ? ` (${shipsInText})` : ''
+                  }.`
                 : 'These dates include our quality check before it ships to you.'}
             </Sans>
           </View>
         ) : null}
 
         {/* Details */}
-        {product.description || product.specifications?.length ? (
-          <View style={styles.block}>
-            <Eyebrow style={{ color: colors.foreground, marginBottom: 10 }}>
-              Product details
-            </Eyebrow>
-            {product.description ? (
-              <Sans style={{ lineHeight: 22, color: colors.foreground }}>
-                {product.description}
-              </Sans>
-            ) : null}
-            {product.specifications?.map(sp => (
-              <View key={sp.label} style={styles.spec}>
-                <Text style={styles.specLabel}>{sp.label}</Text>
-                <Text style={styles.specValue}>{sp.value}</Text>
-              </View>
-            ))}
+        <View style={styles.block}>
+          <Eyebrow style={{ color: colors.foreground, marginBottom: 10 }}>
+            Product details
+          </Eyebrow>
+          {product.description ? (
+            <Sans style={{ lineHeight: 22, color: colors.foreground }}>
+              {product.description}
+            </Sans>
+          ) : null}
+          {product.specifications?.map(sp => (
+            <View key={sp.label} style={styles.spec}>
+              <Text style={styles.specLabel}>{sp.label}</Text>
+              <Text style={styles.specValue}>{sp.value}</Text>
+            </View>
+          ))}
+          {/* The chosen size / colour's own stock, not the whole product's
+              (website 7a1decb); made to order says when it ships. */}
+          <View style={styles.spec}>
+            <Text style={styles.specLabel}>Availability</Text>
+            <Text style={styles.specValue}>
+              {listingMadeToOrder
+                ? `Made to order${shipsInText ? ` - ${shipsInText}` : ''}`
+                : sizeMadeToOrder
+                ? `Sold out${size ? ` in size ${size}` : ''} - made to order${
+                    shipsInText ? `, ${shipsInText}` : ''
+                  }`
+                : stock > 0
+                ? `In stock (${stock} available${
+                    [size, color].some(Boolean)
+                      ? ` in ${[size, color].filter(Boolean).join(' / ')}`
+                      : ''
+                  })`
+                : 'Out of stock'}
+            </Text>
           </View>
-        ) : null}
+        </View>
 
         <View style={styles.block}>
           <Accordion title="Product information">
@@ -903,7 +1048,7 @@ export default function ProductScreen() {
               />
             </View>
             <View style={styles.chooserRow}>
-              {sizes.map(sz => {
+              {sizeOptions.map(sz => {
                 const ok = sizeAvailable(sz);
                 return (
                   <Touch
@@ -941,6 +1086,16 @@ export default function ProductScreen() {
           style={styles.chooserButton}
         />
       </Sheet>
+    </View>
+  );
+}
+
+// One line of the made-to-order note, with a bullet.
+function Bullet({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.mtoLine}>
+      <Text style={styles.mtoText}>•</Text>
+      <Text style={[styles.mtoText, styles.flex1]}>{children}</Text>
     </View>
   );
 }
@@ -1075,6 +1230,35 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginTop: 8,
   },
+  mtoNote: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: colors.goldSoft,
+    backgroundColor: colors.background,
+    padding: 14,
+    gap: 4,
+  },
+  mtoHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  mtoTitle: {
+    flex: 1,
+    fontFamily: fonts.sansMedium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.foreground,
+  },
+  mtoLine: { flexDirection: 'row', gap: 6 },
+  mtoText: {
+    fontFamily: fonts.sans,
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.mutedForeground,
+  },
+  mtoStrong: { fontFamily: fonts.sansSemi, color: colors.foreground },
   sizeHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',

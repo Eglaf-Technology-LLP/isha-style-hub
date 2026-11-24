@@ -41,6 +41,11 @@ export interface Product {
   prep_days?: number | null;
   net_quantity?: string | null;
   country_of_origin?: string | null;
+  // "When a size sells out" (Ready to Ship) - see soldOutMadeToOrder.ts.
+  sold_out_action?: string | null;
+  sold_out_extra_amount?: number | null;
+  sold_out_extra_pct?: number | null;
+  sold_out_extra_days?: number | null;
 }
 
 export interface Category {
@@ -70,7 +75,7 @@ export interface Boutique {
 
 const STALE = 5 * 60 * 1000;
 const CARD_SELECT =
-  'id, name, description, price, compare_at_price, images, category_id, vendor_id, created_at, stock_quantity, made_to_order, ' +
+  'id, name, description, price, compare_at_price, images, category_id, vendor_id, created_at, stock_quantity, made_to_order, sold_out_action, ' +
   'product_variants(id, name, price, stock, options, image_url, created_at), vendor:vendors(name, slug)';
 const PAGE = 1000;
 
@@ -358,6 +363,11 @@ export const inStock = (p: Product) =>
   p.variants.length
     ? p.variants.some(v => v.stock > 0)
     : (p.stock_quantity ?? 0) > 0;
+// Can be ordered now: in stock, or made to order (a Made to Order listing,
+// or sold-out sizes the boutique makes to order) - the website's
+// canBeOrdered.
+export const canBeOrdered = (p: Product) =>
+  inStock(p) || !!p.made_to_order || p.sold_out_action === 'made_to_order';
 // The variant a product opens with on its page - the first in stock, else
 // the first. Cards, price filters and sorting use its price too, so the
 // price on a card is always the price on the product page.

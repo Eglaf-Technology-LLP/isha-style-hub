@@ -37,7 +37,7 @@ import {
   useSizeChart,
   visibleImages,
 } from '@/lib/productExtras';
-import { shortDate } from '@/lib/orders';
+import { formatDateInWords } from '@/lib/dates';
 import { toast } from '@/lib/toast';
 import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
@@ -55,12 +55,16 @@ let typedPin: string | null = null;
 // website's DeliveryEstimate. The PIN code fills itself in: the customer's
 // default saved address, else the last one checked on this phone; with
 // neither, only "Ships by" shows. The customer can still type another.
+// soldOutMadeToOrder: the chosen size is sold out and made to order, so its
+// extra days count (checked again when it changes).
 export function DeliveryCheck({
   vendorId,
   productId,
+  soldOutMadeToOrder = false,
 }: {
   vendorId: string;
   productId: string;
+  soldOutMadeToOrder?: boolean;
 }) {
   const { data: addresses = [] } = useAddresses();
   const saved = addresses.find(a => a.is_default) ?? addresses[0] ?? null;
@@ -69,18 +73,26 @@ export function DeliveryCheck({
   const [pin, setPin] = useState('');
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<DeliveryEstimate | null>(null);
-  // "vendor|product|pin" of the last check, so the same one isn't repeated.
+  // "vendor|product|made-to-order|pin" of the last check, so the same one
+  // isn't repeated.
   const lastChecked = useRef('');
   const latestRequest = useRef(0);
 
   const check = async (value: string | null) => {
     if (value !== null && !isPin(value)) return;
-    lastChecked.current = `${vendorId}|${productId}|${value ?? ''}`;
+    lastChecked.current = `${vendorId}|${productId}|${soldOutMadeToOrder}|${
+      value ?? ''
+    }`;
     const request = ++latestRequest.current;
     setChecking(true);
     setResult(null);
     if (value) rememberPin(value);
-    const next = await estimateDelivery(vendorId, productId, value).catch(
+    const next = await estimateDelivery(
+      vendorId,
+      productId,
+      value,
+      soldOutMadeToOrder,
+    ).catch(
       (): DeliveryEstimate => ({
         pin: value,
         available: false,
@@ -104,14 +116,17 @@ export function DeliveryCheck({
       const next = typedPin ?? addressPin ?? (await readLastPin());
       if (!alive) return;
       if (next) setPin(next);
-      if (lastChecked.current !== `${vendorId}|${productId}|${next ?? ''}`)
+      if (
+        lastChecked.current !==
+        `${vendorId}|${productId}|${soldOutMadeToOrder}|${next ?? ''}`
+      )
         check(next);
     })();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressPin, vendorId, productId]);
+  }, [addressPin, vendorId, productId, soldOutMadeToOrder]);
 
   const submit = (value: string) => {
     if (!isPin(value)) return;
@@ -518,7 +533,7 @@ export function Reviews({ productId }: { productId: string }) {
             </View>
           ) : null}
           <View style={styles.reviewFoot}>
-            <Sans style={styles.small}>{shortDate(r.created_at)}</Sans>
+            <Sans style={styles.small}>{formatDateInWords(r.created_at)}</Sans>
             {r.user_id === user?.id ? (
               <Touch
                 hitSlop={8}

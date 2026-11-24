@@ -1,12 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 import { customisationPrice, rechargeAt } from './customisation';
 import { sortSizes } from './listing';
+import {
+  NO_SOLD_OUT_SETUP,
+  readSoldOutSetup,
+  SoldOutSetup,
+  soldOutTermsFor,
+  takesSoldOutOrders,
+} from './soldOutMadeToOrder';
 import { CartItem, VariantChange } from './stores';
 import { supabase } from './supabase';
 
 // Changing a bag line's size (client corrections, 15 Nov 2026, 2.8.2 b) -
 // the website's src/hooks/useCartVariants.ts. Also each piece's SKU, for the
-// bag line.
+// bag line, and its "When a size sells out" set-up (the website's
+// useCartSoldOutSetups): a sold-out size of a product made to order can
+// still be picked in the bag.
 
 export interface CartVariant {
   id: string;
@@ -21,8 +30,9 @@ const variantImages = (v: {
   images?: string[] | null;
 }) => (v.images?.length ? v.images : v.image_url ? [v.image_url] : []);
 
-// Every variant of the pieces in the bag (by product id), and each piece's
-// SKU. Stock moves, so it is read again after half a minute.
+// Every variant of the pieces in the bag (by product id), each piece's SKU
+// and its sold-out set-up. Stock moves, so it is read again after half a
+// minute.
 export function useCartVariants(productIds: string[]) {
   const key = [...new Set(productIds)].sort().join(',');
   return useQuery({
@@ -37,7 +47,12 @@ export function useCartVariants(productIds: string[]) {
         variantsQuery(
           'id, product_id, price, stock, options, image_url, images',
         ),
-        supabase.from('products').select('id, sku').in('id', ids),
+        supabase
+          .from('products')
+          .select(
+            'id, sku, made_to_order, sold_out_action, sold_out_extra_amount, sold_out_extra_pct, sold_out_extra_days',
+          )
+          .in('id', ids),
       ]);
       // The images column is newer; without it, the one photo.
       const rows = first.error
@@ -57,12 +72,22 @@ export function useCartVariants(productIds: string[]) {
         });
         byProduct.set(r.product_id, list);
       }
+      const productRows = (products.data ?? []) as {
+        id: string;
+        sku: string | null;
+        made_to_order: boolean | null;
+        sold_out_action: string | null;
+        sold_out_extra_amount: number | null;
+        sold_out_extra_pct: number | null;
+        sold_out_extra_days: number | null;
+      }[];
       const skus = new Map<string, string>(
-        ((products.data ?? []) as { id: string; sku: string | null }[])
-          .filter(p => !!p.sku)
-          .map(p => [p.id, p.sku as string]),
+        productRows.filter(p => !!p.sku).map(p => [p.id, p.sku as string]),
       );
-      return { variants: byProduct, skus };
+      const soldOutSetups = new Map<string, SoldOutSetup>(
+        productRows.map(p => [p.id, readSoldOutSetup(p)]),
+      );
+      return { variants: byProduct, skus, soldOutSetups };
     },
   });
 }
@@ -82,7 +107,10 @@ const lineColour = (item: CartItem) =>
 export interface SizeChoice {
   size: string;
   variant: CartVariant;
+  // No stock in this size.
   soldOut: boolean;
+  // ...but the boutique makes it to order (extra charge and days).
+  madeToOrder: boolean;
 }
 
 // The sizes a bag line can switch to: every size of the same piece in the
@@ -91,6 +119,7 @@ export interface SizeChoice {
 export function sizeChoices(
   item: CartItem,
   variants: CartVariant[] | undefined,
+  setup: SoldOutSetup = NO_SOLD_OUT_SETUP,
 ): SizeChoice[] | null {
   if (!variants?.length || !lineSize(item)) return null;
   const colour = lineColour(item);
@@ -103,25 +132,35 @@ export function sizeChoices(
   if (bySize.size < 2) return null;
   return sortSizes([...bySize.keys()]).map(size => {
     const variant = bySize.get(size)!;
-    return { size, variant, soldOut: variant.stock <= 0 };
+    const soldOut = variant.stock <= 0;
+    return {
+      size,
+      variant,
+      soldOut,
+      madeToOrder: soldOut && takesSoldOutOrders(setup),
+    };
   });
 }
 
 // The line as the chosen size: that variant's id and price (a variant
 // without its own price costs what the line does now; a customised line
 // keeps its customisation on top, a % charge worked out again on the new
-// price), its own photo when it has one, and the size in the line's options
-// and title.
-export function lineAsSize(item: CartItem, choice: SizeChoice): VariantChange {
+// price; a sold-out size made to order takes its extra charge), its own
+// photo when it has one, and the size in the line's options and title.
+export function lineAsSize(
+  item: CartItem,
+  choice: SizeChoice,
+  setup: SoldOutSetup = NO_SOLD_OUT_SETUP,
+): VariantChange {
   const oldAmount = Number(item.price.amount);
   const oldBase = item.basePrice != null ? Number(item.basePrice) : oldAmount;
+  const extra = oldAmount - oldBase - (item.soldOutTerms?.extra ?? 0);
   const base = choice.variant.price || oldBase;
   const customisation = item.customisation
     ? rechargeAt(item.customisation, base)
     : null;
-  const charge = customisation?.pct
-    ? customisationPrice(customisation)
-    : oldAmount - oldBase;
+  const charge = customisation?.pct ? customisationPrice(customisation) : extra;
+  const soldOutTerms = choice.madeToOrder ? soldOutTermsFor(setup, base) : null;
   return {
     variantId: choice.variant.id,
     variantTitle: [choice.size, lineColour(item)].filter(Boolean).join(' / '),
@@ -130,10 +169,15 @@ export function lineAsSize(item: CartItem, choice: SizeChoice): VariantChange {
     ),
     price: {
       ...item.price,
-      amount: String(Math.round((base + charge) * 100) / 100),
+      amount: String(
+        Math.round((base + charge + (soldOutTerms?.extra ?? 0)) * 100) / 100,
+      ),
     },
     productImage: choice.variant.images[0] ?? item.productImage,
-    ...(item.basePrice != null ? { basePrice: String(base) } : {}),
+    ...(item.basePrice != null || soldOutTerms
+      ? { basePrice: String(base) }
+      : {}),
     ...(customisation ? { customisation } : {}),
+    soldOutTerms,
   };
 }

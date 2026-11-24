@@ -5,9 +5,23 @@ import { useGo } from '@/navigation';
 import { colors, fonts } from '@/theme';
 import { Button, Eyebrow, Touch } from './ui';
 
+// The ways to pay, as the website footer's bottom row lists them - EMI
+// wherever payments are listed (website bc2026e, client corrections Part 2,
+// A4.1).
+const PAYMENT_METHODS = [
+  'UPI',
+  'Visa',
+  'Mastercard',
+  'RuPay',
+  'Net banking',
+  'EMI',
+  'Cash on Delivery',
+];
+
 // The website footer's company details (src/components/Footer.tsx), at the
 // bottom of the Profile tab: complaints, customer care (WhatsApp only on the
-// WhatsApp number), the registered office, Grievance Officer and ISO line.
+// WhatsApp number), the registered office, Grievance Officer and ISO line,
+// and its bottom row (ways to pay, company name).
 export function CompanyFooter() {
   const go = useGo();
   const g = COMPANY.grievanceOfficer;
@@ -84,6 +98,13 @@ export function CompanyFooter() {
         </Text>
       </Text>
       <Text style={styles.small}>{COMPANY.isoCertificate}</Text>
+      <View style={styles.payments}>
+        {PAYMENT_METHODS.map(m => (
+          <Text key={m} style={styles.payment}>
+            {m}
+          </Text>
+        ))}
+      </View>
       <Text style={[styles.small, styles.legal]}>
         © {new Date().getFullYear()} {COMPANY.legalName} · GSTIN {COMPANY.gstin}{' '}
         · CIN {COMPANY.cin}
@@ -133,5 +154,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   smallLink: { color: 'rgba(252,251,248,0.85)' },
+  payments: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 },
+  payment: {
+    borderWidth: 1,
+    borderColor: 'rgba(252,251,248,0.2)',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    fontFamily: fonts.sansMedium,
+    fontSize: 10,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: 'rgba(252,251,248,0.7)',
+  },
   legal: { marginTop: 16, color: 'rgba(252,251,248,0.5)' },
 });
