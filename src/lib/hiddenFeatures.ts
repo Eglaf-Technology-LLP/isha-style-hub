@@ -57,6 +57,12 @@ export const WAREHOUSE_SETTINGS_TAB_ENABLED = false;
 // warehouse address always shows).
 export const WAREHOUSE_EXTRA_SETTINGS_ENABLED = true;
 
+// Boutique's Payouts > Bank details: the "Save payout details" button. Off
+// since 2026-11-26 (client): a boutique's bank details don't change after
+// registration. The saved details stay as they are and payouts keep using
+// them; a super admin still sees the button.
+export const VENDOR_PAYOUT_SAVE_BUTTON_ENABLED = false;
+
 // Boutique's add / edit product page: the "Returnable" switch (the product's
 // return policy). While false: new products are returnable, edits keep what
 // the product has; admins still set it in Vendors > Manage Catalogue.

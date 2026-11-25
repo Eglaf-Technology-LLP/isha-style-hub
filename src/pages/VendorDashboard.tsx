@@ -105,6 +105,8 @@ import { formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { boutiqueDiscountShare } from "@/lib/coupons";
+import { VENDOR_PAYOUT_SAVE_BUTTON_ENABLED } from "@/lib/hiddenFeatures";
+import { useShown } from "@/hooks/useSuperAdmin";
 
 interface VendorProduct {
   id: string;
@@ -257,6 +259,7 @@ export default function VendorDashboard() {
   const platformRates = usePlatformRates();
   const { period: foundingPeriod } = useFoundingPeriod();
   const [hasPayoutAccount, setHasPayoutAccount] = useState(false);
+  const showPayoutSave = useShown(VENDOR_PAYOUT_SAVE_BUTTON_ENABLED);
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
@@ -1817,10 +1820,12 @@ export default function VendorDashboard() {
                         return window has closed.
                       </p>
                     )}
-                    <Button onClick={savePayoutAccount} disabled={payoutSaving}>
-                      {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Save payout details
-                    </Button>
+                    {showPayoutSave && (
+                      <Button onClick={savePayoutAccount} disabled={payoutSaving}>
+                        {payoutSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Save payout details
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
