@@ -1,4 +1,4 @@
-package com.allboutiqs.app
+package com.allboutiqs.marketplace
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

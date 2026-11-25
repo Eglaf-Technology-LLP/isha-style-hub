@@ -1,4 +1,4 @@
-package com.allboutiqs.app
+package com.allboutiqs.marketplace
 
 import android.app.Application
 import com.facebook.react.PackageList
