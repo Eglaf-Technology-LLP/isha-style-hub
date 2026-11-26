@@ -36,7 +36,7 @@ A short repo path (for example `C:\ab`) also helps.
 
 ## Settings
 
-`src/config.ts`: Supabase project (live by default), website URL, WhatsApp link. These are public values, the same ones the website ships.
+`src/config.ts`: Supabase project, website URL, WhatsApp link. `APP_ENV` picks the database: `live` (keep this in git and in Play Store builds) or `stage` (the stage website's project, for testing orders and Razorpay). These are public values, the same ones the websites ship.
 
 Fonts are in `assets/fonts` (file name = PostScript name, so `fontFamily: 'Jost-Regular'` works on both platforms). After adding one: `npm run link-assets`.
 
