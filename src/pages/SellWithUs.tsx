@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { useVendor, type PersonDetails, type ApplicationDocument } from "@/hooks/useVendor";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
 import { Header } from "@/components/Header";
@@ -255,6 +256,7 @@ const sameName = (a: string, b: string) =>
 
 export default function SellWithUs() {
   const { user, loading: authLoading } = useAuth();
+  const { profile } = useProfile();
   const { vendor, loading: vendorLoading, submitApplication } = useVendor();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
@@ -335,6 +337,25 @@ export default function SellWithUs() {
       cancelled = true;
     };
   }, [bank.ifsc]);
+
+  // The mobile number and email the store is contacted on (vendors.
+  // contact_phone / contact_email, also the Shiprocket pickup number) start
+  // as the applicant's own account ones (client, 26 Nov 2026): the verified
+  // mobile number, else the one saved in the profile, and the account email.
+  // Filled once and only into empty fields, so whatever is typed or cleared
+  // stays; nothing on the account (or not a valid Indian mobile) = blank.
+  const contactPrefilled = useRef(false);
+  useEffect(() => {
+    if (contactPrefilled.current || !user || !profile) return;
+    contactPrefilled.current = true;
+    const mobile = normalizeMobile(user.phone || profile.phone?.trim() || "") ?? "";
+    const email = user.email?.trim().toLowerCase() ?? "";
+    setForm((f) => ({
+      ...f,
+      primary_mobile: f.primary_mobile || mobile,
+      business_email: f.business_email || email,
+    }));
+  }, [user, profile]);
 
   if (authLoading || vendorLoading) {
     return (
