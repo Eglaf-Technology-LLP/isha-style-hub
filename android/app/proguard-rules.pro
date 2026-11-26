@@ -17,3 +17,8 @@
 -keepclasseswithmembers class * {
   public void onPayment*(...);
 }
+# Razorpay checkout runs in a WebView that calls back into Java (Razorpay Android docs)
+-keepattributes JavascriptInterface
+-keepclassmembers class * {
+  @android.webkit.JavascriptInterface <methods>;
+}
