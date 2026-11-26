@@ -9,7 +9,7 @@ import { mapDbVariant } from "@/hooks/useProducts";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductEditorForm, type VendorProductRow } from "@/components/product-editor/ProductEditorForm";
 import { VENDOR_PRODUCT_COLUMNS, listingReviewNote } from "@/lib/vendorProduct";
-import { VENDOR_RETURNABLE_SWITCH_ENABLED } from "@/lib/hiddenFeatures";
+import { VENDOR_MADE_TO_ORDER_SWITCH_ENABLED, VENDOR_RETURNABLE_SWITCH_ENABLED } from "@/lib/hiddenFeatures";
 
 const BACK_TO = "/vendor?tab=products";
 
@@ -85,6 +85,7 @@ export default function VendorProductEditor() {
           isTrusted={vendor.is_trusted}
           product={product}
           showReturnable={VENDOR_RETURNABLE_SWITCH_ENABLED}
+          showMadeToOrder={VENDOR_MADE_TO_ORDER_SWITCH_ENABLED}
           onSaved={() => navigate(BACK_TO)}
           onCancel={() => navigate(BACK_TO)}
         />

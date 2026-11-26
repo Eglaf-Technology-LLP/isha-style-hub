@@ -109,6 +109,9 @@ interface ProductEditorFormProps {
   // The "Returnable" switch; when hidden the product keeps what it has
   // (new products: returnable).
   showReturnable?: boolean;
+  // The "Made to order" switch; when hidden new products are Ready to Ship
+  // and edits keep what the product has.
+  showMadeToOrder?: boolean;
 }
 
 const empty = {
@@ -388,6 +391,7 @@ export function ProductEditorForm({
   onSaved,
   onCancel,
   showReturnable = true,
+  showMadeToOrder = true,
 }: ProductEditorFormProps) {
   const isAdmin = mode === "admin";
   const { categories } = useCategories();
@@ -437,7 +441,7 @@ export function ProductEditorForm({
     if (!form.description.trim()) return toast.error("Add a description");
     const productValue = Number(form.product_value);
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
-    const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order);
+    const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order, showMadeToOrder);
     if ("error" in stockCheck) return toast.error(stockCheck.error);
     const soldOut = soldOutPayload(form);
     if ("error" in soldOut) return toast.error(soldOut.error);
@@ -646,7 +650,9 @@ export function ProductEditorForm({
                 <p className="text-xs text-muted-foreground">
                   {variants.length > 0
                     ? "Set per variant below."
-                    : "The real number you have ready. 0 only for Made to order."}
+                    : showMadeToOrder || form.made_to_order
+                      ? "The real number you have ready. 0 only for Made to order."
+                      : "The real number you have ready."}
                 </p>
               </div>
             </div>
@@ -726,13 +732,15 @@ export function ProductEditorForm({
               />
             </div>
             <div className="space-y-3 border-t border-border pt-4">
-              <ToggleRow
-                id="pe-mto"
-                label="Made to order"
-                description='Shows "Made to order: ships in N days" on the product page.'
-                checked={form.made_to_order}
-                onChange={(v) => set("made_to_order", v)}
-              />
+              {showMadeToOrder && (
+                <ToggleRow
+                  id="pe-mto"
+                  label="Made to order"
+                  description='Shows "Made to order: ships in N days" on the product page.'
+                  checked={form.made_to_order}
+                  onChange={(v) => set("made_to_order", v)}
+                />
+              )}
               <div className="flex items-center justify-between gap-3">
                 <Label htmlFor="pe-prep" className="text-sm">
                   Ready to ship in (days)

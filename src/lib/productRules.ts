@@ -18,11 +18,15 @@ export const NET_QTY_WARN_ABOVE = 10;
 // Before saving a product (Part 8, 1/26): Ready to Ship needs every
 // variant's stock typed in and at least one piece; Made to order may be 0.
 // Returns the variants with any untyped stock set to 0, or the problem.
+// canSwitch: the form shows the "Made to order" switch (the message only
+// points at it then).
 export function checkStock(
   variants: ProductVariant[],
   productStock: string,
   madeToOrder: boolean,
+  canSwitch = true,
 ): { variants: ProductVariant[]; stock: number } | { error: string } {
+  const needsStock = `Ready to Ship needs at least 1 piece in stock${canSwitch ? " - or switch on Made to order" : ""}`;
   if (variants.length > 0) {
     const untyped = variants.filter((v) => Number.isNaN(v.stock));
     if (untyped.length && !madeToOrder) {
@@ -35,7 +39,7 @@ export function checkStock(
     }
     const filled = variants.map((v) => (Number.isNaN(v.stock) ? { ...v, stock: 0 } : v));
     if (!madeToOrder && !filled.some((v) => v.stock > 0)) {
-      return { error: "Ready to Ship needs at least 1 piece in stock - or switch on Made to order" };
+      return { error: needsStock };
     }
     return { variants: filled, stock: filled.reduce((sum, v) => sum + v.stock, 0) };
   }
@@ -46,7 +50,7 @@ export function checkStock(
   const stock = Math.floor(Number(productStock));
   if (!Number.isFinite(stock) || stock < 0) return { error: "Stock must be 0 or more" };
   if (!madeToOrder && stock < 1) {
-    return { error: "Ready to Ship needs at least 1 piece in stock - or switch on Made to order" };
+    return { error: needsStock };
   }
   return { variants, stock };
 }

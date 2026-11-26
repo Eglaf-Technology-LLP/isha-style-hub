@@ -68,6 +68,12 @@ export const VENDOR_PAYOUT_SAVE_BUTTON_ENABLED = false;
 // the product has; admins still set it in Vendors > Manage Catalogue.
 export const VENDOR_RETURNABLE_SWITCH_ENABLED = true;
 
+// Boutique's add / edit product page: the "Made to order" switch. Off since
+// 2026-11-26 (client): boutiques use "When a size sells out > Make to order"
+// instead. While false: new products are Ready to Ship, edits keep what the
+// product has; admins still have the switch in their product form.
+export const VENDOR_MADE_TO_ORDER_SWITCH_ENABLED = false;
+
 // Boutique's Store settings: the whole "Shipping & returns" box (now only
 // "Ready to ship in" - the store-level Cash on Delivery and returns switches
 // are admin-only since A20.2). While false, saving the store leaves it as it
