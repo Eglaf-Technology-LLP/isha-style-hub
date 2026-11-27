@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CustomisationOption } from "@/lib/customisation";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -529,37 +530,115 @@ export async function applyProductUpdate(
   }
 }
 
-export function useProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+// The admin's whole catalogue (Products tab, Excel import/export). It is
+// downloaded once and shared, then kept for 10 minutes (an Excel import
+// reloads it); edits change the copy in place, including saves on the
+// product editor page. Before, the admin page downloaded it on every visit, even
+// just to show two counts. During bulk listing that was 2 full downloads per
+// product saved: ~960 a day on 27 Nov 2026, the biggest part of the egress.
+export const ADMIN_PRODUCTS_KEY = ["admin-products"];
+const ADMIN_PRODUCTS_STALE_MS = 10 * 60_000;
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+async function fetchAdminProducts(): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("*, product_variants(*), vendor:vendors(name)")
+    .order("created_at", { ascending: false });
 
-  const fetchProducts = async () => {
-    try {
+  if (error) {
+    console.error("Error fetching products:", error);
+    throw error;
+  }
+
+  return (data || []).map((p) => ({
+    ...p,
+    images: (p.images as string[]) || [],
+    variants: (p.product_variants || []).map(mapDbVariant),
+    specifications: (p.specifications as unknown as ProductSpecification[]) || [],
+  }));
+}
+
+// After the product editor saves: swaps in just that product (one row)
+// instead of downloading the whole catalogue again.
+export async function refreshAdminProduct(queryClient: QueryClient, id: string) {
+  queryClient.invalidateQueries({ queryKey: PRODUCT_COUNTS_KEY });
+  queryClient.invalidateQueries({ queryKey: PRODUCT_PICK_LIST_KEY });
+  if (!queryClient.getQueryData(ADMIN_PRODUCTS_KEY)) return;
+  try {
+    const fresh = await fetchProductWithVariants(id);
+    queryClient.setQueryData<Product[]>(ADMIN_PRODUCTS_KEY, (prev) => {
+      if (!prev) return prev;
+      const known = prev.find((p) => p.id === id);
+      // The editor's row has no vendor name; keep the one already held.
+      if (known) return prev.map((p) => (p.id === id ? { ...fresh, vendor: known.vendor } : p));
+      return [fresh, ...prev];
+    });
+  } catch (e) {
+    console.error("Couldn't refresh the saved product:", e);
+    queryClient.invalidateQueries({ queryKey: ADMIN_PRODUCTS_KEY });
+  }
+}
+
+// The admin page's "Total Products" card and the review badge: two counts,
+// not the whole catalogue.
+const PRODUCT_COUNTS_KEY = ["product-counts"];
+
+export function useProductCounts() {
+  return useQuery({
+    queryKey: PRODUCT_COUNTS_KEY,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [all, pending] = await Promise.all([
+        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("approval_status", "pending_review"),
+      ]);
+      if (all.error) throw all.error;
+      if (pending.error) throw pending.error;
+      return { total: all.count ?? 0, pendingReview: pending.count ?? 0 };
+    },
+  });
+}
+
+// Name and MRP of every product, for pickers (flash sales).
+const PRODUCT_PICK_LIST_KEY = ["product-pick-list"];
+
+export function useProductPickList() {
+  const { data = [] } = useQuery({
+    queryKey: PRODUCT_PICK_LIST_KEY,
+    staleTime: ADMIN_PRODUCTS_STALE_MS,
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*, product_variants(*), vendor:vendors(name)")
+        .select("id, name, price")
         .order("created_at", { ascending: false });
-
       if (error) throw error;
+      return data ?? [];
+    },
+  });
+  return data;
+}
 
-      const typedProducts: Product[] = (data || []).map((p) => ({
-        ...p,
-        images: (p.images as string[]) || [],
-        variants: (p.product_variants || []).map(mapDbVariant),
-        specifications: (p.specifications as unknown as ProductSpecification[]) || [],
-      }));
+export function useProducts() {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ADMIN_PRODUCTS_KEY,
+    staleTime: ADMIN_PRODUCTS_STALE_MS,
+    queryFn: fetchAdminProducts,
+  });
+  const products = query.data ?? [];
+  const loading = query.isPending;
+  const { error: fetchError, refetch } = query;
 
-      setProducts(typedProducts);
-    } catch (error: any) {
-      console.error("Error fetching products:", error);
-      toast.error("Failed to fetch products");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    if (fetchError) toast.error("Failed to fetch products");
+  }, [fetchError]);
+
+  // Changes the shared copy; nothing to change before it has loaded.
+  const setProducts = (change: (prev: Product[]) => Product[]) =>
+    queryClient.setQueryData<Product[]>(ADMIN_PRODUCTS_KEY, (prev) => (prev ? change(prev) : prev));
+
+  const fetchProducts = async () => {
+    await refetch();
   };
 
   const addProduct = async (
@@ -615,6 +694,7 @@ export function useProducts() {
       if (error) throw error;
 
       setProducts((prev) => prev.filter((p) => p.id !== id));
+      queryClient.invalidateQueries({ queryKey: PRODUCT_COUNTS_KEY });
       toast.success("Product deleted successfully");
       return true;
     } catch (error: any) {
@@ -691,6 +771,7 @@ export function useProducts() {
   const applyBulkDelete = (ids: string[]) => {
     const gone = new Set(ids);
     setProducts((prev) => prev.filter((p) => !gone.has(p.id)));
+    queryClient.invalidateQueries({ queryKey: PRODUCT_COUNTS_KEY });
   };
 
   return {

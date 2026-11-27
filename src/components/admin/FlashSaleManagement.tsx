@@ -34,7 +34,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useFlashSales, FlashSale, FlashSaleFormData } from "@/hooks/useFlashSales";
-import { useProducts } from "@/hooks/useProducts";
+import { useProductPickList } from "@/hooks/useProducts";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { FlashSaleImportExportDialog } from "./FlashSaleImportExportDialog";
@@ -49,7 +49,8 @@ export function FlashSaleManagement() {
     updateFlashSale,
     deleteFlashSale,
   } = useFlashSales(true);
-  const { products } = useProducts();
+  // Name and MRP only, not the whole catalogue.
+  const products = useProductPickList();
 
   const [isAddingFlashSale, setIsAddingFlashSale] = useState(false);
   const [editingFlashSale, setEditingFlashSale] = useState<FlashSale | null>(null);

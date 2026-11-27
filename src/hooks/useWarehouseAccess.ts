@@ -1,32 +1,29 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { adminRoleQuery, ROLE_STALE_MS } from "./useAdmin";
 
 // Who may use the warehouse screens: warehouse staff and admins (admins also
 // make the decisions - partial parcels, inspection failures, undelivered
-// parcels - and manage settings and staff).
+// parcels - and manage settings and staff). Both answers are shared and
+// kept for 10 minutes, like useAdmin's.
 export function useWarehouseAccess() {
   const { user, loading: authLoading } = useAuth();
-  const [state, setState] = useState({ canOperate: false, isAdmin: false, loading: true });
+  const admin = useQuery(adminRoleQuery(user?.id));
+  const operate = useQuery({
+    queryKey: ["can-operate-warehouse", user?.id],
+    enabled: !!user,
+    staleTime: ROLE_STALE_MS,
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase.rpc("can_operate_warehouse", { _user_id: user!.id });
+      if (error) throw error;
+      return data === true;
+    },
+  });
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setState({ canOperate: false, isAdmin: false, loading: false });
-      return;
-    }
-    let cancelled = false;
-    Promise.all([
-      supabase.rpc("can_operate_warehouse", { _user_id: user.id }),
-      supabase.rpc("has_role", { _user_id: user.id, _role: "admin" }),
-    ]).then(([operate, admin]) => {
-      if (cancelled) return;
-      setState({ canOperate: operate.data === true, isAdmin: admin.data === true, loading: false });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, authLoading]);
-
-  return { ...state, loading: authLoading || state.loading };
+  return {
+    canOperate: !!user && operate.data === true,
+    isAdmin: !!user && admin.data === true,
+    loading: authLoading || (!!user && (admin.isPending || operate.isPending)),
+  };
 }

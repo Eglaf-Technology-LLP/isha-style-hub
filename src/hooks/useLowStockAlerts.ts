@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -23,70 +24,82 @@ export interface StockMovementRecord {
   createdAt: string;
 }
 
+// One row per product, or per variant when it has variants.
+async function fetchStockAlertRows(vendorId: string | undefined): Promise<StockAlertRow[]> {
+  let query = supabase
+    .from("products")
+    .select("id, name, sku, stock_quantity, low_stock_threshold, images, is_active, product_variants(id, name, sku, stock, low_stock_threshold)")
+    .eq("is_active", true);
+
+  if (vendorId) {
+    query = query.eq("vendor_id", vendorId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching stock alerts:", error);
+    throw error;
+  }
+
+  const nextRows: StockAlertRow[] = [];
+  (data || []).forEach((p) => {
+    const images = (p.images as string[]) || [];
+    if (p.product_variants && p.product_variants.length > 0) {
+      p.product_variants.forEach((v) => {
+        nextRows.push({
+          productId: p.id,
+          variantId: v.id,
+          productName: p.name,
+          variantName: v.name,
+          sku: v.sku,
+          stock: v.stock,
+          threshold: v.low_stock_threshold ?? p.low_stock_threshold,
+          images,
+        });
+      });
+    } else {
+      nextRows.push({
+        productId: p.id,
+        variantId: null,
+        productName: p.name,
+        variantName: null,
+        sku: p.sku,
+        stock: p.stock_quantity,
+        threshold: p.low_stock_threshold,
+        images,
+      });
+    }
+  });
+
+  nextRows.sort((a, b) => a.stock - b.stock);
+  return nextRows;
+}
+
 // Shared by the admin Inventory tab and the vendor dashboard (pass vendorId
 // to scope to one vendor's own catalogue) - one implementation of "what's
 // low/out of stock" rather than two drifting copies.
-export function useLowStockAlerts(vendorId?: string) {
-  const [rows, setRows] = useState<StockAlertRow[]>([]);
-  const [loading, setLoading] = useState(true);
+// The list is fetched once per scope and shared - the admin page's badge
+// and the Inventory tab use the same copy - and kept for 5 minutes. Stock
+// changes made here reload it at once. It used to be fetched again on every
+// visit to the admin page (~1,250 times on 27 Nov 2026).
+// enabled: false waits (e.g. until the boutique's id is known), rather than
+// fetching every boutique's products first.
+const STOCK_ALERTS_STALE_MS = 5 * 60_000;
+
+export function useLowStockAlerts(vendorId?: string, options: { enabled?: boolean } = {}) {
+  const query = useQuery({
+    queryKey: ["stock-alerts", vendorId ?? "all"],
+    enabled: options.enabled ?? true,
+    staleTime: STOCK_ALERTS_STALE_MS,
+    queryFn: () => fetchStockAlertRows(vendorId),
+  });
+  const rows = query.data ?? [];
+  const loading = query.isPending;
+  const { refetch } = query;
 
   const fetchRows = useCallback(async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from("products")
-        .select("id, name, sku, stock_quantity, low_stock_threshold, images, is_active, product_variants(*)")
-        .eq("is_active", true);
-
-      if (vendorId) {
-        query = query.eq("vendor_id", vendorId);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const nextRows: StockAlertRow[] = [];
-      (data || []).forEach((p) => {
-        const images = (p.images as string[]) || [];
-        if (p.product_variants && p.product_variants.length > 0) {
-          p.product_variants.forEach((v) => {
-            nextRows.push({
-              productId: p.id,
-              variantId: v.id,
-              productName: p.name,
-              variantName: v.name,
-              sku: v.sku,
-              stock: v.stock,
-              threshold: v.low_stock_threshold ?? p.low_stock_threshold,
-              images,
-            });
-          });
-        } else {
-          nextRows.push({
-            productId: p.id,
-            variantId: null,
-            productName: p.name,
-            variantName: null,
-            sku: p.sku,
-            stock: p.stock_quantity,
-            threshold: p.low_stock_threshold,
-            images,
-          });
-        }
-      });
-
-      nextRows.sort((a, b) => a.stock - b.stock);
-      setRows(nextRows);
-    } catch (error) {
-      console.error("Error fetching stock alerts:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [vendorId]);
-
-  useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+    await refetch();
+  }, [refetch]);
 
   const outOfStockRows = rows.filter((r) => r.stock === 0);
   const lowStockRows = rows.filter((r) => r.stock > 0 && r.stock <= r.threshold);

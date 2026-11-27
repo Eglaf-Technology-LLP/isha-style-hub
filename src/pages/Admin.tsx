@@ -55,7 +55,7 @@ import { useWarehouseAccess } from "@/hooks/useWarehouseAccess";
 import { useVendor } from "@/hooks/useVendor";
 import { useCategories } from "@/hooks/useCategories";
 import { useOrders } from "@/hooks/useOrders";
-import { useProducts } from "@/hooks/useProducts";
+import { useProductCounts } from "@/hooks/useProducts";
 import { useDiscounts } from "@/hooks/useDiscounts";
 import { useFlashSales } from "@/hooks/useFlashSales";
 import { usePayments } from "@/hooks/usePayments";
@@ -130,7 +130,8 @@ export default function Admin() {
   }, [user, searchParams, navigate]);
   const { categories, loading: categoriesLoading } = useCategories();
   const { orders, loading: ordersLoading } = useOrders(isAdmin);
-  const { products, loading: productsLoading } = useProducts();
+  // Two counts, not the whole catalogue (see useProducts.ts).
+  const { data: productCounts, isPending: productsLoading } = useProductCounts();
   const { discounts } = useDiscounts();
   const { activeFlashSales } = useFlashSales(isAdmin);
   const { getPaymentStats } = usePayments(isAdmin);
@@ -139,7 +140,7 @@ export default function Admin() {
 
   const pendingOrdersCount = orders.filter((o) => o.order_status === "pending").length;
   const pendingReturnsCount = returnRequests.filter((r) => r.status === "pending").length;
-  const pendingModerationCount = products.filter((p) => p.approval_status === "pending_review").length;
+  const pendingModerationCount = productCounts?.pendingReview ?? 0;
   // Parcels that can't be booked until their e-way bill number is entered.
   const [pendingEwayBillsCount, setPendingEwayBillsCount] = useState(0);
   useEffect(() => {
@@ -386,7 +387,7 @@ export default function Admin() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-4xl font-bold text-primary">
-                    {productsLoading ? '...' : products.length}
+                    {productsLoading ? '...' : (productCounts?.total ?? 0)}
                   </p>
                 </CardContent>
               </Card>

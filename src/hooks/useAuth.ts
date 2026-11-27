@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session, type AuthError } from "@supabase/supabase-js";
 import type { Identifier } from "@/lib/authIdentifier";
@@ -48,32 +48,56 @@ function authError(error: AuthError | null): { error: string | null; retryAfter:
 // created it.
 const isFresh = (user: User | null | undefined) => !!user && Date.now() - Date.parse(user.created_at) < 15 * 60_000;
 
+// One sign-in state for the whole app. Every useAuth() used to keep its own
+// copy with its own Supabase listener. Supabase says "signed in" again each
+// time a tab comes back into view, with a new user object, so every effect
+// keyed on `user` ran again in every screen on the page: role checks,
+// boutique lookups, notifications. On 27 Nov 2026 one admin account made
+// ~315k requests in a day, most of the egress on the Free plan.
+// Now there is one listener, and `user` / `session` stay the same object
+// until something in them really changes.
+interface AuthState {
+  user: User | null;
+  session: Session | null;
+  loading: boolean;
+}
+
+let authState: AuthState = { user: null, session: null, loading: true };
+const authListeners = new Set<() => void>();
+let authStarted = false;
+
+const sameUser = (a: User | null, b: User | null) => a === b || JSON.stringify(a) === JSON.stringify(b);
+
+function receiveSession(next: Session | null) {
+  const nextUser = next?.user ?? null;
+  const user = sameUser(nextUser, authState.user) ? authState.user : nextUser;
+  const prev = authState.session;
+  const sameSession =
+    (next === null && prev === null) ||
+    (!!next && !!prev && user === authState.user && next.access_token === prev.access_token);
+  const session = sameSession ? prev : next;
+  if (!authState.loading && user === authState.user && session === authState.session) return;
+  authState = { user, session, loading: false };
+  authListeners.forEach((listener) => listener());
+}
+
+function subscribeAuth(listener: () => void) {
+  if (!authStarted) {
+    authStarted = true;
+    // The listener first, then the stored session (as before).
+    supabase.auth.onAuthStateChange((_event, session) => receiveSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => receiveSession(session));
+  }
+  authListeners.add(listener);
+  return () => {
+    authListeners.delete(listener);
+  };
+}
+
+const readAuthState = () => authState;
+
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+  const { user, session, loading } = useSyncExternalStore(subscribeAuth, readAuthState, readAuthState);
 
   // Email codes, for everyone (customers, boutiques, admins): a 6-digit
   // code emailed over our SMTP by supabase/functions/auth-email-otp signs
