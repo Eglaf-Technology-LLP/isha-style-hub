@@ -2249,6 +2249,83 @@ export type Database = {
         }
         Relationships: []
       }
+      problem_reports: {
+        Row: {
+          admin_note: string | null
+          admins_emailed_at: string | null
+          boutiques_emailed_at: string | null
+          created_at: string
+          customer_emailed_at: string | null
+          id: string
+          items: Json
+          note: string
+          order_id: string
+          photo_urls: string[]
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          ticket: string
+          updated_at: string
+          user_id: string | null
+          vendor_ids: string[]
+          vendor_order_ids: string[]
+          video_url: string
+        }
+        Insert: {
+          admin_note?: string | null
+          admins_emailed_at?: string | null
+          boutiques_emailed_at?: string | null
+          created_at?: string
+          customer_emailed_at?: string | null
+          id?: string
+          items: Json
+          note: string
+          order_id: string
+          photo_urls: string[]
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          ticket: string
+          updated_at?: string
+          user_id?: string | null
+          vendor_ids: string[]
+          vendor_order_ids: string[]
+          video_url: string
+        }
+        Update: {
+          admin_note?: string | null
+          admins_emailed_at?: string | null
+          boutiques_emailed_at?: string | null
+          created_at?: string
+          customer_emailed_at?: string | null
+          id?: string
+          items?: Json
+          note?: string
+          order_id?: string
+          photo_urls?: string[]
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          ticket?: string
+          updated_at?: string
+          user_id?: string | null
+          vendor_ids?: string[]
+          vendor_order_ids?: string[]
+          video_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "problem_reports_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_comparisons: {
         Row: {
           created_at: string

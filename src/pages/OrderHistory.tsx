@@ -12,7 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Loader2, Package, ShoppingBag, RotateCcw, ArrowLeftRight, Ban, RefreshCw, Heart, User, Truck } from "lucide-react";
+import { Loader2, Package, ShoppingBag, RotateCcw, ArrowLeftRight, Ban, RefreshCw, Heart, User, Truck, AlertTriangle } from "lucide-react";
 import { ReturnRequestForm } from "@/components/ReturnRequestForm";
 import { BankDetailsNote } from "@/components/RefundMethodPicker";
 import { REFUND_METHOD_LABEL } from "@/lib/wallet";
@@ -35,6 +35,14 @@ import { formatMoney } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { orderPaymentLine, paymentModeLine } from "@/lib/paymentMode";
+import { ReportProblemDialog } from "@/components/ReportProblemDialog";
+import {
+  PROBLEM_REPORT_COLUMNS,
+  UNBOXING_RULE,
+  problemReasonLabel,
+  problemReportDeadline,
+  type ProblemReport,
+} from "@/lib/problemReport";
 
 // A part in one of these is finished; once every part is, Reorder shows.
 // (Whether Cancel shows: isPartCancellableByCustomer in src/lib/orderCancel.)
@@ -241,6 +249,19 @@ function returnWindowFor(order: Order): { items: OrderItem[]; note: string | nul
   return { items, note, closedAt };
 }
 
+// Report a problem: the pieces whose part was delivered less than 24 hours
+// ago (report-order-problem checks the same), and when that closes.
+function problemWindowFor(order: Order, now = Date.now()): { items: OrderItem[]; closesAt: number | null } {
+  const open = new Map<string, number>();
+  for (const vo of order.vendor_orders) {
+    const end = vo.status === "delivered" ? problemReportDeadline(vo.delivered_at) : null;
+    if (end !== null && end > now) open.set(vo.id, end);
+  }
+  const items = order.order_items.filter((i) => i.vendor_order_id && open.has(i.vendor_order_id));
+  const closesAt = open.size ? Math.min(...open.values()) : null;
+  return { items, closesAt };
+}
+
 export default function OrderHistory() {
   const [orders, setOrders] = useState<Order[]>([]);
   // Product value / customisation / GST for each order (as checkout showed them).
@@ -255,6 +276,8 @@ export default function OrderHistory() {
   const [returnOrderItems, setReturnOrderItems] = useState<OrderItem[]>([]);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
   const [reorderingOrder, setReorderingOrder] = useState<Order | null>(null);
+  const [reportingOrder, setReportingOrder] = useState<Order | null>(null);
+  const [problemReports, setProblemReports] = useState<ProblemReport[]>([]);
   // Which orders have their items/tracking section open, by order id.
   const [openOrders, setOpenOrders] = useState<Record<string, string>>({});
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
@@ -286,6 +309,17 @@ export default function OrderHistory() {
         .order("created_at", { ascending: false });
 
       if (ordersError) throw ordersError;
+
+      // This customer's problem reports, shown on their orders.
+      supabase
+        .from("problem_reports")
+        .select(PROBLEM_REPORT_COLUMNS)
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .then(({ data, error }) => {
+          if (error) console.error("Error fetching problem reports:", error);
+          else setProblemReports((data ?? []) as unknown as ProblemReport[]);
+        });
 
       // Fetch order items and each shipment's own fulfillment status for
       // each order - a multi-item order can have more than one shipment
@@ -549,6 +583,8 @@ export default function OrderHistory() {
                 const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
                 const paymentDisplay = paymentStatusDisplay(order);
                 const returnWindow = returnWindowFor(order);
+                const problemWindow = problemWindowFor(order);
+                const orderProblemReports = problemReports.filter((r) => r.order_id === order.id);
                 // A glance at what's inside, before the order is opened.
                 const previews = order.order_items.slice(0, 4);
 
@@ -590,6 +626,23 @@ export default function OrderHistory() {
                         >
                           <Ban className="h-3 w-3" />
                           Cancel order
+                        </button>
+                      )}
+                      {/* Damage / wrong item after delivery is not a cancel:
+                          Report a problem, for 24 hours from delivery. */}
+                      {problemWindow.items.length > 0 && (
+                        <button
+                          type="button"
+                          className="inline-flex h-8 items-center gap-1.5 border border-primary/40 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-primary hover:bg-primary/5"
+                          onClick={() => setReportingOrder(order)}
+                          title={
+                            problemWindow.closesAt
+                              ? `You can report a problem until ${formatDateTimeInWords(problemWindow.closesAt)}`
+                              : undefined
+                          }
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          Report a problem
                         </button>
                       )}
                       {!hasOpenParts && order.vendor_orders.length > 0 && (
@@ -809,6 +862,59 @@ export default function OrderHistory() {
                             </dl>
                           </div>
 
+                          {problemWindow.items.length > 0 && (
+                            <div className="flex flex-col gap-3 border border-primary/20 bg-primary/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+                              <p className="leading-relaxed">
+                                {UNBOXING_RULE}
+                                {problemWindow.closesAt && (
+                                  <span className="mt-1 block text-xs text-muted-foreground">
+                                    Open until {formatDateTimeInWords(problemWindow.closesAt)}
+                                  </span>
+                                )}
+                              </p>
+                              <button
+                                type="button"
+                                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 border border-primary px-5 text-[11px] font-medium uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+                                onClick={() => setReportingOrder(order)}
+                              >
+                                <AlertTriangle className="h-4 w-4" />
+                                Report a problem
+                              </button>
+                            </div>
+                          )}
+
+                          {orderProblemReports.length > 0 && (
+                            <div className="space-y-2 border-t border-border pt-5">
+                              <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Reported problems</p>
+                              {orderProblemReports.map((report) => (
+                                <div key={report.id} className="space-y-1.5 bg-ivory p-4 text-sm">
+                                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-mono font-medium">{report.ticket}</span>
+                                      <span>{problemReasonLabel(report.reason)}</span>
+                                      <span className="text-muted-foreground">{formatDateTimeInWords(report.created_at)}</span>
+                                    </div>
+                                    <StatusPill
+                                      className={report.status === "resolved" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}
+                                    >
+                                      {report.status === "resolved" ? "Resolved" : "We're looking into it"}
+                                    </StatusPill>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {report.items.map((i) => i.product_title).join(", ")}
+                                  </p>
+                                  {report.status === "resolved" && report.admin_note && (
+                                    <p className="text-xs">
+                                      <span className="text-muted-foreground">Our reply: </span>
+                                      {report.admin_note}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           {/* Return/Exchange Requests for this order */}
                           {returnsByOrder[order.id] && returnsByOrder[order.id].length > 0 && (
                             <div className="space-y-2 border-t border-border pt-5">
@@ -1007,6 +1113,19 @@ export default function OrderHistory() {
             if (!open) setCancellingOrder(null);
           }}
           onSuccess={checkAuthAndFetchOrders}
+        />
+      )}
+
+      {reportingOrder && (
+        <ReportProblemDialog
+          orderId={reportingOrder.id}
+          items={problemWindowFor(reportingOrder).items}
+          closesAt={problemWindowFor(reportingOrder).closesAt}
+          open={!!reportingOrder}
+          onOpenChange={(open) => {
+            if (!open) setReportingOrder(null);
+          }}
+          onReported={checkAuthAndFetchOrders}
         />
       )}
 

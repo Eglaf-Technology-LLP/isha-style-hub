@@ -110,7 +110,8 @@ export function packingSlipHtml(d: PackingSlipData, autoPrint = false): string {
   <div class="check"><span>&#9744; Items checked</span><span>&#9744; Packed in AllBoutiqs packaging</span>${d.invoicesEnclosed ? "<span>&#9744; Invoices enclosed</span>" : ""}</div>
   <div class="foot">
     Thank you for shopping with AllBoutiqs. Every piece in this parcel was checked at our quality-check centre before it was packed.<br>
-    Something not right? Request a return or exchange from <strong>My Orders</strong> at allboutiqs.com.
+    <strong>Please open your parcel within 24 hours of delivery and record an unboxing video &ndash; report any problem in My orders &rsaquo; Report a problem</strong> at allboutiqs.com.<br>
+    To return or exchange a piece, ask from <strong>My Orders</strong> too.
   </div>
   ${autoPrint ? "<script>window.addEventListener('load', function () { window.focus(); window.print(); });</script>" : ""}
 </body></html>`;

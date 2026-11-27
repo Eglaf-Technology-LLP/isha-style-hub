@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { LEGAL_PATHS } from "@/lib/legal";
 import { CUSTOMER_CANCEL_WINDOW_HOURS } from "@/lib/orderCancel";
+import { UNBOXING_RULE } from "@/lib/problemReport";
 import { cn } from "@/lib/utils";
 
 // Above the Pay / Place order button (client corrections Part 2, A23.1): what
@@ -23,10 +24,15 @@ export function CheckoutTermsNote({ compact = false, className }: { compact?: bo
         {link(LEGAL_PATHS.returns, "Return & Refund Policy")} and {link(LEGAL_PATHS.privacy, "Privacy Policy")}.
       </p>
       {!compact && (
-        <p>
-          You can cancel within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order, until the courier picks it
-          up - no cancellation fee, full refund. If the boutique or AllBoutiqs cancels it, you get a full refund too.
-        </p>
+        <>
+          <p>
+            You can cancel within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order, until the courier picks it
+            up - no cancellation fee, full refund. If the boutique or AllBoutiqs cancels it, you get a full refund too.
+          </p>
+          {/* The 24-hour unboxing rule (client, 27 Nov 2026), also in the
+              Delivered email / bell and on the packing slip. */}
+          <p className="font-medium text-foreground">{UNBOXING_RULE}</p>
+        </>
       )}
     </div>
   );

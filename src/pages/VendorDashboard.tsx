@@ -76,6 +76,7 @@ import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
+import { ProblemReportsPanel } from "@/components/admin/ProblemReportsPanel";
 import { Banknote, ExternalLink, FileBarChart, History, ImageOff, Receipt, Ruler, Wallet, XCircle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useProductSelection, type ProductBulkPatch } from "@/lib/productBulk";
@@ -1620,7 +1621,9 @@ export default function VendorDashboard() {
           </TabsContent>
 
           {/* Returns Tab - read-only, RLS scopes visibility to this vendor's own items; approval stays admin-only */}
-          <TabsContent value="returns">
+          <TabsContent value="returns" className="space-y-6">
+            {/* Problems customers reported about this boutique's pieces. */}
+            <ProblemReportsPanel vendorId={vendor.id} />
             <ReturnManagement vendorView />
           </TabsContent>
 
