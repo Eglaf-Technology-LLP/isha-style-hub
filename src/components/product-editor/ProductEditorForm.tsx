@@ -59,6 +59,7 @@ export interface VendorProductRow {
   product_value?: number | null;
   compare_at_value?: number | null;
   stock_quantity: number;
+  low_stock_threshold?: number | null;
   is_active: boolean;
   approval_status: string;
   images: string[];
@@ -122,6 +123,8 @@ const empty = {
   sku: "",
   // Empty on purpose: the boutique types what it really has (Part 8, 26).
   stock_quantity: "",
+  // Low-stock alert per size: boutiques keep 1-5 pieces (client, 28 Nov 2026).
+  low_stock_threshold: "1",
   is_active: true,
   weight_grams: "",
   length_cm: "",
@@ -156,6 +159,7 @@ const formFrom = (product: VendorProductRow | null): typeof empty =>
             : "",
         sku: product.sku || "",
         stock_quantity: String(product.stock_quantity ?? 0),
+        low_stock_threshold: String(product.low_stock_threshold ?? 1),
         is_active: product.is_active,
         weight_grams: product.weight_grams != null ? String(product.weight_grams) : "",
         length_cm: product.length_cm != null ? String(product.length_cm) : "",
@@ -440,6 +444,11 @@ export function ProductEditorForm({
     if (!productValue || productValue <= 0) return toast.error("Enter a valid Product Value (excl. GST)");
     const stockCheck = checkStock(variants, form.stock_quantity, form.made_to_order);
     if ("error" in stockCheck) return toast.error(stockCheck.error);
+    // Made to Order has no stock alerts: its saved value is left as it is.
+    const lowStockAt = form.made_to_order ? undefined : Number(form.low_stock_threshold);
+    if (lowStockAt !== undefined && (!Number.isInteger(lowStockAt) || lowStockAt < 1)) {
+      return toast.error("Low-stock alert: enter a whole number of pieces, 1 or more");
+    }
     const soldOut = soldOutPayload(form);
     if ("error" in soldOut) return toast.error(soldOut.error);
     const photoProblem = checkPhotos(media.images, variants);
@@ -503,6 +512,7 @@ export function ProductEditorForm({
         compare_at_value: form.compare_at_value ? Number(form.compare_at_value) : null,
         sku,
         stock_quantity: stockCheck.stock,
+        ...(lowStockAt !== undefined ? { low_stock_threshold: lowStockAt } : {}),
         images: media.images,
         is_active: form.is_active,
         weight_grams: form.weight_grams ? Number(form.weight_grams) : null,
@@ -653,6 +663,23 @@ export function ProductEditorForm({
                     : "The real number you have ready. 0 only for Made to order."}
                 </p>
               </div>
+              {/* Made to Order has no stock to run out of: no alert. */}
+              {!form.made_to_order && (
+                <div className="space-y-2">
+                  <Label htmlFor="pe-low-stock">Low-stock alert at</Label>
+                  <Input
+                    id="pe-low-stock"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.low_stock_threshold}
+                    onChange={(e) => set("low_stock_threshold", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pieces left in a size. Inventory warns you at this number or fewer.
+                  </p>
+                </div>
+              )}
             </div>
           </Section>
 

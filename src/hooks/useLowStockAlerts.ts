@@ -24,12 +24,16 @@ export interface StockMovementRecord {
   createdAt: string;
 }
 
-// One row per product, or per variant when it has variants.
+// One row per product, or per variant when it has variants. Every size uses
+// its product's threshold (1 by default, client 28 Nov 2026 - boutiques keep
+// 1-5 pieces). Made to Order listings have no stock to run out of, so they
+// never show here.
 async function fetchStockAlertRows(vendorId: string | undefined): Promise<StockAlertRow[]> {
   let query = supabase
     .from("products")
-    .select("id, name, sku, stock_quantity, low_stock_threshold, images, is_active, product_variants(id, name, sku, stock, low_stock_threshold)")
-    .eq("is_active", true);
+    .select("id, name, sku, stock_quantity, low_stock_threshold, images, is_active, product_variants(id, name, sku, stock)")
+    .eq("is_active", true)
+    .eq("made_to_order", false);
 
   if (vendorId) {
     query = query.eq("vendor_id", vendorId);
@@ -53,7 +57,7 @@ async function fetchStockAlertRows(vendorId: string | undefined): Promise<StockA
           variantName: v.name,
           sku: v.sku,
           stock: v.stock,
-          threshold: v.low_stock_threshold ?? p.low_stock_threshold,
+          threshold: p.low_stock_threshold,
           images,
         });
       });
@@ -166,20 +170,13 @@ export function useLowStockAlerts(vendorId?: string, options: { enabled?: boolea
     return { succeeded, failed };
   };
 
-  const updateThreshold = async (
-    row: Pick<StockAlertRow, "productId" | "variantId">,
-    threshold: number
-  ): Promise<boolean> => {
+  // Saved on the product, so it applies to all its sizes.
+  const updateThreshold = async (row: Pick<StockAlertRow, "productId">, threshold: number): Promise<boolean> => {
     try {
-      const { error } = row.variantId
-        ? await supabase
-            .from("product_variants")
-            .update({ low_stock_threshold: threshold })
-            .eq("id", row.variantId)
-        : await supabase
-            .from("products")
-            .update({ low_stock_threshold: threshold })
-            .eq("id", row.productId);
+      const { error } = await supabase
+        .from("products")
+        .update({ low_stock_threshold: threshold })
+        .eq("id", row.productId);
       if (error) throw error;
       await fetchRows();
       toast.success("Threshold updated");

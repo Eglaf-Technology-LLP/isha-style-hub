@@ -161,6 +161,9 @@ export interface ProductFormData {
   compare_at_value: number | null;
   sku: string;
   stock_quantity: number;
+  // Low-stock alert for each size (src/hooks/useLowStockAlerts.ts); left out
+  // = unchanged (a new product gets the database default, 1).
+  low_stock_threshold?: number;
   is_active: boolean;
   // Optional parcel weight/dimensions used when booking a real courier
   // shipment - left unset, "Ship Now" falls back to a platform default.
@@ -274,6 +277,7 @@ export async function insertProductRecord(
       is_returnable: productData.is_returnable ?? true,
       cod_available: productData.cod_available ?? true,
       ...(productData.prep_days !== undefined ? { prep_days: productData.prep_days } : {}),
+      ...(productData.low_stock_threshold !== undefined ? { low_stock_threshold: productData.low_stock_threshold } : {}),
       ...(productData.made_to_order !== undefined ? { made_to_order: productData.made_to_order } : {}),
       ...(productData.sold_out_action !== undefined
         ? {
@@ -392,6 +396,7 @@ export async function applyProductUpdate(
   if (productData.is_returnable !== undefined) updateData.is_returnable = productData.is_returnable;
   if (productData.cod_available !== undefined) updateData.cod_available = productData.cod_available;
   if (productData.prep_days !== undefined) updateData.prep_days = productData.prep_days;
+  if (productData.low_stock_threshold !== undefined) updateData.low_stock_threshold = productData.low_stock_threshold;
   if (productData.made_to_order !== undefined) updateData.made_to_order = productData.made_to_order;
   if (productData.sold_out_action !== undefined) {
     updateData.sold_out_action = productData.sold_out_action;
