@@ -1,19 +1,23 @@
 import { supabase } from "@/integrations/supabase/client";
-import { LEGAL_PATHS, LEGAL_UPDATED } from "@/lib/legal";
+import { LEGAL_PATHS, LEGAL_UPDATED, SELLER_TERMS_UPDATED } from "@/lib/legal";
 
 // Privacy Policy + Terms (required) and promotional emails (optional),
 // asked when an account is created - customers accept the Terms &
-// Conditions, sellers the Seller Terms & Conditions. Saved on the profile by
+// Conditions, sellers the Terms & Working Process. Saved on the profile by
 // accept_terms() (the server stamps the time).
 export type ConsentKind = "customer" | "seller";
 
 export const TERMS_FOR: Record<ConsentKind, { label: string; path: string }> = {
   customer: { label: "Terms & Conditions", path: LEGAL_PATHS.terms },
-  seller: { label: "Seller Terms & Conditions", path: LEGAL_PATHS.sellerTerms },
+  seller: { label: "Terms & Working Process", path: LEGAL_PATHS.sellerTerms },
 };
 
 export const acceptTerms = (kind: ConsentKind, marketing: boolean | null) =>
-  supabase.rpc("accept_terms", { _kind: kind, _version: LEGAL_UPDATED, _marketing: marketing });
+  supabase.rpc("accept_terms", {
+    _kind: kind,
+    _version: kind === "seller" ? SELLER_TERMS_UPDATED : LEGAL_UPDATED,
+    _marketing: marketing,
+  });
 
 // "Create account" ticks the boxes before the code is sent; the account
 // only exists once the code is verified, so the choice waits here (this

@@ -10,6 +10,10 @@ export const COMPANY = {
   supportPhone: "+91 76004 84789",
   whatsapp: "+91 78019 40567",
   whatsappUrl: "https://wa.me/917801940567",
+  // The "Call" number in the client's Terms & Working Process v2.2 and FAQ
+  // v1.0 (27 Nov 2026). The footer, Contact us and emails still show
+  // supportPhone until the client says which one is current.
+  callPhone: "+91 98987 13126",
   location: "Deesa, Gujarat, India",
   // The registered office in Deesa - also where the Grievance Officer can be
   // written to (client corrections, 15 Nov 2026).

@@ -150,7 +150,7 @@ export default function CustomerTerms() {
         <p>
           Please read these terms before you create an account or order. Sellers have their own{" "}
           <Link to={LEGAL_PATHS.sellerTerms} className={link}>
-            Seller Terms &amp; Conditions
+            Terms &amp; Working Process
           </Link>
           .
         </p>

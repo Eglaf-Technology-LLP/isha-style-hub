@@ -148,7 +148,7 @@ const sections: LegalSection[] = [
         We may update this policy as the site or the law changes. The date at the top shows the latest version; if a
         change is important we will also tell you by email or on the site. Sellers should also read the{" "}
         <Link to={LEGAL_PATHS.sellerTerms} className="text-primary underline-offset-4 hover:underline">
-          Seller Terms &amp; Conditions
+          Terms &amp; Working Process
         </Link>
         .
       </p>

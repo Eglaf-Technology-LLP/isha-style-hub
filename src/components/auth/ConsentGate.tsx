@@ -22,7 +22,7 @@ import { LEGAL_PATHS } from "@/lib/legal";
 // their Terms. "Create account" asks before the code is sent - saved here as
 // soon as the account exists. An account made another way (a sign-in code
 // for a new email or number, or from before) is asked once, here. Sellers
-// (the vendor area, Sell with us) agree to the Seller Terms. Admins and the
+// (the vendor area, Sell with us) agree to the Terms & Working Process. Admins and the
 // warehouse tool aren't asked; the policy pages stay readable.
 const NOT_ASKED = ["/admin", "/warehouse", ...Object.values(LEGAL_PATHS)];
 
@@ -89,7 +89,7 @@ export function ConsentGate() {
           <AlertDialogTitle className="font-serif text-2xl font-normal">One last step</AlertDialogTitle>
           <AlertDialogDescription>
             {kind === "seller"
-              ? "To sell on AllBoutiqs, please agree to our Privacy Policy and Seller Terms & Conditions."
+              ? "To sell on AllBoutiqs, please agree to our Privacy Policy and Terms & Working Process."
               : "To continue, please agree to our Privacy Policy and Terms & Conditions."}
           </AlertDialogDescription>
         </AlertDialogHeader>
