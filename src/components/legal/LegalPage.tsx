@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Header } from "@/components/Header";
@@ -42,17 +42,23 @@ export interface LegalSection {
   id: string;
   title: string;
   body: ReactNode;
+  // Starts a new part of the document ("PART A - ..."): shown as a heading
+  // above this section, in the text and in the contents list.
+  part?: string;
 }
 
 // One policy page: title, last-updated date, a contents list (sticky beside
-// the text on wide screens) and numbered sections - the numbers are the
-// section numbers the text refers to.
+// the text on wide screens) and sections - numbered unless `numbered` is
+// false; the numbers are the section numbers the text refers to.
 export function LegalPage({
   eyebrow,
   title,
   intro,
   sections,
   updated = LEGAL_UPDATED,
+  version,
+  numbered = true,
+  outro,
 }: {
   eyebrow: string;
   title: string;
@@ -60,12 +66,21 @@ export function LegalPage({
   sections: LegalSection[];
   // "Last updated" date; null hides it (About us, Contact us, FAQ).
   updated?: string | null;
+  // Document version shown beside the date ("Version 2.2").
+  version?: string;
+  numbered?: boolean;
+  // Shown after the last section (a closing note, contact details).
+  outro?: ReactNode;
 }) {
   // Links like /privacy-policy#grievance-officer open at that section.
   const { hash } = useLocation();
   useEffect(() => {
     if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
   }, [hash]);
+
+  const dateLine = [version && `Version ${version}`, updated && `Last updated ${formatDateInWords(updated)}`]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,42 +94,99 @@ export function LegalPage({
             <p className="eyebrow text-gold">{eyebrow}</p>
             <h1 className="mt-3 font-serif text-4xl text-balance md:text-5xl">{title}</h1>
             <Ornament className="mt-6" />
-            {updated && <p className="mt-5 text-sm text-muted-foreground">Last updated {formatDateInWords(updated)}</p>}
+            {dateLine && <p className="mt-5 text-sm text-muted-foreground">{dateLine}</p>}
           </div>
         </section>
 
         <div className="store-container grid gap-10 py-12 md:py-16 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-16">
-          <nav aria-label="Contents" className="lg:sticky lg:top-24 lg:self-start">
+          <nav aria-label="Contents" className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
             <p className="eyebrow mb-4 text-gold">Contents</p>
             <ol className="space-y-2 text-sm">
               {sections.map((s, i) => (
-                <li key={s.id} className="flex gap-2">
-                  <span className="w-5 shrink-0 tabular-nums text-muted-foreground">{i + 1}.</span>
-                  <a href={`#${s.id}`} className="text-foreground/80 hover:text-primary">
-                    {s.title}
-                  </a>
-                </li>
+                <Fragment key={s.id}>
+                  {s.part && (
+                    <li className="pt-3 text-[11px] font-medium uppercase tracking-[0.14em] text-foreground first:pt-0">
+                      {s.part}
+                    </li>
+                  )}
+                  <li className="flex gap-2">
+                    {numbered && <span className="w-5 shrink-0 tabular-nums text-muted-foreground">{i + 1}.</span>}
+                    <a href={`#${s.id}`} className="text-foreground/80 hover:text-primary">
+                      {s.title}
+                    </a>
+                  </li>
+                </Fragment>
               ))}
             </ol>
           </nav>
 
-          <article className="max-w-[68ch] text-[15px] leading-relaxed text-foreground/85">
+          <article className="min-w-0 max-w-[68ch] text-[15px] leading-relaxed text-foreground/85">
             <div className="space-y-4">{intro}</div>
             {sections.map((s, i) => (
-              <section key={s.id} id={s.id} className="scroll-mt-24 border-t border-border pt-8 mt-10 first-of-type:mt-10">
-                <h2 className="font-serif text-2xl text-foreground text-balance">
-                  <span className="mr-2 text-gold tabular-nums">{i + 1}.</span>
-                  {s.title}
-                </h2>
-                <div className="mt-4 space-y-4 [&_li]:pl-1 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_strong]:font-medium [&_strong]:text-foreground">
-                  {s.body}
-                </div>
-              </section>
+              <Fragment key={s.id}>
+                {s.part && (
+                  <p className="mt-14 bg-foreground px-5 py-3 font-serif text-lg text-background">{s.part}</p>
+                )}
+                <section
+                  id={s.id}
+                  className={`scroll-mt-24 ${s.part ? "mt-8" : "mt-10 border-t border-border pt-8 first-of-type:mt-10"}`}
+                >
+                  <h2 className="font-serif text-2xl text-foreground text-balance">
+                    {numbered && <span className="mr-2 text-gold tabular-nums">{i + 1}.</span>}
+                    {s.title}
+                  </h2>
+                  <div className="mt-4 space-y-4 [&_h3]:pt-2 [&_h3]:font-medium [&_h3]:text-foreground [&_li]:pl-1 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_strong]:font-medium [&_strong]:text-foreground">
+                    {s.body}
+                  </div>
+                </section>
+              </Fragment>
             ))}
+            {outro && <div className="mt-14 space-y-4">{outro}</div>}
           </article>
         </div>
       </main>
       <Footer />
+    </div>
+  );
+}
+
+// A boxed note inside a section (a rule to remember, a worked example).
+export function LegalNote({ title, children }: { title?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="space-y-3 border-l-2 border-gold bg-ivory p-5">
+      {title && <p className="font-serif text-lg text-foreground">{title}</p>}
+      {children}
+    </div>
+  );
+}
+
+// A table inside a section; scrolls sideways on a narrow screen.
+export function LegalTable({ head, rows, numeric = [] }: { head: ReactNode[]; rows: ReactNode[][]; numeric?: number[] }) {
+  const align = (c: number) => (numeric.includes(c) ? "text-right tabular-nums" : "text-left");
+  return (
+    <div className="overflow-x-auto">
+      <table className={`w-full border-collapse text-sm ${head.length > 2 ? "min-w-[32rem]" : ""}`}>
+        <thead>
+          <tr className="bg-foreground text-background">
+            {head.map((h, c) => (
+              <th key={c} scope="col" className={`px-3 py-2 font-medium ${align(c)}`}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-border align-top odd:bg-ivory/60">
+              {r.map((cell, c) => (
+                <td key={c} className={`px-3 py-2 ${align(c)}`}>
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
