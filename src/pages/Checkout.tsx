@@ -1924,7 +1924,7 @@ export default function Checkout() {
                 <div className="border-t border-border pt-6">
                   <p className="mb-3 flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.2em]">
                     <Tag className="h-3.5 w-3.5 text-gold" />
-                    Coupon or gift card
+                    Coupon code
                   </p>
 
                   {appliedDiscount ? (
@@ -1967,7 +1967,7 @@ export default function Checkout() {
                   ) : (
                     <div className="flex h-12 border border-foreground/20 bg-background focus-within:border-foreground">
                       <input
-                        aria-label="Coupon or gift card code"
+                        aria-label="Coupon code"
                         placeholder="Enter code"
                         value={discountCode}
                         onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
