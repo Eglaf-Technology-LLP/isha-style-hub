@@ -16,7 +16,6 @@ import {
   parseTemplate,
   standardValues,
   unitLabel,
-  withStandardRows,
   type ChartValues,
   type SizeChartTemplate,
 } from "@/lib/sizeCharts";
@@ -28,10 +27,10 @@ import {
 const shownRows = (t: SizeChartTemplate, values: ChartValues | undefined): ChartValues =>
   Object.fromEntries(t.measurements.map((m) => [m.key, values?.[m.key] ?? {}]));
 
-// Every row the boutique hasn't filled in starts from AllBoutiqs' starting
-// values (a whole new chart, or rows added since it saved - Neck depth etc.,
-// 27 Nov 2026); numbers it saved for rows no longer shown are kept.
-const startingDraft = (t: SizeChartTemplate, own: ChartValues | undefined): ChartValues => withStandardRows(t, own);
+// A chart the boutique hasn't filled in starts from AllBoutiqs' starting
+// values (numbers it saved for rows no longer shown are kept).
+const startingDraft = (t: SizeChartTemplate, own: ChartValues | undefined): ChartValues =>
+  hasAnyValue(shownRows(t, own)) ? own! : { ...(own ?? {}), ...standardValues(t) };
 
 const filledIn = (t: SizeChartTemplate, own: ChartValues | undefined) => hasAnyValue(shownRows(t, own));
 
@@ -72,12 +71,9 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
 
   const template = useMemo(() => templates?.find((t) => t.category_id === active) ?? null, [templates, active]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved[active ?? ""] ?? {});
-  // Changed by the boutique since the chart opened (starting numbers it
-  // hasn't touched don't count).
-  const edited = !!template && JSON.stringify(draft) !== JSON.stringify(startingDraft(template, saved[active ?? ""]));
 
   const pick = (categoryId: string) => {
-    if (edited && template && filledIn(template, saved[active ?? ""]) && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
+    if (dirty && template && filledIn(template, saved[active ?? ""]) && !window.confirm("You have unsaved numbers in this chart. Leave without saving?")) return;
     setActive(categoryId);
     const t = templates?.find((x) => x.category_id === categoryId);
     setDraft(t ? startingDraft(t, saved[categoryId]) : saved[categoryId] ?? {});
@@ -86,14 +82,6 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
   // Not saved yet: the chart opens with AllBoutiqs' starting values
   // (Developer Corrections Part 8, 40), for the boutique to change.
   const notSavedYet = !!template && !filledIn(template, saved[template.category_id!]);
-  // A saved chart's rows it never filled in (added since): they start from
-  // AllBoutiqs' numbers until the boutique saves its own.
-  const startingRows =
-    template && !notSavedYet
-      ? template.measurements.filter(
-          (m) => !hasAnyValue({ row: saved[template.category_id!]?.[m.key] ?? {} }) && hasAnyValue({ row: draft[m.key] ?? {} }),
-        )
-      : [];
 
   const setCell = (key: string, size: string, value: string) =>
     setDraft((d) => ({ ...d, [key]: { ...(d[key] ?? {}), [size]: cleanNumber(value) } }));
@@ -194,12 +182,6 @@ export function VendorSizeCharts({ vendorId }: { vendorId: string }) {
                   <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                     Starting values - change to your own measurements, and leave a size empty if you don't make it. Then
                     save the chart.
-                  </p>
-                )}
-                {startingRows.length > 0 && (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                    {startingRows.map((m) => m.name).join(", ")} start from AllBoutiqs' numbers - change them to your own
-                    and save the chart. Until then customers see AllBoutiqs' numbers in these rows.
                   </p>
                 )}
                 <div className="overflow-x-auto rounded-lg border border-border">

@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { bodyMeasurementsFor, chartNumber } from "@/lib/bodyMeasurements";
 
 // Size charts: AllBoutiqs fixes one template per category (size_guides -
 // which measurements and which sizes); each boutique fills in only the
@@ -44,38 +43,41 @@ export function parseTemplate(row: any): SizeChartTemplate {
   };
 }
 
-// Every category's chart is the same list of body measurements, XS to 6XL,
-// starting from AllBoutiqs' numbers (inches) - lib/bodyMeasurements. Client,
-// 2026-11-13: Bust, Waist and Hip only; 2026-11-27 (corrections Box 3): the
-// whole list, Neck depth and Heel height included. While true, the
-// per-category templates (size_guides) only give the chart its name, every
-// category has a chart (even without a template), and Admin > Categories
-// hides the template editor.
+// Client, 2026-11-13: every category's chart is Bust, Waist and Hip, XS to
+// 6XL, starting from these numbers (inches); other measurements are hidden.
+// While true, the per-category templates (size_guides) only give the chart
+// its name, every category has a chart (even without a template), and
+// Admin > Categories hides the template editor. A boutique's numbers for
+// other measurements stay saved, just not shown.
 export const SIZE_CHART_STANDARD_ONLY = true;
 
 export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"];
+const STANDARD_ROWS: { key: string; name: string; hint: string; from: number }[] = [
+  { key: "bust", name: "Bust", hint: "Around the fullest part of the chest, tape level", from: 32 },
+  { key: "waist", name: "Waist", hint: "Around the natural waist, the narrowest part", from: 26 },
+  { key: "hip", name: "Hip", hint: "Around the fullest part of the hips", from: 36 },
+];
 
-// The standard chart for a category. categoryName (else name) picks a
-// lehenga's own labels ("Top Length").
-export function standardTemplate(categoryId: string | null, name: string, categoryName?: string | null): SizeChartTemplate {
+// The standard chart for a category: 2 inches up per size from XS.
+export function standardTemplate(categoryId: string | null, name: string): SizeChartTemplate {
   return {
     id: `standard-${categoryId ?? "none"}`,
     category_id: categoryId,
     name,
     unit: "in",
     sizes: STANDARD_SIZES,
-    measurements: bodyMeasurementsFor(categoryName ?? name).map((m) => ({
-      key: m.key,
-      name: m.label,
-      hint: m.hint,
-      values: Object.fromEntries(STANDARD_SIZES.map((size, i) => [size, chartNumber(m, i)])),
+    measurements: STANDARD_ROWS.map((r) => ({
+      key: r.key,
+      name: r.name,
+      hint: r.hint,
+      values: Object.fromEntries(STANDARD_SIZES.map((size, i) => [size, String(r.from + i * 2)])),
     })),
   };
 }
 
 // The chart to use for a category: its template, or the standard one.
 export function chartFor(template: SizeChartTemplate | null, categoryId: string, categoryName: string): SizeChartTemplate | null {
-  if (SIZE_CHART_STANDARD_ONLY) return standardTemplate(categoryId, template?.name || categoryName, categoryName);
+  if (SIZE_CHART_STANDARD_ONLY) return standardTemplate(categoryId, template?.name || categoryName);
   return template;
 }
 
@@ -84,28 +86,6 @@ export const hasAnyValue = (values: ChartValues | null | undefined) =>
 
 export const standardValues = (t: SizeChartTemplate): ChartValues =>
   Object.fromEntries(t.measurements.map((m) => [m.key, m.values ?? {}]));
-
-const rowFilled = (row: Record<string, string> | undefined) => Object.values(row ?? {}).some((v) => String(v ?? "").trim());
-
-// A boutique's numbers with AllBoutiqs' starting numbers in every row of the
-// chart it hasn't filled in - only for the sizes it makes (those it filled
-// in anywhere), every size when it filled in nothing. Rows it filled in stay
-// exactly as saved; numbers for rows the chart no longer shows are kept.
-export function withStandardRows(t: SizeChartTemplate, own: ChartValues | null | undefined): ChartValues {
-  const made = t.sizes.filter((s) => t.measurements.some((m) => String(own?.[m.key]?.[s] ?? "").trim()));
-  const sizes = made.length ? made : t.sizes;
-  return {
-    ...(own ?? {}),
-    ...Object.fromEntries(
-      t.measurements.map((m) => [
-        m.key,
-        rowFilled(own?.[m.key])
-          ? own![m.key]
-          : Object.fromEntries(sizes.filter((s) => String(m.values?.[s] ?? "").trim()).map((s) => [s, m.values[s]])),
-      ]),
-    ),
-  };
-}
 
 // The category's own template (what admins edit).
 export async function fetchTemplate(categoryId: string): Promise<SizeChartTemplate | null> {

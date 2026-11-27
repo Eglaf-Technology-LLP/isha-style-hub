@@ -97,9 +97,6 @@ export default function ProductDetail() {
   // Required choices the customer left out when adding to cart (shown together).
   const [missingChoices, setMissingChoices] = useState<("size" | "color")[]>([]);
   const [customiser, setCustomiser] = useState<CustomiserState>(emptyCustomiser);
-  // Add to cart was pressed with a measurement missing: from then on the
-  // customiser marks what's missing in red (nothing red before that).
-  const [customiserTried, setCustomiserTried] = useState(false);
   const { user } = useAuth();
   // Admins and boutiques see the product on its own, to look at only.
   const { role, loading: roleLoading } = useStaffRole();
@@ -311,7 +308,7 @@ export default function ProductDetail() {
   const currentPrice = selectedVariant?.price || product?.price || 0;
   // (Off while customisation is hidden - nothing to customise, no panel.)
   const customisationSetup = useMemo(() => readSetup(CUSTOMISATION_ENABLED ? (product as any) : null), [product]);
-  const customised = buildCustomisation(customisationSetup, customiser, currentPrice, category?.slug ?? category?.name);
+  const customised = buildCustomisation(customisationSetup, customiser, currentPrice);
   const customisationExtra = "choice" in customised ? customisationPrice(customised.choice) : 0;
   const currentStock = selectedVariant?.stock ?? product?.stock_quantity ?? 0;
   // "When a size sells out" (Ready to Ship): sold-out sizes made to order,
@@ -384,16 +381,7 @@ export default function ProductDetail() {
     }
 
     if ("error" in customised) {
-      setCustomiserTried(true);
-      const first = Object.keys(customised.fieldErrors ?? {})[0];
-      if (first) {
-        // The box itself says what's wrong, in red under it.
-        const box = document.getElementById(`cz-m-${first}`);
-        box?.scrollIntoView({ behavior: "smooth", block: "center" });
-        box?.focus({ preventScroll: true });
-      } else {
-        toast.error(customised.error);
-      }
+      toast.error(customised.error);
       return null;
     }
     const customisation = customised.choice;
@@ -434,7 +422,6 @@ export default function ProductDetail() {
     if (!item) return false;
     addItem(item);
     if (item.customisation) setCustomiser(emptyCustomiser);
-    setCustomiserTried(false);
     return true;
   };
 
@@ -811,8 +798,6 @@ export default function ProductDetail() {
                   basePrice={currentPrice}
                   value={customiser}
                   onChange={setCustomiser}
-                  category={category?.slug ?? category?.name}
-                  showErrors={customiserTried}
                   userId={user?.id ?? null}
                 />
               </div>
