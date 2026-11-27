@@ -21,6 +21,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { COMPANY } from "@/lib/company";
+import { LEGAL_PATHS } from "@/lib/legal";
 import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore, type CartItem } from "@/stores/cartStore";
@@ -575,9 +576,16 @@ export default function ProductDetail() {
   const returnsText = isRefundable
     ? `Return within ${returnWindowSpan(windowHours)} of delivery`
     : `Damaged, defective or wrong item: report within ${returnWindowSpan(windowHours)} of delivery`;
-  const services = [
+  // The returns line links to the Return & Refund Policy (client
+  // corrections, point 5).
+  const services: { icon: typeof Truck; title: string; text: string; link?: { to: string; label: string } }[] = [
     { icon: Truck, title: shippingTitle, text: shippingText },
-    { icon: RotateCcw, title: returnsTitle, text: returnsText },
+    {
+      icon: RotateCcw,
+      title: returnsTitle,
+      text: returnsText,
+      link: { to: LEGAL_PATHS.returns, label: "Return & Refund Policy" },
+    },
     sizeMadeToOrder
       ? { icon: Banknote, title: "Cash on Delivery", text: "Not available for made-to-order sizes - pay online" }
       : codAvailable
@@ -890,7 +898,7 @@ export default function ProductDetail() {
                   </div>
                 )}
                 <ul className="grid sm:grid-cols-2">
-                  {services.map(({ icon: Icon, title, text }, i) => (
+                  {services.map(({ icon: Icon, title, text, link }, i) => (
                     <li
                       key={title}
                       className={cn(
@@ -906,6 +914,14 @@ export default function ProductDetail() {
                       <div>
                         <p className="text-sm font-medium">{title}</p>
                         <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{text}</p>
+                        {link && (
+                          <Link
+                            to={link.to}
+                            className="mt-1 inline-block text-xs text-primary underline underline-offset-4 hover:text-maroon-deep"
+                          >
+                            {link.label}
+                          </Link>
+                        )}
                       </div>
                     </li>
                   ))}

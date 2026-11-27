@@ -19,15 +19,19 @@ export function Footer() {
   const { subscribe, loading } = useNewsletter();
   const [email, setEmail] = useState("");
 
+  // The seller side (client corrections, point 5): Privacy Policy, FAQ, the
+  // Terms & Working Process and a link to the Return & Refund Policy - not
+  // the customer Terms & Conditions, which are for the customer site only.
   if (STAFF_ONLY_MODE && (role === "admin" || role === "vendor")) {
     return (
       <footer className="bg-secondary text-secondary-foreground">
         <div className="container mx-auto px-4 py-6 flex flex-wrap items-center justify-between gap-3 text-sm text-secondary-foreground/80">
           <span>© {new Date().getFullYear()} {COMPANY.legalName}</span>
-          <span className="flex gap-4">
+          <span className="flex flex-wrap gap-x-4 gap-y-1">
             <Link to={LEGAL_PATHS.privacy} className="underline">Privacy Policy</Link>
-            <Link to={LEGAL_PATHS.terms} className="underline">Terms</Link>
-            <Link to={LEGAL_PATHS.sellerTerms} className="underline">Seller Terms</Link>
+            <Link to={LEGAL_PATHS.sellerTerms} className="underline">Terms &amp; Working Process</Link>
+            <Link to={LEGAL_PATHS.faq} className="underline">FAQ</Link>
+            <Link to={LEGAL_PATHS.returns} className="underline">Return &amp; Refund Policy</Link>
           </span>
           <span>
             Help: <a href={`mailto:${COMPANY.supportEmail}`} className="underline">{COMPANY.supportEmail}</a> ·{" "}
@@ -115,7 +119,8 @@ export function Footer() {
           <FooterLink to="/boutiques">Meet the boutiques</FooterLink>
           <FooterLink to="/sell-with-us">Sell on AllBoutiqs</FooterLink>
           <FooterLink to="/vendor">Boutique login</FooterLink>
-          <FooterLink to={LEGAL_PATHS.sellerTerms}>Seller terms</FooterLink>
+          {/* No Terms & Working Process here: it's for the seller side only
+              (seller registration and dashboard; client corrections, point 5). */}
         </FooterColumn>
 
         {/* About us, Contact us, FAQ and the two store policies: client

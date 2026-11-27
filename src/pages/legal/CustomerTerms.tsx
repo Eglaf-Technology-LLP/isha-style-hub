@@ -148,11 +148,10 @@ export default function CustomerTerms() {
       title="Terms & Conditions"
       intro={
         <p>
-          Please read these terms before you create an account or order. Sellers have their own{" "}
-          <Link to={LEGAL_PATHS.sellerTerms} className={link}>
-            Terms &amp; Working Process
-          </Link>
-          .
+          {/* Named, not linked: the seller terms are linked on the seller side
+              only (client corrections, point 5). */}
+          Please read these terms before you create an account or order. Sellers have their own Terms &amp; Working
+          Process.
         </p>
       }
       sections={sections}
