@@ -10,7 +10,7 @@ import { useStoreCategories } from "@/hooks/useStorefront";
 import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
-import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
+import { cartStockProblemText, useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { lineAsSize, lineSize, sizeChoices, useCartSoldOutSetups, useCartVariants, type SizeChoice } from "@/hooks/useCartVariants";
 import { MADE_TO_ORDER_MAX_QUANTITY } from "@/lib/soldOutMadeToOrder";
 import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
@@ -23,7 +23,8 @@ export function CartDrawer() {
   const navigate = useNavigate();
   const { items, updateQuantity, changeVariant, removeItem, getTotalItems, getTotalPrice } = useCartStore();
   const { data: categories = [] } = useStoreCategories();
-  useSyncCartPrices(isOpen);
+  // Today's prices and stock; a sold-out size nobody makes blocks Checkout.
+  const { stockProblem, hasStockProblem } = useSyncCartPrices(isOpen);
   // Each piece's sizes, so the customer can change the size here.
   const { data: variantsByProduct } = useCartVariants(
     items.map((i) => i.productId),
@@ -59,6 +60,7 @@ export function CartDrawer() {
   const totalPrice = getTotalPrice();
 
   const handleCheckout = () => {
+    if (hasStockProblem) return;
     setIsOpen(false);
     navigate("/checkout");
   };
@@ -187,6 +189,14 @@ export function CartDrawer() {
                         ].join(" · ")}
                       </p>
                       {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="mt-1" />}
+                      {(() => {
+                        const problem = stockProblem(item);
+                        return problem ? (
+                          <p className="mt-1 text-xs font-medium text-destructive" role="alert">
+                            {cartStockProblemText(item, problem)}
+                          </p>
+                        ) : null;
+                      })()}
                       {item.customisation && (
                         <p className="mt-1 text-xs text-muted-foreground">
                           <span className="mr-1 bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-foreground">Customised</span>
@@ -229,7 +239,15 @@ export function CartDrawer() {
                 <span className="font-serif text-2xl">{formatINR(totalPrice)}</span>
               </div>
               <CartShippingEstimate items={items} />
-              <Button onClick={handleCheckout} className="h-12 w-full rounded-none text-xs uppercase tracking-[0.2em]" size="lg">
+              {hasStockProblem && (
+                <p className="text-xs text-destructive">A piece in your cart is sold out - change it or remove it to check out.</p>
+              )}
+              <Button
+                onClick={handleCheckout}
+                disabled={hasStockProblem}
+                className="h-12 w-full rounded-none text-xs uppercase tracking-[0.2em]"
+                size="lg"
+              >
                 <Lock className="mr-2 h-3.5 w-3.5" /> Checkout securely
               </Button>
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">

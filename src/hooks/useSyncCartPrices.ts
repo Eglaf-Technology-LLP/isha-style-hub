@@ -1,11 +1,35 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cartLineKey, useCartStore, type CartItem, type LinePrice } from "@/stores/cartStore";
 import { customisationPrice, rechargeAt } from "@/lib/customisation";
-import { readSoldOutSetup, soldOutTermsFor, type SoldOutTerms } from "@/lib/soldOutMadeToOrder";
+import { readSoldOutSetup, soldOutTermsFor, takesSoldOutOrders, type SoldOutTerms } from "@/lib/soldOutMadeToOrder";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// A line that can't be bought as it is: not enough stock in its size, and
+// the boutique doesn't make it to order ("Hide that size" or no choice). The
+// cart and checkout block "Checkout" / "Pay" until the customer picks another
+// size or removes it (client, 28 Nov 2026). The server refuses it anyway
+// (adjust_stock), but only after the whole checkout form.
+export interface CartStockProblem {
+  // Pieces left in that size (0 = sold out).
+  left: number;
+}
+
+export function cartStockProblemText(item: CartItem, problem: CartStockProblem): string {
+  const sized = item.selectedOptions.some((o) => o.name.toLowerCase() === "size");
+  if (problem.left <= 0) {
+    return sized ? "This size is sold out – pick another size or remove it." : "This piece is sold out – please remove it.";
+  }
+  return sized
+    ? `Only ${problem.left} left in this size – lower the quantity or pick another size.`
+    : `Only ${problem.left} left – lower the quantity.`;
+}
+
+// A line as checked: a change of size or quantity is a new check.
+const checkedLineKey = (i: CartItem) => `${cartLineKey(i)}:${i.variantId}:${i.quantity}`;
+const NO_PROBLEMS: ReadonlyMap<string, CartStockProblem> = new Map();
 
 const sameTerms = (a: SoldOutTerms | null, b: SoldOutTerms | null) =>
   a === b || (!!a && !!b && a.extra === b.extra && a.days === b.days && (a.pct ?? null) === (b.pct ?? null));
@@ -40,10 +64,14 @@ export function useSyncCartPrices(enabled = true) {
   const removeItem = useCartStore((s) => s.removeItem);
   // Re-check when lines, their sizes or quantities change (a quantity above
   // the stock left makes a line made to order).
-  const linesKey = items.map((i) => `${cartLineKey(i)}:${i.variantId}:${i.quantity}`).join(",");
+  const linesKey = items.map(checkedLineKey).join(",");
+  const [problems, setProblems] = useState<ReadonlyMap<string, CartStockProblem>>(NO_PROBLEMS);
 
   useEffect(() => {
-    if (!enabled || items.length === 0) return;
+    if (!enabled || items.length === 0) {
+      setProblems(NO_PROBLEMS);
+      return;
+    }
     let alive = true;
     (async () => {
       const productIds = [...new Set(items.map((i) => i.productId))];
@@ -84,9 +112,17 @@ export function useSyncCartPrices(enabled = true) {
       let priceMoved = false;
       const nowMadeToOrder: CartItem[] = [];
       const backInStock: CartItem[] = [];
+      const nextProblems = new Map<string, CartStockProblem>();
       for (const item of items) {
         const product = productById.get(item.productId);
         const variant = variantById.get(item.variantId);
+        // The stock checkout takes from: the variant's, or the product's own.
+        const stock = variant ? Number(variant.stock ?? 0) : Number(product?.stock_quantity ?? 0);
+        // A Made to Order listing takes no stock; a product that makes
+        // sold-out sizes to order turns the line made to order below.
+        if (product && !product.made_to_order && stock < item.quantity && !takesSoldOutOrders(readSoldOutSetup(product))) {
+          nextProblems.set(checkedLineKey(item), { left: Math.max(0, stock) });
+        }
         const variantPrice = variant?.price == null ? null : Number(variant.price);
         const base = variantPrice ?? (product ? Number(product.price) : null);
         if (base == null || !Number.isFinite(base)) continue;
@@ -98,8 +134,6 @@ export function useSyncCartPrices(enabled = true) {
           : item.customisation
             ? oldAmount - oldBase - (item.soldOutTerms?.extra ?? 0)
             : 0;
-        // The stock checkout takes from: the variant's, or the product's own.
-        const stock = variant ? Number(variant.stock ?? 0) : Number(product?.stock_quantity ?? 0);
         const terms = stock < item.quantity ? soldOutTermsFor(readSoldOutSetup(product), base) : null;
         const amount = Math.round((base + customExtra + (terms?.extra ?? 0)) * 100) / 100;
         const termsChanged = !sameTerms(item.soldOutTerms ?? null, terms);
@@ -116,6 +150,7 @@ export function useSyncCartPrices(enabled = true) {
           else priceMoved = true;
         }
       }
+      setProblems(nextProblems.size ? nextProblems : NO_PROBLEMS);
       if (Object.keys(updates).length === 0) return;
       setPrices(updates);
       if (nowMadeToOrder.length) {
@@ -139,4 +174,9 @@ export function useSyncCartPrices(enabled = true) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, linesKey]);
+
+  // A line changed since its check isn't blocked meanwhile (the server
+  // still checks it).
+  const stockProblem = (item: CartItem) => problems.get(checkedLineKey(item)) ?? null;
+  return { stockProblem, hasStockProblem: items.some((i) => problems.has(checkedLineKey(i))) };
 }

@@ -46,7 +46,7 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { cn } from "@/lib/utils";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
-import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
+import { cartStockProblemText, useSyncCartPrices } from "@/hooks/useSyncCartPrices";
 import { usePincodeAutofill } from "@/lib/pincode";
 import { formatINR } from "@/lib/format";
 import { useCategoryGstRules } from "@/lib/gst";
@@ -93,6 +93,8 @@ const LATE_PAYMENT_MESSAGE =
 // 2.9.1: the client's exact words when Razorpay is closed or the payment
 // fails. No order is placed and the cart stays as it was.
 const PAYMENT_NOT_COMPLETED = "Payment not completed – please try again";
+// Under "Pay" while a size in the order is sold out (useSyncCartPrices).
+const SOLD_OUT_IN_ORDER = "A size in your order is sold out – remove it, or go back to your bag to pick another size.";
 
 interface Discount {
   id: string;
@@ -188,8 +190,10 @@ export default function Checkout() {
   // "emi" is a Razorpay payment that opens straight to EMI plans; orders
   // and payments still record it as "razorpay".
   const { shippingCharged } = useCustomerShipping();
-  // Today's prices for what's in the cart (they may have changed since it was added).
-  useSyncCartPrices(!buyNow);
+  // Today's prices for what's in the cart (they may have changed since it was
+  // added), and its stock: a sold-out size the boutique doesn't make to order
+  // blocks paying (client, 28 Nov 2026).
+  const { stockProblem, hasStockProblem } = useSyncCartPrices(!buyNow);
   const platformRates = usePlatformRates();
   // Pay Online by default (Developer Corrections Part 8, 20).
   const [paymentChoice, setPaymentChoice] = useState<"cod" | "razorpay" | "emi">("razorpay");
@@ -980,6 +984,10 @@ export default function Checkout() {
       toast.error("Your cart is empty");
       return;
     }
+    if (hasStockProblem) {
+      toast.error(SOLD_OUT_IN_ORDER);
+      return;
+    }
     if (paymentMethod === "cod" && codQuote.status !== "ready") {
       toast.error(
         codQuote.status === "loading"
@@ -1507,6 +1515,7 @@ export default function Checkout() {
         // Phones: total + place order, always in reach
         <div className="store-container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
           {addressLine1Locked && <p className="w-full text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
+          {hasStockProblem && <p className="w-full text-xs text-destructive">{SOLD_OUT_IN_ORDER}</p>}
           <CheckoutTermsNote compact className="w-full" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
@@ -1515,7 +1524,7 @@ export default function Checkout() {
           <button
             type="button"
             onClick={placeOrder}
-            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || hasStockProblem}
             className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -1890,6 +1899,21 @@ export default function Checkout() {
                           {item.variantTitle && item.variantTitle !== "Default" ? `${item.variantTitle} · ` : ""}Qty: {item.quantity}
                         </p>
                         {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="my-1.5" />}
+                        {(() => {
+                          const problem = stockProblem(item);
+                          return problem ? (
+                            <p className="my-1.5 text-xs font-medium text-destructive" role="alert">
+                              {cartStockProblemText(item, problem)}{" "}
+                              <button
+                                type="button"
+                                className="underline underline-offset-2"
+                                onClick={() => cart.removeItem(cartLineKey(item))}
+                              >
+                                Remove
+                              </button>
+                            </p>
+                          ) : null;
+                        })()}
                         {item.customisation && (
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
                         )}
@@ -2074,13 +2098,14 @@ export default function Checkout() {
                 <button
                   type="button"
                   onClick={placeOrder}
-                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || hasStockProblem}
                   className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
                   {placeOrderLabel}
                 </button>
                 {addressLine1Locked && <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
+                {hasStockProblem && <p className="text-center text-xs text-destructive">{SOLD_OUT_IN_ORDER}</p>}
 
                 {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
                   const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;
