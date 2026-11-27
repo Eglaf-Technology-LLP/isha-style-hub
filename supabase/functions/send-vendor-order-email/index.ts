@@ -103,7 +103,10 @@ const handler = async (req: Request): Promise<Response> => {
         used_at: null,
       }, { onConflict: "vendor_order_id" });
       if (error) throw error;
-      return `https://whycxtnjhdbewgyugfax.supabase.co/functions/v1/accept-vendor-order?token=${token}`;
+      // The site's page shows the order and a Confirm order button: opening
+      // the link never confirms it (a mail scanner checking links used to),
+      // only the button does (accept-vendor-order).
+      return `https://allboutiqs.com/vendor/confirm-order?token=${token}`;
     };
 
     const escapeHtml = (value: string) =>
@@ -134,7 +137,7 @@ const handler = async (req: Request): Promise<Response> => {
               bodyHtml: `
                 <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
                 ${itemsHtml(byVendor.get(v.id) ?? [])}
-                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Confirm this order with one tap. The link expires in 7 days and can only be used once.</p>' : ""}
+                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Open the link and press <strong>Confirm order</strong>. The link expires in 7 days and can only be used once.</p>' : ""}
               `,
               ctaLabel: canAccept ? "Confirm order" : "View orders",
               ctaUrl,
