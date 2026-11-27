@@ -53,6 +53,7 @@ import { useCategoryGstRules } from "@/lib/gst";
 import { splitGoods } from "@/lib/orderAmounts";
 import { customisationPrice } from "@/lib/customisation";
 import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
+import { readSoldOutSetup, takesSoldOutOrders } from "@/lib/soldOutMadeToOrder";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
@@ -140,6 +141,7 @@ export default function Checkout() {
   const cart = useCartStore();
   const buyNowItem = useBuyNowStore((s) => s.item);
   const clearBuyNow = useBuyNowStore((s) => s.clear);
+  const setBuyNowItem = useBuyNowStore((s) => s.setItem);
   const buyNow = searchParams.get("buy") === "now" && !!buyNowItem;
   // The confirmation lives in the address (?placed=<order id>), so a refresh
   // shows the same order summary instead of an empty cart (Extra list G).
@@ -200,6 +202,12 @@ export default function Checkout() {
   const [productRules, setProductRules] = useState<
     Record<string, { made_to_order: boolean; is_returnable: boolean; cod_available: boolean }>
   >({});
+  // Today's stock for the order's lines: the product's own and each real
+  // variant's, and whether the boutique makes a sold-out size to order.
+  const [stockNow, setStockNow] = useState<{
+    products: Record<string, { stock: number; madeToOrder: boolean; takesSoldOutOrders: boolean }>;
+    variants: Record<string, number>;
+  } | null>(null);
   const [shipsByForLine, setShipsByForLine] = useState<Record<string, string | null>>({});
   const returnHours = useReturnWindowHours();
   const [emiMethods, setEmiMethods] = useState<{
@@ -311,35 +319,109 @@ export default function Checkout() {
   // vendor (legacy/platform-owned products) fall back to a flat default.
   const [vendorInfo, setVendorInfo] = useState<Record<string, VendorShippingInfo>>({});
 
-  // Products whose listing has Cash on Delivery switched off, and each
-  // product's rules for the order summary.
+  // Products whose listing has Cash on Delivery switched off, each product's
+  // rules for the order summary, and today's stock.
   useEffect(() => {
     const productIds = [...new Set(items.map((i) => i.productId))];
     if (productIds.length === 0) {
       setCodOffProducts([]);
       setProductRules({});
+      setStockNow(null);
       return;
     }
-    supabase
-      .from("products")
-      .select("id, name, cod_available, is_returnable, made_to_order")
-      .in("id", productIds)
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Error fetching Cash on Delivery availability:", error);
-          return;
-        }
-        setCodOffProducts((data || []).filter((p) => p.cod_available === false).map((p) => p.name));
-        setProductRules(
-          Object.fromEntries(
-            (data || []).map((p) => [
-              p.id,
-              { made_to_order: !!p.made_to_order, is_returnable: p.is_returnable !== false, cod_available: p.cod_available !== false },
-            ]),
-          ),
-        );
+    const variantIds = [...new Set(items.map((i) => i.variantId).filter((id) => UUID_RE.test(id)))];
+    let alive = true;
+    Promise.all([
+      supabase
+        .from("products")
+        .select("id, name, cod_available, is_returnable, made_to_order, stock_quantity, sold_out_action, sold_out_extra_days")
+        .in("id", productIds),
+      variantIds.length
+        ? supabase.from("product_variants").select("id, product_id, stock").in("id", variantIds)
+        : Promise.resolve({ data: [] as { id: string; product_id: string; stock: number }[], error: null }),
+    ]).then(([{ data, error }, variantsResult]) => {
+      if (!alive) return;
+      if (error) {
+        console.error("Error fetching Cash on Delivery availability:", error);
+        return;
+      }
+      setCodOffProducts((data || []).filter((p) => p.cod_available === false).map((p) => p.name));
+      setProductRules(
+        Object.fromEntries(
+          (data || []).map((p) => [
+            p.id,
+            { made_to_order: !!p.made_to_order, is_returnable: p.is_returnable !== false, cod_available: p.cod_available !== false },
+          ]),
+        ),
+      );
+      // Only a lookup that worked can stop the order.
+      if (variantsResult.error) {
+        console.error("Error fetching stock:", variantsResult.error);
+        setStockNow(null);
+        return;
+      }
+      setStockNow({
+        products: Object.fromEntries(
+          (data || []).map((p) => [
+            p.id,
+            {
+              stock: Number(p.stock_quantity ?? 0),
+              madeToOrder: !!p.made_to_order,
+              takesSoldOutOrders: takesSoldOutOrders(readSoldOutSetup(p)),
+            },
+          ]),
+        ),
+        // A variant counts only on its own product, as the server checks it.
+        variants: Object.fromEntries(
+          (variantsResult.data || [])
+            .filter((v) => (data || []).some((p) => p.id === v.product_id))
+            .map((v) => [v.id, Number(v.stock ?? 0)]),
+        ),
       });
+    });
+    return () => {
+      alive = false;
+    };
   }, [items]);
+
+  // Lines that can't be bought now: a Ready to Ship piece without enough
+  // stock whose boutique doesn't make the size to order. The order would be
+  // refused when it takes the stock, so Pay stays off until the line is
+  // fixed (client, 28 Nov 2026). Lines of the same size share its stock.
+  // Value: the pieces left.
+  const shortLines = useMemo(() => {
+    const short: Record<string, number> = {};
+    if (!stockNow) return short;
+    const left: Record<string, number> = {};
+    for (const item of items) {
+      const product = stockNow.products[item.productId];
+      if (!product || product.madeToOrder || product.takesSoldOutOrders) continue;
+      const fromVariant = item.variantId in stockNow.variants;
+      const key = fromVariant ? `v:${item.variantId}` : `p:${item.productId}`;
+      const have = left[key] ?? (fromVariant ? stockNow.variants[item.variantId] : product.stock);
+      if (have < item.quantity) {
+        short[cartLineKey(item)] = Math.max(0, have);
+        left[key] = have;
+      } else {
+        left[key] = have - item.quantity;
+      }
+    }
+    return short;
+  }, [items, stockNow]);
+  // Said under Pay while it's off.
+  const shortStockNote = (() => {
+    const lines = items.filter((i) => cartLineKey(i) in shortLines);
+    if (lines.length === 0) return null;
+    if (lines.length > 1) {
+      return `${lines.length} pieces in your order are sold out or short of stock - remove them or lower the quantity to place your order.`;
+    }
+    const left = shortLines[cartLineKey(lines[0])];
+    return left > 0
+      ? `Only ${left} of "${lines[0].productName}" left - lower the quantity to place your order.`
+      : buyNow
+        ? `"${lines[0].productName}" is sold out, so it can't be ordered now.`
+        : `"${lines[0].productName}" is sold out - remove it to place your order.`;
+  })();
 
   // "Ships by" for each made-to-order line (a Made to Order listing or a
   // sold-out size made to order): the same server estimate as the product
@@ -980,6 +1062,10 @@ export default function Checkout() {
       toast.error("Your cart is empty");
       return;
     }
+    if (shortStockNote) {
+      toast.error(shortStockNote);
+      return;
+    }
     if (paymentMethod === "cod" && codQuote.status !== "ready") {
       toast.error(
         codQuote.status === "loading"
@@ -1507,6 +1593,7 @@ export default function Checkout() {
         // Phones: total + place order, always in reach
         <div className="store-container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
           {addressLine1Locked && <p className="w-full text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
+          {shortStockNote && <p className="w-full text-xs text-destructive">{shortStockNote}</p>}
           <CheckoutTermsNote compact className="w-full" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
@@ -1515,7 +1602,7 @@ export default function Checkout() {
           <button
             type="button"
             onClick={placeOrder}
-            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNote}
             className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -1889,6 +1976,33 @@ export default function Checkout() {
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {item.variantTitle && item.variantTitle !== "Default" ? `${item.variantTitle} · ` : ""}Qty: {item.quantity}
                         </p>
+                        {cartLineKey(item) in shortLines && (() => {
+                          const key = cartLineKey(item);
+                          const left = shortLines[key];
+                          // Buy Now has just this piece: lowering it is all
+                          // that's offered (removing it would leave the cart).
+                          const lower = () =>
+                            buyNow ? setBuyNowItem({ ...item, quantity: left }) : cart.updateQuantity(key, left);
+                          return (
+                            <p className="mt-1 text-xs font-medium text-destructive">
+                              {left > 0 ? `Only ${left} left in stock` : "Sold out"}
+                              {left > 0 && (
+                                <button type="button" onClick={lower} className="ml-2 underline underline-offset-2 hover:text-foreground">
+                                  Change to {left}
+                                </button>
+                              )}
+                              {!buyNow && (
+                                <button
+                                  type="button"
+                                  onClick={() => cart.removeItem(key)}
+                                  className="ml-2 underline underline-offset-2 hover:text-foreground"
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </p>
+                          );
+                        })()}
                         {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="my-1.5" />}
                         {item.customisation && (
                           <CustomisationDetails customisation={item.customisation} className="my-1.5" />
@@ -2074,13 +2188,14 @@ export default function Checkout() {
                 <button
                   type="button"
                   onClick={placeOrder}
-                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked}
+                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNote}
                   className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
                   {placeOrderLabel}
                 </button>
                 {addressLine1Locked && <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
+                {shortStockNote && <p className="text-center text-xs text-destructive">{shortStockNote}</p>}
 
                 {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
                   const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;
