@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
@@ -96,53 +97,61 @@ export function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// The signed-in person's boutique, shared by every screen and kept for 5
+// minutes (it used to be looked up again by each screen on every mount and
+// tab switch - ~89k vendor_members calls on 27 Nov 2026). Saving the store's
+// settings calls refresh(), which updates every screen at once.
+const VENDOR_STALE_MS = 5 * 60_000;
+
+async function fetchOwnVendor(userId: string): Promise<Vendor | null> {
+  try {
+    const { data: member, error: mErr } = await supabase
+      .from("vendor_members")
+      .select("vendor_id")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (mErr) throw mErr;
+    if (!member) return null;
+
+    const { data: v, error } = await supabase
+      .from("vendors")
+      .select("*")
+      .eq("id", member.vendor_id)
+      .maybeSingle();
+
+    if (error) throw error;
+    return (v as Vendor) ?? null;
+  } catch (e) {
+    console.error("Error fetching vendor:", e);
+    throw e;
+  }
+}
+
 export function useVendor() {
   const { user, loading: authLoading } = useAuth();
-  const [vendor, setVendor] = useState<Vendor | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => ["my-vendor", user?.id], [user?.id]);
+  const query = useQuery({
+    queryKey,
+    enabled: !!user,
+    staleTime: VENDOR_STALE_MS,
+    queryFn: () => fetchOwnVendor(user!.id),
+  });
+  const vendor = user ? (query.data ?? null) : null;
+  const loading = authLoading || (!!user && query.isPending);
+  const { refetch } = query;
 
   const fetchVendor = useCallback(async () => {
-    if (!user) {
-      setVendor(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      const { data: member, error: mErr } = await supabase
-        .from("vendor_members")
-        .select("vendor_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+    if (user) await refetch();
+  }, [user, refetch]);
 
-      if (mErr) throw mErr;
-      if (!member) {
-        setVendor(null);
-        setLoading(false);
-        return;
-      }
-
-      const { data: v, error } = await supabase
-        .from("vendors")
-        .select("*")
-        .eq("id", member.vendor_id)
-        .maybeSingle();
-
-      if (error) throw error;
-      setVendor(v as Vendor);
-    } catch (e) {
-      console.error("Error fetching vendor:", e);
-      setVendor(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    fetchVendor();
-  }, [authLoading, fetchVendor]);
+  const setVendor = useCallback(
+    (next: Vendor | null) => queryClient.setQueryData(queryKey, next),
+    [queryClient, queryKey],
+  );
 
   // Uploads each PDF to the applicant's private folder, then submits the
   // whole application in one call - the server validates everything
@@ -184,7 +193,7 @@ export function useVendor() {
 
   return {
     vendor,
-    loading: authLoading || loading,
+    loading,
     submitApplication,
     refresh: fetchVendor,
     setVendor,

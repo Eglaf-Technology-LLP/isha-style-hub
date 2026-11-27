@@ -4,7 +4,8 @@ import { ArrowLeft, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import { mapDbVariant } from "@/hooks/useProducts";
+import { mapDbVariant, refreshAdminProduct } from "@/hooks/useProducts";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ProductEditorForm, type VendorProductRow } from "@/components/product-editor/ProductEditorForm";
 import { VENDOR_PRODUCT_COLUMNS } from "@/lib/vendorProduct";
@@ -19,6 +20,7 @@ export default function AdminProductEditor() {
   const { id } = useParams<{ id: string }>();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
   const [product, setProduct] = useState<VendorProductRow | null>(null);
@@ -100,7 +102,10 @@ export default function AdminProductEditor() {
           mode="admin"
           vendorId={presetVendor}
           product={product}
-          onSaved={() => navigate(backTo)}
+          onSaved={(savedId) => {
+            void refreshAdminProduct(queryClient, savedId);
+            navigate(backTo);
+          }}
           onCancel={() => navigate(backTo)}
         />
       </main>

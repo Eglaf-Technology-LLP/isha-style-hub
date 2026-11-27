@@ -104,7 +104,8 @@ interface ProductEditorFormProps {
   // Vendor mode: trusted partners publish without review.
   isTrusted?: boolean;
   product: VendorProductRow | null;
-  onSaved: () => void;
+  // The saved product's id (a new product's too).
+  onSaved: (productId: string) => void;
   onCancel: () => void;
   // The "Returnable" switch; when hidden the product keeps what it has
   // (new products: returnable).
@@ -527,18 +528,21 @@ export function ProductEditorForm({
         ...approval,
       };
 
+      let savedId: string;
       if (product) {
         const existing = await fetchProductWithVariants(product.id);
         await applyProductUpdate(product.id, payload, existing, undefined, stockCheck.variants);
+        savedId = product.id;
         toast.success(isAdmin || isTrusted ? "Product updated" : "Product updated — sent for re-approval");
       } else {
         const id = await insertProductRecord(payload, media.images, stockCheck.variants);
+        savedId = id;
         // The insert trigger sends a non-trusted boutique's new product for
         // review - not one AllBoutiqs adds itself.
         if (isAdmin) await approveProduct(id);
         toast.success(isAdmin || isTrusted ? "Product published to the storefront" : "Product submitted for approval");
       }
-      onSaved();
+      onSaved(savedId);
     } catch (e) {
       console.error("save product error:", e);
       toast.error((e as { message?: string })?.message || "Failed to save product");

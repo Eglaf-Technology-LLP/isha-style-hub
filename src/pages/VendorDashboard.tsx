@@ -254,7 +254,8 @@ const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_
 
 export default function VendorDashboard() {
   const { vendor, loading, refresh: refreshVendor } = useVendor();
-  const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id);
+  // Waits for the boutique, rather than first fetching every boutique's products.
+  const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id, { enabled: !!vendor });
   const { categories } = useCategories();
   const navigate = useNavigate();
   const [tab, setTab] = useUrlTab("dashboard");
