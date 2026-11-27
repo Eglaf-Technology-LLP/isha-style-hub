@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { AppError, errorMessage } from "./auth.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "./notify.ts";
+import { money } from "./money.ts";
 
 // Automatic boutique payouts through Razorpay Route. See migration
 // 20261007100000_razorpay_route_payouts.sql for the overall flow.
@@ -382,7 +383,7 @@ export async function releaseDuePayouts(supabase: SupabaseClient): Promise<Relea
           vo.vendor_id,
           "payout_released",
           "Payout sent to your bank",
-          `₹${Math.round(amount)} for order #${String(vo.order_id).slice(0, 8)} was released through Razorpay. It usually reaches your bank within 2 working days.`,
+          `${money(amount)} for order #${String(vo.order_id).slice(0, 8)} was released through Razorpay. It usually reaches your bank within 2 working days.`,
           { event: "released", vendor_order_ids: [vo.id] },
         );
       } catch (e) {
@@ -433,7 +434,7 @@ export async function reconcileSettlements(supabase: SupabaseClient, settlementI
         vo.vendor_id,
         "payout_credited",
         "Payout credited",
-        `₹${Math.round(Number(vo.rzp_transfer_amount))} for order #${String(vo.order_id).slice(0, 8)} was credited to your bank${sid === settlementId && utr ? `. Bank reference (UTR): ${utr}` : ""}.`,
+        `${money(vo.rzp_transfer_amount)} for order #${String(vo.order_id).slice(0, 8)} was credited to your bank${sid === settlementId && utr ? `. Bank reference (UTR): ${utr}` : ""}.`,
         { event: "route_credited", vendor_order_ids: [vo.id] },
       );
     } catch (e) {
@@ -473,7 +474,7 @@ export async function reverseVendorShare(supabase: SupabaseClient, vendorOrderId
       supabase,
       "payout_reversal_failed",
       "Couldn't recover a boutique payout",
-      `Refund on order #${String(vo.order_id).slice(0, 8)}: reversing ₹${Math.round(share)} from the boutique failed (${msg}). Recover it manually.`,
+      `Refund on order #${String(vo.order_id).slice(0, 8)}: reversing ${money(share)} from the boutique failed (${msg}). Recover it manually.`,
     );
   }
 }

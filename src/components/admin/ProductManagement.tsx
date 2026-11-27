@@ -222,8 +222,7 @@ export function ProductManagement({ categories }: ProductManagementProps) {
                   <div>
                     <h4 className="font-medium">{product.name}</h4>
                     <p className="text-sm text-muted-foreground">
-                      {getCategoryName(product.category_id)} • MRP ₹
-                      {product.price.toFixed(0)}
+                      {getCategoryName(product.category_id)} • MRP {formatINR(product.price)}
                       {product.product_value != null && (
                         <span className="ml-1">(value {formatINR(Number(product.product_value))} excl. GST)</span>
                       )}

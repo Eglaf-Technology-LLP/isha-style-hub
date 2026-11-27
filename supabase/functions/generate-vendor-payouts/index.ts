@@ -1,4 +1,5 @@
 import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, errorMessage } from "../_shared/auth.ts";
+import { money } from "../_shared/money.ts";
 
 // Admin "Generate This Week's Payouts": batches every boutique order that is
 // ready to pay into one pending payout per boutique - the same batching the
@@ -39,7 +40,7 @@ Deno.serve(async (req) => {
         .map((r) => ({
           vendor_id: r.vendor_id,
           vendor_name: r.vendor_name,
-          reason: `${r.skipped_reason} - ₹${Math.round(Number(r.net_payable))} from ${r.order_count} order(s) kept in queue`,
+          reason: `${r.skipped_reason} - ${money(r.net_payable)} from ${r.order_count} order(s) kept in queue`,
         })),
     });
   } catch (e) {
