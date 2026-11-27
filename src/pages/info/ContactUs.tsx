@@ -18,7 +18,8 @@ const sections: LegalSection[] = [
           Call{" "}
           <a href={telHref(COMPANY.supportPhone)} className={link}>
             {COMPANY.supportPhone}
-          </a>
+          </a>{" "}
+          ({COMPANY.callHours})
         </li>
         <li>
           WhatsApp{" "}
@@ -77,7 +78,7 @@ const sections: LegalSection[] = [
     title: "Grievance Officer",
     body: (
       <>
-        <p>We acknowledge every complaint within 48 hours and resolve it within one month.</p>
+        <p>We aim to acknowledge every complaint within 24 hours and resolve it within 7 days.</p>
         <p>
           <RaiseComplaintButton className="border border-primary px-5 py-2.5 text-xs font-medium uppercase tracking-[0.2em] text-primary transition-colors hover:bg-primary hover:text-primary-foreground" />
         </p>

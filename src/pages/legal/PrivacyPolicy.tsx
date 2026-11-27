@@ -160,8 +160,8 @@ const sections: LegalSection[] = [
     body: (
       <>
         <p>
-          For any question or complaint about your data, an order or the site, contact our Grievance Officer. We
-          acknowledge every complaint within 48 hours and resolve it within one month.
+          For any question or complaint about your data, an order or the site, contact our Grievance Officer. We aim
+          to acknowledge every complaint within 24 hours and resolve it within 7 days.
         </p>
         <GrievanceContact />
       </>

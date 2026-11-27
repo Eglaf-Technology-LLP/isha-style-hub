@@ -146,7 +146,7 @@ export function Footer() {
           <li className="flex items-center gap-2.5">
             <Phone className="h-4 w-4 text-gold" />
             <a href={telHref(COMPANY.supportPhone)} className="hover:text-gold">
-              Call {COMPANY.supportPhone}
+              Call {COMPANY.supportPhone} ({COMPANY.callHours})
             </a>
           </li>
           <li className="flex items-center gap-2.5">
@@ -175,8 +175,8 @@ export function Footer() {
           <div>
             <p className="eyebrow mb-2 text-gold">Complaints</p>
             <p className="max-w-xl text-sm leading-relaxed text-ivory/70">
-              Something not right with an order, a boutique or the site? Tell us. You'll get a ticket number by email, and
-              we'll get back to you within 48 hours.
+              Something not right with an order, a boutique or the site? Tell us. You'll get a ticket number by email. We
+              aim to acknowledge within 24 hours and resolve within 7 days.
             </p>
           </div>
           <RaiseComplaintButton className="shrink-0 self-start border border-gold px-6 py-3 text-xs font-medium uppercase tracking-[0.2em] text-ivory transition-colors hover:bg-gold hover:text-ink md:self-auto" />

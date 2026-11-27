@@ -134,7 +134,7 @@ const sections: LegalSection[] = [
     title: "Questions and complaints",
     body: (
       <>
-        <p>We acknowledge every complaint within 48 hours and resolve it within one month.</p>
+        <p>We aim to acknowledge every complaint within 24 hours and resolve it within 7 days.</p>
         <GrievanceContact />
       </>
     ),
