@@ -7,16 +7,16 @@ import {
   fetchChart,
   fetchVendorChart,
   hasAnyValue,
-  standardValues,
   unitLabel,
+  withStandardRows,
   type ChartValues,
   type SizeChartTemplate,
 } from "@/lib/sizeCharts";
 
-// Product page "Size guide": the boutique's own size chart for this category
-// (else AllBoutiqs' standard numbers, if set), in the category's fixed
-// template, with how to take each measurement. Hidden when there's nothing
-// to show.
+// Product page "Size guide": the boutique's own size chart for this category,
+// with AllBoutiqs' standard numbers in any row it hasn't filled in (the
+// whole chart when it has none), in the category's fixed template, with how
+// to take each measurement. Hidden when there's nothing to show.
 export function SizeGuideModal({ categoryId, vendorId }: { categoryId?: string | null; vendorId?: string | null }) {
   const [template, setTemplate] = useState<SizeChartTemplate | null>(null);
   const [values, setValues] = useState<ChartValues | null>(null);
@@ -33,9 +33,11 @@ export function SizeGuideModal({ categoryId, vendorId }: { categoryId?: string |
       const own = vendorId ? await fetchVendorChart(vendorId, categoryId) : null;
       if (!live) return;
       setTemplate(t);
-      // The boutique's own numbers for this chart's rows, else the standard ones.
-      const ownRows = own ? Object.fromEntries(t.measurements.map((m) => [m.key, own[m.key] ?? {}])) : null;
-      setValues(hasAnyValue(ownRows) ? ownRows : hasAnyValue(standardValues(t)) ? standardValues(t) : null);
+      // The boutique's own numbers for this chart's rows, standard ones in
+      // the rows it hasn't filled in (only for the sizes it makes).
+      const merged = withStandardRows(t, own);
+      const shown = Object.fromEntries(t.measurements.map((m) => [m.key, merged[m.key] ?? {}]));
+      setValues(hasAnyValue(shown) ? shown : null);
     })();
     return () => {
       live = false;

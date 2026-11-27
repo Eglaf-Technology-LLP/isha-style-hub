@@ -1,11 +1,42 @@
 import { useEffect, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Ornament } from "@/components/storefront/Ornament";
 import { COMPANY, telHref } from "@/lib/company";
 import { formatDateInWords } from "@/lib/dates";
 import { LEGAL_UPDATED } from "@/lib/legal";
+
+// "← Back" to the page the reader came from (client corrections Box 3: a
+// seller reading the terms from the registration form had no way back).
+// The form opens these pages in a new tab, so there is no page behind it in
+// that tab: closing the tab brings the form's tab back. Opened any other way
+// with nothing to go back to, it goes to the home page.
+function BackButton() {
+  const navigate = useNavigate();
+  const goBack = () => {
+    // react-router keeps the tab's position in history.state.idx.
+    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+    if (idx > 0) return navigate(-1);
+    // Came from another site in this tab.
+    if (window.history.length > 1) return window.history.back();
+    window.close();
+    // Still here: the browser didn't let this tab be closed.
+    window.setTimeout(() => {
+      if (!window.closed) navigate("/");
+    }, 300);
+  };
+  return (
+    <button
+      type="button"
+      onClick={goBack}
+      className="inline-flex items-center gap-1.5 py-3 text-sm text-foreground/80 hover:text-primary"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+    </button>
+  );
+}
 
 export interface LegalSection {
   id: string;
@@ -40,6 +71,9 @@ export function LegalPage({
     <div className="min-h-screen bg-background">
       <Header />
       <main>
+        <div className="store-container">
+          <BackButton />
+        </div>
         <section className="border-b border-border bg-ivory py-12 text-center md:py-16">
           <div className="store-container">
             <p className="eyebrow text-gold">{eyebrow}</p>
