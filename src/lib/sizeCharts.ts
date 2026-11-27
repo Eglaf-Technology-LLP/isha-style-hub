@@ -44,7 +44,8 @@ export function parseTemplate(row: any): SizeChartTemplate {
 }
 
 // Client, 2026-11-13: every category's chart is Bust, Waist and Hip, XS to
-// 6XL, starting from these numbers (inches); other measurements are hidden.
+// 6XL, starting from these numbers (inches); 2026-11-27: plus Neck depth and
+// Heel height. Other measurements are hidden.
 // While true, the per-category templates (size_guides) only give the chart
 // its name, every category has a chart (even without a template), and
 // Admin > Categories hides the template editor. A boutique's numbers for
@@ -52,13 +53,24 @@ export function parseTemplate(row: any): SizeChartTemplate {
 export const SIZE_CHART_STANDARD_ONLY = true;
 
 export const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "3XL", "4XL", "5XL", "6XL"];
-const STANDARD_ROWS: { key: string; name: string; hint: string; from: number }[] = [
-  { key: "bust", name: "Bust", hint: "Around the fullest part of the chest, tape level", from: 32 },
-  { key: "waist", name: "Waist", hint: "Around the natural waist, the narrowest part", from: 26 },
-  { key: "hip", name: "Hip", hint: "Around the fullest part of the hips", from: 36 },
+// from: the XS number; step: how much it grows per size. Neck depth and
+// Heel height added 27 Nov 2026 (client corrections Box 3).
+const STANDARD_ROWS: { key: string; name: string; hint: string; from: number; step: number }[] = [
+  { key: "bust", name: "Bust", hint: "Around the fullest part of the chest, tape level", from: 32, step: 2 },
+  { key: "waist", name: "Waist", hint: "Around the natural waist, the narrowest part", from: 26, step: 2 },
+  { key: "hip", name: "Hip", hint: "Around the fullest part of the hips", from: 36, step: 2 },
+  {
+    key: "neck_depth",
+    name: "Neck depth",
+    hint: "From the base of the neck at the shoulder, straight down to where the front neckline ends",
+    from: 6,
+    step: 0.25,
+  },
+  { key: "heel_height", name: "Heel height", hint: "Height of the heels the length is made for - 0 for flats", from: 2, step: 0 },
 ];
 
-// The standard chart for a category: 2 inches up per size from XS.
+// The standard chart for a category: each row from its XS number, step by
+// step up the sizes.
 export function standardTemplate(categoryId: string | null, name: string): SizeChartTemplate {
   return {
     id: `standard-${categoryId ?? "none"}`,
@@ -70,7 +82,7 @@ export function standardTemplate(categoryId: string | null, name: string): SizeC
       key: r.key,
       name: r.name,
       hint: r.hint,
-      values: Object.fromEntries(STANDARD_SIZES.map((size, i) => [size, String(r.from + i * 2)])),
+      values: Object.fromEntries(STANDARD_SIZES.map((size, i) => [size, String(r.from + i * r.step)])),
     })),
   };
 }
