@@ -51,7 +51,7 @@ import { toast } from "sonner";
 import { PaginationBar } from "@/components/PaginationBar";
 import { useListSeenTracking } from "@/hooks/useListSeenTracking";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, orderIdQuery, orderRef } from "@/lib/format";
 import { paymentModeName } from "@/lib/paymentMode";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
@@ -156,7 +156,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
     if (vendorFilter && !o.order_items?.some((i) => i.vendor_id === vendorFilter)) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
-      const matchesId = o.id.toLowerCase().includes(q);
+      const matchesId = o.id.toLowerCase().includes(orderIdQuery(searchQuery));
       const matchesCustomer = o.customer_name?.toLowerCase().includes(q);
       const matchesEmail = o.customer_email?.toLowerCase().includes(q);
       const matchesItems = o.order_items?.some(
@@ -356,9 +356,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                   return (
                   <TableRow key={order.id} data-focus-id={order.id}>
                     <TableCell className="text-sm text-muted-foreground">{(page - 1) * pageSize + idx + 1}</TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {order.id.slice(0, 8)}...
-                    </TableCell>
+                    <TableCell className="whitespace-nowrap font-mono text-sm">{orderRef(order.id)}</TableCell>
                     <TableCell className="text-sm">
                       {formatDate(new Date(order.created_at))}
                     </TableCell>
@@ -486,7 +484,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
           <DialogHeader>
             <DialogTitle>Order Details</DialogTitle>
             <DialogDescription>
-              Order #{selectedOrder?.id.slice(0, 8)}
+              {selectedOrder && `Order ${orderRef(selectedOrder.id)}`}
             </DialogDescription>
           </DialogHeader>
           {selectedOrder && (

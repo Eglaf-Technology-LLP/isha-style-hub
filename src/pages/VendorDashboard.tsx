@@ -102,7 +102,7 @@ import { StatementDownload } from "@/components/StatementDownload";
 import { formatDate } from "@/lib/dates";
 import { businessTypeLabel } from "@/lib/vendorKyc";
 import { CUSTOMISATION_ENABLED } from "@/lib/customisation";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, orderIdQuery, orderRef } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { boutiqueDiscountShare } from "@/lib/coupons";
@@ -720,7 +720,7 @@ export default function VendorDashboard() {
     if (orderPaymentFilter !== "all" && (o.payment_status || "pending") !== orderPaymentFilter) return false;
     if (orderSearch.trim()) {
       const q = orderSearch.trim().toLowerCase();
-      const matchesOrderId = o.order_id.toLowerCase().includes(q);
+      const matchesOrderId = o.order_id.toLowerCase().includes(orderIdQuery(orderSearch));
       const matchesCustomer = (o.customer_name || "").toLowerCase().includes(q);
       const matchesItems = (o.items || []).some(
         (item) => item.product_title.toLowerCase().includes(q) || (item.sku || "").toLowerCase().includes(q),
@@ -1324,8 +1324,8 @@ export default function VendorDashboard() {
                             <TableCell className="text-sm text-muted-foreground">
                               {(orderPage - 1) * orderPageSize + idx + 1}
                             </TableCell>
-                            <TableCell className="font-mono text-xs">
-                              {o.order_id.slice(0, 8)}
+                            <TableCell className="whitespace-nowrap font-mono text-xs">
+                              {orderRef(o.order_id)}
                               <div className="text-muted-foreground">
                                 {formatDate(o.created_at)}
                               </div>

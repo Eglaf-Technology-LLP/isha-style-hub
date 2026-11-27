@@ -22,7 +22,7 @@ import { buildOrderTimeline, buildWarehouseOrderTimeline, inboundBookedAt, Order
 import { resolveOrderItemImages } from "@/lib/orderItemImage";
 import { AccountSectionTitle, StatusPill } from "@/components/storefront/account/AccountKit";
 import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
-import { formatINR, formatMoney } from "@/lib/format";
+import { formatINR, formatMoney, orderRef } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { orderPaymentLine } from "@/lib/paymentMode";
@@ -325,7 +325,7 @@ export function OrdersSection() {
                 <div className="flex gap-8">
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Order</p>
-                    <p className="font-mono text-sm">#{order.id.slice(0, 8).toUpperCase()}</p>
+                    <p className="whitespace-nowrap font-mono text-sm">{orderRef(order.id)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>
