@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Loader2, Ban } from "lucide-react";
-import { useOrderCancellations } from "@/hooks/useOrderCancellations";
+import { CANCELLED_BY_LABEL, useOrderCancellations, type OrderCancellation } from "@/hooks/useOrderCancellations";
 import { VendorOrderDetailsDialog } from "./VendorOrderDetailsDialog";
 import { useFlashFocus } from "@/hooks/useDeepLink";
 import { formatDate } from "@/lib/dates";
@@ -21,6 +21,28 @@ const refundStatusClass: Record<string, string> = {
   initiated: "bg-amber-100 text-amber-800",
   failed: "bg-red-100 text-red-800",
 };
+
+const cancelledByClass: Record<OrderCancellation["cancelledBy"], string> = {
+  customer: "bg-blue-50 text-blue-800 border-blue-200",
+  boutique: "bg-amber-50 text-amber-800 border-amber-200",
+  allboutiqs: "bg-muted text-foreground",
+};
+
+// Client corrections Box 2 / Part 2 A11: a fee only ever applies to a
+// customer's own cancellation; the boutique or AllBoutiqs cancelling is a
+// full refund. Since 24 Nov 2026 there is no cancellation fee at all, so
+// this shows what was actually kept back - nothing so far.
+function CancellationFee({ c }: { c: OrderCancellation }) {
+  if (c.cancellationFee > 0) {
+    return (
+      <div className="flex flex-col">
+        <span className="font-medium">{formatMoney(c.cancellationFee)}</span>
+        <span className="text-xs text-muted-foreground">GST included</span>
+      </div>
+    );
+  }
+  return <span className="text-muted-foreground">{c.cancelledBy === "customer" ? "No fee" : "None - full refund"}</span>;
+}
 
 interface CancelledOrdersManagementProps {
   isAdmin: boolean;
@@ -49,7 +71,8 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
         <div>
           <h3 className="text-lg font-semibold">Cancelled Orders</h3>
           <p className="text-sm text-muted-foreground">
-            Every full or per-vendor cancellation, with its reason, refund, and whether the courier had already picked it up
+            Every full or per-vendor cancellation: who cancelled it, why, the refund and any cancellation fee, and whether
+            the courier had already picked it up
           </p>
         </div>
         {alreadyShippedCount > 0 && (
@@ -74,9 +97,11 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                   <TableHead>Order</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Vendor</TableHead>
+                  <TableHead>Cancelled by</TableHead>
                   <TableHead>Reason</TableHead>
                   <TableHead>Shipped?</TableHead>
                   <TableHead>Refund</TableHead>
+                  <TableHead>Cancellation fee</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -93,6 +118,11 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                       <div className="text-xs text-muted-foreground">{c.customerEmail}</div>
                     </TableCell>
                     <TableCell className="text-sm">{c.vendorName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cancelledByClass[c.cancelledBy]}>
+                        {CANCELLED_BY_LABEL[c.cancelledBy]}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-xs truncate" title={c.reason ?? ""}>
                       {c.reason || "—"}
                     </TableCell>
@@ -117,6 +147,9 @@ export function CancelledOrdersManagement({ isAdmin }: CancelledOrdersManagement
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      <CancellationFee c={c} />
                     </TableCell>
                     <TableCell>
                       <VendorOrderDetailsDialog vendorOrderId={c.vendorOrderId} />
