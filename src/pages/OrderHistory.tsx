@@ -19,7 +19,7 @@ import { REFUND_METHOD_LABEL } from "@/lib/wallet";
 import { useReturnRequests, ReturnRequest, returnItemPhotos } from "@/hooks/useReturnRequests";
 import { RefundHistory } from "@/components/RefundHistory";
 import { OrderCancellationDialog, CancellableOrderItem } from "@/components/OrderCancellationDialog";
-import { customerCancelDeadline, isWithinCustomerCancelWindow, partCancelRefund } from "@/lib/orderCancel";
+import { customerCancelDeadline, isPartCancellableByCustomer, isWithinCustomerCancelWindow, partCancelRefund } from "@/lib/orderCancel";
 import { ReorderDialog } from "@/components/ReorderDialog";
 import { InvoiceDownloadButton } from "@/components/InvoiceDownloadButton";
 import { CreditNoteButton } from "@/components/CreditNoteButton";
@@ -36,9 +36,8 @@ import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { orderPaymentLine, paymentModeLine } from "@/lib/paymentMode";
 
-// Matches cancel-order-items' own BLOCKED_VENDOR_ORDER_STATUSES - kept here
-// purely to decide whether to show the Cancel action at all; the edge
-// function is still the real authority and re-checks this itself.
+// A part in one of these is finished; once every part is, Reorder shows.
+// (Whether Cancel shows: isPartCancellableByCustomer in src/lib/orderCancel.)
 const NOT_CANCELLABLE_STATUSES = ["delivered", "cancelled", "returned"];
 
 interface OrderItem {
@@ -536,13 +535,17 @@ export default function OrderHistory() {
                 // A completed return has a credit note (on a part that stays delivered).
                 const hasCompletedReturn = (returnsByOrder[order.id] ?? []).some((rr) => rr.status === "completed");
 
-                const hasCancellableItems = order.vendor_orders.some(
+                // Still on its way somewhere (Reorder shows once nothing is).
+                const hasOpenParts = order.vendor_orders.some(
                   // Warehouse route: a part already in the warehouse's booked
                   // parcel can only come back as a return.
                   (vo) => !NOT_CANCELLABLE_STATUSES.includes(vo.status) && !vo.parcel,
                 );
-                // The customer's own cancel closes 24 hours after ordering.
-                const canCancel = hasCancellableItems && isWithinCustomerCancelWindow(order.created_at);
+                // The customer's own cancel closes 24 hours after ordering, or
+                // as soon as the courier has picked the part up.
+                const canCancel =
+                  order.vendor_orders.some((vo) => isPartCancellableByCustomer(vo.status, !!vo.parcel)) &&
+                  isWithinCustomerCancelWindow(order.created_at);
                 const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
                 const paymentDisplay = paymentStatusDisplay(order);
                 const returnWindow = returnWindowFor(order);
@@ -583,13 +586,13 @@ export default function OrderHistory() {
                           type="button"
                           className="inline-flex h-8 items-center gap-1.5 border border-destructive/30 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-destructive hover:bg-destructive/5"
                           onClick={() => setCancellingOrder(order)}
-                          title={`You can cancel until ${formatDateTimeInWords(customerCancelDeadline(order.created_at))}`}
+                          title={`You can cancel until ${formatDateTimeInWords(customerCancelDeadline(order.created_at))}, or until the courier picks it up`}
                         >
                           <Ban className="h-3 w-3" />
                           Cancel order
                         </button>
                       )}
-                      {!hasCancellableItems && order.vendor_orders.length > 0 && (
+                      {!hasOpenParts && order.vendor_orders.length > 0 && (
                         <button
                           type="button"
                           className="inline-flex h-8 items-center gap-1.5 border border-foreground/20 px-3 text-[10px] font-medium uppercase tracking-[0.14em] hover:border-foreground"

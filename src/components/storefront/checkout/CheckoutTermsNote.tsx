@@ -24,8 +24,8 @@ export function CheckoutTermsNote({ compact = false, className }: { compact?: bo
       </p>
       {!compact && (
         <p>
-          You can cancel within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order - no cancellation fee, full
-          refund. If the boutique or AllBoutiqs cancels it, you get a full refund too.
+          You can cancel within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order, until the courier picks it
+          up - no cancellation fee, full refund. If the boutique or AllBoutiqs cancels it, you get a full refund too.
         </p>
       )}
     </div>

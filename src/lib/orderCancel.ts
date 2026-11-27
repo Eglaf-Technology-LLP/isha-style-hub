@@ -12,6 +12,19 @@ export function isWithinCustomerCancelWindow(orderPlacedAt: string, now: number 
   return now <= customerCancelDeadline(orderPlacedAt).getTime();
 }
 
+// ...and only until the courier picks the part up (client, 27 Nov 2026):
+// Cancel hides as soon as EITHER the 24 hours end OR the parcel is with the
+// courier, whichever comes first. A part past these statuses is on its way
+// (to our centre or to the customer); after delivery a problem goes through
+// Report a problem, not a cancel. Same list as CUSTOMER_CANCELLABLE_STATUSES
+// in supabase/functions/_shared/cancellation.ts.
+export const CUSTOMER_CANCELLABLE_STATUSES = ["pending", "confirmed", "processing"];
+
+// `inWarehouseParcel`: the warehouse already booked its parcel with this part.
+export function isPartCancellableByCustomer(status: string, inWarehouseParcel = false): boolean {
+  return CUSTOMER_CANCELLABLE_STATUSES.includes(status) && !inWarehouseParcel;
+}
+
 // What cancelling one boutique part refunds - the same sum cancel-order-items
 // refunds (supabase/functions/_shared/cancellation.ts): its items and
 // delivery charge, less their share of any coupon. There is no cancellation

@@ -96,8 +96,8 @@ export default function ReturnRefundPolicy() {
       title: "Cancelling an order",
       body: (
         <p>
-          You can cancel from {myOrders} within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order, as long as it
-          hasn't been packed for shipping yet. If you paid online, choose whether the refund goes to your wallet or back to your
+          You can cancel from {myOrders} within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing the order, as long as the
+          courier hasn't picked it up yet. If you paid online, choose whether the refund goes to your wallet or back to your
           payment method.
         </p>
       ),
