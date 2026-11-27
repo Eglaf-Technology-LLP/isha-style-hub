@@ -12,12 +12,11 @@ import {
   chargeLabel,
   customisationCharge,
   inr,
+  MEASUREMENTS,
   PHOTO_BUCKET,
   type CustomisationChoice,
   type ProductCustomisationSetup,
 } from "@/lib/customisation";
-import { bodyMeasurementsFor, cleanMeasurement, measurementError } from "@/lib/bodyMeasurements";
-import { cn } from "@/lib/utils";
 import { CUSTOMISATION_EXTRA_OPTIONS_ENABLED, CUSTOMISATION_REFERENCE_PHOTO_ENABLED } from "@/lib/hiddenFeatures";
 import { PHOTO_ACCEPT, preparePhoto, uploadProblemMessage } from "@/lib/uploadPrep";
 
@@ -46,26 +45,19 @@ export const emptyCustomiser: CustomiserState = {
 };
 
 // The customer's choice for the cart (priced on the piece's `price`), or
-// what's missing: fieldErrors says which measurement box and why (shown
-// under that box once Add to cart was pressed). category: the product's
-// category name or slug (a lehenga's top is "Top Length").
+// what's missing.
 export function buildCustomisation(
   setup: ProductCustomisationSetup,
   s: CustomiserState,
   price: number,
-  category?: string | null,
-): { choice: CustomisationChoice | null } | { error: string; fieldErrors?: Record<string, string> } {
+): { choice: CustomisationChoice | null } | { error: string } {
   if (!setup.customisable || !s.enabled) return { choice: null };
   // Priced extra options are retired (the charge is one %), see hiddenFeatures.
   const options = CUSTOMISATION_EXTRA_OPTIONS_ENABLED ? setup.customisation_options.filter((o) => s.optionIds.includes(o.id)) : [];
   let custom_size: CustomisationChoice["custom_size"] = null;
   if (s.customSize) {
-    const fieldErrors: Record<string, string> = {};
-    for (const m of bodyMeasurementsFor(category)) {
-      const why = measurementError(m, s.measurements[m.key]);
-      if (why) fieldErrors[m.key] = why;
-    }
-    if (Object.keys(fieldErrors).length) return { error: "Please check your measurements", fieldErrors };
+    const missing = MEASUREMENTS.filter((m) => m.required && !String(s.measurements[m.key] ?? "").trim());
+    if (missing.length) return { error: `Please enter your ${missing.map((m) => m.label.toLowerCase()).join(", ")}` };
     const measurements = Object.fromEntries(
       Object.entries(s.measurements).filter(([, v]) => String(v).trim()).map(([k, v]) => [k, String(v).trim()]),
     );
@@ -119,8 +111,6 @@ export function ProductCustomiser({
   value,
   onChange,
   userId,
-  category,
-  showErrors = false,
 }: {
   setup: ProductCustomisationSetup;
   // The making / dispatch days the product page shows, for "Total T days".
@@ -129,19 +119,12 @@ export function ProductCustomiser({
   value: CustomiserState;
   onChange: (next: CustomiserState) => void;
   userId: string | null;
-  // The product's category name or slug (see buildCustomisation).
-  category?: string | null;
-  // Add to cart was pressed: show what's missing, in red under its box.
-  // Until then nothing is red (client corrections Box 3).
-  showErrors?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   if (!setup.customisable) return null;
   const set = <K extends keyof CustomiserState>(k: K, v: CustomiserState[K]) => onChange({ ...value, [k]: v });
 
-  const preview = buildCustomisation(setup, value, basePrice, category);
-  const fieldErrors = showErrors && "error" in preview ? (preview.fieldErrors ?? {}) : {};
-  const measurements = bodyMeasurementsFor(category);
+  const preview = buildCustomisation(setup, value, basePrice);
   // One charge for the piece, whatever is customised.
   const charge = customisationCharge(basePrice, setup.customisation_pct);
   const extraDays = setup.customisation_days ?? 0;
@@ -199,48 +182,27 @@ export function ProductCustomiser({
               Make it to my measurements
             </label>
             {value.customSize && (
-              <div className="space-y-3 rounded-md bg-muted/40 p-3">
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">* Required</span> · All in inches (in), measured over light
-                  clothing with the tape snug, not tight.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-3">
-                  {measurements.map((m) => {
-                    const id = `cz-m-${m.key}`;
-                    const error = fieldErrors[m.key];
-                    return (
-                      <div key={m.key} className="space-y-1">
-                        <Label htmlFor={id} className="text-xs">
-                          {m.label}
-                          {m.required && <span aria-hidden="true"> *</span>}
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            id={id}
-                            inputMode="decimal"
-                            placeholder={`${m.min}–${m.max}`}
-                            required={m.required}
-                            aria-invalid={!!error}
-                            aria-describedby={`${id}-how${error ? ` ${id}-error` : ""}`}
-                            value={value.measurements[m.key] ?? ""}
-                            onChange={(e) => set("measurements", { ...value.measurements, [m.key]: cleanMeasurement(e.target.value) })}
-                            className={cn("h-9 pr-9 tabular-nums", error && "border-destructive focus-visible:ring-destructive")}
-                          />
-                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
-                            in
-                          </span>
-                        </div>
-                        <p id={`${id}-how`} className="text-[11px] leading-snug text-muted-foreground">
-                          How to measure: {m.hint}
-                        </p>
-                        {error && (
-                          <p id={`${id}-error`} className="text-[11px] font-medium text-destructive">
-                            {error}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
+              <div className="space-y-2 rounded-md bg-muted/40 p-3">
+                <p className="text-xs text-muted-foreground">In inches, measured over light clothing. * required</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MEASUREMENTS.map((m) => (
+                    <div key={m.key} className="space-y-1">
+                      <Label htmlFor={`cz-m-${m.key}`} className="text-xs">
+                        {m.label}
+                        {m.required ? " *" : ""}
+                      </Label>
+                      <Input
+                        id={`cz-m-${m.key}`}
+                        inputMode="decimal"
+                        placeholder="in"
+                        value={value.measurements[m.key] ?? ""}
+                        onChange={(e) =>
+                          set("measurements", { ...value.measurements, [m.key]: e.target.value.replace(/[^0-9.]/g, "").slice(0, 5) })
+                        }
+                        className="h-9"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -329,8 +291,7 @@ export function ProductCustomiser({
               Customised pieces are not returnable (a damaged, defective or wrong item can be reported within 24 hours of
               delivery).
             </li>
-            {/* Only after Add to cart, and only what has no box of its own. */}
-            {showErrors && "error" in preview && !preview.fieldErrors && <li className="text-destructive">{preview.error}</li>}
+            {"error" in preview && (value.customSize || value.optionIds.length > 0) && <li className="text-destructive">{preview.error}</li>}
           </ul>
         </div>
       )}

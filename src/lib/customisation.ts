@@ -1,5 +1,4 @@
 import { formatINR } from "@/lib/format";
-import { BODY_MEASUREMENTS } from "@/lib/bodyMeasurements";
 // Product customisation: made to the customer's measurements and/or with
 // their note. The boutique sets it up per product: the customisation charge
 // as a % of the piece's price (client corrections 15 Nov 2026, 3.3.3 /
@@ -53,14 +52,16 @@ export function customisationCharge(price: number, pct: number | null | undefine
 export const chargeLabel = (charge: number, pct: number | null | undefined) =>
   `+${formatINR(charge)}${pct ? ` (${pct}%)` : ""}`;
 
-// The boxes for "Make it to my measurements" - see lib/bodyMeasurements
-// (bodyMeasurementsFor gives a category's own labels, e.g. a lehenga's
-// "Top Length").
-export const MEASUREMENTS: { key: string; label: string; required?: boolean }[] = BODY_MEASUREMENTS.map((m) => ({
-  key: m.key,
-  label: m.label,
-  required: m.required,
-}));
+export const MEASUREMENTS: { key: string; label: string; required?: boolean }[] = [
+  { key: "bust", label: "Bust", required: true },
+  { key: "waist", label: "Waist", required: true },
+  { key: "hip", label: "Hip", required: true },
+  { key: "shoulder", label: "Shoulder" },
+  { key: "sleeve_length", label: "Sleeve length" },
+  { key: "armhole", label: "Armhole" },
+  { key: "length", label: "Top / dress length" },
+  { key: "bottom_length", label: "Bottom length" },
+];
 
 export const PHOTO_BUCKET = "customisation-photos";
 
