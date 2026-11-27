@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { adminRoleQuery, ROLE_STALE_MS } from "./useAdmin";
+import { ACCESS_CHECK_QUERY, accessCheckState } from "@/lib/accessCheck";
 
 // Who may use the warehouse screens: warehouse staff and admins (admins also
 // make the decisions - partial parcels, inspection failures, undelivered
@@ -14,6 +15,7 @@ export function useWarehouseAccess() {
     queryKey: ["can-operate-warehouse", user?.id],
     enabled: !!user,
     staleTime: ROLE_STALE_MS,
+    ...ACCESS_CHECK_QUERY,
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase.rpc("can_operate_warehouse", { _user_id: user!.id });
       if (error) throw error;
@@ -21,9 +23,16 @@ export function useWarehouseAccess() {
     },
   });
 
+  const { loading, failed } = accessCheckState(!!user, authLoading, admin, operate);
+
   return {
     canOperate: !!user && operate.data === true,
     isAdmin: !!user && admin.data === true,
-    loading: authLoading || (!!user && (admin.isPending || operate.isPending)),
+    loading,
+    failed,
+    retry: () => {
+      if (admin.isError) admin.refetch();
+      if (operate.isError) operate.refetch();
+    },
   };
 }

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { ACCESS_CHECK_QUERY, accessCheckState } from "@/lib/accessCheck";
 
 // Someone's roles hardly ever change, so each is asked once and shared by
 // every screen for 10 minutes (it used to be asked by each screen on every
@@ -12,6 +13,7 @@ export function adminRoleQuery(userId: string | undefined) {
     queryKey: ["has-role", userId, "admin"],
     enabled: !!userId,
     staleTime: ROLE_STALE_MS,
+    ...ACCESS_CHECK_QUERY,
     queryFn: async (): Promise<boolean> => {
       const { data, error } = await supabase.rpc("has_role", { _user_id: userId!, _role: "admin" });
       if (error) {
@@ -25,10 +27,13 @@ export function adminRoleQuery(userId: string | undefined) {
 
 export function useAdmin() {
   const { user, loading: authLoading } = useAuth();
-  const { data, isPending } = useQuery(adminRoleQuery(user?.id));
+  const query = useQuery(adminRoleQuery(user?.id));
+  const { loading, failed } = accessCheckState(!!user, authLoading, query);
 
   return {
-    isAdmin: !!user && data === true,
-    loading: authLoading || (!!user && isPending),
+    isAdmin: !!user && query.data === true,
+    loading,
+    failed,
+    retry: query.refetch,
   };
 }

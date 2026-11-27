@@ -11,13 +11,19 @@ export function StaffOnlyGate({ children }: { children: ReactNode }) {
   const { role, loading } = useStaffRole();
   const location = useLocation();
   if (!STAFF_ONLY_MODE) return <>{children}</>;
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
+  const spinner = (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+    </div>
+  );
+  if (loading) return spinner;
   const to = staffRedirect(role, location.pathname);
-  return to ? <Navigate to={to} replace /> : <>{children}</>;
+  if (!to) return <>{children}</>;
+  // The spinner stays up while moving to the right area (no empty frame).
+  return (
+    <>
+      <Navigate to={to} replace />
+      {spinner}
+    </>
+  );
 }

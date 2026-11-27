@@ -1,6 +1,7 @@
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { COMPANY } from "@/lib/company";
 import { useVendor } from "@/hooks/useVendor";
+import { AccessCheckFailed } from "@/components/auth/AccessCheckFailed";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { Loader2, Clock, XCircle, Mail, Store, ArrowLeft } from "lucide-react";
 import { formatDate } from "@/lib/dates";
 
 export default function VendorPending() {
-  const { vendor, loading } = useVendor();
+  const { vendor, loading, failed, refresh } = useVendor();
   const navigate = useNavigate();
 
   if (loading) {
@@ -24,17 +25,15 @@ export default function VendorPending() {
     );
   }
 
-  // No vendor record → send to application
-  if (!vendor) {
-    navigate("/sell-with-us", { replace: true });
-    return null;
-  }
+  // The boutique lookup couldn't be made (src/lib/accessCheck.ts).
+  if (failed) return <AccessCheckFailed onRetry={refresh} />;
+
+  // No vendor record → send to application. <Navigate>, not navigate(): a
+  // navigate() during the first render is ignored (a blank page).
+  if (!vendor) return <Navigate to="/sell-with-us" replace />;
 
   // Already approved → to the dashboard
-  if (vendor.status === "approved") {
-    navigate("/vendor", { replace: true });
-    return null;
-  }
+  if (vendor.status === "approved") return <Navigate to="/vendor" replace />;
 
   const isRejected = vendor.status === "rejected";
   const isSuspended = vendor.status === "suspended";
