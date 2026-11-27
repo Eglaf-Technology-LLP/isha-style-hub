@@ -1,4 +1,4 @@
-import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from "date-fns";
+import { addDays, endOfMonth, format, getDay, parseISO, startOfMonth, subDays } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 
 // Statement & tax download (Payouts > Download Statement): periods,
@@ -7,7 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 
 export type StatementLine = Database["public"]["Functions"]["statement_lines"]["Returns"][number];
 
-export type PeriodKind = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+export type PeriodKind = "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "custom";
 
 const ymd = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -15,14 +15,65 @@ export function fiscalYearOf(d: Date): number {
   return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
 }
 
-// [from, to] (inclusive dates) for a period choice.
-export function periodRange(kind: PeriodKind, value: { date?: string; month?: string; fy?: number; from?: string; to?: string }): [string, string] {
+// Financial-year quarter: 1 = Apr-Jun, 2 = Jul-Sep, 3 = Oct-Dec, 4 = Jan-Mar.
+export const fiscalQuarterOf = (d: Date) => Math.floor(((d.getMonth() + 9) % 12) / 3) + 1;
+export const QUARTER_MONTHS = ["Apr–Jun", "Jul–Sep", "Oct–Dec", "Jan–Mar"];
+
+// The payout week (client C19, 28 Nov 2026). Boutiques are paid every
+// Wednesday for the orders whose 24-hour window closed by the Tuesday 23:59
+// IST cut-off before it - in practice, delivered by Monday 23:59. A weekly
+// statement is one payout: "Payout Wed 25 Nov 2026 – orders Wed 18 Nov to Tue
+// 24 Nov". The database puts each order in the payout of its batch's date, or
+// of the Wednesday it becomes payable (statement_lines' _payout_day). The day
+// and cut-off are platform_rates (payout_weekday 3, cut-off Tuesday 23:59).
+const WEDNESDAY = 3; // date-fns getDay
+
+// The payout Wednesday on or before a day (a batch run by hand later in the
+// week belongs to that Wednesday's payout).
+export function payoutDayOnOrBefore(d: Date): string {
+  return ymd(subDays(d, (getDay(d) - WEDNESDAY + 7) % 7));
+}
+
+// The Wed-Tue week a payout Wednesday pays for.
+export function payoutWeek(payoutDay: string): [string, string] {
+  const d = parseISO(payoutDay);
+  return [ymd(subDays(d, 7)), ymd(subDays(d, 1))];
+}
+
+// "orders Wed 18 Nov to Tue 24 Nov", for a payout day (or a later day that week).
+export function payoutWeekOrders(day: string): string {
+  const [from, to] = payoutWeek(payoutDayOnOrBefore(parseISO(day)));
+  return `orders ${format(parseISO(from), "EEE d MMM")} to ${format(parseISO(to), "EEE d MMM")}`;
+}
+
+// "Payout Wed 25 Nov 2026 – orders Wed 18 Nov to Tue 24 Nov"
+export const payoutWeekLabel = (payoutDay: string) =>
+  `Payout ${format(parseISO(payoutDay), "EEE d MMM yyyy")} – ${payoutWeekOrders(payoutDay)}`;
+
+// The payout Wednesdays to pick from: the next one, then back a year.
+export function payoutDayChoices(today = new Date(), weeksBack = 52): string[] {
+  const last = parseISO(payoutDayOnOrBefore(today));
+  return [addDays(last, 7), ...Array.from({ length: weeksBack + 1 }, (_, i) => subDays(last, 7 * i))].map(ymd);
+}
+
+// [from, to] (inclusive dates) for a period choice. Weekly: the Wed-Tue week
+// before the payout Wednesday - the dates the tax documents are read by; the
+// orders themselves are that payout's (statement_lines' _payout_day).
+export function periodRange(
+  kind: PeriodKind,
+  value: { date?: string; payoutDay?: string; month?: string; fy?: number; quarter?: number; from?: string; to?: string },
+): [string, string] {
   switch (kind) {
     case "daily":
       return [value.date!, value.date!];
-    case "weekly": {
-      const d = new Date(value.date!);
-      return [ymd(startOfWeek(d, { weekStartsOn: 1 })), ymd(endOfWeek(d, { weekStartsOn: 1 }))];
+    case "weekly":
+      return payoutWeek(value.payoutDay!);
+    case "quarterly": {
+      const fy = value.fy!;
+      const q = value.quarter!;
+      const starts = [`${fy}-04-01`, `${fy}-07-01`, `${fy}-10-01`, `${fy + 1}-01-01`];
+      const ends = [`${fy}-06-30`, `${fy}-09-30`, `${fy}-12-31`, `${fy + 1}-03-31`];
+      return [starts[q - 1], ends[q - 1]];
     }
     case "monthly": {
       const d = new Date(`${value.month}-01`);
@@ -141,7 +192,7 @@ export function quarterlyTdsRows(lines: StatementLine[], withBoutique: boolean) 
   const label = (d: string) => {
     const date = new Date(d);
     const fy = fiscalYearOf(date);
-    const q = Math.floor(((date.getMonth() + 9) % 12) / 3) + 1;
+    const q = fiscalQuarterOf(date);
     return `FY ${fy}-${String((fy + 1) % 100).padStart(2, "0")} Q${q}`;
   };
   const groups = new Map<string, StatementLine[]>();

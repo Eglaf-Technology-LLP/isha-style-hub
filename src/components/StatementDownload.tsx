@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { addDays, format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,13 +11,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildWorkbookSheets } from "@/lib/excelImportExport";
 import { printElement } from "@/lib/printElement";
 import {
+  QUARTER_MONTHS,
   applyFilters,
+  fiscalQuarterOf,
   fiscalYearOf,
   monthlyGstRows,
   orderRows,
   ORDER_FILTERS,
   PAYMENT_FILTERS,
   PAYOUT_FILTERS,
+  payoutDayChoices,
+  payoutDayOnOrBefore,
+  payoutWeekLabel,
   periodRange,
   quarterlyTdsRows,
   totals,
@@ -135,6 +140,9 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const [date, setDate] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
   const [fy, setFy] = useState(fiscalYearOf(new Date()));
+  // Weekly = one payout (client C19): the payout Wednesday it is for.
+  const [payoutDay, setPayoutDay] = useState(() => payoutDayOnOrBefore(new Date()));
+  const [quarter, setQuarter] = useState(() => fiscalQuarterOf(new Date()));
   const [from, setFrom] = useState(today.slice(0, 8) + "01");
   const [to, setTo] = useState(today);
   const [boutique, setBoutique] = useState<string>(vendorId ?? ALL);
@@ -148,7 +156,12 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const [docs, setDocs] = useState<TaxDocs>(NO_DOCS);
   const [docsLoading, setDocsLoading] = useState(false);
 
-  const [rangeFrom, rangeTo] = periodRange(kind, { date, month, fy, from, to });
+  const [rangeFrom, rangeTo] = periodRange(kind, { date, payoutDay, month, fy, quarter, from, to });
+  // Weekly: the orders are that payout's (the database's _payout_day); the
+  // tax documents are by their own date in the Wed-Tue week before it. Every
+  // other period is by order date.
+  const weeklyPayoutDay = kind === "weekly" ? payoutDay : null;
+  const payoutDayArg = weeklyPayoutDay ? { _payout_day: weeklyPayoutDay } : {};
   const allBoutiques = admin && boutique === ALL;
 
   useEffect(() => {
@@ -160,7 +173,7 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     let alive = true;
     setLoading(true);
     supabase
-      .rpc("statement_lines", { _vendor_id: boutique === ALL ? null : boutique, _from: rangeFrom, _to: rangeTo })
+      .rpc("statement_lines", { _vendor_id: boutique === ALL ? null : boutique, _from: rangeFrom, _to: rangeTo, ...payoutDayArg })
       .then(({ data, error }) => {
         if (!alive) return;
         setLoading(false);
@@ -170,7 +183,8 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     return () => {
       alive = false;
     };
-  }, [open, boutique, rangeFrom, rangeTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- payoutDayArg is weeklyPayoutDay
+  }, [open, boutique, rangeFrom, rangeTo, weeklyPayoutDay]);
 
   useEffect(() => {
     if (!open || !rangeFrom || !rangeTo || rangeFrom > rangeTo) return;
@@ -198,13 +212,17 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
       // GST TCS by document date, and every money check, from the database.
       const [tcsRes, checksRes] = await Promise.all([
         supabase.rpc("tcs_document_lines", { _vendor_id: vendorFilter as string, _from: rangeFrom, _to: rangeTo }),
-        supabase.rpc("money_checks", { _vendor_id: vendorFilter as string, _from: rangeFrom, _to: rangeTo }),
+        supabase.rpc("money_checks", { _vendor_id: vendorFilter as string, _from: rangeFrom, _to: rangeTo, ...payoutDayArg }),
       ]);
       if (tcsRes.error) throw new Error(tcsRes.error.message);
       if (checksRes.error) throw new Error(checksRes.error.message);
-      // The bank transfers made in the period, with their orders.
+      // The bank transfers made in the period, with their orders. Weekly: that
+      // payout's (made on the Wednesday, or later that week when run by hand).
+      const [payFrom, payTo] = weeklyPayoutDay
+        ? [weeklyPayoutDay, format(addDays(parseISO(weeklyPayoutDay), 6), "yyyy-MM-dd")]
+        : [rangeFrom, rangeTo];
       const payouts = await allRows<PayoutTransfer>((a, b) => {
-        let q = supabase.from("vendor_payouts").select("*").gte("payout_date", rangeFrom).lte("payout_date", rangeTo);
+        let q = supabase.from("vendor_payouts").select("*").gte("payout_date", payFrom).lte("payout_date", payTo);
         if (vendorFilter) q = q.eq("vendor_id", vendorFilter);
         return q.order("payout_date").range(a, b) as never;
       });
@@ -239,7 +257,8 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
     return () => {
       alive = false;
     };
-  }, [open, admin, boutique, rangeFrom, rangeTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- payoutDayArg is weeklyPayoutDay
+  }, [open, admin, boutique, rangeFrom, rangeTo, weeklyPayoutDay]);
 
   // Admins: the order behind each boutique part, for the order-by-order check.
   const [orderByVendorOrder, setOrderByVendorOrder] = useState<Map<string, ReconOrder>>(new Map());
@@ -308,8 +327,12 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
   const t = totals(filtered);
   const mismatches = docs.checks.filter((c) => Number(c.difference) !== 0).length;
   const who = allBoutiques ? "all-boutiques" : (vendors.find((v) => v.id === boutique)?.name ?? "boutique").replace(/\W+/g, "-").toLowerCase();
-  const fileBase = `allboutiqs-statement-${who}-${rangeFrom}-to-${rangeTo}`;
-  const titleLine = `Statement ${formatDate(new Date(rangeFrom))} - ${formatDate(new Date(rangeTo))}`;
+  const fileBase = weeklyPayoutDay
+    ? `allboutiqs-statement-${who}-payout-${weeklyPayoutDay}`
+    : `allboutiqs-statement-${who}-${rangeFrom}-to-${rangeTo}`;
+  const titleLine = weeklyPayoutDay
+    ? `Statement · ${payoutWeekLabel(weeklyPayoutDay)}`
+    : `Statement ${formatDate(new Date(rangeFrom))} - ${formatDate(new Date(rangeTo))}`;
 
   const SHEETS = {
     orders: { name: "Orders", rows: reports.orders },
@@ -443,16 +466,71 @@ export function StatementDownload({ vendorId, admin = false }: { vendorId?: stri
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly (Mon-Sun)</SelectItem>
+                  <SelectItem value="weekly">Weekly (Wed–Tue)</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
                   <SelectItem value="yearly">Financial year</SelectItem>
                   <SelectItem value="custom">Custom dates</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>{kind === "custom" ? "From - to" : kind === "yearly" ? "Year" : kind === "monthly" ? "Month" : "Date"}</Label>
-              {(kind === "daily" || kind === "weekly") && <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+              <Label>
+                {kind === "custom"
+                  ? "From - to"
+                  : kind === "yearly"
+                    ? "Year"
+                    : kind === "quarterly"
+                      ? "Quarter"
+                      : kind === "monthly"
+                        ? "Month"
+                        : kind === "weekly"
+                          ? "Payout"
+                          : "Date"}
+              </Label>
+              {kind === "daily" && <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />}
+              {kind === "weekly" && (
+                <>
+                  <Select value={payoutDay} onValueChange={setPayoutDay}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {payoutDayChoices().map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {payoutWeekLabel(d)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    The orders paid that Wednesday: delivered by Monday 23:59, with the 24-hour return window closed
+                    before the Tuesday 23:59 IST cut-off.
+                  </p>
+                </>
+              )}
+              {kind === "quarterly" && (
+                <Select value={`${fy}-${quarter}`} onValueChange={(v) => {
+                  const [y, q] = v.split("-").map(Number);
+                  setFy(y);
+                  setQuarter(q);
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 1, 2].flatMap((back) => {
+                      const y = fiscalYearOf(new Date()) - back;
+                      // This year's quarters up to the current one.
+                      return [4, 3, 2, 1].filter((q) => back > 0 || q <= fiscalQuarterOf(new Date())).map((q) => (
+                        <SelectItem key={`${y}-${q}`} value={`${y}-${q}`}>
+                          Q{q} FY {y}-{String((y + 1) % 100).padStart(2, "0")} ({QUARTER_MONTHS[q - 1]} {q === 4 ? y + 1 : y})
+                        </SelectItem>
+                      ));
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
               {kind === "monthly" && <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />}
               {kind === "yearly" && (
                 <Select value={String(fy)} onValueChange={(v) => setFy(Number(v))}>
