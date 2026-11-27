@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { AccessCheckFailed } from "@/components/auth/AccessCheckFailed";
 import { useAuth } from "@/hooks/useAuth";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { useProfile } from "@/hooks/useProfile";
@@ -258,7 +259,13 @@ const sameName = (a: string, b: string) =>
 export default function SellWithUs() {
   const { user, loading: authLoading } = useAuth();
   const { profile } = useProfile();
-  const { vendor, loading: vendorLoading, submitApplication } = useVendor();
+  const {
+    vendor,
+    loading: vendorLoading,
+    failed: vendorFailed,
+    refresh: refreshVendor,
+    submitApplication,
+  } = useVendor();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -394,12 +401,20 @@ export default function SellWithUs() {
     );
   }
 
-  // Already registered → route to the right place
+  // The boutique lookup couldn't be made: don't offer a second application
+  // (src/lib/accessCheck.ts).
+  if (vendorFailed) return <AccessCheckFailed onRetry={refreshVendor} />;
+
+  // Already registered → route to the right place. <Navigate>, not
+  // navigate(): a navigate() during the first render is ignored, which left a
+  // blank page after a seller signed in here. A spinner until it's there.
   if (vendor) {
-    navigate(vendor.status === "approved" ? "/vendor" : "/vendor/pending", {
-      replace: true,
-    });
-    return null;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Navigate to={vendor.status === "approved" ? "/vendor" : "/vendor/pending"} replace />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const businessDocs = constitution ? DOCUMENTS_BY_CONSTITUTION[constitution] : [];

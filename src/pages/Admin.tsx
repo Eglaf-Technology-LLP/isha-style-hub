@@ -92,6 +92,7 @@ import { useUrlTab } from "@/hooks/useDeepLink";
 import { supabase } from "@/integrations/supabase/client";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
+import { AccessCheckFailed } from "@/components/auth/AccessCheckFailed";
 import logo from "@/assets/logo.png";
 import { formatINR } from "@/lib/format";
 
@@ -112,7 +113,7 @@ export default function Admin() {
   const payoutsTabs = ["payouts", "cod", "invoices", ...(showPayoutRates ? ["rates"] : [])];
   const payoutsTab = payoutsTabs.includes(urlPayoutsTab) ? urlPayoutsTab : "payouts";
   const { user, signOut, loading: authLoading } = useAuth();
-  const { isAdmin, loading: adminLoading } = useAdmin();
+  const { isAdmin, loading: adminLoading, failed: adminCheckFailed, retry: retryAdminCheck } = useAdmin();
   const { canOperate: canOperateWarehouse } = useWarehouseAccess();
   const { vendor } = useVendor();
   const redirectParam = searchParams.get("redirect");
@@ -190,6 +191,9 @@ export default function Admin() {
       </div>
     );
   }
+
+  // The admin check couldn't be made: not a "denied" (src/lib/accessCheck.ts).
+  if (adminCheckFailed) return <AccessCheckFailed onRetry={() => retryAdminCheck()} />;
 
   // Logged in but not admin
   if (!isAdmin) {

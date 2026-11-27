@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "sonner";
 import type { BankProofType, BusinessConstitution, DocumentType } from "@/lib/vendorKyc";
+import { ACCESS_CHECK_QUERY, accessCheckState } from "@/lib/accessCheck";
 
 export interface Vendor {
   id: string;
@@ -138,10 +139,12 @@ export function useVendor() {
     queryKey,
     enabled: !!user,
     staleTime: VENDOR_STALE_MS,
+    ...ACCESS_CHECK_QUERY,
     queryFn: () => fetchOwnVendor(user!.id),
   });
   const vendor = user ? (query.data ?? null) : null;
-  const loading = authLoading || (!!user && query.isPending);
+  // `vendor` null means "no boutique" only when not loading and not failed.
+  const { loading, failed } = accessCheckState(!!user, authLoading, query);
   const { refetch } = query;
 
   const fetchVendor = useCallback(async () => {
@@ -194,6 +197,7 @@ export function useVendor() {
   return {
     vendor,
     loading,
+    failed,
     submitApplication,
     refresh: fetchVendor,
     setVendor,

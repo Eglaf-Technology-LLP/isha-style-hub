@@ -4,7 +4,8 @@ import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import type { CustomisationChoice } from "@/lib/customisation";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { AccessCheckFailed } from "@/components/auth/AccessCheckFailed";
 import { useQueryClient } from "@tanstack/react-query";
 import { liveProductCountKey } from "@/hooks/useLiveProductCount";
 import { useVendor } from "@/hooks/useVendor";
@@ -253,7 +254,7 @@ type PayoutErrorKey = keyof PayoutAccountForm | "bank_account_confirm";
 const BUSINESS_TYPES = ["individual", "proprietorship", "partnership", "private_limited", "llp", "huf"];
 
 export default function VendorDashboard() {
-  const { vendor, loading, refresh: refreshVendor } = useVendor();
+  const { vendor, loading, failed: vendorFailed, refresh: refreshVendor } = useVendor();
   // Waits for the boutique, rather than first fetching every boutique's products.
   const { totalAlerts: lowStockAlerts } = useLowStockAlerts(vendor?.id, { enabled: !!vendor });
   const { categories } = useCategories();
@@ -449,18 +450,11 @@ export default function VendorDashboard() {
     }
   };
 
+  // No boutique yet / not approved: sent on below, while rendering.
   useEffect(() => {
-    if (loading) return;
-    if (!vendor) {
-      navigate("/sell-with-us", { replace: true });
-      return;
-    }
-    if (vendor.status !== "approved") {
-      navigate("/vendor/pending", { replace: true });
-      return;
-    }
+    if (loading || vendor?.status !== "approved") return;
     fetchAll();
-  }, [loading, vendor, navigate]);
+  }, [loading, vendor]);
 
   // "Live products (N)" in the header links here with ?status=live: switch
   // the product list to that filter, then drop the param so the button works
@@ -782,17 +776,19 @@ export default function VendorDashboard() {
     : (focusedPayoutSub ?? "overview");
   useFlashFocus(!dataLoading && tab === "payouts");
 
-  if (loading || !vendor || vendor.status !== "approved") {
+  // Only a spinner while the boutique loads: the header can't tell a seller
+  // yet, and showed the shop's own header and footer (a "different page").
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="flex justify-center items-center py-40">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-        <Footer />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+  // The lookup couldn't be made: not "no boutique" (src/lib/accessCheck.ts).
+  if (vendorFailed) return <AccessCheckFailed onRetry={refreshVendor} />;
+  if (!vendor) return <Navigate to="/sell-with-us" replace />;
+  if (vendor.status !== "approved") return <Navigate to="/vendor/pending" replace />;
 
   // Was summing net_payable across every vendor_order regardless of
   // status or whether the order was ever actually paid - a cancelled or

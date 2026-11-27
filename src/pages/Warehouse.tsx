@@ -28,6 +28,7 @@ import { useWarehouseData } from "@/hooks/useWarehouseData";
 import { useFlashFocus, useUrlTab } from "@/hooks/useDeepLink";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
+import { AccessCheckFailed } from "@/components/auth/AccessCheckFailed";
 import { IncomingTab, InspectTab } from "@/components/warehouse/WarehouseInbound";
 import { DispatchedTab, PackTab } from "@/components/warehouse/WarehousePacking";
 import { ReturnsTab, SendBacksTab } from "@/components/warehouse/WarehouseReturns";
@@ -44,7 +45,8 @@ import logo from "@/assets/logo.png";
 export default function Warehouse() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { canOperate, isAdmin, loading: accessLoading } = useWarehouseAccess();
+  const { canOperate, isAdmin, loading: accessLoading, failed: accessCheckFailed, retry: retryAccessCheck } =
+    useWarehouseAccess();
   const [urlTab, setTab] = useUrlTab("incoming");
   // Settings may be hidden (src/lib/hiddenFeatures.ts; a super admin sees it):
   // then a link to it opens Incoming.
@@ -121,6 +123,9 @@ export default function Warehouse() {
       </div>
     );
   }
+
+  // The access check couldn't be made: not a "denied" (src/lib/accessCheck.ts).
+  if (accessCheckFailed) return <AccessCheckFailed onRetry={retryAccessCheck} />;
 
   if (!canOperate) {
     return (
