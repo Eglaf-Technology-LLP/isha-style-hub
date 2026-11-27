@@ -26,6 +26,8 @@ import { RefundMethodPicker } from "@/components/RefundMethodPicker";
 import { BANK_REFUND_DAYS, CHARGE_FREE_RETURN_REASONS, RefundMethod, refundOptions } from "@/lib/wallet";
 import { useRefundCharge } from "@/hooks/useWallet";
 import { COMPANY } from "@/lib/company";
+import { Link } from "react-router-dom";
+import { LEGAL_PATHS } from "@/lib/legal";
 
 // Front, back and a close-up of the tag (the database checks the same:
 // enforce_return_evidence).
@@ -293,7 +295,16 @@ export function ReturnRequestForm({
           <DialogDescription>
             {anyRefundable
               ? "Select items and provide a reason for your request."
-              : "These items are non-refundable, so they can be exchanged but not returned for a refund."}
+              : "These items are non-refundable, so they can be exchanged but not returned for a refund."}{" "}
+            {/* New tab, so the request isn't lost. */}
+            <Link
+              to={LEGAL_PATHS.returns}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline underline-offset-4"
+            >
+              Return &amp; Refund Policy
+            </Link>
           </DialogDescription>
         </DialogHeader>
 

@@ -37,6 +37,7 @@ import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { orderPaymentLine, paymentModeLine } from "@/lib/paymentMode";
 import { ReportProblemDialog } from "@/components/ReportProblemDialog";
+import { LEGAL_PATHS } from "@/lib/legal";
 import {
   PROBLEM_REPORT_COLUMNS,
   UNBOXING_RULE,
@@ -515,6 +516,10 @@ export default function OrderHistory() {
               </AccountAction>
               <AccountAction to="/wishlist" icon={Heart}>
                 Wishlist
+              </AccountAction>
+              {/* Client corrections, point 5: the policy on My Orders. */}
+              <AccountAction to={LEGAL_PATHS.returns} icon={RotateCcw}>
+                Return &amp; Refund Policy
               </AccountAction>
             </>
           }
