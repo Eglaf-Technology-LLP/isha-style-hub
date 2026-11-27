@@ -264,7 +264,8 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
         <CardTitle>Back to boutiques</CardTitle>
         <CardDescription>
           Cancelled orders, items that failed inspection, and returns that passed - each booked back to its boutique.
-          AllBoutiqs pays the courier.
+          AllBoutiqs books the courier. On returned, refused and RTO orders, and items that failed inspection, the
+          boutique pays one fixed courier charge, deducted in its payout (Terms &amp; Working Process 2.2).
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
