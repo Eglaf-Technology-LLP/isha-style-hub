@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -120,7 +121,7 @@ function slipFor(
       ewayBill: parcelEwayBill(p, dispatch),
       items: p.items.map((i) => ({
         title: i.product_title,
-        detail: [i.variant_title, i.size && `Size ${i.size}`, i.color].filter(Boolean).join(" · ") || null,
+        detail: itemOptionsLabel(i) || null,
         sku: i.sku,
         quantity: i.quantity,
       })),
@@ -135,7 +136,7 @@ function slipFor(
           const color = replacement ? i.exchange_to?.color ?? i.color : i.color;
           return {
             title: i.product_title,
-            detail: [size && `Size ${size}`, color].filter(Boolean).join(" · ") || null,
+            detail: itemOptionsLabel({ size, color }) || null,
             sku: null,
             quantity: i.quantity,
           };
@@ -374,7 +375,9 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                       <div>
                         <p className="font-medium">{p.vendor_name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {p.items.map((i) => `${i.product_title}${i.size ? ` (${i.size})` : ""} × ${i.quantity}`).join(", ")}
+                          {p.items
+                            .map((i) => `${i.product_title}${itemOptionsLabel(i) ? ` (${itemOptionsLabel(i)})` : ""} × ${i.quantity}`)
+                            .join(", ")}
                         </p>
                         <EwayBillNumbers bills={p.ewayBills} className="mt-1" />
                       </div>

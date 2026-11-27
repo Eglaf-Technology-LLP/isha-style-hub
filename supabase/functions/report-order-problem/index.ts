@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { corsHeaders, errorMessage, getCallerUserId, jsonResponse, serviceClient } from "../_shared/auth.ts";
 import { formatDateTimeInWords } from "../_shared/dates.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
@@ -115,7 +116,7 @@ interface ReportItem {
 }
 
 const itemLine = (i: ReportItem) =>
-  [i.product_title, i.size && `Size ${i.size}`, i.color, `Qty ${i.quantity}`].filter(Boolean).join(" · ");
+  [i.product_title, itemOptionsLabel(i), `Qty ${i.quantity}`].filter(Boolean).join(" · ");
 
 const row = (label: string, value: string) =>
   `<tr><td style="padding:4px 12px 4px 0; color:#6a6a6a; vertical-align:top; white-space:nowrap;">${label}</td><td style="padding:4px 0; color:#2a2a2a;">${value}</td></tr>`;

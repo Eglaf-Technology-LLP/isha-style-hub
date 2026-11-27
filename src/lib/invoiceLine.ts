@@ -40,6 +40,22 @@ export function invoiceLineDescription(description: string, color?: string | nul
   return text;
 }
 
+// The piece's name on an invoice / challan line without its size and colour,
+// which then show once under it as "Size XS · Colour Red" (client, 27 Nov
+// 2026: size was in the description and again in a Size column). The stored
+// description ("Lehnga – XS – Black") is left as issued; only the trailing
+// parts that are the line's size or colour are dropped here.
+export function invoiceLineName(description: string, size?: string | null, color?: string | null): string {
+  const text = invoiceLineDescription(description);
+  const customised = text.indexOf(" - Customised: ");
+  const main = customised >= 0 ? text.slice(0, customised) : text;
+  const tail = customised >= 0 ? text.slice(customised) : "";
+  const options = [size, color].filter((v): v is string => !!v?.trim()).map((v) => v.trim().toLowerCase());
+  const parts = main.split(" – ");
+  while (parts.length > 1 && options.includes(parts[parts.length - 1].trim().toLowerCase())) parts.pop();
+  return parts.join(" – ") + tail;
+}
+
 // A credit note is issued when an invoiced part is cancelled or comes back
 // undelivered, or when a return of it completes (the part stays delivered).
 export function mayHaveCreditNote(vendorOrderStatus: string | null | undefined, hasCompletedReturn = false): boolean {

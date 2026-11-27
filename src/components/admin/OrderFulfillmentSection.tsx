@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -229,13 +230,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                   <div key={item.id}>
                     <span className="font-medium">{item.product_title}</span>
                     <span className="text-muted-foreground"> × {item.quantity}</span>
-                    {(item.variant_title || item.size || item.color) && (
-                      <span className="text-muted-foreground">
-                        {" "}
-                        ({[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
-                          .filter(Boolean)
-                          .join(" · ")})
-                      </span>
+                    {itemOptionsLabel(item) && (
+                      <span className="text-muted-foreground"> ({itemOptionsLabel(item)})</span>
                     )}
                     <div className="font-mono text-muted-foreground">SKU: {item.sku || "not set"}</div>
                   </div>

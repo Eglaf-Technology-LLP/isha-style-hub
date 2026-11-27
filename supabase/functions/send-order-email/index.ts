@@ -1,3 +1,4 @@
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationSummary } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -359,11 +360,8 @@ const handler = async (req: Request): Promise<Response> => {
         <td style="padding: 12px 0; border-bottom: 1px solid #f0f0f0;">
           <strong style="color:#1a1a1a;">${escapeHtml(item.product_title)}</strong>
           ${
-            item.size || item.color
-              ? `<br><span style="color: #8a8a8a; font-size:13px;">${[
-                  item.size ? `Size: ${escapeHtml(item.size)}` : "",
-                  item.color ? `Colour: ${escapeHtml(item.color)}` : "",
-                ].filter(Boolean).join(" · ")}</span>`
+            itemOptionsLabel(item)
+              ? `<br><span style="color: #8a8a8a; font-size:13px;">${escapeHtml(itemOptionsLabel(item))}</span>`
               : ""
           }
           ${item.customisation ? `<br><span style="color: #8a8a8a; font-size:13px;">Customised: ${escapeHtml(customisationSummary(item.customisation))}</span>` : ""}

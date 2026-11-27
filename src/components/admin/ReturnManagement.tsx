@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -556,14 +557,11 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                             <div>
                               <p className="font-medium">{item.product_title}</p>
                               <p className="text-xs text-muted-foreground">
-                                {item.size && `Size: ${item.size}`}
-                                {item.size && item.color && " • "}
-                                {item.color && `Colour: ${item.color}`}
-                                {" • "}Qty: {item.quantity}
+                                {[itemOptionsLabel(item), `Qty ${item.quantity}`].filter(Boolean).join(" · ")}
                               </p>
                               {selectedRequest.request_type === "exchange" && exchangeTo && (exchangeTo.size || exchangeTo.color) && (
                                 <p className="text-xs text-primary mt-0.5">
-                                  Exchange for: {[exchangeTo.size, exchangeTo.color].filter(Boolean).join(" / ")}
+                                  Exchange for: {itemOptionsLabel(exchangeTo)}
                                 </p>
                               )}
                             </div>

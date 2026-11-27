@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { Button } from "@/components/ui/button";
@@ -29,12 +30,7 @@ function ItemsList({ vo }: { vo: WhVendorOrder }) {
         <div key={i.id} className="text-xs">
           <span className="font-medium">{i.product_title}</span>
           <span className="text-muted-foreground"> × {i.quantity}</span>
-          {(i.variant_title || i.size || i.color) && (
-            <span className="text-muted-foreground">
-              {" "}
-              ({[i.variant_title, i.size && `Size ${i.size}`, i.color].filter(Boolean).join(" · ")})
-            </span>
-          )}
+          {itemOptionsLabel(i) && <span className="text-muted-foreground"> ({itemOptionsLabel(i)})</span>}
           {i.sku && <div className="font-mono text-muted-foreground">SKU {i.sku}</div>}
           <MadeToOrderBadge madeToOrder={i.made_to_order} soldOutTerms={i.sold_out_terms} className="mt-1" />
           {i.customisation && <CustomisationDetails customisation={i.customisation} showPrices={false} className="mt-1" />}

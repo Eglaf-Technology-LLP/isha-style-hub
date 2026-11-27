@@ -1,3 +1,4 @@
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 import { formatDateTime } from "../_shared/dates.ts";
 import { money } from "../_shared/money.ts";
@@ -131,7 +132,7 @@ async function alertEmail(
   const last = tries[tries.length - 1];
   const { data: items } = await supabase
     .from("order_items")
-    .select("product_title, variant_title, quantity, price, vendor_id")
+    .select("product_title, variant_title, size, color, quantity, price, vendor_id")
     .eq("order_id", last.id);
   const vendorIds = [...new Set((items ?? []).map((i) => i.vendor_id).filter(Boolean))];
   const { data: vendors } = vendorIds.length
@@ -158,7 +159,7 @@ async function alertEmail(
     .map(
       (i) => `<tr>
         <td style="padding:6px 8px 6px 0; border-top:1px solid #eee; color:#2a2a2a;">${escapeHtml(i.product_title)}${
-          i.variant_title && i.variant_title !== "Default" ? `<br/><span style="color:#6a6a6a; font-size:12px;">${escapeHtml(i.variant_title)}</span>` : ""
+          itemOptionsLabel(i) ? `<br/><span style="color:#6a6a6a; font-size:12px;">${escapeHtml(itemOptionsLabel(i))}</span>` : ""
         }<br/><span style="color:#6a6a6a; font-size:12px;">${escapeHtml(boutique.get(i.vendor_id) ?? "")}</span></td>
         <td style="padding:6px 8px; border-top:1px solid #eee; text-align:center; color:#2a2a2a;">${i.quantity}</td>
         <td style="padding:6px 0 6px 8px; border-top:1px solid #eee; text-align:right; color:#2a2a2a; white-space:nowrap;">${money(i.price * i.quantity)}</td>
