@@ -1349,6 +1349,7 @@ export default function VendorDashboard() {
                                     shipment: forwardShipmentFor(o.id) ?? null,
                                   }}
                                   showCustomerContact={false}
+                                  forBoutique
                                 />
                               </div>
                             </TableCell>
@@ -1524,10 +1525,11 @@ export default function VendorDashboard() {
                                     {shipment.courier_name || shipment.awb_code ? (
                                       <div className="font-medium">{shipment.courier_name || "Courier assigned"}</div>
                                     ) : (
-                                      // A booking from before 24 Nov 2026 that Shiprocket made
-                                      // without a courier (empty wallet): it will never move.
+                                      // A booking from before 24 Nov 2026 made without a courier
+                                      // (empty wallet): it will never move. Boutiques only ever
+                                      // hear "courier" (client, 27 Nov 2026).
                                       <div className="text-amber-600 max-w-[220px]">
-                                        Shiprocket didn't assign a courier - press Cancel, then ship again
+                                        No courier was assigned - press Cancel, then ship again
                                       </div>
                                     )}
                                     {shipment.awb_code && (
@@ -1568,18 +1570,10 @@ export default function VendorDashboard() {
                               {(() => {
                                 const shipment = forwardShipmentFor(o.id);
                                 if (!shipment) return null;
+                                // No link out to the tracking site: it is Shiprocket's page,
+                                // and boutiques never see Shiprocket. History has every scan.
                                 return (
                                   <div className="flex items-center gap-2">
-                                    {shipment.awb_code && (
-                                      <a
-                                        href={`https://shiprocket.co/tracking/${shipment.awb_code}`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-xs text-primary inline-flex items-center gap-0.5 hover:underline"
-                                      >
-                                        Track <ExternalLink className="h-3 w-3" />
-                                      </a>
-                                    )}
                                     <ShipmentTimelineDialog shipmentId={shipment.id} awbCode={shipment.awb_code} />
                                   </div>
                                 );

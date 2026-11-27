@@ -299,6 +299,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                         shipNow={shipNow}
                         triggerSize="sm"
                         triggerLabel={viaWarehouse ? "Ship to warehouse" : "Ship Now"}
+                        showRates
                       />
                     )}
                   </div>

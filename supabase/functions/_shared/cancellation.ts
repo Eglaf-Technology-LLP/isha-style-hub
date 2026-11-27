@@ -125,13 +125,22 @@ export async function cancelOneVendorOrder(
       .in("shipment_type", ["forward", "to_warehouse"])
       .is("return_request_id", null);
     const ref = `#${String(vo?.order_id ?? order.id).slice(0, 8)}`;
-    const n = {
+    // The boutique only hears "courier": Shiprocket's name and its panel are
+    // AllBoutiqs' side (client, 27 Nov 2026), and the admins cancel it there.
+    if (vo?.vendor_id) {
+      await notifyVendorMembers(supabase, vo.vendor_id, {
+        type: "shipment_cancel_failed",
+        title: "Don't hand this parcel to the courier",
+        body: `Order ${ref} was cancelled, but its courier booking couldn't be cancelled automatically. AllBoutiqs is cancelling it - please don't hand the parcel to the courier.`,
+        link: links.vendorOrder(vendorOrder.id),
+      });
+    }
+    await notifyAllAdmins(supabase, {
       type: "shipment_cancel_failed",
       title: "Cancel this shipment in Shiprocket",
       body: `Order ${ref} was cancelled, but Shiprocket refused to cancel its courier booking (${msg}). Please cancel it in the Shiprocket panel so the courier doesn't pick it up.`,
-    };
-    if (vo?.vendor_id) await notifyVendorMembers(supabase, vo.vendor_id, { ...n, link: links.vendorOrder(vendorOrder.id) });
-    await notifyAllAdmins(supabase, { ...n, link: links.adminOrder(vendorOrder.id) });
+      link: links.adminOrder(vendorOrder.id),
+    });
   }
 
   const { error: updateVoErr } = await supabase

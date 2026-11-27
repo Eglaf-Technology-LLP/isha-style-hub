@@ -119,6 +119,9 @@ interface Props {
   triggerLabel?: string;
   // false for boutiques: no customer phone / email (Part 7, 4.2).
   showCustomerContact?: boolean;
+  // A boutique is looking: no link out to Shiprocket's tracking page - it
+  // never sees Shiprocket (client, 27 Nov 2026). Tracking Info below has the scans.
+  forBoutique?: boolean;
 }
 
 // The previous view crammed courier, AWB, tracking link, label link and
@@ -134,6 +137,7 @@ export function VendorOrderDetailsDialog({
   vendorOrderId,
   triggerLabel = "View Details",
   showCustomerContact = true,
+  forBoutique = false,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [lazyData, setLazyData] = useState<VendorOrderDetailsData | null>(null);
@@ -323,7 +327,7 @@ export function VendorOrderDetailsDialog({
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <Field
                     label="Courier"
-                    value={data.shipment.courier_name || (data.shipment.awb_code ? "Assigned" : "None - Shiprocket didn't assign one")}
+                    value={data.shipment.courier_name || (data.shipment.awb_code ? "Assigned" : "None - no courier was assigned")}
                   />
                   <Field label="AWB No." value={data.shipment.awb_code ? <span className="font-mono">{data.shipment.awb_code}</span> : "Not yet assigned"} />
                   {shipmentEwayBill && (
@@ -362,7 +366,7 @@ export function VendorOrderDetailsDialog({
                       </div>
                     </div>
                   )}
-                  {data.shipment.awb_code && (
+                  {data.shipment.awb_code && !forBoutique && (
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Tracking</p>
                       <a

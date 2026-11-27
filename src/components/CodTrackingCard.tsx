@@ -22,6 +22,10 @@ import { formatINR } from "@/lib/format";
 // it to AllBoutiqs, AllBoutiqs pays the boutique. A boutique sees its own
 // COD orders (vendorId); admins see every boutique's, can check Shiprocket
 // now and mark cash received by hand (bank UTR) when Shiprocket is late.
+//
+// A boutique never sees Shiprocket's name or its COD charge (client, 27 Nov
+// 2026) - to it the cash is "with the courier". The customer pays the COD
+// fee (3% + GST) at checkout; nothing for it is taken from the boutique.
 
 type CodRow = Database["public"]["Functions"]["cod_tracking"]["Returns"][number];
 type Stage = "awaiting_delivery" | "collected" | "received" | "paid" | "not_collected" | "cancelled";
@@ -35,12 +39,15 @@ const STEPS: { stage: Stage; label: string }[] = [
   { stage: "received", label: "Received by AllBoutiqs" },
   { stage: "paid", label: "Paid to boutique" },
 ];
-const STAGE_FILTERS: [string, string][] = [
+// Who the collected cash is waiting on: Shiprocket for admins, "the
+// courier" for a boutique.
+const collectedLabel = (admin: boolean) => (admin ? "Collected - waiting for Shiprocket" : "Collected - with the courier");
+const stageFilters = (admin: boolean): [string, string][] => [
   [ALL, "All COD orders"],
   ["awaiting_delivery", "Not delivered yet"],
-  ["collected", "Collected - waiting for Shiprocket"],
+  ["collected", collectedLabel(admin)],
   ["received", "Received - payout due"],
-  ["paid", "Paid to boutique"],
+  ["paid", admin ? "Paid to boutique" : "Paid to you"],
 ];
 
 function StageTrack({ stage }: { stage: Stage }) {
@@ -177,11 +184,18 @@ export function CodTrackingCard({ vendorId, admin = false }: { vendorId?: string
           <CardTitle className="flex items-center gap-2">
             <Banknote className="h-5 w-5" /> Cash on Delivery money
           </CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            The courier collects the cash, Shiprocket sends it to AllBoutiqs, and{" "}
-            {admin ? "the boutique is paid" : "you are paid"} in the next weekly payout after it arrives. Shiprocket's
-            COD charge on each parcel is taken from Shiprocket and shown below.
-          </p>
+          {admin ? (
+            <p className="text-sm text-muted-foreground mt-1">
+              The courier collects the cash, Shiprocket sends it to AllBoutiqs, and the boutique is paid in the next
+              weekly payout after it arrives. The customer pays the COD fee (3% + GST) at checkout - it is never taken
+              from the boutique. Shiprocket's own COD charge on each parcel, shown below, is AllBoutiqs' cost.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground mt-1">
+              The courier collects the cash and sends it to AllBoutiqs. You are paid in the next Wednesday payout after
+              the cash reaches us. The COD fee (3% + GST) is paid by the customer - nothing extra is deducted from you.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {admin && (
@@ -204,7 +218,7 @@ export function CodTrackingCard({ vendorId, admin = false }: { vendorId?: string
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STAGE_FILTERS.map(([v, l]) => (
+              {stageFilters(admin).map(([v, l]) => (
                 <SelectItem key={v} value={v}>
                   {l}
                 </SelectItem>
@@ -221,10 +235,10 @@ export function CodTrackingCard({ vendorId, admin = false }: { vendorId?: string
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <Tile
-            label="Collected - waiting for Shiprocket"
+            label={collectedLabel(admin)}
             amount={totals.collected.amount}
             count={totals.collected.rows.length}
-            hint="cash with the courier / Shiprocket"
+            hint={admin ? "cash with the courier / Shiprocket" : "cash with the courier"}
           />
           <Tile
             label={admin ? "Received by AllBoutiqs - payout due" : "Received by AllBoutiqs - your payout due"}
@@ -268,7 +282,7 @@ export function CodTrackingCard({ vendorId, admin = false }: { vendorId?: string
                   <TableHead>Order</TableHead>
                   {admin && <TableHead>Boutique</TableHead>}
                   <TableHead className="text-right">Cash collected</TableHead>
-                  <TableHead className="text-right">Shiprocket COD charge</TableHead>
+                  {admin && <TableHead className="text-right">Shiprocket COD charge</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead>Details</TableHead>
                 </TableRow>
@@ -298,16 +312,22 @@ export function CodTrackingCard({ vendorId, admin = false }: { vendorId?: string
                       </TableCell>
                     )}
                     <TableCell className="text-right tabular-nums text-sm">{money(r.cod_amount)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-sm">
-                      {Number(r.cod_charge) > 0 ? money(r.cod_charge) : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
+                    {admin && (
+                      <TableCell className="text-right tabular-nums text-sm">
+                        {Number(r.cod_charge) > 0 ? money(r.cod_charge) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <StageTrack stage={r.stage as Stage} />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground space-y-0.5 min-w-[200px]">
                       {r.delivered_at && <div>Delivered {day(r.delivered_at)}{r.awb_code ? ` · AWB ${r.awb_code}` : ""}</div>}
                       {r.stage === "collected" && (
-                        <div>Waiting for Shiprocket's remittance{r.shiprocket_status ? ` (${r.shiprocket_status})` : ""}</div>
+                        <div>
+                          {admin
+                            ? `Waiting for Shiprocket's remittance${r.shiprocket_status ? ` (${r.shiprocket_status})` : ""}`
+                            : "Waiting for the courier to send the cash"}
+                        </div>
                       )}
                       {r.cod_received_at && (
                         <div>

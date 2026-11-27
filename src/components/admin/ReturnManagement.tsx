@@ -463,7 +463,12 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                             <Eye className="h-4 w-4" />
                           </Button>
                           {request.vendorOrderIds.map((vendorOrderId) => (
-                            <VendorOrderDetailsDialog key={vendorOrderId} vendorOrderId={vendorOrderId} triggerLabel="View Order" />
+                            <VendorOrderDetailsDialog
+                              key={vendorOrderId}
+                              vendorOrderId={vendorOrderId}
+                              triggerLabel="View Order"
+                              forBoutique={vendorView}
+                            />
                           ))}
                         </div>
                       </TableCell>

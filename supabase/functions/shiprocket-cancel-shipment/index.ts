@@ -5,13 +5,14 @@ import {
   getCallerUserId,
   isAdmin,
   isVendorMember,
-  errorMessage,
+  courierErrorFor,
   cancelShiprocketShipment,
 } from "../_shared/shiprocket.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let admin = false;
   try {
     const { vendor_order_id } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
@@ -29,8 +30,8 @@ Deno.serve(async (req) => {
     if (voErr) throw voErr;
     if (!vendorOrder) return jsonResponse({ error: "Vendor order not found" }, 404);
 
-    const authorized =
-      (await isAdmin(supabase, userId)) || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
+    admin = await isAdmin(supabase, userId);
+    const authorized = admin || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     // This is "undo the booking so a different courier can be picked," not
@@ -53,6 +54,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ cancelled: true });
   } catch (e) {
     console.error("shiprocket-cancel-shipment error", e);
-    return jsonResponse({ error: errorMessage(e) }, 500);
+    // A boutique hears it in courier terms (no Shiprocket name or wallet).
+    return jsonResponse({ error: courierErrorFor(e, admin) }, 500);
   }
 });

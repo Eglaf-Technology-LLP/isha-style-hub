@@ -8,6 +8,7 @@ import {
   ensurePickupLocation,
   shiprocketRequest,
   errorMessage,
+  courierErrorFor,
   computeTotalWeightKg,
   bookForwardShipment,
   bookedCourierCost,
@@ -45,9 +46,13 @@ import {
 // any courier can be booked; the number goes to Shiprocket with the booking.
 // An exchange replacement over the limit travels on its own delivery challan
 // and e-way bill.
+//
+// A boutique's errors are said in courier terms (courierErrorFor): it never
+// sees Shiprocket's name, its charges or its wallet.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let admin = false;
   try {
     const { vendor_order_id, courier_id, courier_name, courier_etd, return_request_id } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
@@ -75,8 +80,8 @@ Deno.serve(async (req) => {
     if (voErr) throw voErr;
     if (!vendorOrder) return jsonResponse({ error: "Vendor order not found" }, 404);
 
-    const authorized =
-      (await isAdmin(supabase, userId)) || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
+    admin = await isAdmin(supabase, userId);
+    const authorized = admin || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     const [{ data: order, error: orderErr }, { data: vendor, error: vendorErr }] = await Promise.all([
@@ -356,10 +361,12 @@ Deno.serve(async (req) => {
         .in("status", ["pending", "confirmed"]);
     }
 
-    return jsonResponse({ shipment, already_shipped: false, via_warehouse: !!warehouse });
+    // What the booking cost stays with admins.
+    const { courier_cost: _courierCost, ...shipmentForBoutique } = shipment;
+    return jsonResponse({ shipment: admin ? shipment : shipmentForBoutique, already_shipped: false, via_warehouse: !!warehouse });
   } catch (e) {
     console.error("shiprocket-create-shipment error", e);
     if (e instanceof InvoiceError) return jsonResponse({ error: e.message }, e.status);
-    return jsonResponse({ error: errorMessage(e) }, 500);
+    return jsonResponse({ error: courierErrorFor(e, admin) }, 500);
   }
 });

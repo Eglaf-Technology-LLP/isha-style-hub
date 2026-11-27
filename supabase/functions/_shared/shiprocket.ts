@@ -12,6 +12,36 @@ export { errorMessage, serviceClient, getCallerUserId, isAdmin, isVendorMember, 
 
 export class ShiprocketError extends AppError {}
 
+// Boutiques never see Shiprocket's name, its charges or its wallet (client,
+// 27 Nov 2026): to them it is "the courier". A booking error that has its own
+// boutique wording carries it here; admins still get the full message.
+export class CourierError extends Error {
+  boutiqueMessage: string;
+  constructor(message: string, boutiqueMessage: string) {
+    super(message);
+    this.boutiqueMessage = boutiqueMessage;
+  }
+}
+
+const NOT_FOR_BOUTIQUES = /shiprocket|wallet|recharge|balance|freight|coverage/i;
+const BOUTIQUE_FALLBACK =
+  "The courier service couldn't do this right now. Please try again in a few minutes, and contact AllBoutiqs if it keeps happening.";
+
+// The error text for whoever pressed the button: the full one for an admin,
+// the courier wording for a boutique. Anything from Shiprocket's own answer
+// that names it, its wallet or its charges becomes the general message.
+export function courierErrorFor(e: unknown, admin: boolean): string {
+  const message = errorMessage(e);
+  if (admin) return message;
+  if (e instanceof CourierError) return e.boutiqueMessage;
+  return NOT_FOR_BOUTIQUES.test(message) ? BOUTIQUE_FALLBACK : message;
+}
+
+// Shiprocket's own reason, only when a boutique may read it.
+function boutiqueSafe(reason: string): string {
+  return reason && !NOT_FOR_BOUTIQUES.test(reason) ? reason : "";
+}
+
 // Shiprocket's own bearer token is valid ~240 hours (10 days). Cached in
 // a single-row, service-role-only table so we don't re-authenticate on
 // every function call - re-logging in per call risks the same kind of
@@ -646,11 +676,15 @@ export async function bookForwardShipment(
     // bill step) - cancel it so a retry doesn't leave a stray NEW order.
     await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(result.payload?.order_id ?? result.order_id));
     const reason = result.payload?.error_message || result.message || "Shiprocket rejected the shipment request";
-    throw new Error(
-      params.ewayBill && /eway/i.test(String(reason))
-        ? `${reason}: Shiprocket couldn't take e-way bill ${params.ewayBill.number}. Usually the number isn't on the government e-way bill portal yet, or the e-way bill's transporter isn't the courier - AllBoutiqs needs to check the e-way bill.`
-        : reason,
-    );
+    if (params.ewayBill && /eway/i.test(String(reason))) {
+      const why =
+        "Usually the number isn't on the government e-way bill portal yet, or the e-way bill's transporter isn't the courier - AllBoutiqs needs to check the e-way bill.";
+      throw new CourierError(
+        `${reason}: Shiprocket couldn't take e-way bill ${params.ewayBill.number}. ${why}`,
+        `The courier couldn't take e-way bill ${params.ewayBill.number}. ${why}`,
+      );
+    }
+    throw new Error(reason);
   }
   const p = result.payload;
   const shipmentId = toIntOrNull(p.shipment_id);
@@ -663,7 +697,7 @@ export async function bookForwardShipment(
     // and say why instead, so Ship Now can simply be pressed again.
     console.error("Shiprocket forward-shipment assigned no courier", params.channelOrderId, JSON.stringify(result));
     await cancelOrphanedShiprocketOrder(supabase, toIntOrNull(p.order_id));
-    throw new Error(await noCourierReason(supabase, p));
+    throw await noCourierError(supabase, p);
   }
   // The wrapper can come back with the AWB but no label - ask for it directly.
   const labelUrl = p.label_url || (shipmentId ? await generateLabel(supabase, shipmentId) : null);
@@ -736,21 +770,28 @@ async function warnIfWalletLow(supabase: SupabaseClient) {
   if (balance !== null && balance < walletAlertBelow()) await alertAdminsWallet(supabase, balance, false);
 }
 
-// What the person pressing Ship Now is told when Shiprocket assigned no courier.
-async function noCourierReason(
+// What the person pressing Ship Now is told when Shiprocket assigned no
+// courier. A boutique hears it without the wallet or Shiprocket's name.
+async function noCourierError(
   supabase: SupabaseClient,
   payload: { awb_assign_error?: string; error_message?: string } | undefined,
-): Promise<string> {
+): Promise<CourierError> {
   const balance = await shiprocketWalletBalance(supabase);
   if (balance !== null && balance < walletAlertBelow()) {
     await alertAdminsWallet(supabase, balance, true);
-    return (
+    return new CourierError(
       `Shiprocket didn't assign a courier: its wallet has ${money(balance)} left, not enough for the freight. ` +
-      "AllBoutiqs has been told to recharge it. Nothing was booked - press Ship Now again once that's done."
+        "AllBoutiqs has been told to recharge it. Nothing was booked - press Ship Now again once that's done.",
+      "No courier could be assigned to this parcel right now. AllBoutiqs has been told and is sorting it out. " +
+        "Nothing was booked - press Ship Now again in a little while.",
     );
   }
   const reason = payload?.awb_assign_error || payload?.error_message || "";
-  return `Shiprocket didn't assign a courier to this parcel${reason ? ` (${reason})` : ""}. Nothing was booked - try again, or pick another courier.`;
+  const safeReason = boutiqueSafe(reason);
+  return new CourierError(
+    `Shiprocket didn't assign a courier to this parcel${reason ? ` (${reason})` : ""}. Nothing was booked - try again, or pick another courier.`,
+    `No courier was assigned to this parcel${safeReason ? ` (${safeReason})` : ""}. Nothing was booked - try again, or pick another courier.`,
+  );
 }
 
 // A Shiprocket order exists but we failed to record it - cancel it back out
