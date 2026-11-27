@@ -297,7 +297,9 @@ const handler = async (req: Request): Promise<Response> => {
         const windowHours = Number(settings?.return_window_hours ?? 24);
         subject = `Delivered - your order #${orderNumber} | AllBoutiqs`;
         heading = "Your order has been delivered!";
-        message = `We hope you love it! If something isn't right, you can request a return or exchange from My Orders within ${windowHours} hours of delivery.`;
+        // The 24-hour unboxing rule (client, 27 Nov 2026) - same words as
+        // UNBOXING_RULE in src/lib/problemReport.ts.
+        message = `We hope you love it! Please open your parcel within 24 hours of delivery and record an unboxing video – report any problem in My orders › Report a problem. To return or exchange a piece, ask from My Orders within ${windowHours} hours of delivery.`;
         break;
       }
       case "cancelled": {

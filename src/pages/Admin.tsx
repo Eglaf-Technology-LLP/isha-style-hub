@@ -75,6 +75,7 @@ import { StatementDownload } from "@/components/StatementDownload";
 import { SalesAnalyticsDashboard } from "@/components/admin/SalesAnalyticsDashboard";
 import { InventoryAlerts } from "@/components/admin/InventoryAlerts";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
+import { ProblemReportsPanel } from "@/components/admin/ProblemReportsPanel";
 import { VendorManagement } from "@/components/admin/VendorManagement";
 import { ProductModeration } from "@/components/admin/ProductModeration";
 import { VendorCatalogManagement } from "@/components/admin/VendorCatalogManagement";
@@ -489,6 +490,8 @@ export default function Admin() {
           {/* Returns Tab */}
           <TabsContent value="returns" className="space-y-6">
             {showReturnSettings && <ReturnSettingsCard />}
+            {/* Report a problem (within 24 hours of delivery). */}
+            <ProblemReportsPanel />
             <ReturnManagement />
           </TabsContent>
 

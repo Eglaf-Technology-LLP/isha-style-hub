@@ -14,6 +14,11 @@ export const links = {
   adminPayouts: () => `/admin?tab=vendor-payouts`,
   adminVendor: () => `/admin?tab=vendors&sub=applications`,
   adminEwayBill: (ewayBillId: string) => `/admin?tab=eway-bills&focus=${ewayBillId}`,
+  // Report a problem (report-order-problem): in each one's Returns tab, by
+  // its own ?problem= (ProblemReportsPanel), so the returns list's ?focus=
+  // doesn't look for it.
+  adminProblemReport: (reportId: string) => `/admin?tab=returns&problem=${reportId}`,
+  vendorProblemReport: (reportId: string) => `/vendor?tab=returns&problem=${reportId}`,
   customerOrder: (orderId: string) => `/orders?focus=${orderId}`,
 };
 
