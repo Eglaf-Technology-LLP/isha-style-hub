@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { REFUND_STATE_STYLE, summariseRefunds, useOrderRefunds, type RefundSummary } from "@/hooks/useOrderRefunds";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import type { CustomisationChoice } from "@/lib/customisation";
@@ -155,7 +156,7 @@ const paymentStatusColors: Record<string, string> = {
   pending: "bg-yellow-100 text-yellow-800",
   completed: "bg-green-100 text-green-800",
   failed: "bg-red-100 text-red-800",
-  refunded: "bg-gray-100 text-gray-800",
+  refunded: "bg-green-100 text-green-800",
 };
 
 // Once an order is cancelled, "Payment: Pending" reads as if we're still
@@ -165,18 +166,28 @@ const paymentStatusColors: Record<string, string> = {
 // data, just a confusing label for a cancelled order specifically.
 // Otherwise it says how the order was paid (client, 24 Nov 2026): "Paid
 // by UPI", or "Cash on Delivery" until the courier collects the cash.
-function paymentStatusDisplay(order: {
-  payment_status: string;
-  payment_method: string;
-  paid_via?: string | null;
-  order_status: string;
-}): { label: string; className: string } {
+// A cancelled order's refund comes from the refunds themselves (client, 27
+// Nov 2026): one credited to the AllBoutiqs Wallet is "Refunded" at once,
+// though the payment itself stays "paid"; amber while on its way, green done.
+function paymentStatusDisplay(
+  order: {
+    payment_status: string;
+    payment_method: string;
+    paid_via?: string | null;
+    order_status: string;
+  },
+  refunds: RefundSummary | null,
+): { label: string; className: string } {
+  if (order.order_status === "cancelled" && refunds) {
+    const style = REFUND_STATE_STYLE[refunds.state === "refunded" ? "refunded" : "processing"];
+    return { label: `Payment: ${style.label}`, className: style.className };
+  }
   if (order.order_status === "cancelled" && order.payment_status !== "refunded") {
     if (order.payment_method === "cod") {
       return { label: "Payment: Not Required", className: "bg-gray-100 text-gray-800" };
     }
     if (order.payment_status === "paid") {
-      return { label: "Payment: Refund Processing", className: "bg-amber-100 text-amber-800" };
+      return { label: `Payment: ${REFUND_STATE_STYLE.processing.label}`, className: REFUND_STATE_STYLE.processing.className };
     }
   }
   if (order.payment_method === "cod" && order.payment_status === "pending") {
@@ -281,6 +292,16 @@ export default function OrderHistory() {
   // Which orders have their items/tracking section open, by order id.
   const [openOrders, setOpenOrders] = useState<Record<string, string>>({});
   const { returnRequests, cancelReturnRequest } = useReturnRequests();
+
+  // Refunds on these orders (gateway and wallet), read again when a status changes.
+  const refundsVersion = orders
+    .map((o) => `${o.id}:${o.order_status}:${o.payment_status}:${o.vendor_orders.map((v) => v.status).join(",")}`)
+    .join("|");
+  const { byOrder: refundsByOrder } = useOrderRefunds(
+    orders.map((o) => o.id),
+    null,
+    refundsVersion,
+  );
 
   const returnsByOrder = returnRequests.reduce<Record<string, ReturnRequest[]>>((acc, rr) => {
     if (!acc[rr.order_id]) acc[rr.order_id] = [];
@@ -581,7 +602,8 @@ export default function OrderHistory() {
                   order.vendor_orders.some((vo) => isPartCancellableByCustomer(vo.status, !!vo.parcel)) &&
                   isWithinCustomerCancelWindow(order.created_at);
                 const isPaidOnline = order.payment_method === "razorpay" && order.payment_status === "paid";
-                const paymentDisplay = paymentStatusDisplay(order);
+                const orderRefunds = refundsByOrder.get(order.id) ?? [];
+                const paymentDisplay = paymentStatusDisplay(order, summariseRefunds(orderRefunds));
                 const returnWindow = returnWindowFor(order);
                 const problemWindow = problemWindowFor(order);
                 const orderProblemReports = problemReports.filter((r) => r.order_id === order.id);
@@ -1008,15 +1030,12 @@ export default function OrderHistory() {
                             </div>
                           )}
 
-                          {/* orders.payment_status has no "partially_refunded" value in its
-                              check constraint - only "refunded" (whole payment). A partial
-                              refund on an otherwise "paid" order would still show here via
-                              RefundHistory querying refunds directly, but there's no order-level
-                              flag to gate on for that case without an extra query per order. */}
-                          {order.payment_status === "refunded" && (
+                          {/* Every refund on the order - a cancelled part's, a return's,
+                              to the wallet or the original payment - with where it went. */}
+                          {orderRefunds.length > 0 && (
                             <div className="space-y-2 border-t border-border pt-5">
                               <p className="text-[11px] font-medium uppercase tracking-[0.18em]">Refunds</p>
-                              <RefundHistory orderId={order.id} inWords />
+                              <RefundHistory orderId={order.id} inWords forCustomer />
                             </div>
                           )}
 

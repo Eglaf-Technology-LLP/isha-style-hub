@@ -1585,7 +1585,7 @@ export default function VendorDashboard() {
                                   sale in this order. Vendors can't trigger a refund, only
                                   see one an admin already processed. Compact summary here,
                                   not the full card - "Details" opens the full breakdown. */}
-                              <RefundSummaryCell orderId={o.order_id} />
+                              <RefundSummaryCell orderId={o.order_id} vendorOrderId={o.id} version={o.status} />
                             </TableCell>
                             <TableCell>
                               <InvoiceDownloadButton

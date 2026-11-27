@@ -809,7 +809,10 @@ export function ReturnManagement({ vendorView = false }: ReturnManagementProps) 
                         </p>
                       </div>
                     )}
-                    <RefundHistory orderId={selectedRequest.order_id} />
+                    <RefundHistory
+                      orderId={selectedRequest.order_id}
+                      vendorOrderId={vendorView ? selectedRequest.vendorOrderIds[0] : undefined}
+                    />
 
                     {selectedRequest.status === "approved" && hasShipment === false && (
                       <div className="flex items-center gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3">
