@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { amountTone, MINUS_AMOUNT } from "@/lib/amountTone";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { PAYOUT_SCHEDULE_NOTE_ENABLED } from "@/lib/hiddenFeatures";
 import { useShown } from "@/hooks/useSuperAdmin";
@@ -265,8 +266,8 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                     <TableCell className="text-sm">{p.vendorName}</TableCell>
                     <TableCell className="text-sm">{p.orderCount}</TableCell>
                     <TableCell className="text-sm tabular-nums">{formatMoney(p.grossSales)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground tabular-nums">-{formatMoney(p.commissionAmount)}</TableCell>
-                    <TableCell className="font-semibold tabular-nums">{formatMoney(p.netPayable)}</TableCell>
+                    <TableCell className={`text-sm tabular-nums ${MINUS_AMOUNT}`}>-{formatMoney(p.commissionAmount)}</TableCell>
+                    <TableCell className={`font-semibold tabular-nums ${amountTone(p.netPayable)}`}>{formatMoney(p.netPayable)}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{p.bankLast4 ? `••${p.bankLast4}` : "—"}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={statusClass[p.status] || "bg-muted"}>

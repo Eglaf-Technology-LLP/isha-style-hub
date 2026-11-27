@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MINUS_AMOUNT } from "@/lib/amountTone";
 import { itemOptionsLabel } from "@/lib/itemOptions";
 import {
   Dialog,
@@ -471,7 +472,7 @@ export function VendorOrderDetailsDialog({
                   <span>{formatMoney(data.shippingCost)}</span>
                 </div>
                 {!!data.discountAmount && data.discountAmount > 0 && (
-                  <div className="flex justify-between text-primary">
+                  <div className={`flex justify-between ${MINUS_AMOUNT}`}>
                     <span>Discount{data.discountCode && ` (${data.discountCode})`}</span>
                     <span>-{formatMoney(data.discountAmount)}</span>
                   </div>

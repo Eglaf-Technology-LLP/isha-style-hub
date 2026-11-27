@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { amountTone } from "@/lib/amountTone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -203,7 +204,7 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-primary">
+            <p className={`text-2xl font-bold ${amountTone(stats.totalReceived - stats.totalRefunded, "text-primary")}`}>
               {formatMoney((stats.totalReceived - stats.totalRefunded))}
             </p>
           </CardContent>
@@ -271,12 +272,14 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <PiggyBank className="h-4 w-4 text-green-600" />
+                  <PiggyBank className={`h-4 w-4 ${amountTone(revenueStats?.netPlatformRevenue || 0, "text-green-600")}`} />
                   True Net Platform Revenue
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-green-600">
+                {/* Green when the platform earns, red when gateway fees outrun
+                    the commission (client, 27 Nov 2026: minus is always red). */}
+                <p className={`text-2xl font-bold ${amountTone(revenueStats?.netPlatformRevenue || 0, "text-green-600")}`}>
                   {formatMoney((revenueStats?.netPlatformRevenue || 0))}
                 </p>
                 <p className="text-xs text-muted-foreground">

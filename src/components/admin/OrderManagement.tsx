@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { MINUS_AMOUNT } from "@/lib/amountTone";
 import { itemOptionsLabel } from "@/lib/itemOptions";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
@@ -410,7 +411,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                         ) : null;
                       })()}
                       {order.discount_amount > 0 && (
-                        <div className="text-xs font-normal text-primary">
+                        <div className={`text-xs font-normal ${MINUS_AMOUNT}`}>
                           -{formatMoney(order.discount_amount)}{order.discount_code && ` (${order.discount_code})`}
                         </div>
                       )}
@@ -634,7 +635,7 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                     <span>{formatMoney(selectedOrder.shipping_cost)}</span>
                   </div>
                   {selectedOrder.discount_amount > 0 && (
-                    <div className="flex justify-between text-primary">
+                    <div className={`flex justify-between ${MINUS_AMOUNT}`}>
                       <span>
                         Discount{selectedOrder.discount_code && ` (${selectedOrder.discount_code})`}
                       </span>

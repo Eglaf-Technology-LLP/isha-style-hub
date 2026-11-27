@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { amountTone, MINUS_AMOUNT } from "@/lib/amountTone";
 import { FileText, Loader2, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +38,8 @@ const FEE_COLUMNS: [keyof FeeBreakdown, string][] = [
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const money = (n: number) => formatMoney(n);
 const minus = (n: number) => (n ? `-${formatMoney(n)}` : "—");
+// A charge taken off is a minus amount: red (client, 27 Nov 2026); none is a grey dash.
+const minusTone = (n: number) => (n ? MINUS_AMOUNT : "text-muted-foreground");
 
 // One payout, order by order: what each sold for and every charge taken off
 // before the amount transferred - the same figures the boutique's earnings
@@ -124,16 +127,16 @@ export function PayoutBreakdownDialog({ payout, size = "sm" }: { payout: Breakdo
                         <TableCell className="font-mono text-xs">#{o.orderId.slice(0, 8).toUpperCase()}</TableCell>
                         <TableCell className="text-sm whitespace-nowrap">{o.deliveredAt ? formatDate(new Date(o.deliveredAt)) : "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{money(o.grossSales)}</TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                        <TableCell className={`text-right tabular-nums ${minusTone(o.commissionAmount)}`}>
                           {minus(o.commissionAmount)}
                           {o.commissionRate ? <span className="block text-[10px]">{o.commissionRate}%</span> : null}
                         </TableCell>
                         {feeCols.map(([k]) => (
-                          <TableCell key={k} className="text-right tabular-nums text-muted-foreground">
+                          <TableCell key={k} className={`text-right tabular-nums ${minusTone(o.fees[k])}`}>
                             {minus(o.fees[k])}
                           </TableCell>
                         ))}
-                        <TableCell className="text-right tabular-nums font-medium">{money(o.netPayable)}</TableCell>
+                        <TableCell className={`text-right tabular-nums font-medium ${amountTone(o.netPayable)}`}>{money(o.netPayable)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -143,13 +146,13 @@ export function PayoutBreakdownDialog({ payout, size = "sm" }: { payout: Breakdo
                         Total ({rows.length} order{rows.length === 1 ? "" : "s"})
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{money(totals.gross)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{minus(totals.commission)}</TableCell>
+                      <TableCell className={`text-right tabular-nums ${minusTone(totals.commission)}`}>{minus(totals.commission)}</TableCell>
                       {feeCols.map(([k]) => (
-                        <TableCell key={k} className="text-right tabular-nums">
+                        <TableCell key={k} className={`text-right tabular-nums ${minusTone(totals.fees[k])}`}>
                           {minus(totals.fees[k])}
                         </TableCell>
                       ))}
-                      <TableCell className="text-right tabular-nums font-semibold">{money(totals.net)}</TableCell>
+                      <TableCell className={`text-right tabular-nums font-semibold ${amountTone(totals.net)}`}>{money(totals.net)}</TableCell>
                     </TableRow>
                   </TableFooter>
                 </Table>
@@ -162,11 +165,11 @@ export function PayoutBreakdownDialog({ payout, size = "sm" }: { payout: Breakdo
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Charges taken off</p>
-                  <p className="font-medium tabular-nums text-destructive">-{money(deductions)}</p>
+                  <p className={`font-medium tabular-nums ${MINUS_AMOUNT}`}>-{money(deductions)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Amount transferred</p>
-                  <p className="font-semibold tabular-nums">{money(payout.netPayable)}</p>
+                  <p className={`font-semibold tabular-nums ${amountTone(payout.netPayable)}`}>{money(payout.netPayable)}</p>
                 </div>
               </div>
               {Math.abs(totals.net - payout.netPayable) >= 0.01 && (

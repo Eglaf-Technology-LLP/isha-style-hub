@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { amountTone } from "@/lib/amountTone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -152,7 +153,7 @@ export function VendorPerformanceAnalytics() {
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Net Payable to Vendor</p>
-                  <p className="text-lg font-bold">{formatMoney(detailVendor.netPayable)}</p>
+                  <p className={`text-lg font-bold ${amountTone(detailVendor.netPayable)}`}>{formatMoney(detailVendor.netPayable)}</p>
                 </div>
                 <div className="p-3 bg-muted rounded-lg">
                   <p className="text-xs text-muted-foreground">Paid / Pending Orders</p>
