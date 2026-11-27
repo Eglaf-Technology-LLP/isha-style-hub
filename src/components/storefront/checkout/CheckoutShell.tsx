@@ -78,7 +78,7 @@ export function CheckoutShell({
             <a href={telHref(COMPANY.supportPhone)} className="text-foreground hover:text-primary">
               {COMPANY.supportPhone}
             </a>{" "}
-            ·{" "}
+            ({COMPANY.callHours}) ·{" "}
             <a href={`mailto:${COMPANY.supportEmail}`} className="text-foreground hover:text-primary">
               {COMPANY.supportEmail}
             </a>

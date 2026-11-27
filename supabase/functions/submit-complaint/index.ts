@@ -201,7 +201,7 @@ ${row("Account", account ? `Signed in as ${esc(account)}` : "Not signed in")}
 </table>
 <p style="margin:0 0 8px; font-weight:600;">Complaint</p>
 ${messageBlock(c.message)}
-<p style="margin:0; font-size:13px; color:#6a6a6a;">The customer was told they'll hear back within 48 hours and that it will be resolved within one month.</p>`,
+<p style="margin:0; font-size:13px; color:#6a6a6a;">The customer was told we aim to acknowledge it within 24 hours and resolve it within 7 days.</p>`,
   });
   return { subject, html };
 }
@@ -210,14 +210,14 @@ function customerEmail(c: Complaint, ticket: string, submittedAt: string) {
   const g = COMPANY.grievanceOfficer;
   const subject = `We've received your complaint - ticket ${ticket}`;
   const html = emailTemplate({
-    preheader: `Your ticket number is ${ticket}. We'll get back to you within 48 hours.`,
+    preheader: `Your ticket number is ${ticket}. We aim to acknowledge within 24 hours and resolve within 7 days.`,
     heading: "We've received your complaint",
     bodyHtml: `
 <p style="margin:0 0 16px;">Hi ${esc(c.name)},</p>
 <p style="margin:0 0 16px;">Thank you for telling us. Your complaint has been registered with our team.</p>
 <p style="margin:0 0 4px; font-size:13px; color:#6a6a6a;">Your ticket number</p>
 <p style="margin:0 0 20px; font-family:'Courier New',Courier,monospace; font-size:24px; font-weight:700; letter-spacing:2px; color:#7a2e22;">${ticket}</p>
-<p style="margin:0 0 16px;">We'll get back to you within <strong>48 hours</strong> and resolve your complaint within one month. Please quote your ticket number whenever you write to us about it.</p>
+<p style="margin:0 0 16px;">We aim to acknowledge your complaint within <strong>24 hours</strong> and resolve it within <strong>7 days</strong>. Please quote your ticket number whenever you write to us about it.</p>
 <p style="margin:0 0 8px; font-weight:600;">What you told us</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 12px; font-size:14px;">
 ${row("Received", esc(submittedAt))}

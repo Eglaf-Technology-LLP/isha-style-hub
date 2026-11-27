@@ -135,7 +135,7 @@ function ComplaintForm({ onDone }: { onDone: () => void }) {
           ) : (
             <>We couldn't email you a confirmation, so please note your ticket number.</>
           )}{" "}
-          We'll get back to you within 48 hours.
+          We aim to acknowledge within 24 hours and resolve within 7 days.
         </p>
         <button
           type="button"
@@ -155,7 +155,8 @@ function ComplaintForm({ onDone }: { onDone: () => void }) {
       <DialogHeader>
         <DialogTitle className="font-serif text-2xl font-normal">Raise a complaint</DialogTitle>
         <DialogDescription>
-          Tell us what went wrong. You'll get a ticket number by email, and we'll get back to you within 48 hours.
+          Tell us what went wrong. You'll get a ticket number by email. We aim to acknowledge within 24 hours and
+          resolve within 7 days.
         </DialogDescription>
       </DialogHeader>
 

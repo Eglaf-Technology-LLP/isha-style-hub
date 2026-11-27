@@ -8,6 +8,8 @@ export const COMPANY = {
   jurisdiction: "Deesa, Gujarat",
   supportEmail: "support@allboutiqs.com",
   supportPhone: "+91 76004 84789",
+  // When the supportPhone line is answered (client, 28 Nov 2026).
+  callHours: "12 PM – 8 PM",
   whatsapp: "+91 78019 40567",
   whatsappUrl: "https://wa.me/917801940567",
   // The "Call" number in the client's Terms & Working Process v2.2 and FAQ
