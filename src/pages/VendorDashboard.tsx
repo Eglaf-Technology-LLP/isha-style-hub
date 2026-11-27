@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { RAZORPAYX_PAYOUTS_ENABLED } from "@/lib/payoutRail";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
@@ -1360,12 +1361,8 @@ export default function VendorDashboard() {
                                     <div key={i} className="text-xs">
                                       <span className="font-medium">{item.product_title}</span>
                                       <span className="text-muted-foreground"> × {item.quantity}</span>
-                                      {(item.variant_title || item.size || item.color) && (
-                                        <div className="text-muted-foreground">
-                                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
-                                            .filter(Boolean)
-                                            .join(" · ")}
-                                        </div>
+                                      {itemOptionsLabel(item) && (
+                                        <div className="text-muted-foreground">{itemOptionsLabel(item)}</div>
                                       )}
                                       {/* The one thing that actually tells apart two listings that
                                           otherwise look identical (same name/size/color) - called out

@@ -1,4 +1,5 @@
 import { SITE_URL } from "../_shared/urls.ts";
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail, emailTemplate } from "../_shared/email.ts";
@@ -163,7 +164,7 @@ const handler = async (req: Request): Promise<Response> => {
       <tr>
         <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.product_title}</td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">
-          ${item.size ? item.size : "-"}${item.color ? ` / ${item.color}` : ""}
+          ${itemOptionsLabel(item) || "-"}
         </td>
         <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
       </tr>`

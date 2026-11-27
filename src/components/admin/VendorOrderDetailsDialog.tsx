@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import {
   Dialog,
   DialogContent,
@@ -444,9 +445,7 @@ export function VendorOrderDetailsDialog({
                       <TableRow key={i}>
                         <TableCell className="font-medium">{item.product_title}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          {[item.variant_title, item.size && `Size: ${item.size}`, item.color && `Colour: ${item.color}`]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
+                          {itemOptionsLabel(item) || "—"}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{item.sku || "not set"}</TableCell>
                         <TableCell className="text-right">{item.quantity}</TableCell>

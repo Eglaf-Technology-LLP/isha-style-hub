@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { invoiceLineName } from "@/lib/invoiceLine";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, Loader2, Printer } from "lucide-react";
@@ -166,8 +168,8 @@ export function DeliveryChallanButton({ challanId, label = "Challan" }: { challa
                       <tr key={l.line_no} className="border-b border-border align-top">
                         <td className="py-1.5 pr-2">{l.line_no}</td>
                         <td className="py-1.5 pr-2">
-                          {l.description}
-                          {l.size && <span className="text-muted-foreground"> · Size {l.size}</span>}
+                          {invoiceLineName(l.description, l.size, l.color)}
+                          {itemOptionsLabel(l) && <div className="text-muted-foreground">{itemOptionsLabel(l)}</div>}
                         </td>
                         <td className="py-1.5 pr-2 font-mono">{l.hsn_code ?? "—"}</td>
                         <td className="py-1.5 pr-2 text-right">{l.quantity}</td>

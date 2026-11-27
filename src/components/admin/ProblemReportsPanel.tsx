@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -133,7 +134,7 @@ export function ProblemReportsPanel({ vendorId }: { vendorId?: string }) {
                 <ul className="list-disc pl-5 text-sm">
                   {items.map((i) => (
                     <li key={i.order_item_id}>
-                      {[i.product_title, i.size && `Size ${i.size}`, i.color, `Qty ${i.quantity}`].filter(Boolean).join(" · ")}
+                      {[i.product_title, itemOptionsLabel(i), `Qty ${i.quantity}`].filter(Boolean).join(" · ")}
                     </li>
                   ))}
                 </ul>

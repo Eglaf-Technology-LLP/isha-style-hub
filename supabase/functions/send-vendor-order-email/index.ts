@@ -1,4 +1,5 @@
 import { SITE_URL, SUPABASE_URL } from "../_shared/urls.ts";
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationHtml } from "../_shared/customisation.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -60,10 +61,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { data: items } = await supabase
       .from("order_items")
-      .select("vendor_id, product_title, quantity, price, customisation")
+      .select("vendor_id, product_title, variant_title, size, color, quantity, price, customisation")
       .eq("order_id", orderId);
 
-    const byVendor = new Map<string, { product_title: string; quantity: number; price: number; customisation?: unknown }[]>();
+    type VendorItem = {
+      product_title: string;
+      variant_title: string | null;
+      size: string | null;
+      color: string | null;
+      quantity: number;
+      price: number;
+      customisation?: unknown;
+    };
+    const byVendor = new Map<string, VendorItem[]>();
     (items ?? []).forEach((item) => {
       if (!item.vendor_id) return;
       const list = byVendor.get(item.vendor_id) ?? [];
@@ -97,9 +107,16 @@ const handler = async (req: Request): Promise<Response> => {
       return `${SUPABASE_URL}/functions/v1/accept-vendor-order?token=${token}`;
     };
 
-    const itemsHtml = (list: { product_title: string; quantity: number; price: number; customisation?: unknown }[]) =>
+    const escapeHtml = (value: string) =>
+      value.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+    // "Size XS · Colour Red" under each piece, so the boutique knows what to make.
+    const optionsHtml = (i: VendorItem) => {
+      const label = itemOptionsLabel(i);
+      return label ? `<br><span style="color:#8a8a8a; font-size:13px;">${escapeHtml(label)}</span>` : "";
+    };
+    const itemsHtml = (list: VendorItem[]) =>
       `<ul style="margin:0; padding-left:20px; color:#3a3a3a;">${list
-        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ${money((i.price * i.quantity))}${customisationHtml(i.customisation)}</li>`)
+        .map((i) => `<li style="margin-bottom:4px;">${i.product_title} × ${i.quantity} — ${money((i.price * i.quantity))}${optionsHtml(i)}${customisationHtml(i.customisation)}</li>`)
         .join("")}</ul>`;
 
     const vendorSends = (vendors ?? [])

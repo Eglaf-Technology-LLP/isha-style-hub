@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Printer, FileText } from "lucide-react";
@@ -8,7 +9,7 @@ import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
 import { ewayLegLabel, formatEwbNumber } from "@/lib/ewayBill";
-import { invoiceLineDescription } from "@/lib/invoiceLine";
+import { invoiceLineName } from "@/lib/invoiceLine";
 import { PlatformInvoiceView, type PlatformInvoice } from "@/components/PlatformInvoiceView";
 
 type Address = { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
@@ -269,7 +270,6 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       <th className="py-1.5 pr-2">#</th>
                       <th className="py-1.5 pr-2">Description</th>
                       <th className="py-1.5 pr-2">HSN</th>
-                      <th className="py-1.5 pr-2">Size</th>
                       <th className="py-1.5 pr-2 text-right">Qty</th>
                       <th className="py-1.5 pr-2 text-right">Price (incl. GST)</th>
                       <th className="py-1.5 pr-2 text-right">Discount</th>
@@ -289,10 +289,13 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                     {lines.map((l) => (
                       <tr key={l.line_no} className="border-b border-border align-top">
                         <td className="py-1.5 pr-2">{l.line_no}</td>
-                        {/* "Lehnga – XS – Black": name, size, colour once each (A10.2). */}
-                        <td className="py-1.5 pr-2">{invoiceLineDescription(l.description, l.color)}</td>
+                        {/* The name, then "Size XS · Colour Red" once (client, 27 Nov
+                            2026 - no separate Size column repeating it). */}
+                        <td className="py-1.5 pr-2">
+                          {invoiceLineName(l.description, l.size, l.color)}
+                          {itemOptionsLabel(l) && <div className="text-muted-foreground">{itemOptionsLabel(l)}</div>}
+                        </td>
                         <td className="py-1.5 pr-2 font-mono">{l.hsn_code ?? "—"}</td>
-                        <td className="py-1.5 pr-2">{l.size ?? "—"}</td>
                         <td className="py-1.5 pr-2 text-right">{l.quantity}</td>
                         <td className="py-1.5 pr-2 text-right">{money(l.unit_price)}</td>
                         <td className="py-1.5 pr-2 text-right">{Number(l.discount) ? money(l.discount) : "—"}</td>

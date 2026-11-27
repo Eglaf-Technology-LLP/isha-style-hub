@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,11 +30,11 @@ function ReturnItems({ rr }: { rr: WhReturn }) {
           <span className="text-muted-foreground">
             {" "}
             × {i.quantity}
-            {(i.size || i.color) && ` (${[i.size, i.color].filter(Boolean).join(" · ")})`}
+            {itemOptionsLabel(i) && ` (${itemOptionsLabel(i)})`}
           </span>
           {rr.request_type === "exchange" && (i.exchange_to?.size || i.exchange_to?.color) && (
             <div className="text-primary">
-              Exchange for {[i.exchange_to?.size, i.exchange_to?.color].filter(Boolean).join(" / ")}
+              Exchange for {itemOptionsLabel({ size: i.exchange_to?.size, color: i.exchange_to?.color })}
             </div>
           )}
         </div>
@@ -296,7 +297,7 @@ export function SendBacksTab({ data }: WarehouseViewProps) {
                       {sb.items.map((i, idx) => (
                         <div key={idx}>
                           {i.product_title} × {i.quantity}
-                          {(i.size || i.color) && <span className="text-muted-foreground"> ({[i.size, i.color].filter(Boolean).join(" · ")})</span>}
+                          {itemOptionsLabel(i) && <span className="text-muted-foreground"> ({itemOptionsLabel(i)})</span>}
                         </div>
                       ))}
                     </TableCell>

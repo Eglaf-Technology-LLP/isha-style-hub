@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { itemOptionsLabel } from "@/lib/itemOptions";
 import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { Button } from "@/components/ui/button";
@@ -589,15 +590,9 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       >
                         <div>
                           <p className="font-medium">{item.product_title}</p>
-                          {item.variant_title && (
-                            <p className="text-sm text-muted-foreground">
-                              {item.variant_title}
-                            </p>
+                          {itemOptionsLabel(item) && (
+                            <p className="text-sm text-muted-foreground">{itemOptionsLabel(item)}</p>
                           )}
-                          <div className="flex gap-2 text-xs text-muted-foreground mt-1">
-                            {item.size && <span>Size: {item.size}</span>}
-                            {item.color && <span>Colour: {item.color}</span>}
-                          </div>
                           <p className="text-xs font-mono text-muted-foreground mt-1">
                             SKU: {item.sku || "not set"}
                           </p>
