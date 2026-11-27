@@ -134,9 +134,9 @@ const handler = async (req: Request): Promise<Response> => {
               bodyHtml: `
                 <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
                 ${itemsHtml(byVendor.get(v.id) ?? [])}
-                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Accept this order with one tap. The link expires in 7 days and can only be used once.</p>' : ""}
+                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Confirm this order with one tap. The link expires in 7 days and can only be used once.</p>' : ""}
               `,
-              ctaLabel: canAccept ? "Accept order" : "View orders",
+              ctaLabel: canAccept ? "Confirm order" : "View orders",
               ctaUrl,
             })
           );

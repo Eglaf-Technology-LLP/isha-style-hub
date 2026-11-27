@@ -216,11 +216,15 @@ Deno.serve(async (req) => {
 
       if (type !== "to_warehouse") {
         if (mapped.vendorOrderStatus && shipment.vendor_order_id) {
-          await supabase
+          let update = supabase
             .from("vendor_orders")
             .update({ status: mapped.vendorOrderStatus })
             .eq("id", shipment.vendor_order_id)
             .not("status", "eq", "cancelled");
+          // Only the boutique confirms an order (its Confirm button, which
+          // tells the customer and the admins) - a courier update never does.
+          if (mapped.vendorOrderStatus === "confirmed") update = update.neq("status", "pending");
+          await update;
         }
       } else if (!shipment.return_request_id && shipment.vendor_order_id) {
         await handleInboundToWarehouse(supabase, shipment.vendor_order_id, s, statusRaw, awbCode);

@@ -622,9 +622,9 @@ export default function VendorDashboard() {
       if (error) throw error;
       if (!data) throw new Error("This order has already changed. Refresh the page and check its status.");
       setOrders((previous) => previous.map((item) => item.id === order.id ? { ...item, status: "confirmed" } : item));
-      toast.success("Order accepted. AllBoutiqs has been notified.");
+      toast.success("Order confirmed. The customer and AllBoutiqs have been told.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not accept this order");
+      toast.error(error instanceof Error ? error.message : "Could not confirm this order");
     } finally {
       setAcceptingOrderId(null);
     }
@@ -1446,7 +1446,7 @@ export default function VendorDashboard() {
                                 {o.status === "pending" && (
                                   <Button size="sm" variant="outline" className="flex items-center gap-1" disabled={acceptingOrderId === o.id} onClick={() => void acceptVendorOrder(o)}>
                                     {acceptingOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                                    Accept
+                                    Confirm
                                   </Button>
                                 )}
                               </div>
@@ -1474,7 +1474,11 @@ export default function VendorDashboard() {
                                           (AWB {shipment.awb_code}) - book again
                                         </div>
                                       )}
-                                      {o.via_warehouse && !["pending", "confirmed", "processing"].includes(o.status) ? (
+                                      {/* Confirmed only by the Confirm button (client, 27 Nov
+                                          2026) - shipping never confirms an order. */}
+                                      {o.status === "pending" ? (
+                                        <span className="text-xs text-muted-foreground">Confirm the order to ship it</span>
+                                      ) : o.via_warehouse && !["pending", "confirmed", "processing"].includes(o.status) ? (
                                         <span className="text-xs text-muted-foreground">With the warehouse</span>
                                       ) : (
                                         <>

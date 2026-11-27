@@ -285,7 +285,11 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                         (AWB {shipment.awb_code}) - book again
                       </span>
                     )}
-                    {viaWarehouse && !["pending", "confirmed", "processing"].includes(status) ? (
+                    {/* Only the boutique's Confirm button confirms an order (client,
+                        27 Nov 2026) - it can't be shipped before that. */}
+                    {vendorOrderStatuses[vendorOrderId] === "pending" ? (
+                      <span className="text-xs text-muted-foreground">Waiting for the boutique to confirm</span>
+                    ) : viaWarehouse && !["pending", "confirmed", "processing"].includes(status) ? (
                       <span className="text-xs text-muted-foreground">With the warehouse</span>
                     ) : (
                       <ShipNowDialog
