@@ -8,7 +8,7 @@ const LABELS: Record<string, string> = {
   shoulder: "Shoulder",
   sleeve_length: "Sleeve length",
   armhole: "Armhole",
-  length: "Top / dress length",
+  length: "Top Length",
   bottom_length: "Bottom length",
 };
 
