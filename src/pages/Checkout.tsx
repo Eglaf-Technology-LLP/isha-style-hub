@@ -53,7 +53,7 @@ import { useCategoryGstRules } from "@/lib/gst";
 import { splitGoods } from "@/lib/orderAmounts";
 import { customisationPrice } from "@/lib/customisation";
 import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
-import { readSoldOutSetup, takesSoldOutOrders } from "@/lib/soldOutMadeToOrder";
+import { shortStockLines, shortStockNote, stockSnapshot, type StockSnapshot } from "@/lib/cartStock";
 import { isLimitedCoupon, listNames, splitCouponDiscount, type CouponLine } from "@/lib/coupons";
 import { clearPendingPayment, readPendingPayment, savePendingPayment } from "@/lib/pendingPayment";
 import { OrderPlacedSummary } from "@/components/storefront/checkout/OrderPlacedSummary";
@@ -204,10 +204,7 @@ export default function Checkout() {
   >({});
   // Today's stock for the order's lines: the product's own and each real
   // variant's, and whether the boutique makes a sold-out size to order.
-  const [stockNow, setStockNow] = useState<{
-    products: Record<string, { stock: number; madeToOrder: boolean; takesSoldOutOrders: boolean }>;
-    variants: Record<string, number>;
-  } | null>(null);
+  const [stockNow, setStockNow] = useState<StockSnapshot | null>(null);
   const [shipsByForLine, setShipsByForLine] = useState<Record<string, string | null>>({});
   const returnHours = useReturnWindowHours();
   const [emiMethods, setEmiMethods] = useState<{
@@ -360,68 +357,18 @@ export default function Checkout() {
         setStockNow(null);
         return;
       }
-      setStockNow({
-        products: Object.fromEntries(
-          (data || []).map((p) => [
-            p.id,
-            {
-              stock: Number(p.stock_quantity ?? 0),
-              madeToOrder: !!p.made_to_order,
-              takesSoldOutOrders: takesSoldOutOrders(readSoldOutSetup(p)),
-            },
-          ]),
-        ),
-        // A variant counts only on its own product, as the server checks it.
-        variants: Object.fromEntries(
-          (variantsResult.data || [])
-            .filter((v) => (data || []).some((p) => p.id === v.product_id))
-            .map((v) => [v.id, Number(v.stock ?? 0)]),
-        ),
-      });
+      setStockNow(stockSnapshot(data || [], variantsResult.data || []));
     });
     return () => {
       alive = false;
     };
   }, [items]);
 
-  // Lines that can't be bought now: a Ready to Ship piece without enough
-  // stock whose boutique doesn't make the size to order. The order would be
-  // refused when it takes the stock, so Pay stays off until the line is
-  // fixed (client, 28 Nov 2026). Lines of the same size share its stock.
-  // Value: the pieces left.
-  const shortLines = useMemo(() => {
-    const short: Record<string, number> = {};
-    if (!stockNow) return short;
-    const left: Record<string, number> = {};
-    for (const item of items) {
-      const product = stockNow.products[item.productId];
-      if (!product || product.madeToOrder || product.takesSoldOutOrders) continue;
-      const fromVariant = item.variantId in stockNow.variants;
-      const key = fromVariant ? `v:${item.variantId}` : `p:${item.productId}`;
-      const have = left[key] ?? (fromVariant ? stockNow.variants[item.variantId] : product.stock);
-      if (have < item.quantity) {
-        short[cartLineKey(item)] = Math.max(0, have);
-        left[key] = have;
-      } else {
-        left[key] = have - item.quantity;
-      }
-    }
-    return short;
-  }, [items, stockNow]);
+  // Lines that can't be bought now (sold out, not made to order): Pay
+  // stays off until they're removed or lowered. Value: the pieces left.
+  const shortLines = useMemo(() => shortStockLines(items, stockNow), [items, stockNow]);
   // Said under Pay while it's off.
-  const shortStockNote = (() => {
-    const lines = items.filter((i) => cartLineKey(i) in shortLines);
-    if (lines.length === 0) return null;
-    if (lines.length > 1) {
-      return `${lines.length} pieces in your order are sold out or short of stock - remove them or lower the quantity to place your order.`;
-    }
-    const left = shortLines[cartLineKey(lines[0])];
-    return left > 0
-      ? `Only ${left} of "${lines[0].productName}" left - lower the quantity to place your order.`
-      : buyNow
-        ? `"${lines[0].productName}" is sold out, so it can't be ordered now.`
-        : `"${lines[0].productName}" is sold out - remove it to place your order.`;
-  })();
+  const shortStockNoteText = shortStockNote(items, shortLines, { goal: "place your order", canRemove: !buyNow });
 
   // "Ships by" for each made-to-order line (a Made to Order listing or a
   // sold-out size made to order): the same server estimate as the product
@@ -1062,8 +1009,8 @@ export default function Checkout() {
       toast.error("Your cart is empty");
       return;
     }
-    if (shortStockNote) {
-      toast.error(shortStockNote);
+    if (shortStockNoteText) {
+      toast.error(shortStockNoteText);
       return;
     }
     if (paymentMethod === "cod" && codQuote.status !== "ready") {
@@ -1593,7 +1540,7 @@ export default function Checkout() {
         // Phones: total + place order, always in reach
         <div className="store-container flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
           {addressLine1Locked && <p className="w-full text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
-          {shortStockNote && <p className="w-full text-xs text-destructive">{shortStockNote}</p>}
+          {shortStockNoteText && <p className="w-full text-xs text-destructive">{shortStockNoteText}</p>}
           <CheckoutTermsNote compact className="w-full" />
           <div className="min-w-0 flex-1">
             <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{walletUse > 0 ? "To pay" : "Total"}</p>
@@ -1602,7 +1549,7 @@ export default function Checkout() {
           <button
             type="button"
             onClick={placeOrder}
-            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNote}
+            disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNoteText}
             className="flex h-12 shrink-0 items-center gap-2 bg-primary px-6 text-[11px] font-medium uppercase tracking-[0.2em] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -2188,14 +2135,14 @@ export default function Checkout() {
                 <button
                   type="button"
                   onClick={placeOrder}
-                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNote}
+                  disabled={isPlacingOrder || paymentCheck !== null || addressLine1Locked || !!shortStockNoteText}
                   className="flex h-14 w-full items-center justify-center gap-2 bg-primary text-[12px] font-medium uppercase tracking-[0.22em] text-primary-foreground transition-colors hover:bg-maroon-deep disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPlacingOrder && <Loader2 className="h-4 w-4 animate-spin" />}
                   {placeOrderLabel}
                 </button>
                 {addressLine1Locked && <p className="text-center text-xs text-destructive">{ADDRESS_LINE1_LOCKED} (Delivery address)</p>}
-                {shortStockNote && <p className="text-center text-xs text-destructive">{shortStockNote}</p>}
+                {shortStockNoteText && <p className="text-center text-xs text-destructive">{shortStockNoteText}</p>}
 
                 {vendorGroups.length === 1 && vendorGroups[0].shippingCost > 0 && (() => {
                   const info = vendorGroups[0].vendorId ? vendorInfo[vendorGroups[0].vendorId] : null;

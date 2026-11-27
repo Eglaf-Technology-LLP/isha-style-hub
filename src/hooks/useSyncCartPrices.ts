@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cartLineKey, useCartStore, type CartItem, type LinePrice } from "@/stores/cartStore";
 import { customisationPrice, rechargeAt } from "@/lib/customisation";
 import { readSoldOutSetup, soldOutTermsFor, type SoldOutTerms } from "@/lib/soldOutMadeToOrder";
+import { shortStockLines, stockSnapshot, type StockSnapshot } from "@/lib/cartStock";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -34,10 +35,15 @@ const lineName = (i: CartItem) => {
 // A23.3: a deleted product stayed in the cart with its old name, price and a
 // blank photo). Shoppers can only read live products, so a line whose
 // product doesn't come back is one of these.
-export function useSyncCartPrices(enabled = true) {
+//
+// Returns the lines that can't be bought (sold out and not made to order -
+// see lib/cartStock.ts), from the same stock read: the cart keeps Checkout
+// off while there are any.
+export function useSyncCartPrices(enabled = true): Record<string, number> {
   const items = useCartStore((s) => s.items);
   const setPrices = useCartStore((s) => s.setPrices);
   const removeItem = useCartStore((s) => s.removeItem);
+  const [stockNow, setStockNow] = useState<StockSnapshot | null>(null);
   // Re-check when lines, their sizes or quantities change (a quantity above
   // the stock left makes a line made to order).
   const linesKey = items.map((i) => `${cartLineKey(i)}:${i.variantId}:${i.quantity}`).join(",");
@@ -56,11 +62,12 @@ export function useSyncCartPrices(enabled = true) {
           )
           .in("id", productIds),
         variantIds.length
-          ? supabase.from("product_variants").select("id, price, stock").in("id", variantIds)
-          : Promise.resolve({ data: [] as { id: string; price: number | null; stock: number }[], error: null }),
+          ? supabase.from("product_variants").select("id, product_id, price, stock").in("id", variantIds)
+          : Promise.resolve({ data: [] as { id: string; product_id: string; price: number | null; stock: number }[], error: null }),
       ]);
       // Only a lookup that worked can say a piece is gone.
       if (!alive || !products || productsError || variantsError) return;
+      setStockNow(stockSnapshot(products, variants ?? []));
       const productById = new Map(products.map((p) => [p.id, p]));
       const variantById = new Map((variants ?? []).map((v) => [v.id, v]));
 
@@ -139,4 +146,8 @@ export function useSyncCartPrices(enabled = true) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, linesKey]);
+
+  // Worked out on the cart as it is now, so lowering or removing a line
+  // frees Checkout at once.
+  return useMemo(() => shortStockLines(items, stockNow), [items, stockNow]);
 }

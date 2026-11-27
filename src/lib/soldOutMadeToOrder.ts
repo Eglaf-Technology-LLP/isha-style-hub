@@ -37,7 +37,7 @@ export interface SoldOutSetup {
 
 export const NO_SOLD_OUT_SETUP: SoldOutSetup = { action: null, extraAmount: null, extraPct: null, extraDays: null };
 
-type ProductSoldOutFields = {
+export type ProductSoldOutFields = {
   made_to_order?: boolean | null;
   sold_out_action?: string | null;
   sold_out_extra_amount?: number | string | null;

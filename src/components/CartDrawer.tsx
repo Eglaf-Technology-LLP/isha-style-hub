@@ -11,6 +11,7 @@ import { SmartImage } from "@/components/storefront/SmartImage";
 import { BrandPlaceholder } from "@/components/storefront/BrandPlaceholder";
 import { formatINR } from "@/lib/format";
 import { useSyncCartPrices } from "@/hooks/useSyncCartPrices";
+import { shortStockNote } from "@/lib/cartStock";
 import { lineAsSize, lineSize, sizeChoices, useCartSoldOutSetups, useCartVariants, type SizeChoice } from "@/hooks/useCartVariants";
 import { MADE_TO_ORDER_MAX_QUANTITY } from "@/lib/soldOutMadeToOrder";
 import { MadeToOrderLineNote } from "@/components/MadeToOrderNote";
@@ -23,7 +24,10 @@ export function CartDrawer() {
   const navigate = useNavigate();
   const { items, updateQuantity, changeVariant, removeItem, getTotalItems, getTotalPrice } = useCartStore();
   const { data: categories = [] } = useStoreCategories();
-  useSyncCartPrices(isOpen);
+  // Lines sold out (and not made to order): Checkout stays off until
+  // they're removed or lowered (client, 28 Nov 2026).
+  const shortLines = useSyncCartPrices(isOpen);
+  const shortNote = shortStockNote(items, shortLines, { goal: "check out" });
   // Each piece's sizes, so the customer can change the size here.
   const { data: variantsByProduct } = useCartVariants(
     items.map((i) => i.productId),
@@ -59,6 +63,7 @@ export function CartDrawer() {
   const totalPrice = getTotalPrice();
 
   const handleCheckout = () => {
+    if (shortNote) return;
     setIsOpen(false);
     navigate("/checkout");
   };
@@ -186,6 +191,13 @@ export function CartDrawer() {
                           ...(item.sku ? [`SKU: ${item.sku}`] : []),
                         ].join(" · ")}
                       </p>
+                      {cartLineKey(item) in shortLines && (
+                        <p className="mt-1 text-xs font-medium text-destructive">
+                          {shortLines[cartLineKey(item)] > 0
+                            ? `Only ${shortLines[cartLineKey(item)]} left in stock - lower the quantity`
+                            : `Sold out - remove it${choices ? " or choose another size" : ""}`}
+                        </p>
+                      )}
                       {item.soldOutTerms && <MadeToOrderLineNote terms={item.soldOutTerms} className="mt-1" />}
                       {item.customisation && (
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -229,9 +241,15 @@ export function CartDrawer() {
                 <span className="font-serif text-2xl">{formatINR(totalPrice)}</span>
               </div>
               <CartShippingEstimate items={items} />
-              <Button onClick={handleCheckout} className="h-12 w-full rounded-none text-xs uppercase tracking-[0.2em]" size="lg">
+              <Button
+                onClick={handleCheckout}
+                disabled={!!shortNote}
+                className="h-12 w-full rounded-none text-xs uppercase tracking-[0.2em]"
+                size="lg"
+              >
                 <Lock className="mr-2 h-3.5 w-3.5" /> Checkout securely
               </Button>
+              {shortNote && <p className="text-center text-xs text-destructive">{shortNote}</p>}
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5 text-gold" /> Every piece is quality-checked before it ships
               </div>
