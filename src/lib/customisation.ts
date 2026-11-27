@@ -59,7 +59,7 @@ export const MEASUREMENTS: { key: string; label: string; required?: boolean }[] 
   { key: "shoulder", label: "Shoulder" },
   { key: "sleeve_length", label: "Sleeve length" },
   { key: "armhole", label: "Armhole" },
-  { key: "length", label: "Top / dress length" },
+  { key: "length", label: "Top Length" },
   { key: "bottom_length", label: "Bottom length" },
 ];
 
