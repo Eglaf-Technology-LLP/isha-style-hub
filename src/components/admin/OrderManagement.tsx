@@ -4,7 +4,7 @@ import { CustomisationDetails } from "@/components/CustomisationDetails";
 import { MadeToOrderBadge } from "@/components/MadeToOrderNote";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -106,7 +106,7 @@ function PartLines({ parts, render }: { parts: OrderPartRow[]; render: (p: Order
 }
 
 export function OrderManagement({ isAdmin }: OrderManagementProps) {
-  const { orders, unpaidOrders, loading, updateOrderStatus, updatePaymentStatus } = useOrders(isAdmin);
+  const { orders, unpaidOrders, loading, updatePaymentStatus } = useOrders(isAdmin);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [vendorFilter, setVendorFilter] = useState<string | null>(null);
@@ -428,24 +428,15 @@ export function OrderManagement({ isAdmin }: OrderManagementProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={order.order_status}
-                        onValueChange={(value) =>
-                          updateOrderStatus(order.id, value as Order["order_status"])
-                        }
+                      {/* Shown only - the status follows the order's own
+                          steps (accept, ship, delivery, cancel), not a
+                          hand-picked value (client, 27 Nov 2026). */}
+                      <Badge
+                        variant={getOrderStatusColor(order.order_status) as BadgeProps["variant"]}
+                        className="capitalize whitespace-nowrap"
                       >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                          <SelectItem value="processing">Processing</SelectItem>
-                          <SelectItem value="shipped">Shipped</SelectItem>
-                          <SelectItem value="delivered">Delivered</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        {order.order_status.replace(/_/g, " ")}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
