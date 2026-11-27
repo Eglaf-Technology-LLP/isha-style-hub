@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { itemOptionsLabel } from "@/lib/itemOptions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -103,6 +104,30 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   // How the customer paid ("UPI", "Cash on Delivery") - from the server.
   const [paymentMode, setPaymentMode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A cancelled part keeps the invoice issued when it shipped - its credit
+  // note cancels it, and the boutique's GST return needs both (client, 27 Nov
+  // 2026: it read "No invoice" next to the credit note). Only a part cancelled
+  // before it was invoiced has none. null while checking.
+  const cancelled = vendorOrderStatus === "cancelled" || vendorOrderStatus === "qc_failed";
+  const [issued, setIssued] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!cancelled) return;
+    let active = true;
+    supabase
+      .from("invoices")
+      .select("id")
+      .eq("vendor_order_id", vendorOrderId)
+      .limit(1)
+      .then(({ data, error: readErr }) => {
+        if (!active) return;
+        if (readErr) console.error("invoice check failed:", readErr);
+        setIssued(!!data?.length);
+      });
+    return () => {
+      active = false;
+    };
+  }, [cancelled, vendorOrderId]);
 
   useEffect(() => {
     // After an error, wait for the dialog to be opened again (no retry loop).
@@ -133,11 +158,15 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
     );
   }, [open, invoice, loading, error, vendorOrderId]);
 
-  if (vendorOrderStatus === "cancelled" || vendorOrderStatus === "qc_failed") {
-    return <span className="text-xs text-muted-foreground">No invoice — item cancelled</span>;
+  if (cancelled && issued !== true) {
+    return issued === false ? (
+      <span className="text-xs text-muted-foreground">No invoice issued - item cancelled before invoicing</span>
+    ) : null;
   }
   const codReady = !!vendorOrderStatus && COD_INVOICE_STATUSES.includes(vendorOrderStatus);
-  if (paymentStatus !== "paid" && !codReady) {
+  // A cancelled part's invoice stays readable whatever the payment is now
+  // (refunded, or a Cash on Delivery order that never paid).
+  if (!cancelled && paymentStatus !== "paid" && !codReady) {
     return <span className="text-xs text-muted-foreground">Invoice available once shipped</span>;
   }
 
@@ -148,6 +177,9 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
       <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => setOpen(true)}>
         <FileText className="h-3.5 w-3.5" /> Invoice
       </Button>
+      {cancelled && (
+        <p className="text-[11px] text-muted-foreground">Cancelled after invoicing - see the credit note</p>
+      )}
 
       <Dialog
         open={open}
