@@ -31,7 +31,7 @@ import { useFocusTarget } from "@/hooks/useDeepLink";
 import { AccountAction, AccountHero, SignInCard, StatusPill } from "@/components/storefront/account/AccountKit";
 import { FreeDeliveryBadge } from "@/components/storefront/FreeDeliveryBadge";
 import { formatDateInWords, formatDateTimeInWords } from "@/lib/dates";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, orderRef } from "@/lib/format";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { orderPaymentLine, paymentModeLine } from "@/lib/paymentMode";
@@ -594,7 +594,7 @@ export default function OrderHistory() {
                     <div className="grid grid-cols-2 gap-x-8 gap-y-3 sm:flex sm:gap-10">
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Order</p>
-                        <p className="font-mono text-sm">#{order.id.slice(0, 8).toUpperCase()}</p>
+                        <p className="whitespace-nowrap font-mono text-sm">{orderRef(order.id)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Placed on</p>

@@ -23,7 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
 import { formatDate, formatDateTime } from "@/lib/dates";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, orderRef } from "@/lib/format";
 import { paymentModeName } from "@/lib/paymentMode";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
@@ -243,7 +243,7 @@ export function VendorOrderDetailsDialog({
         ) : (
           <>
         <DialogHeader>
-          <DialogTitle>Order #{data.orderId.slice(0, 8)}</DialogTitle>
+          <DialogTitle>Order {orderRef(data.orderId)}</DialogTitle>
           <DialogDescription className="flex items-center gap-2 flex-wrap">
             <span>{data.vendorName}</span>
             <Badge className={`${statusColors[data.status] || "bg-muted"} capitalize`}>

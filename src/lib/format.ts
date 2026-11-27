@@ -25,3 +25,17 @@ export function formatMoney(amount: number | string | null | undefined): string 
   const text = Math.abs(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${value < 0 ? "-" : ""}₹${text}`;
 }
+
+// The order number everyone sees: #3F2A1B4C - the order id's first 8
+// characters, capitals. The same number is in the customer's emails, bell,
+// invoice and packing slip (order_ref() in the database), so every orders
+// list shows it whole, never cut to "3f2a1b4c..." (client, 27 Nov 2026).
+export function orderRef(orderId: string): string {
+  return `#${orderId.slice(0, 8).toUpperCase()}`;
+}
+
+// A search box query matched against order ids: "#3F2A1B4C" (as copied from
+// an email) finds the order too.
+export function orderIdQuery(query: string): string {
+  return query.trim().toLowerCase().replace(/^#/, "");
+}
