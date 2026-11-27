@@ -4769,7 +4769,7 @@ export type Database = {
       issue_missing_credit_notes: { Args: never; Returns: number }
       issue_missing_platform_invoices: { Args: never; Returns: number }
       money_checks: {
-        Args: { _from: string; _to: string; _vendor_id: string }
+        Args: { _from: string; _payout_day?: string; _to: string; _vendor_id: string }
         Returns: {
           actual: number
           boutique_name: string
@@ -4870,7 +4870,7 @@ export type Database = {
         }[]
       }
       statement_lines: {
-        Args: { _from: string; _to: string; _vendor_id: string }
+        Args: { _from: string; _payout_day?: string; _to: string; _vendor_id: string }
         Returns: {
           boutique_code: string
           boutique_name: string

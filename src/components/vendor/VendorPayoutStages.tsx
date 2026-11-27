@@ -10,6 +10,7 @@ import { useVendorPayoutHistory, VendorPayout } from "@/hooks/useVendorPayoutHis
 import { formatPayoutDate, todayIst } from "@/lib/payoutDates";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/dates";
+import { payoutWeekOrders } from "@/lib/statement";
 import { formatMoney } from "@/lib/format";
 
 interface PayoutOrder {
@@ -440,7 +441,11 @@ function BankTransfers({
               <TableBody>
                 {payouts.map((p) => (
                   <TableRow key={p.id} data-focus-id={[p.id, ...(p.vendor_order_ids ?? [])].join(" ")}>
-                    <TableCell className="text-sm whitespace-nowrap">{formatDate(new Date(p.payout_date ?? p.created_at))}</TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {formatDate(new Date(p.payout_date ?? p.created_at))}
+                      {/* The payout week (Wed-Tue, client C19). */}
+                      <div className="text-xs text-muted-foreground">{payoutWeekOrders(p.payout_date ?? p.created_at)}</div>
+                    </TableCell>
                     <TableCell className="text-sm">{p.order_count}</TableCell>
                     <TableCell className="text-sm tabular-nums">{rupees(Number(p.gross_sales))}</TableCell>
                     <TableCell className="text-sm text-muted-foreground tabular-nums">

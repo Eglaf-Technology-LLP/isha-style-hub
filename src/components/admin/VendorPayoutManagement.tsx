@@ -31,6 +31,7 @@ import { useAdminVendorPayouts, AdminVendorPayout } from "@/hooks/useAdminVendor
 import { PayoutBreakdownDialog } from "@/components/PayoutBreakdownDialog";
 import { PAYOUT_PROOF_ACCEPT, openPayoutProof, payoutProofProblem, uploadPayoutProof } from "@/lib/payoutProof";
 import { formatDate } from "@/lib/dates";
+import { payoutWeekOrders } from "@/lib/statement";
 import { formatMoney } from "@/lib/format";
 
 const statusClass: Record<string, string> = {
@@ -259,6 +260,8 @@ export function VendorPayoutManagement({ isAdmin }: VendorPayoutManagementProps)
                   <TableRow key={p.id} data-focus-id={p.id}>
                     <TableCell className="text-sm whitespace-nowrap">
                       {formatDate(new Date(p.payoutDate ?? p.createdAt))}
+                      {/* The payout week (Wed-Tue, client C19), then the delivery dates of its orders. */}
+                      <div className="text-xs text-muted-foreground">Week: {payoutWeekOrders(p.payoutDate ?? p.createdAt)}</div>
                       <div className="text-xs text-muted-foreground">
                         Delivered {formatDate(new Date(p.periodStart))} - {formatDate(new Date(p.periodEnd))}
                       </div>
