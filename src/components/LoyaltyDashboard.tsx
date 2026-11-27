@@ -78,7 +78,7 @@ export function LoyaltyDashboard() {
                   {currentTier} Member
                 </Badge>
               </div>
-              <h2 className="text-4xl font-bold">{currentPoints.toLocaleString("en-IN")}</h2>
+              <h2 className="text-4xl font-bold">{currentPoints.toLocaleString()}</h2>
               <p className="opacity-90">Available Points</p>
             </div>
             <div className="text-right">
