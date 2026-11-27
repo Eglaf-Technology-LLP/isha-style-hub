@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Order } from "@/hooks/useOrders";
 import { useShipments } from "@/hooks/useShipments";
+import { useActiveEwayBills } from "@/hooks/useActiveEwayBills";
+import { EwayBillNumbers } from "@/components/EwayBillNumbers";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { ShipmentTimelineDialog } from "./ShipmentTimelineDialog";
 import { ShipNowDialog } from "./ShipNowDialog";
@@ -80,6 +82,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
   const vendorOrderIds = [...groups.keys()].filter((k) => !k.startsWith("no-vendor-"));
 
   const { forwardShipmentFor, actioningId, checkServiceability, shipNow, cancelShipment } = useShipments(vendorOrderIds);
+  // E-way bill numbers saved for these parts (E-way bills tab).
+  const { bills: ewayBills } = useActiveEwayBills(vendorOrderIds);
 
   const refetchVendorOrderStatuses = () => {
     if (vendorOrderIds.length === 0) return;
@@ -242,6 +246,7 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 <VendorOrderDetailsDialog
                   data={{
                     orderId: order.id,
+                    vendorOrderId,
                     createdAt: order.created_at,
                     vendorName: group.vendorId ? vendorNames[group.vendorId] || "Vendor" : "Vendor",
                     status,
@@ -268,6 +273,8 @@ export function OrderFulfillmentSection({ order }: { order: Order }) {
                 {/* Delivered parts too: a completed return has one. */}
                 {mayHaveCreditNote(status, status === "delivered") && <CreditNoteButton vendorOrderId={vendorOrderId} />}
               </div>
+
+              <EwayBillNumbers bills={ewayBills.filter((b) => b.vendor_order_id === vendorOrderId)} />
 
               {!shipment || shipment.status === "cancelled" ? (
                 status === "cancelled" ? (

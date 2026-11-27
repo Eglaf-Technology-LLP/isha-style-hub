@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, History, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/dates";
+import { useShipmentEwayBills } from "@/hooks/useActiveEwayBills";
+import { EwayBillNumbers } from "@/components/EwayBillNumbers";
 
 interface ShipmentEvent {
   id: string;
@@ -35,6 +37,8 @@ export function ShipmentTimelineDialog({ shipmentId, awbCode }: Props) {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<ShipmentEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  // The e-way bill this parcel was booked with, if any.
+  const ewayBills = useShipmentEwayBills(shipmentId, open);
 
   useEffect(() => {
     if (!open) return;
@@ -64,6 +68,7 @@ export function ShipmentTimelineDialog({ shipmentId, awbCode }: Props) {
         <DialogHeader>
           <DialogTitle>Shipment history</DialogTitle>
           <DialogDescription>{awbCode ? `AWB ${awbCode}` : "No AWB yet"}</DialogDescription>
+          <EwayBillNumbers bills={ewayBills} showLeg={false} />
         </DialogHeader>
         {loading ? (
           <div className="flex justify-center py-8">

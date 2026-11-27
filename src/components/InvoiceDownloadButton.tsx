@@ -7,7 +7,7 @@ import { amountInWords } from "@/lib/amountInWords";
 import { COMPANY } from "@/lib/company";
 import { printElement } from "@/lib/printElement";
 import { formatDate } from "@/lib/dates";
-import { formatEwbNumber } from "@/lib/ewayBill";
+import { ewayLegLabel, formatEwbNumber } from "@/lib/ewayBill";
 import { invoiceLineDescription } from "@/lib/invoiceLine";
 import { PlatformInvoiceView, type PlatformInvoice } from "@/components/PlatformInvoiceView";
 
@@ -72,6 +72,15 @@ const addressLines = (a: Address) =>
 // including the warehouse quality check).
 const COD_INVOICE_STATUSES = ["at_warehouse", "shipped", "out_for_delivery", "delivered", "ndr"];
 
+// leg / document_*: from generate-invoice since 27 Nov 2026 (absent before).
+interface InvoiceEwayBill {
+  ewb_number: string;
+  ewb_date: string | null;
+  leg?: string;
+  document_type?: string;
+  document_number?: string;
+}
+
 interface InvoiceDownloadButtonProps {
   vendorOrderId: string;
   paymentStatus: string;
@@ -87,7 +96,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [lines, setLines] = useState<InvoiceLine[]>([]);
   // E-way bills the goods travelled on under this invoice.
-  const [ewayBills, setEwayBills] = useState<{ ewb_number: string; ewb_date: string | null }[]>([]);
+  const [ewayBills, setEwayBills] = useState<InvoiceEwayBill[]>([]);
   // AllBoutiqs' own invoice for the courier etc. (customers and admins only).
   const [platformInvoice, setPlatformInvoice] = useState<PlatformInvoice | null>(null);
   // How the customer paid ("UPI", "Cash on Delivery") - from the server.
@@ -95,13 +104,14 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || invoice || loading) return;
+    // After an error, wait for the dialog to be opened again (no retry loop).
+    if (!open || invoice || loading || error) return;
     setLoading(true);
     setError(null);
     invokeEdgeFunction<{
       invoice: Invoice;
       lines: InvoiceLine[];
-      eway_bills?: { ewb_number: string; ewb_date: string | null }[];
+      eway_bills?: InvoiceEwayBill[];
       platform_invoice?: PlatformInvoice | null;
       payment_mode?: string | null;
     }>(
@@ -120,7 +130,7 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
         setLoading(false);
       },
     );
-  }, [open, invoice, loading, vendorOrderId]);
+  }, [open, invoice, loading, error, vendorOrderId]);
 
   if (vendorOrderStatus === "cancelled" || vendorOrderStatus === "qc_failed") {
     return <span className="text-xs text-muted-foreground">No invoice — item cancelled</span>;
@@ -138,7 +148,17 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
         <FileText className="h-3.5 w-3.5" /> Invoice
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          // Read it again next time: an e-way bill number may be saved meanwhile.
+          if (!o) {
+            setInvoice(null);
+            setError(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Tax Invoice</DialogTitle>
@@ -184,6 +204,11 @@ export function InvoiceDownloadButton({ vendorOrderId, paymentStatus, vendorOrde
                       <span className="text-muted-foreground">E-way bill: </span>
                       <span className="font-mono">{formatEwbNumber(b.ewb_number)}</span>
                       {b.ewb_date && ` · ${formatDate(new Date(b.ewb_date))}`}
+                      {/* Warehouse route: two parcels, two numbers - say which is which. */}
+                      {ewayBills.length > 1 && b.leg && <span className="text-muted-foreground"> · {ewayLegLabel(b.leg)}</span>}
+                      {b.document_type === "delivery_challan" && b.document_number && (
+                        <span className="text-muted-foreground"> · on challan {b.document_number}</span>
+                      )}
                     </p>
                   ))}
                 </div>

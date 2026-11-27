@@ -1332,6 +1332,7 @@ export default function VendorDashboard() {
                                 <VendorOrderDetailsDialog
                                   data={{
                                     orderId: o.order_id,
+                                    vendorOrderId: o.id,
                                     createdAt: o.created_at,
                                     vendorName: vendor?.name || "Your store",
                                     status: o.status,

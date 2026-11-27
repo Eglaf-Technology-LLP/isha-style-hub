@@ -7,30 +7,35 @@ import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
 import { EWAY_TURNAROUND, formatEwbNumber, openEwayBillPdf } from "@/lib/ewayBill";
 import type { EwayBillRow } from "@/hooks/useEwayBills";
 
-// The e-way bill's number and, once AllBoutiqs has attached it, the
-// printable copy (opens in a new tab to print or save).
-export function EwayBillPdfLink({ bill }: { bill: Pick<EwayBillRow, "ewb_number" | "pdf_path"> }) {
+// Opens the e-way bill's printable copy (AllBoutiqs attaches it after saving
+// the number) in a new tab to print or save.
+export function EwayBillPrintButton({ pdfPath }: { pdfPath: string }) {
   const [opening, setOpening] = useState(false);
+  return (
+    <button
+      type="button"
+      className="text-primary inline-flex items-center gap-0.5 hover:underline disabled:opacity-50"
+      disabled={opening}
+      onClick={async () => {
+        setOpening(true);
+        const error = await openEwayBillPdf(pdfPath);
+        setOpening(false);
+        if (error) toast.error(error);
+      }}
+    >
+      {opening ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />} Print / download
+    </button>
+  );
+}
+
+// The e-way bill's number and its printable copy once attached. note: what
+// it covers, e.g. the leg, when a part has more than one.
+export function EwayBillPdfLink({ bill, note }: { bill: Pick<EwayBillRow, "ewb_number" | "pdf_path">; note?: string }) {
   return (
     <div className="text-[11px] flex items-center gap-1.5 flex-wrap">
       <span className="font-mono text-muted-foreground">E-way bill {formatEwbNumber(bill.ewb_number)}</span>
-      {bill.pdf_path ? (
-        <button
-          type="button"
-          className="text-primary inline-flex items-center gap-0.5 hover:underline disabled:opacity-50"
-          disabled={opening}
-          onClick={async () => {
-            setOpening(true);
-            const error = await openEwayBillPdf(bill.pdf_path!);
-            setOpening(false);
-            if (error) toast.error(error);
-          }}
-        >
-          {opening ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />} Print / download
-        </button>
-      ) : (
-        <span className="text-muted-foreground">(copy coming shortly)</span>
-      )}
+      {note && <span className="text-muted-foreground">· {note}</span>}
+      {bill.pdf_path ? <EwayBillPrintButton pdfPath={bill.pdf_path} /> : <span className="text-muted-foreground">(copy coming shortly)</span>}
     </div>
   );
 }

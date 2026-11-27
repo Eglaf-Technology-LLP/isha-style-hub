@@ -42,6 +42,7 @@ export async function fetchVendorOrderDetails(vendorOrderId: string): Promise<Ve
 
   return {
     orderId: vo.order_id,
+    vendorOrderId: vo.id,
     createdAt: order.created_at,
     vendorName: vendor?.name || "Vendor",
     status: vo.status,

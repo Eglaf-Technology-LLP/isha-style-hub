@@ -16,6 +16,7 @@ import {
   vendorOrderStatusLabel,
 } from "@/lib/warehouse";
 import { PromptDialog } from "./PromptDialog";
+import { EwayBillNumbers } from "@/components/EwayBillNumbers";
 import { EmptyState, orderRef, runAction, runRpc, TrackLink, WarehouseViewProps } from "./shared";
 import { formatDate, formatDateTime } from "@/lib/dates";
 
@@ -39,6 +40,8 @@ function ItemsList({ vo }: { vo: WhVendorOrder }) {
           {i.customisation && <CustomisationDetails customisation={i.customisation} showPrices={false} className="mt-1" />}
         </div>
       ))}
+      {/* Saved e-way bill numbers (the parcel from the boutique travels on one). */}
+      <EwayBillNumbers bills={vo.ewayBills} className="pt-1" />
     </div>
   );
 }

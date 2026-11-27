@@ -24,6 +24,8 @@ export const EWAY_LEG_LABELS: Record<EwayBillLeg, string> = {
 
 export const EWAY_LEGS = Object.keys(EWAY_LEG_LABELS) as EwayBillLeg[];
 
+export const ewayLegLabel = (leg: string) => EWAY_LEG_LABELS[leg as EwayBillLeg] ?? leg.replace(/_/g, " ");
+
 // The legs a boutique ships itself (it waits for, and prints, these).
 export const BOUTIQUE_LEGS: EwayBillLeg[] = ["boutique_to_customer", "boutique_to_warehouse"];
 

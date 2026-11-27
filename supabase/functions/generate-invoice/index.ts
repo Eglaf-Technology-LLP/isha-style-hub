@@ -13,7 +13,9 @@ import { paymentModeName } from "../_shared/paidVia.ts";
 // The customer's GST tax invoice for one boutique part of an order - see
 // _shared/invoice.ts for how it's made. Normally issued when the boutique
 // ships (Ship Now); otherwise on first request here, once it may be.
-// Returned with the e-way bill numbers the goods travelled on under it.
+// Returned with the e-way bill numbers the goods travelled on under it: the
+// boutique's parcel and, on the warehouse route, the warehouse's parcel on
+// its delivery challan. Returns and send-backs go on their own documents.
 
 async function withEwayBills(
   supabase: ReturnType<typeof serviceClient>,
@@ -22,10 +24,13 @@ async function withEwayBills(
 ) {
   const { data: ewayBills } = await supabase
     .from("eway_bills")
-    .select("ewb_number, ewb_date, leg")
+    .select("ewb_number, ewb_date, leg, document_type, document_number")
     .eq("invoice_id", result.invoice.id)
-    .eq("document_type", "tax_invoice")
+    .in("leg", ["boutique_to_customer", "boutique_to_warehouse", "warehouse_to_customer"])
+    .is("return_request_id", null)
+    .is("send_back_id", null)
     .eq("status", "active")
+    .not("ewb_number", "is", null)
     .order("created_at");
   // AllBoutiqs' own invoice for the courier etc. - for the customer and admins.
   const platformInvoice = withPlatformInvoice ? await findPlatformInvoice(supabase, result.invoice.vendor_order_id) : null;
