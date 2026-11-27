@@ -4,7 +4,11 @@ import { corsHeaders, errorMessage, getCallerUserId, jsonResponse, serviceClient
 import { formatDateTimeInWords } from "../_shared/dates.ts";
 import { emailTemplate, sendEmail } from "../_shared/email.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
-import { SITE_URL, SUPABASE_URL } from "../_shared/urls.ts";
+
+// The live website for email buttons, and this project's own address (set by
+// Supabase) for checking upload links - what _shared/urls.ts gives on stage.
+const SITE_URL = "https://allboutiqs.com";
+const SUPABASE_URL = (Deno.env.get("SUPABASE_URL") ?? "").trim().replace(/\/+$/, "");
 
 // Report a problem (client, 27 Nov 2026). Damage or a wrong item found
 // after delivery is not a cancellation: for 24 hours from delivery the
