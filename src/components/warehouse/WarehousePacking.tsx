@@ -28,6 +28,7 @@ import { boutiqueDiscountShare } from "@/lib/coupons";
 import { EwayBillPreview } from "@/lib/ewayBill";
 import { DeliveryChallanButton } from "@/components/DeliveryChallanButton";
 import { EwayBillPdfLink } from "@/components/vendor/EwayBillStatusLine";
+import { EwayBillNumbers } from "@/components/EwayBillNumbers";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -375,6 +376,7 @@ export function PackTab({ data, timing, isAdmin, warehouse }: WarehouseViewProps
                         <p className="text-xs text-muted-foreground">
                           {p.items.map((i) => `${i.product_title}${i.size ? ` (${i.size})` : ""} × ${i.quantity}`).join(", ")}
                         </p>
+                        <EwayBillNumbers bills={p.ewayBills} className="mt-1" />
                       </div>
                       <div className="text-right space-y-1 shrink-0">
                         <span className={`text-xs ${ready.includes(p) ? "text-green-700" : "text-muted-foreground"}`}>{state}</span>
@@ -542,6 +544,14 @@ export function DispatchedTab({ data, isAdmin, warehouse }: WarehouseViewProps) 
                             Label <ExternalLink className="h-3 w-3" />
                           </a>
                         )}
+                        {/* The e-way bill(s) this parcel was booked with. */}
+                        <EwayBillNumbers
+                          bills={parts.flatMap((p) =>
+                            p.ewayBills.filter((b) => b.leg === "warehouse_to_customer" && !!d.shipment && b.shipment_id === d.shipment.id),
+                          )}
+                          showLeg={false}
+                          className="mt-1"
+                        />
                       </TableCell>
                       <TableCell>
                         <Badge className={status.className}>{status.label}</Badge>

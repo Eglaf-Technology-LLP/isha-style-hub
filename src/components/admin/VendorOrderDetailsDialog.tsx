@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Package, MapPin, User, Truck, Loader2, ExternalLink } from "lucide-react";
+import { Eye, Package, MapPin, User, Truck, Loader2, ExternalLink, FileCheck2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Shipment } from "@/hooks/useShipments";
 import { fetchVendorOrderDetails } from "@/lib/fetchVendorOrderDetails";
@@ -27,6 +27,9 @@ import { formatMoney } from "@/lib/format";
 import { paymentModeName } from "@/lib/paymentMode";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
+import { useActiveEwayBills } from "@/hooks/useActiveEwayBills";
+import { EWAY_DOCUMENT_LABELS, ewayLegLabel, formatEwbNumber } from "@/lib/ewayBill";
+import { EwayBillPrintButton } from "@/components/vendor/EwayBillStatusLine";
 
 interface DetailItem {
   // For the product value / customisation / GST split (left out by older callers).
@@ -53,6 +56,8 @@ interface ShippingAddressLike {
 
 export interface VendorOrderDetailsData {
   orderId: string;
+  // The boutique part (vendor_orders.id): its saved e-way bill numbers.
+  vendorOrderId?: string;
   createdAt: string;
   vendorName: string;
   status: string;
@@ -119,9 +124,9 @@ interface Props {
 // The previous view crammed courier, AWB, tracking link, label link and
 // history into a single flex-wrapped line - readable for one shipment at a
 // glance, useless for actually verifying an order end to end. This gives
-// the same real data (nothing fabricated - no HSN/e-way bill/package
-// weight breakdown, since none of that is tracked in this app yet) its
-// own clearly labeled section, mirroring how Shiprocket's own order detail
+// the same real data (nothing fabricated - no HSN or package weight
+// breakdown) its own clearly labeled section, plus the e-way bill numbers
+// an admin saved for this part, mirroring how Shiprocket's own order detail
 // page separates Order/Shipping/Customer/Product/Activity into distinct
 // blocks instead of one row.
 export function VendorOrderDetailsDialog({
@@ -138,6 +143,11 @@ export function VendorOrderDetailsDialog({
   const [loadingEvents, setLoadingEvents] = useState(false);
 
   const data = providedData ?? lazyData;
+  // Saved e-way bill numbers - read each time it's opened, so a number saved
+  // since shows up.
+  const partId = vendorOrderId ?? data?.vendorOrderId ?? null;
+  const { bills: ewayBills } = useActiveEwayBills(open && partId ? [partId] : []);
+  const shipmentEwayBill = data?.shipment ? ewayBills.find((b) => b.shipment_id === data.shipment!.id) : undefined;
   // Product value / customisation / GST - looked up only once it's open.
   const splitGoods = useGoodsSplitter(open ? (data?.items ?? []).map((i) => i.product_id ?? "") : []);
 
@@ -263,6 +273,45 @@ export function VendorOrderDetailsDialog({
               </div>
             </section>
 
+            {ewayBills.length > 0 && (
+              <>
+                <Separator />
+
+                {/* E-way Bill: every number saved for this part, one per movement */}
+                <section>
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <FileCheck2 className="h-4 w-4" /> E-way Bill
+                  </h4>
+                  <div className="space-y-4">
+                    {ewayBills.map((b) => (
+                      <div key={b.id} className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <Field label="E-way Bill No." value={<span className="font-mono">{formatEwbNumber(b.ewb_number)}</span>} />
+                        <Field label="Covers" value={ewayLegLabel(b.leg)} />
+                        <Field
+                          label={EWAY_DOCUMENT_LABELS[b.document_type] ?? "Document"}
+                          value={<span className="font-mono">{b.document_number}</span>}
+                        />
+                        {b.ewb_date && <Field label="Generated On" value={formatDateTime(new Date(b.ewb_date))} />}
+                        {b.valid_until && <Field label="Valid Until" value={formatDateTime(new Date(b.valid_until))} />}
+                        <Field
+                          label="Copy"
+                          value={
+                            b.pdf_path ? (
+                              <span className="text-sm">
+                                <EwayBillPrintButton pdfPath={b.pdf_path} />
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground font-normal">Coming shortly</span>
+                            )
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
+
             <Separator />
 
             {/* Shipping Details */}
@@ -277,6 +326,9 @@ export function VendorOrderDetailsDialog({
                     value={data.shipment.courier_name || (data.shipment.awb_code ? "Assigned" : "None - Shiprocket didn't assign one")}
                   />
                   <Field label="AWB No." value={data.shipment.awb_code ? <span className="font-mono">{data.shipment.awb_code}</span> : "Not yet assigned"} />
+                  {shipmentEwayBill && (
+                    <Field label="E-way Bill No." value={<span className="font-mono">{formatEwbNumber(shipmentEwayBill.ewb_number)}</span>} />
+                  )}
                   <Field label="Status" value={<span className="capitalize">{data.shipment.status.replace(/_/g, " ")}</span>} />
                   {data.shipment.pickup_scheduled_at && (
                     <Field label="Pickup Scheduled" value={formatDateTime(new Date(data.shipment.pickup_scheduled_at))} />
