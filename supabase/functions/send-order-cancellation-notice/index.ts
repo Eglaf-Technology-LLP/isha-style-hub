@@ -16,6 +16,9 @@ interface CancellationNoticeRequest {
   // - not persisted (order_cancellations has no such column), just surfaced
   // to a human immediately when the automatic refund itself failed.
   refund_error?: string | null;
+  // "boutique": the boutique cancelled its own part (vendor-cancel-order) -
+  // the admins hear it from the boutique, and the boutique gets no copy.
+  cancelled_by?: "customer" | "boutique";
 }
 
 function buildEmailHtml(params: {
@@ -26,8 +29,9 @@ function buildEmailHtml(params: {
   wasAlreadyShipped: boolean;
   refundAmount: number | null;
   refundError?: string | null;
+  byBoutique?: boolean;
 }) {
-  const { recipientLabel, orderNumber, vendorName, reason, wasAlreadyShipped, refundAmount, refundError } = params;
+  const { recipientLabel, orderNumber, vendorName, reason, wasAlreadyShipped, refundAmount, refundError, byBoutique } = params;
 
   const shippedNoticeHtml = wasAlreadyShipped
     ? `<div style="background: #fff7ed; padding: 16px; border-radius: 8px; margin: 16px 0;">
@@ -48,7 +52,11 @@ function buildEmailHtml(params: {
       : "";
 
   const bodyHtml = `
-    <p style="color:#5a5a5a;">${recipientLabel}, a customer has cancelled the ${vendorName} portion of an order.</p>
+    <p style="color:#5a5a5a;">${recipientLabel}, ${
+      byBoutique
+        ? `the boutique ${vendorName} cancelled its part of an order. The customer gets a full refund to their original payment.`
+        : `a customer has cancelled the ${vendorName} portion of an order.`
+    }</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f9f6f2; border-radius:8px; padding:16px; margin:20px 0; font-size:14px;">
       <tr><td style="padding:2px 0;"><strong>Order:</strong> #${orderNumber}</td></tr>
       <tr><td style="padding:2px 0;"><strong>Vendor:</strong> ${vendorName}</td></tr>
@@ -59,7 +67,7 @@ function buildEmailHtml(params: {
   `;
 
   return emailTemplate({
-    heading: "Order Cancelled by Customer",
+    heading: byBoutique ? "Order Cancelled by Boutique" : "Order Cancelled by Customer",
     preheader: `${vendorName} - order #${orderNumber} cancelled`,
     bodyHtml,
     ctaLabel: "View in Dashboard",
@@ -73,7 +81,8 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { order_cancellation_id, refund_error }: CancellationNoticeRequest = await req.json();
+    const { order_cancellation_id, refund_error, cancelled_by }: CancellationNoticeRequest = await req.json();
+    const byBoutique = cancelled_by === "boutique";
     if (!order_cancellation_id) throw new Error("Missing order_cancellation_id");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -114,11 +123,13 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const orderNumber = order.id.slice(0, 8).toUpperCase();
-    const subject = `Order Cancelled by Customer - #${orderNumber} | ${vendor?.name || "Vendor"}`;
+    const subject = `Order Cancelled by ${byBoutique ? "Boutique" : "Customer"} - #${orderNumber} | ${vendor?.name || "Vendor"}`;
 
     const results: Record<string, unknown> = {};
 
-    if (vendor?.contact_email) {
+    if (byBoutique) {
+      // The boutique did it (and has the bell); nothing to tell it.
+    } else if (vendor?.contact_email) {
       const html = buildEmailHtml({
         recipientLabel: "Hi",
         orderNumber,
@@ -161,6 +172,7 @@ const handler = async (req: Request): Promise<Response> => {
         wasAlreadyShipped: cancellation.was_already_shipped,
         refundAmount,
         refundError: refund_error,
+        byBoutique,
       });
       results.admin = await Promise.all(
         adminEmails.map((email) =>

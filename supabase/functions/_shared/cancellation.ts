@@ -40,6 +40,8 @@ export interface CancelOneVendorOrderParams {
   // the admin cancels) cancel boutique orders past the normal cut-off and
   // record their own send-back to the boutique.
   force?: boolean;
+  // Who cancelled, for the refund's note: "customer" (default) or "boutique".
+  cancelledByLabel?: "customer" | "boutique";
 }
 
 export interface CancelOneVendorOrderResult {
@@ -67,7 +69,7 @@ export async function cancelOneVendorOrder(
   supabase: SupabaseClient,
   params: CancelOneVendorOrderParams,
 ): Promise<CancelOneVendorOrderResult> {
-  const { vendorOrder, order, cancelledBy, reason, refundMethod, force = false } = params;
+  const { vendorOrder, order, cancelledBy, reason, refundMethod, force = false, cancelledByLabel = "customer" } = params;
   const skip = (skippedReason: string): CancelOneVendorOrderResult => ({
     vendorOrderId: vendorOrder.id,
     cancelled: false,
@@ -210,7 +212,7 @@ export async function cancelOneVendorOrder(
         method,
         kind: "cancellation_refund",
         sourceKey: `cancel:${vendorOrder.id}`,
-        reason: `Order cancelled by customer: ${reason}`,
+        reason: `Order cancelled by ${cancelledByLabel}: ${reason}`,
         initiatedBy: cancelledBy,
         vendorOrderId: vendorOrder.id,
         // Back to the wallet or the online payment: in full. The refund

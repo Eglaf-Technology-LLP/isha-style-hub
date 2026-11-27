@@ -104,6 +104,9 @@ verify_jwt = false
 [functions.report-order-problem]
 verify_jwt = true
 
+[functions.vendor-cancel-order]
+verify_jwt = true
+
 # The email link carries a hashed-on-use, single-use token that is checked
 # against vendor_order_acceptance_tokens before any status change.
 [functions.accept-vendor-order]

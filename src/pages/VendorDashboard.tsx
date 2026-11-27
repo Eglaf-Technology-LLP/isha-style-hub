@@ -75,6 +75,8 @@ import { VendorOrderDetailsDialog } from "@/components/admin/VendorOrderDetailsD
 import { ProductVariant, ProductSpecification, mapDbVariant } from "@/hooks/useProducts";
 import { productMatchesQuery } from "@/lib/productSearch";
 import { RefundSummaryCell } from "@/components/RefundSummaryCell";
+import { VendorCancelOrderDialog } from "@/components/vendor/VendorCancelOrderDialog";
+import { isPartCancellableByCustomer } from "@/lib/orderCancel";
 import { ProductImportExportDialog } from "@/components/admin/ProductImportExportDialog";
 import { ReturnManagement } from "@/components/admin/ReturnManagement";
 import { ProblemReportsPanel } from "@/components/admin/ProblemReportsPanel";
@@ -262,6 +264,7 @@ export default function VendorDashboard() {
   const [products, setProducts] = useState<VendorProduct[]>([]);
   const [orders, setOrders] = useState<VendorOrder[]>([]);
   const [acceptingOrderId, setAcceptingOrderId] = useState<string | null>(null);
+  const [cancellingOrder, setCancellingOrder] = useState<VendorOrder | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>("all");
   const [productStatusFilter, setProductStatusFilter] = useState<ProductStatusFilter>("all");
@@ -1588,6 +1591,19 @@ export default function VendorDashboard() {
                                   see one an admin already processed. Compact summary here,
                                   not the full card - "Details" opens the full breakdown. */}
                               <RefundSummaryCell orderId={o.order_id} vendorOrderId={o.id} version={o.status} />
+                              {/* The boutique can cancel its part until the courier picks it
+                                  up; the customer gets a full refund (client, 27 Nov 2026). */}
+                              {isPartCancellableByCustomer(o.status) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="mt-2 flex items-center gap-1 border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                                  onClick={() => setCancellingOrder(o)}
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  Cancel order
+                                </Button>
+                              )}
                             </TableCell>
                             <TableCell>
                               <InvoiceDownloadButton
@@ -1836,6 +1852,20 @@ export default function VendorDashboard() {
         vendor={vendor}
         onSaved={refreshVendor}
       />
+
+      {cancellingOrder && (
+        <VendorCancelOrderDialog
+          order={cancellingOrder}
+          open={!!cancellingOrder}
+          onOpenChange={(open) => {
+            if (!open) setCancellingOrder(null);
+          }}
+          onCancelled={() => {
+            const id = cancellingOrder.id;
+            setOrders((previous) => previous.map((item) => (item.id === id ? { ...item, status: "cancelled" } : item)));
+          }}
+        />
+      )}
 
       <Footer />
     </div>
