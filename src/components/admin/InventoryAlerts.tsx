@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,8 +84,13 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
 
   const handleUpdateThreshold = async () => {
     if (!editingRow || newThreshold === "") return;
+    const at = Number(newThreshold);
+    if (!Number.isInteger(at) || at < 1) {
+      toast.error("Low-stock alert: enter a whole number, 1 or more");
+      return;
+    }
     setIsUpdating(true);
-    await updateThreshold(editingRow, parseInt(newThreshold, 10));
+    await updateThreshold(editingRow, at);
     setIsUpdating(false);
     setEditingRow(null);
   };
@@ -224,13 +230,16 @@ export function InventoryAlerts({ vendorId }: InventoryAlertsProps) {
                             />
                           </div>
                           <div className="space-y-2 pt-2 border-t">
-                            <Label>Low Stock Threshold</Label>
+                            <Label>Low-stock alert at</Label>
                             <div className="flex gap-2">
                               <Input type="number" min="1" value={newThreshold} onChange={(e) => setNewThreshold(e.target.value)} />
                               <Button variant="outline" onClick={handleUpdateThreshold} disabled={isUpdating}>
                                 Save
                               </Button>
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              Pieces left. For every size of this product - also set on the product form.
+                            </p>
                           </div>
                         </div>
                         <DialogFooter>

@@ -121,6 +121,7 @@ interface VendorProduct {
   product_value?: number | null;
   compare_at_value?: number | null;
   stock_quantity: number;
+  low_stock_threshold: number;
   is_active: boolean;
   approval_status: string;
   // Why the marketplace team rejected it, shown in the list.
@@ -222,15 +223,23 @@ interface VendorOrderItem {
 // The product list's quick filters, each with its count. "Live on site":
 // listed and approved - what customers can see.
 type ProductStatusFilter = "all" | "live" | "hidden" | "pending" | "rejected" | "low_stock" | "out_of_stock";
-const LOW_STOCK_AT = 5;
+// The same rule as the Inventory tab (useLowStockAlerts): each size against
+// the product's low-stock alert (1 by default). Made to Order listings have
+// no stock to run out of.
+const stockAlert = (p: VendorProduct): "out" | "low" | null => {
+  if (p.made_to_order) return null;
+  if (p.stock_quantity <= 0) return "out";
+  const pieces = p.variants.length > 0 ? p.variants.map((v) => v.stock) : [p.stock_quantity];
+  return pieces.some((n) => n > 0 && n <= (p.low_stock_threshold ?? 1)) ? "low" : null;
+};
 const PRODUCT_STATUS_FILTERS: { key: ProductStatusFilter; label: string; test: (p: VendorProduct) => boolean }[] = [
   { key: "all", label: "All", test: () => true },
   { key: "live", label: "Live on site", test: (p) => p.is_active && p.approval_status === "approved" },
   { key: "hidden", label: "Hidden", test: (p) => !p.is_active },
   { key: "pending", label: "Waiting for review", test: (p) => p.approval_status === "pending_review" },
   { key: "rejected", label: "Rejected", test: (p) => p.approval_status === "rejected" },
-  { key: "low_stock", label: "Low stock", test: (p) => p.stock_quantity > 0 && p.stock_quantity <= LOW_STOCK_AT },
-  { key: "out_of_stock", label: "Out of stock", test: (p) => p.stock_quantity <= 0 },
+  { key: "low_stock", label: "Low stock", test: (p) => stockAlert(p) === "low" },
+  { key: "out_of_stock", label: "Out of stock", test: (p) => stockAlert(p) === "out" },
 ];
 const APPROVAL_LABELS: Record<string, string> = {
   approved: "Approved",
@@ -1135,12 +1144,12 @@ export default function VendorDashboard() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-2">
-                                    <span className={p.stock_quantity <= 0 ? "font-medium text-destructive" : undefined}>{p.stock_quantity}</span>
+                                    <span className={stockAlert(p) === "out" ? "font-medium text-destructive" : undefined}>{p.stock_quantity}</span>
                                     <VariantStockDialog productName={p.name} variants={p.variants} />
                                   </div>
-                                  {p.stock_quantity <= 0 ? (
+                                  {stockAlert(p) === "out" ? (
                                     <div className="text-xs text-destructive">Out of stock</div>
-                                  ) : p.stock_quantity <= LOW_STOCK_AT ? (
+                                  ) : stockAlert(p) === "low" ? (
                                     <div className="text-xs text-amber-700">Low stock</div>
                                   ) : null}
                                 </TableCell>
