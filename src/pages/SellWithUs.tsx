@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import { useProfile } from "@/hooks/useProfile";
 import { useVendor, type PersonDetails, type ApplicationDocument } from "@/hooks/useVendor";
 import { InlineSignInForm } from "@/components/auth/InlineSignInForm";
@@ -357,6 +358,30 @@ export default function SellWithUs() {
     }));
   }, [user, profile]);
 
+  // Everything filled in so far is kept in this tab until the application
+  // is submitted (src/hooks/useFormDraft.ts), so the form isn't empty after
+  // reading the Terms or a reload. The Terms tick isn't kept: it is ticked
+  // fresh each time (client corrections, 15 Nov 2026, 1.3.3).
+  const draft = useMemo(
+    () => ({ form, constitution, brandSame, brandDeclared, authorized, contactSame, contact, bank, accountConfirm, files }),
+    [form, constitution, brandSame, brandDeclared, authorized, contactSame, contact, bank, accountConfirm, files],
+  );
+  const { clear: clearDraft } = useFormDraft("sell-with-us", user?.id, draft, (d) => {
+    // Saved values win over the account prefill above.
+    contactPrefilled.current = true;
+    setForm((f) => ({ ...f, ...d.form }));
+    setConstitution(d.constitution);
+    setBrandSame(d.brandSame);
+    setBrandDeclared(d.brandDeclared);
+    setAuthorized(d.authorized);
+    setContactSame(d.contactSame);
+    setContact(d.contact);
+    setBank(d.bank);
+    setAccountConfirm(d.accountConfirm);
+    setFiles(d.files ?? {});
+    toast.success("We kept what you filled in. Carry on where you left off.");
+  });
+
   if (authLoading || vendorLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -581,6 +606,7 @@ export default function SellWithUs() {
       toast.error(error);
       return;
     }
+    await clearDraft();
     navigate("/vendor/pending");
   };
 
@@ -1294,11 +1320,23 @@ export default function SellWithUs() {
                     {/* Client wording (15 Nov 2026). The Seller Terms page holds
                         the terms and the working process. */}
                     I confirm these details and documents are genuine, I agree to the{" "}
-                    <Link to={LEGAL_PATHS.sellerTerms} target="_blank" className="text-primary underline underline-offset-4">
+                    {/* New tab, and the form is kept anyway (useFormDraft) for
+                        phones whose in-app browser opens it in the same view. */}
+                    <Link
+                      to={LEGAL_PATHS.sellerTerms}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline underline-offset-4"
+                    >
                       Terms &amp; Working Process
                     </Link>{" "}
                     and have read the{" "}
-                    <Link to={LEGAL_PATHS.privacy} target="_blank" className="text-primary underline underline-offset-4">
+                    <Link
+                      to={LEGAL_PATHS.privacy}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline underline-offset-4"
+                    >
                       Privacy Policy
                     </Link>
                     . *
