@@ -13,6 +13,7 @@ import Wishlist from "./pages/Wishlist";
 import Account from "./pages/Account";
 import SellWithUs from "./pages/SellWithUs";
 import VendorPending from "./pages/VendorPending";
+import VendorConfirmOrder from "./pages/VendorConfirmOrder";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorProductEditor from "./pages/VendorProductEditor";
 import AdminProductEditor from "./pages/AdminProductEditor";
@@ -67,6 +68,7 @@ const App = () => (
             <Route path="/admin/products/:id" element={<AdminProductEditor />} />
             <Route path="/sell-with-us" element={<SellWithUs />} />
             <Route path="/vendor/pending" element={<VendorPending />} />
+            <Route path="/vendor/confirm-order" element={<VendorConfirmOrder />} />
             <Route path="/vendor" element={<VendorDashboard />} />
             <Route path="/vendor/products/new" element={<VendorProductEditor />} />
             <Route path="/vendor/products/:id" element={<VendorProductEditor />} />

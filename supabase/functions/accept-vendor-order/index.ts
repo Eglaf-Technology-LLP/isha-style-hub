@@ -1,42 +1,92 @@
+import { corsHeaders, errorMessage, jsonResponse, serviceClient } from "../_shared/auth.ts";
+import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { SITE_URL } from "../_shared/urls.ts";
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const htmlHeaders = {
-  "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "no-store, max-age=0",
-  "Referrer-Policy": "no-referrer",
-  "X-Content-Type-Options": "nosniff",
-};
+// Confirm an order from the boutique's new-order email (one-time token).
+//
+// Only the boutique confirms an order (client, 27 Nov 2026: no order is ever
+// confirmed on its own). This link used to confirm on a plain GET, so a mail
+// scanner opening links to check them (Outlook Safe Links, Zoho, antivirus)
+// could confirm an order nobody at the boutique had seen. Now:
+//   GET  ?token=  -> redirect to the site's page /vendor/confirm-order, which
+//                    shows the order and a Confirm order button (old emails'
+//                    links land there too). Nothing changes on a GET.
+//   POST { token, action: "check" }   -> the order and whether it can be confirmed
+//   POST { token, action: "confirm" } -> confirms it (accept_vendor_order_from_email)
 
-function page(title: string, message: string, status: number) {
-  const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
-  return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} | AllBoutiqs</title><body style="font-family:Arial,sans-serif;background:#f4efe9;color:#1a1a1a;margin:0;padding:32px"><main style="max-width:520px;margin:8vh auto;background:white;border-radius:12px;padding:32px;box-shadow:0 2px 10px #0001"><div style="color:#7a2e22;font-weight:bold;letter-spacing:.04em">ALLBOUTIQS</div><h1>${escape(title)}</h1><p style="line-height:1.6;color:#555">${escape(message)}</p><a href="${SITE_URL}/vendor" style="display:inline-block;background:#7a2e22;color:white;text-decoration:none;padding:12px 20px;border-radius:7px">Open Seller Dashboard</a></main></body></html>`, { status, headers: htmlHeaders });
+const TOKEN_RE = /^[a-f0-9]{64}$/;
+
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-serve(async (req) => {
-  if (req.method !== "GET") return page("Link not valid", "Open the Accept order link from the boutique order email.", 405);
-  const token = new URL(req.url).searchParams.get("token") ?? "";
-  if (!/^[a-f0-9]{64}$/.test(token)) return page("Link not valid", "This order acceptance link is invalid. Open the latest order email or use the Seller Dashboard.", 400);
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  if (req.method === "GET") {
+    const token = new URL(req.url).searchParams.get("token") ?? "";
+    const target = `${SITE_URL}/vendor/confirm-order${TOKEN_RE.test(token) ? `?token=${token}` : ""}`;
+    return new Response(null, {
+      status: 302,
+      headers: { Location: target, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+    });
+  }
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-    const tokenHash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
-    const { data, error } = await supabase.rpc("accept_vendor_order_from_email", { _token_hash: tokenHash });
-    if (error) throw error;
-    const result = (data as { result?: string; vendor_order_id?: string; order_id?: string; vendor_id?: string } | null)?.result;
-    if (result === "accepted") {
-      // The transition fires the existing Admin bell trigger plus the
-      // send-vendor-order-accepted-email trigger for all acceptance paths.
-      return page("Order accepted", "Thank you. The order is confirmed, and the AllBoutiqs team has been notified.", 200);
+    const body = await req.json().catch(() => ({}));
+    const token = String(body.token ?? "");
+    const action = body.action === "confirm" ? "confirm" : "check";
+    if (!TOKEN_RE.test(token)) return jsonResponse({ result: "invalid" });
+    const tokenHash = await sha256(token);
+    const supabase = serviceClient();
+
+    if (action === "confirm") {
+      const { data, error } = await supabase.rpc("accept_vendor_order_from_email", { _token_hash: tokenHash });
+      if (error) throw error;
+      // pending -> confirmed fires the customer's "confirmed" email and bell
+      // and the admins' "boutique confirmed" email, as from the dashboard.
+      const result = (data as { result?: string } | null)?.result ?? "invalid";
+      return jsonResponse({ result: result === "already_used" ? "already_accepted" : result });
     }
-    if (result === "already_accepted" || result === "already_used") return page("Already accepted", "This order has already been accepted. No further action is needed.", 200);
-    if (result === "expired") return page("Link expired", "This acceptance link expired. Please accept the order from the Seller Dashboard.", 410);
-    if (result === "not_pending") return page("Order no longer pending", "This order can no longer be accepted from this link. Check the Seller Dashboard for its current status.", 409);
-    return page("Link not valid", "This acceptance link is invalid. Open the latest order email or use the Seller Dashboard.", 400);
-  } catch (error) {
-    console.error("accept-vendor-order failed", error);
-    return page("Couldn't accept this order", "Please open the Seller Dashboard and accept the order there, or contact AllBoutiqs support.", 500);
+
+    // check: read only - the token stays unused.
+    const { data: tokenRow, error: tokenErr } = await supabase
+      .from("vendor_order_acceptance_tokens")
+      .select("vendor_order_id, expires_at, used_at")
+      .eq("token_hash", tokenHash)
+      .maybeSingle();
+    if (tokenErr) throw tokenErr;
+    if (!tokenRow) return jsonResponse({ result: "invalid" });
+
+    const { data: part, error: partErr } = await supabase
+      .from("vendor_orders")
+      .select("id, order_id, status, created_at")
+      .eq("id", tokenRow.vendor_order_id)
+      .maybeSingle();
+    if (partErr) throw partErr;
+    if (!part) return jsonResponse({ result: "invalid" });
+
+    const { data: items } = await supabase
+      .from("order_items")
+      .select("product_title, variant_title, size, color, quantity")
+      .eq("vendor_order_id", part.id);
+    const order = {
+      order_ref: `#${part.order_id.slice(0, 8).toUpperCase()}`,
+      placed_at: part.created_at,
+      items: (items ?? []).map((i) => ({ title: i.product_title, options: itemOptionsLabel(i), quantity: i.quantity })),
+    };
+
+    let result: string;
+    if (part.status === "confirmed") result = "already_accepted";
+    else if (part.status !== "pending") result = "not_pending";
+    else if (tokenRow.used_at) result = "invalid";
+    else if (new Date(tokenRow.expires_at).getTime() <= Date.now()) result = "expired";
+    else result = "pending";
+    return jsonResponse({ result, ...order });
+  } catch (e) {
+    console.error("accept-vendor-order failed", errorMessage(e));
+    return jsonResponse({ error: "Something went wrong. Please confirm the order from the Seller Dashboard." }, 500);
   }
 });

@@ -1437,15 +1437,17 @@ export default function VendorDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="space-y-2">
+                                {/* A new order waits for the boutique: Confirm comes first.
+                                    Nothing else confirms an order (client, 27 Nov 2026). */}
+                                {o.status === "pending" && (
+                                  <Button size="sm" className="flex items-center gap-1" disabled={acceptingOrderId === o.id} onClick={() => void acceptVendorOrder(o)}>
+                                    {acceptingOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                    Confirm order
+                                  </Button>
+                                )}
                                 <Badge className={vendorOrderStatusColors[o.status] || "bg-muted"}>
                                   {vendorOrderStatusLabel(o.status, !!o.via_warehouse)}
                                 </Badge>
-                                {o.status === "pending" && (
-                                  <Button size="sm" variant="outline" className="flex items-center gap-1" disabled={acceptingOrderId === o.id} onClick={() => void acceptVendorOrder(o)}>
-                                    {acceptingOrderId === o.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                                    Confirm
-                                  </Button>
-                                )}
                               </div>
                               {o.via_warehouse && (
                                 <div className="text-[11px] text-muted-foreground mt-1 whitespace-nowrap">Via AllBoutiqs warehouse</div>

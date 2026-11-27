@@ -1,4 +1,4 @@
-import { SITE_URL, SUPABASE_URL } from "../_shared/urls.ts";
+import { SITE_URL } from "../_shared/urls.ts";
 import { itemOptionsLabel } from "../_shared/itemOptions.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { customisationHtml } from "../_shared/customisation.ts";
@@ -104,7 +104,10 @@ const handler = async (req: Request): Promise<Response> => {
         used_at: null,
       }, { onConflict: "vendor_order_id" });
       if (error) throw error;
-      return `${SUPABASE_URL}/functions/v1/accept-vendor-order?token=${token}`;
+      // The site's page shows the order and a Confirm order button: opening
+      // the link never confirms it (a mail scanner checking links used to),
+      // only the button does (accept-vendor-order).
+      return `${SITE_URL}/vendor/confirm-order?token=${token}`;
     };
 
     const escapeHtml = (value: string) =>
@@ -135,7 +138,7 @@ const handler = async (req: Request): Promise<Response> => {
               bodyHtml: `
                 <p style="color:#5a5a5a;">A new order from <strong>${order.customer_name}</strong> is waiting to be confirmed.</p>
                 ${itemsHtml(byVendor.get(v.id) ?? [])}
-                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Confirm this order with one tap. The link expires in 7 days and can only be used once.</p>' : ""}
+                ${canAccept ? '<p style="color:#5a5a5a; margin-top:20px;">Open the link and press <strong>Confirm order</strong>. The link expires in 7 days and can only be used once.</p>' : ""}
               `,
               ctaLabel: canAccept ? "Confirm order" : "View orders",
               ctaUrl,
