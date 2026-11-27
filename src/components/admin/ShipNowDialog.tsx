@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Truck, Star } from "lucide-react";
-import { CourierOption, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
+import { CourierOption, CourierQuote, ServiceabilityResult, ShipDestination, ShipNowOutcome } from "@/hooks/useShipments";
 import { formatWeightKg } from "@/lib/weight";
 import { formatMoney } from "@/lib/format";
 import { CourierFareBreakdown } from "@/components/CourierFareBreakdown";
@@ -34,11 +34,17 @@ interface ShipNowDialogProps {
   triggerSize?: "sm" | "default";
   // Books an exchange's replacement to the warehouse instead of the order itself.
   returnRequestId?: string;
+  // Admin screens only: each courier's fare and its breakdown. Boutiques never
+  // see Shiprocket's name or charges (client, 27 Nov 2026) - the server also
+  // leaves the fares out for them.
+  showRates?: boolean;
 }
 
+const hasFare = (c: CourierQuote): c is CourierOption => c.rate != null;
+
 // The real ask: don't let Shiprocket silently auto-assign a courier - show
-// the vendor the real available couriers and their fares for this route,
-// let them pick one, then book with exactly that choice.
+// the real available couriers for this route (with their fares, for an
+// admin), let them pick one, then book with exactly that choice.
 //
 // Over the e-way bill limit the booking waits until AllBoutiqs has made the
 // e-way bill (asked for on the first Ship Now, with the tax invoice). AllBoutiqs is the
@@ -51,10 +57,11 @@ export function ShipNowDialog({
   triggerLabel = "Ship Now",
   triggerSize = "sm",
   returnRequestId,
+  showRates = false,
 }: ShipNowDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [couriers, setCouriers] = useState<CourierOption[] | null>(null);
+  const [couriers, setCouriers] = useState<CourierQuote[] | null>(null);
   const [isCod, setIsCod] = useState(false);
   const [destination, setDestination] = useState<ShipDestination | null>(null);
   const [weightKg, setWeightKg] = useState<number | null>(null);
@@ -121,8 +128,9 @@ export function ShipNowDialog({
         <DialogHeader>
           <DialogTitle>Choose a courier</DialogTitle>
           <DialogDescription>
-            Real rates for this pickup and delivery address, straight from Shiprocket - cross-check
-            any of these against Shiprocket's own rate calculator and the numbers will match exactly.
+            {showRates
+              ? "Real rates for this pickup and delivery address, straight from Shiprocket - cross-check any of these against Shiprocket's own rate calculator and the numbers will match exactly."
+              : "Couriers that can pick this parcel up from your address, with their delivery dates. Pick one to book the pickup."}
           </DialogDescription>
         </DialogHeader>
 
@@ -149,20 +157,23 @@ export function ShipNowDialog({
               )}
               {weightKg != null && (
                 <p className="text-sm -mt-2">
-                  Parcel weight for these rates: <span className="font-medium">{formatWeightKg(weightKg)}</span>
+                  Parcel weight{showRates ? " for these rates" : ""}:{" "}
+                  <span className="font-medium">{formatWeightKg(weightKg)}</span>
                   <span className="block text-xs text-muted-foreground">
                     From each product's weight × quantity (300 g where a product has none). Wrong? Correct the product's
-                    weight first - the fare depends on it.
+                    weight first{showRates ? " - the fare depends on it" : ""}.
                   </span>
                 </p>
               )}
-              <p className="text-xs text-muted-foreground -mt-2">
-                {destination?.kind === "warehouse"
-                  ? "Parcels to the warehouse are prepaid - rates below are freight only, paid by AllBoutiqs."
-                  : isCod
-                    ? "This order is Cash on Delivery - rates below include the courier's COD handling charge."
-                    : "This order is prepaid - rates below are freight only."}
-              </p>
+              {showRates && (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  {destination?.kind === "warehouse"
+                    ? "Parcels to the warehouse are prepaid - rates below are freight only, paid by AllBoutiqs."
+                    : isCod
+                      ? "This order is Cash on Delivery - rates below include the courier's COD handling charge."
+                      : "This order is prepaid - rates below are freight only."}
+                </p>
+              )}
               <RadioGroup
                 value={selectedCourierId?.toString() ?? ""}
                 onValueChange={(v) => setSelectedCourierId(Number(v))}
@@ -193,12 +204,14 @@ export function ShipNowDialog({
                         )}
                         {/* Same line items Shiprocket's own rate calculator shows
                             (Freight charges / Coverage / Smart Order / COD) - so
-                            a vendor checking there sees the exact same numbers,
+                            an admin checking there sees the exact same numbers,
                             and the total is what the booking takes. */}
-                        <CourierFareBreakdown courier={c} className="mt-1" />
+                        {showRates && hasFare(c) && <CourierFareBreakdown courier={c} className="mt-1" />}
                       </div>
                     </div>
-                    <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>
+                    {showRates && hasFare(c) && (
+                      <span className="font-semibold whitespace-nowrap">{formatMoney(c.rate)}</span>
+                    )}
                   </Label>
                 ))}
               </RadioGroup>

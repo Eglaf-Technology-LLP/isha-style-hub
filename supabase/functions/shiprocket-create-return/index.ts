@@ -4,7 +4,8 @@ import {
   serviceClient,
   getCallerUserId,
   canBookReturnPickup,
-  errorMessage,
+  courierErrorFor,
+  isAdmin,
 } from "../_shared/shiprocket.ts";
 import { bookReversePickup, ReversePickupError } from "../_shared/reversePickup.ts";
 
@@ -14,6 +15,7 @@ import { bookReversePickup, ReversePickupError } from "../_shared/reversePickup.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let admin = false;
   try {
     const { return_request_id } = await req.json();
     if (!return_request_id) return jsonResponse({ error: "return_request_id is required" }, 400);
@@ -22,6 +24,7 @@ Deno.serve(async (req) => {
     if (!userId) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const supabase = serviceClient();
+    admin = await isAdmin(supabase, userId);
     if (!(await canBookReturnPickup(supabase, userId, return_request_id))) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
@@ -36,6 +39,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ shipment, already_scheduled: alreadyScheduled });
   } catch (e) {
     console.error("shiprocket-create-return error", e);
-    return jsonResponse({ error: errorMessage(e) }, e instanceof ReversePickupError ? 400 : 500);
+    // The boutique accepting a return hears it in courier terms.
+    return jsonResponse({ error: courierErrorFor(e, admin) }, e instanceof ReversePickupError ? 400 : 500);
   }
 });

@@ -7,7 +7,7 @@ import {
   isVendorMember,
   computeTotalWeightKg,
   checkCourierServiceability,
-  errorMessage,
+  courierErrorFor,
 } from "../_shared/shiprocket.ts";
 import { getWarehouse } from "../_shared/warehouse.ts";
 import { ewayBillPreview } from "../_shared/ewayBill.ts";
@@ -17,9 +17,12 @@ import { ewayBillPreview } from "../_shared/ewayBill.ts";
 // price, so they pick one instead of Shiprocket silently auto-assigning.
 // Read-only - no Shiprocket order/AWB is created here. On the warehouse
 // route the delivery end is the AllBoutiqs warehouse, always prepaid.
+// Fares go to admins only: a boutique is never shown Shiprocket's charges
+// (client, 27 Nov 2026), so its list has the couriers without them.
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let admin = false;
   try {
     const { vendor_order_id, return_request_id } = await req.json();
     if (!vendor_order_id) return jsonResponse({ error: "vendor_order_id is required" }, 400);
@@ -37,8 +40,8 @@ Deno.serve(async (req) => {
     if (voErr) throw voErr;
     if (!vendorOrder) return jsonResponse({ error: "Vendor order not found" }, 404);
 
-    const authorized =
-      (await isAdmin(supabase, userId)) || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
+    admin = await isAdmin(supabase, userId);
+    const authorized = admin || (await isVendorMember(supabase, userId, vendorOrder.vendor_id));
     if (!authorized) return jsonResponse({ error: "Forbidden" }, 403);
 
     const [{ data: order, error: orderErr }, { data: items, error: itemsErr }, { data: vendor, error: vendorErr }] =
@@ -128,7 +131,15 @@ Deno.serve(async (req) => {
     });
 
     return jsonResponse({
-      couriers,
+      couriers: admin
+        ? couriers
+        : couriers.map(({ courierId, courierName, rating, recommended, etd }) => ({
+            courierId,
+            courierName,
+            rating,
+            recommended,
+            etd,
+          })),
       weightKg,
       isCod,
       destination: warehouse
@@ -138,6 +149,6 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error("shiprocket-check-serviceability error", e);
-    return jsonResponse({ error: errorMessage(e) }, 500);
+    return jsonResponse({ error: courierErrorFor(e, admin) }, 500);
   }
 });

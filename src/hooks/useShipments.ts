@@ -19,6 +19,12 @@ export interface CourierOption {
   etd: string | null;
 }
 
+// A courier as Ship Now lists it. The fare fields come to admins only: for a
+// boutique the server leaves them out (Shiprocket's charges are never shown
+// to boutiques - client, 27 Nov 2026).
+export type CourierQuote = Pick<CourierOption, "courierId" | "courierName" | "rating" | "recommended" | "etd"> &
+  Partial<CourierOption>;
+
 export interface ShipDestination {
   kind: "warehouse" | "customer";
   name?: string;
@@ -27,7 +33,7 @@ export interface ShipDestination {
 }
 
 export interface ServiceabilityResult {
-  couriers: CourierOption[];
+  couriers: CourierQuote[];
   isCod: boolean;
   // The parcel weight these fares are for (from the products' weights).
   weightKg?: number;
@@ -59,6 +65,9 @@ export interface Shipment {
   created_at: string;
 }
 
+const SHIPMENT_COLUMNS =
+  "id, vendor_order_id, return_request_id, dispatch_id, shipment_type, awb_code, courier_name, status, status_raw, label_url, manifest_url, pickup_scheduled_at, picked_up_at, delivered_at, rto_initiated_at, estimated_delivery_date, created_at";
+
 // Tracks the real courier shipment(s) behind a set of vendor_orders -
 // "Ship Now" books the pickup via shiprocket-create-shipment, everything
 // after that (in transit, delivered, NDR, RTO) updates automatically via
@@ -77,9 +86,11 @@ export function useShipments(vendorOrderIds: string[]) {
       return;
     }
     setLoading(true);
+    // Only what the screens show - not the booking's cost columns, which a
+    // boutique's browser has no business receiving.
     const { data, error } = await supabase
       .from("shipments")
-      .select("*")
+      .select(SHIPMENT_COLUMNS)
       .in("vendor_order_id", vendorOrderIds);
     if (error) {
       console.error("Failed to load shipments", error);
