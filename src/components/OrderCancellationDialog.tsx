@@ -18,6 +18,7 @@ import { formatMoney } from "@/lib/format";
 import { RefundMethodPicker } from "@/components/RefundMethodPicker";
 import { RefundMethod } from "@/lib/wallet";
 import { useRefundCharge } from "@/hooks/useWallet";
+import { isPartCancellableByCustomer } from "@/lib/orderCancel";
 
 // vendorOrderId/vendorOrderStatus are internal grouping keys only - the
 // customer never sees a vendor name or grouping label anywhere in this
@@ -59,8 +60,14 @@ const CANCEL_REASONS = [
   "Other",
 ];
 
-// "dispatched": already in the warehouse's booked parcel to the customer.
-const BLOCKED_STATUSES = ["delivered", "cancelled", "returned", "dispatched"];
+// A part can be cancelled only until the courier picks it up
+// (isPartCancellableByCustomer). "dispatched": already in the warehouse's
+// booked parcel to the customer.
+const FINISHED_STATUSES = ["delivered", "cancelled", "returned"];
+const blockedNote = (status: string) =>
+  FINISHED_STATUSES.includes(status)
+    ? `Already ${status} - can't be cancelled`
+    : "Already with the courier - can't be cancelled";
 
 export function OrderCancellationDialog({
   orderId,
@@ -86,7 +93,7 @@ export function OrderCancellationDialog({
     return [...byVendorOrder.entries()].map(([vendorOrderId, groupItems]) => ({
       vendorOrderId,
       items: groupItems,
-      blocked: BLOCKED_STATUSES.includes(groupItems[0].vendorOrderStatus),
+      blocked: !isPartCancellableByCustomer(groupItems[0].vendorOrderStatus),
     }));
   }, [items]);
 
@@ -211,7 +218,7 @@ export function OrderCancellationDialog({
                       </p>
                       {group.blocked && (
                         <p className="text-xs text-destructive mt-0.5">
-                          Already {group.items[0].vendorOrderStatus} - can't be cancelled
+                          {blockedNote(group.items[0].vendorOrderStatus)}
                         </p>
                       )}
                     </div>

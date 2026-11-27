@@ -1,5 +1,11 @@
 import { corsHeaders, jsonResponse, serviceClient, getCallerUserId, isAdmin, errorMessage } from "../_shared/auth.ts";
-import { cancelOneVendorOrder, customerCancelDeadline, CUSTOMER_CANCEL_WINDOW_HOURS } from "../_shared/cancellation.ts";
+import {
+  BLOCKED_VENDOR_ORDER_STATUSES,
+  cancelOneVendorOrder,
+  CUSTOMER_CANCELLABLE_STATUSES,
+  customerCancelDeadline,
+  CUSTOMER_CANCEL_WINDOW_HOURS,
+} from "../_shared/cancellation.ts";
 
 // Covers "cancel one item", "cancel several items" (possibly spanning a
 // couple of shipments), and "cancel the whole order" with one code path -
@@ -67,6 +73,23 @@ Deno.serve(async (req) => {
       return jsonResponse(
         {
           error: `Orders can only be cancelled within ${CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing them. You can ask for a return once it's delivered.`,
+        },
+        403,
+      );
+    }
+
+    // ...and only until the courier picks it up. (Already cancelled /
+    // delivered / returned parts are skipped below, as before.)
+    if (
+      !admin &&
+      requestedVendorOrders.some(
+        (vo) => !CUSTOMER_CANCELLABLE_STATUSES.includes(vo.status) && !BLOCKED_VENDOR_ORDER_STATUSES.includes(vo.status),
+      )
+    ) {
+      return jsonResponse(
+        {
+          error:
+            "The courier has already picked up this order, so it can't be cancelled. Once it's delivered, you can report a problem or ask for a return from My Orders.",
         },
         403,
       );

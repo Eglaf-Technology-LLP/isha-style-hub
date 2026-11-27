@@ -64,8 +64,8 @@ export default function Faq() {
       title: "Can I cancel my order?",
       body: (
         <p>
-          Yes, from {myOrders} within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing it, as long as it hasn't been
-          packed for shipping yet.
+          Yes, from {myOrders} within {CUSTOMER_CANCEL_WINDOW_HOURS} hours of placing it, as long as the courier hasn't
+          picked it up yet.
         </p>
       ),
     },

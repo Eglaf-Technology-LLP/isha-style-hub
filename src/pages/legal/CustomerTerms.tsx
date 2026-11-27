@@ -86,8 +86,8 @@ const sections: LegalSection[] = [
     body: (
       <ul>
         <li>
-          You can cancel an order from My Orders within 24 hours of placing it, unless it has already been packed
-          and shipped. After that, ask for a return once it is delivered.
+          You can cancel an order from My Orders within 24 hours of placing it, unless the courier has already
+          picked it up. After that, report a problem or ask for a return once it is delivered.
         </li>
         <li>
           Returns and exchanges follow the return policy shown on each product page. Request them from My Orders with

@@ -18,6 +18,11 @@ export function customerCancelDeadline(orderPlacedAt: string): Date {
   return new Date(new Date(orderPlacedAt).getTime() + CUSTOMER_CANCEL_WINDOW_HOURS * 3_600_000);
 }
 
+// ...and only until the courier picks the part up (client, 27 Nov 2026:
+// whichever comes first). Past these statuses the part is with a courier,
+// at our centre or already delivered. Same list as src/lib/orderCancel.ts.
+export const CUSTOMER_CANCELLABLE_STATUSES = ["pending", "confirmed", "processing"];
+
 // order_items.variant_id is an unconstrained TEXT column - a no-variant line
 // item carries a synthetic id like `${productId}-default`, not a uuid.
 // Same check Checkout.tsx applies before its own adjust_stock call.
