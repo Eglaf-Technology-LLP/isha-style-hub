@@ -438,20 +438,16 @@ export function PaymentManagement({ isAdmin }: PaymentManagementProps) {
                                   <div className="space-y-4 mt-4">
                                     <div className="p-4 bg-muted rounded-lg">
                                       <p className="text-sm">
-                                        <strong>Original Amount:</strong> ₹
-                                        {payment.amount.toFixed(2)}
+                                        <strong>Original Amount:</strong> {formatMoney(payment.amount)}
                                       </p>
                                       {payment.refund_amount > 0 && (
                                         <p className="text-sm">
-                                          <strong>Already Refunded:</strong> ₹
-                                          {payment.refund_amount.toFixed(2)}
+                                          <strong>Already Refunded:</strong> {formatMoney(payment.refund_amount)}
                                         </p>
                                       )}
                                       <p className="text-sm">
-                                        <strong>Available for Refund:</strong> ₹
-                                        {(
-                                          payment.amount - payment.refund_amount
-                                        ).toFixed(2)}
+                                        <strong>Available for Refund:</strong>{" "}
+                                        {formatMoney(payment.amount - payment.refund_amount)}
                                       </p>
                                     </div>
                                     {selectedPaymentRefunds.length > 0 && (

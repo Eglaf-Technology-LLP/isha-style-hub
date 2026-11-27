@@ -32,6 +32,7 @@ import {
 import { cancelOneVendorOrder } from "../_shared/cancellation.ts";
 import { links, notifyAllAdmins, notifyVendorMembers } from "../_shared/notify.ts";
 import { COMPANY } from "../_shared/company.ts";
+import { money } from "../_shared/money.ts";
 import { InvoiceError } from "../_shared/invoice.ts";
 import {
   EwayBill,
@@ -841,8 +842,8 @@ Deno.serve(async (req) => {
             type: "warehouse_refund_needed",
             title: refundError ? "Return refund failed" : "Refund this return by hand",
             body: refundError
-              ? `The return on order ${ref} passed inspection but the ₹${amount} refund failed: ${refundError}. Retry from Returns (Mark Completed).`
-              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery and the customer chose a bank transfer - they email their bank details to ${COMPANY.supportEmail}. Transfer ₹${toCustomer}${toCustomer < amount ? ` (₹${amount} less the ₹${round2(amount - toCustomer)} refund charge)` : ""} within 5 working days, then mark the return completed.`,
+              ? `The return on order ${ref} passed inspection but the ${money(amount)} refund failed: ${refundError}. Retry from Returns (Mark Completed).`
+              : `The return on order ${ref} passed inspection. It was paid by Cash on Delivery and the customer chose a bank transfer - they email their bank details to ${COMPANY.supportEmail}. Transfer ${money(toCustomer)}${toCustomer < amount ? ` (${money(amount)} less the ${money(round2(amount - toCustomer))} refund charge)` : ""} within 5 working days, then mark the return completed.`,
             link: links.adminReturn(ctx.rr.id),
             category: "order",
           });

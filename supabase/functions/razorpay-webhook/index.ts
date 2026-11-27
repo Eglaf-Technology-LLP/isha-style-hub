@@ -3,6 +3,7 @@ import { applyPayoutEntity, applyValidation } from "../_shared/razorpayx.ts";
 import { reconcileRefundTotals } from "../_shared/refunds.ts";
 import { createHeldTransfers, notifyAdmins, notifyVendor, reconcileSettlements, VENDOR_STATUS_FOR } from "../_shared/razorpayRoute.ts";
 import { links } from "../_shared/notify.ts";
+import { money } from "../_shared/money.ts";
 import { refundLateCapture } from "../_shared/lateCapture.ts";
 import { isMissingColumn, paidViaOf, withPaidVia } from "../_shared/paidVia.ts";
 
@@ -193,7 +194,7 @@ Deno.serve(async (req) => {
               vo.vendor_id,
               "payout_failed",
               "Payout delayed",
-              `Razorpay couldn't complete the payout of ₹${Math.round(Number(vo.net_payable))} for order ${ref} (${reason}). We'll retry automatically.`,
+              `Razorpay couldn't complete the payout of ${money(vo.net_payable)} for order ${ref} (${reason}). We'll retry automatically.`,
               { event: "transfer_failed", vendor_order_ids: [vo.id], reason },
             );
           }
