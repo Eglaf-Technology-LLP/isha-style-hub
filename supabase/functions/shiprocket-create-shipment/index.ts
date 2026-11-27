@@ -127,6 +127,16 @@ Deno.serve(async (req) => {
       if (["cancelled", "returned"].includes(vendorOrder.status)) {
         return jsonResponse({ error: `Cannot ship a ${vendorOrder.status} order` }, 400);
       }
+      // Only the boutique confirms an order, with its Confirm button - and that
+      // is what tells the customer and the admins (client, 27 Nov 2026).
+      // Booking a courier used to confirm a pending order on the way.
+      if (vendorOrder.status === "pending") {
+        return jsonResponse({
+          error: admin
+            ? "The boutique hasn't confirmed this order yet - it can be shipped once they press Confirm."
+            : "Confirm this order first (the Confirm button), then ship it.",
+        }, 400);
+      }
       if (viaWarehouse && !["pending", "confirmed", "processing"].includes(vendorOrder.status)) {
         return jsonResponse({ error: "This order has already reached the warehouse" }, 400);
       }
