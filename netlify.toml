@@ -12,6 +12,9 @@
   VITE_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_lXOgH0JPjvNKns9AkzuW8A_ad7UCdw6"
   # Shop photos and videos on Cloudflare R2 (supabase/live-setup/R2_MEDIA.md).
   VITE_MEDIA_BASE_URL = "https://media.allboutiqs.com"
+  # Meta Pixel for Ads Manager (client, 28 Nov 2026; vite.config.ts, src/lib/metaPixel.ts).
+  # Live only: stage and localhost leave it out, so their visits aren't tracked.
+  VITE_META_PIXEL_ID = "1042621852215052"
 
 # Single-page app: send every path to index.html so links like
 # /product/<id> work when opened directly or refreshed.

@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import { Play, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Product, ProductVariant } from "@/hooks/useProducts";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore, type CartItem } from "@/stores/cartStore";
+import { pixelAddToCart } from "@/lib/metaPixel";
 import { useUiStore } from "@/stores/uiStore";
 import { WishlistButton } from "@/components/WishlistButton";
 import { CompareButton } from "@/components/ProductComparison";
@@ -62,7 +63,7 @@ export function ProductCard({ product, priority = false, viewOnly = false }: Pro
       ...(size ? [{ name: "Size", value: size }] : []),
       ...(color ? [{ name: "Colour", value: color }] : []),
     ];
-    addItem({
+    const item: CartItem = {
       productId: product.id,
       productName: product.name,
       productImage: product.images[0] || null,
@@ -74,7 +75,9 @@ export function ProductCard({ product, priority = false, viewOnly = false }: Pro
       quantity: 1,
       selectedOptions,
       sku: product.sku || null,
-    });
+    };
+    addItem(item);
+    pixelAddToCart([item]);
     toast.success("Added to cart", {
       description: [product.name, size && `Size ${size}`].filter(Boolean).join(" · "),
       position: "top-center",

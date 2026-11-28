@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { deliveryDateLabel, fetchCartDeliveryDate } from "@/components/CartShippingEstimate";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
 import { useCartStore, CartItem, cartLineKey } from "@/stores/cartStore";
 import { useBuyNowStore } from "@/stores/buyNowStore";
 import { openRazorpayCheckout } from "@/lib/razorpay";
+import { pixelInitiateCheckout } from "@/lib/metaPixel";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { invokeEdgeFunction } from "@/lib/invokeEdgeFunction";
@@ -149,6 +150,14 @@ export default function Checkout() {
   const items = useMemo(() => (buyNow && buyNowItem ? [buyNowItem] : cart.items), [buyNow, buyNowItem, cart.items]);
   const subtotal = items.reduce((sum, i) => sum + parseFloat(i.price.amount) * i.quantity, 0);
   const clearCart = buyNow ? clearBuyNow : cart.clearCart;
+  // Meta Pixel InitiateCheckout, once per visit to checkout with something
+  // to buy (the cart, or the Buy Now piece) - not on the order-placed page.
+  const pixelCheckoutSent = useRef(false);
+  useEffect(() => {
+    if (pixelCheckoutSent.current || placedId || items.length === 0) return;
+    pixelCheckoutSent.current = true;
+    pixelInitiateCheckout(items);
+  }, [items, placedId]);
   const { user, loading: authLoading } = useAuth();
   // Refunds the customer took as wallet balance pay first, up to the whole
   // order. On by default whenever there's a balance; they can switch it off.

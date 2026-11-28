@@ -7,6 +7,7 @@ import { formatDateInWordsWithDay } from "@/lib/dates";
 import { useGoodsSplitter } from "@/lib/orderAmounts";
 import { GoodsSplitRows } from "@/components/GoodsSplitRows";
 import { paymentModeLine } from "@/lib/paymentMode";
+import { pixelPurchase } from "@/lib/metaPixel";
 
 interface PlacedOrder {
   id: string;
@@ -21,6 +22,7 @@ interface PlacedOrder {
   cod_charge: number;
   total: number;
   wallet_amount: number;
+  created_at: string;
   customer_name: string;
   shipping_address: { address_line1?: string; address_line2?: string; city?: string; state?: string; pincode?: string } | null;
   estimated_delivery_date: string | null;
@@ -62,7 +64,11 @@ export function OrderPlacedSummary({ orderId, onMissing }: { orderId: string; on
       .then(({ data }) => {
         if (cancelled) return;
         if (!data || !isPlaced(data)) onMissing();
-        else setOrder(data as unknown as PlacedOrder);
+        else {
+          setOrder(data as unknown as PlacedOrder);
+          // Meta Pixel Purchase - once per order (a refresh doesn't count again).
+          pixelPurchase(data as unknown as PlacedOrder);
+        }
       });
     return () => {
       cancelled = true;

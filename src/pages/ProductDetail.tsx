@@ -26,6 +26,7 @@ import { useCustomerShipping } from "@/hooks/useCustomerShipping";
 import { supabase } from "@/integrations/supabase/client";
 import { useCartStore, type CartItem } from "@/stores/cartStore";
 import { useBuyNowStore } from "@/stores/buyNowStore";
+import { pixelAddToCart, pixelViewContent } from "@/lib/metaPixel";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "sonner";
 import { Product, ProductVariant, mapDbVariant, variantImages } from "@/hooks/useProducts";
@@ -163,6 +164,16 @@ export default function ProductDetail() {
       });
     }
   }, [product, handle, trackProductView, roleLoading, viewOnly]);
+
+  // Meta Pixel ViewContent, once per product opened - shoppers only, on the
+  // same rule as "recently viewed" above.
+  const pixelViewSent = useRef<string | null>(null);
+  useEffect(() => {
+    if (loading || roleLoading || viewOnly || !product || product.id !== handle) return;
+    if (pixelViewSent.current === product.id) return;
+    pixelViewSent.current = product.id;
+    pixelViewContent({ id: product.id, name: product.name, price: product.price });
+  }, [loading, roleLoading, viewOnly, product, handle]);
 
   useEffect(() => {
     async function loadProduct() {
@@ -422,6 +433,7 @@ export default function ProductDetail() {
     const item = buildSelectedItem();
     if (!item) return false;
     addItem(item);
+    pixelAddToCart([item]);
     if (item.customisation) setCustomiser(emptyCustomiser);
     return true;
   };

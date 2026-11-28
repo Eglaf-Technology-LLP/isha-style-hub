@@ -12,6 +12,7 @@ import {
 import { Loader2, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { useCartStore, CartItem } from "@/stores/cartStore";
+import { pixelAddToCart } from "@/lib/metaPixel";
 import { checkReorderAvailability, ReorderCheckResult, ReorderSourceItem } from "@/lib/reorderAvailability";
 import { formatMoney } from "@/lib/format";
 
@@ -69,6 +70,7 @@ export function ReorderDialog({ items, open, onOpenChange }: ReorderDialogProps)
     });
 
     addItems(cartItems);
+    pixelAddToCart(cartItems);
 
     const skippedCount = results.length - toAdd.length;
     if (skippedCount > 0) {
